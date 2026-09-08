@@ -58,6 +58,7 @@ export * from "./funeralHomeUpdate";
 export * from "./getCasesParams";
 export * from "./getCasesStatus";
 export * from "./healthStatus";
+export * from "./healthStatusStatus";
 export * from "./loginInput";
 export * from "./messageInput";
 export * from "./messageThread";

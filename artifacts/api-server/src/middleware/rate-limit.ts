@@ -86,6 +86,21 @@ function positiveIntFromEnv(name: string, fallback: number): number {
   return value;
 }
 
+/**
+ * The family surface.
+ *
+ * Not about guessing tokens -- those are 32 random bytes and are not going to
+ * be found by volume. It is about the fact that this is the one authenticated
+ * surface reachable by anyone holding a forwarded text message, where every
+ * write costs the home storage. Generous enough that a family uploading fifty
+ * photographs on hotel wifi never sees it.
+ */
+export const familyRateLimit: RateLimiter = rateLimit({
+  windowMs: 60_000,
+  max: 240,
+  message: "That was a lot at once. Please wait a moment and try again.",
+});
+
 export const authRateLimit: RateLimiter = rateLimit({
   windowMs: positiveIntFromEnv("AUTH_RATE_LIMIT_WINDOW_MS", 15 * 60 * 1000),
   max: positiveIntFromEnv("AUTH_RATE_LIMIT_MAX", 20),

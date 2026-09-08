@@ -17,7 +17,7 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
-import { Images, Loader2, MessageCircle, Plus, TriangleAlert } from "lucide-react";
+import { Images, Loader2, MessageCircle, Plus, Search, TriangleAlert } from "lucide-react";
 
 /**
  * The worklist.
@@ -128,7 +128,13 @@ function NewCaseDialog() {
 
 export default function Cases() {
   const [showClosed, setShowClosed] = useState(false);
-  const cases = useGetCases({ status: showClosed ? "closed" : undefined });
+  const [search, setSearch] = useState("");
+
+  const cases = useGetCases({
+    status: showClosed ? "closed" : undefined,
+    // The list is bounded, so searching is how an older case is reached.
+    search: search.trim() || undefined,
+  });
 
   const rows = (cases.data ?? []).filter((row) =>
     showClosed ? true : row.status !== "closed",
@@ -152,6 +158,16 @@ export default function Cases() {
         </div>
       </div>
 
+      <div className="relative">
+        <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+        <Input
+          value={search}
+          placeholder="Search by name"
+          className="pl-9"
+          onChange={(event) => setSearch(event.target.value)}
+        />
+      </div>
+
       {cases.isPending ? (
         <div className="py-16 text-center">
           <Loader2 className="size-5 animate-spin mx-auto text-muted-foreground" />
@@ -159,7 +175,11 @@ export default function Cases() {
       ) : rows.length === 0 ? (
         <div className="rounded-xl border border-dashed border-border py-16 text-center">
           <p className="text-muted-foreground">
-            {showClosed ? "Nothing closed yet." : "No open cases."}
+            {search.trim()
+              ? `Nothing matching "${search.trim()}".`
+              : showClosed
+                ? "Nothing closed yet."
+                : "No open cases."}
           </p>
         </div>
       ) : (

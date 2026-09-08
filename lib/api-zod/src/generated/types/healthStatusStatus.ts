@@ -17,17 +17,11 @@ Two audiences, two authentication schemes, and the split is load-bearing:
 
  * OpenAPI spec version: 0.1.0
  */
-import type { GetCasesStatus } from "./getCasesStatus";
 
-export type GetCasesParams = {
-  status?: GetCasesStatus;
-  /**
-   * Matches the deceased's name, however it was recorded.
-   */
-  search?: string;
-  /**
-   * @minimum 1
-   * @maximum 200
-   */
-  limit?: number;
-};
+export type HealthStatusStatus =
+  (typeof HealthStatusStatus)[keyof typeof HealthStatusStatus];
+
+export const HealthStatusStatus = {
+  ok: "ok",
+  degraded: "degraded",
+} as const;

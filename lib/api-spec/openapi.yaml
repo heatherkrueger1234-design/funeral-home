@@ -350,6 +350,20 @@ paths:
           schema:
             type: string
             enum: [intake, active, closed]
+        - name: search
+          in: query
+          required: false
+          description: Matches the deceased's name, however it was recorded.
+          schema:
+            type: string
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 200
+            default: 100
       responses:
         "200":
           description: List
@@ -1269,10 +1283,23 @@ components:
   schemas:
     HealthStatus:
       type: object
+      description: |
+        Reports on the database, because a process that is up but cannot reach
+        Postgres serves errors on every screen -- and a health check that
+        answers "ok" to that keeps it in the load balancer.
       properties:
         status:
           type: string
-      required: [status]
+          enum: [ok, degraded]
+        database:
+          type: boolean
+        mail:
+          type: boolean
+          description: Whether real email can go out, or is only logged.
+        sms:
+          type: boolean
+          description: Whether family links can actually be texted from here.
+      required: [status, database, mail, sms]
 
     # ---------------------------------------------------------------- auth --
 

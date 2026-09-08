@@ -17,8 +17,27 @@ Two audiences, two authentication schemes, and the split is load-bearing:
 
  * OpenAPI spec version: 0.1.0
  */
+export type HealthStatusStatus =
+  (typeof HealthStatusStatus)[keyof typeof HealthStatusStatus];
+
+export const HealthStatusStatus = {
+  ok: "ok",
+  degraded: "degraded",
+} as const;
+
+/**
+ * Reports on the database, because a process that is up but cannot reach
+Postgres serves errors on every screen -- and a health check that
+answers "ok" to that keeps it in the load balancer.
+
+ */
 export interface HealthStatus {
-  status: string;
+  status: HealthStatusStatus;
+  database: boolean;
+  /** Whether real email can go out, or is only logged. */
+  mail: boolean;
+  /** Whether family links can actually be texted from here. */
+  sms: boolean;
 }
 
 export interface RegisterInput {
@@ -792,6 +811,15 @@ export interface FamilySession {
 
 export type GetCasesParams = {
   status?: GetCasesStatus;
+  /**
+   * Matches the deceased's name, however it was recorded.
+   */
+  search?: string;
+  /**
+   * @minimum 1
+   * @maximum 200
+   */
+  limit?: number;
 };
 
 export type GetCasesStatus =

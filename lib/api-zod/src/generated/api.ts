@@ -22,9 +22,20 @@ import * as zod from "zod";
 /**
  * @summary Liveness probe
  */
-export const GetHealthResponse = zod.object({
-  status: zod.string(),
-});
+export const GetHealthResponse = zod
+  .object({
+    status: zod.enum(["ok", "degraded"]),
+    database: zod.boolean(),
+    mail: zod
+      .boolean()
+      .describe("Whether real email can go out, or is only logged."),
+    sms: zod
+      .boolean()
+      .describe("Whether family links can actually be texted from here."),
+  })
+  .describe(
+    'Reports on the database, because a process that is up but cannot reach\nPostgres serves errors on every screen -- and a health check that\nanswers \"ok\" to that keeps it in the load balancer.\n',
+  );
 
 /**
  * @summary Open an account, creating the funeral home and its first owner
@@ -365,8 +376,20 @@ export const ApplyTimelineTemplateResponse = zod.array(
 /**
  * @summary The home's cases, soonest service first
  */
+export const getCasesQueryLimitDefault = 100;
+export const getCasesQueryLimitMax = 200;
+
 export const GetCasesQueryParams = zod.object({
   status: zod.enum(["intake", "active", "closed"]).optional(),
+  search: zod.coerce
+    .string()
+    .optional()
+    .describe("Matches the deceased's name, however it was recorded."),
+  limit: zod.coerce
+    .number()
+    .min(1)
+    .max(getCasesQueryLimitMax)
+    .default(getCasesQueryLimitDefault),
 });
 
 export const GetCasesResponseItem = zod

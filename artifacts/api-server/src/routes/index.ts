@@ -1,6 +1,7 @@
 import { Router, type IRouter } from "express";
 import { requireAuth } from "../middleware/require-auth";
 import { requireFamilyLink } from "../middleware/require-family";
+import { familyRateLimit } from "../middleware/rate-limit";
 import healthRouter from "./health";
 import authRouter from "./auth";
 import familyRouter from "./family";
@@ -44,7 +45,7 @@ router.use(authRouter);
  * there is nothing for a handler to check and nothing for a family member to
  * tamper with.
  */
-router.use("/family", requireFamilyLink, familyRouter);
+router.use("/family", familyRateLimit, requireFamilyLink, familyRouter);
 
 /**
  * Everything below requires a staff session. Handlers then scope every query

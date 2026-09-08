@@ -1,5 +1,5 @@
 import { Router, type IRouter } from "express";
-import { and, asc, desc, eq, sql } from "drizzle-orm";
+import { and, asc, desc, eq, ilike, or, sql } from "drizzle-orm";
 import {
   db,
   casesTable,
@@ -55,16 +55,26 @@ router.get("/cases", async (req, res) => {
   const home = tenant(req);
   const query = parseQuery(GetCasesQueryParams, req.query);
 
+  const search = query.search?.trim();
+
   const rows = await db
     .select()
     .from(casesTable)
     .where(
-      query.status
-        ? and(
-            eq(casesTable.funeralHomeId, home.id),
-            eq(casesTable.status, query.status),
-          )
-        : eq(casesTable.funeralHomeId, home.id),
+      and(
+        eq(casesTable.funeralHomeId, home.id),
+        query.status ? eq(casesTable.status, query.status) : undefined,
+        // A director searches for "Hale", not for a case number, and they may
+        // have recorded her as Margaret while the family calls her Peggy --
+        // so all three name columns are matched.
+        search
+          ? or(
+              ilike(casesTable.decedentLastName, `%${search}%`),
+              ilike(casesTable.decedentFirstName, `%${search}%`),
+              ilike(casesTable.decedentPreferredName, `%${search}%`),
+            )
+          : undefined,
+      ),
     )
     // Soonest service first, with cases that have no date yet at the top:
     // an undated case is one nobody has scheduled, which is the one most
@@ -74,7 +84,15 @@ router.get("/cases", async (req, res) => {
     .orderBy(
       sql`${casesTable.serviceAt} asc nulls first`,
       desc(casesTable.createdAt),
-    );
+    )
+    /*
+     * Bounded, because this is otherwise every case the home has ever had.
+     * A home three years in has hundreds of closed ones, and the counts below
+     * are five aggregate queries over whatever this returns. The list is
+     * ordered by what needs attention first, so the tail is the part nobody
+     * scrolls to -- searching is how you reach an old case.
+     */
+    .limit(query.limit ?? 100);
 
   const counts = await countsForCases(
     rows.map((row) => row.id),
