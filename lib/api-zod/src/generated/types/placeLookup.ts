@@ -17,26 +17,17 @@ Two audiences, two authentication schemes, and the split is load-bearing:
 
  * OpenAPI spec version: 0.1.0
  */
-import type { CaseStatus } from "./caseStatus";
+import type { PlaceCandidate } from "./placeCandidate";
 
-export interface Case {
-  id: number;
-  decedentFirstName: string;
-  decedentLastName: string;
-  decedentPreferredName: string | null;
-  displayName: string;
-  dateOfBirth: Date | null;
-  dateOfDeath: Date | null;
-  portraitPhotoId: number | null;
-  referencePhotoId: number | null;
-  serviceAt: Date | null;
-  serviceLocation: string | null;
-  serviceNotes: string | null;
-  /** Where the family is, for finding anything local to them. */
-  postalCode: string | null;
-  leadDirectorId: number | null;
-  status: CaseStatus;
-  closedAt: Date | null;
-  messagesLockAt: Date | null;
-  createdAt: Date;
+/**
+ * Candidates from a live provider. `configured` is false when the home
+has not connected one, which is a different thing from finding nothing
+and is reported as such.
+
+ */
+export interface PlaceLookup {
+  configured: boolean;
+  provider: string | null;
+  results: PlaceCandidate[];
+  message: string | null;
 }

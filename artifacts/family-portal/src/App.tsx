@@ -18,6 +18,7 @@ import Timeline from "@/pages/Timeline";
 import Messages from "@/pages/Messages";
 import Aftercare from "@/pages/Aftercare";
 import Belongings from "@/pages/Belongings";
+import Local from "@/pages/Local";
 import NotFound from "@/pages/NotFound";
 
 function describeError(error: unknown): string {
@@ -84,6 +85,7 @@ export default function App() {
               <Route path="/messages" component={Messages} />
               <Route path="/aftercare" component={Aftercare} />
               <Route path="/belongings" component={Belongings} />
+              <Route path="/local" component={Local} />
               <Route component={NotFound} />
             </Switch>
           </PortalShell>

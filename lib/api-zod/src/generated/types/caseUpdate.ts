@@ -32,6 +32,7 @@ export interface CaseUpdate {
   serviceAt?: Date | null;
   serviceLocation?: string | null;
   serviceNotes?: string | null;
+  postalCode?: string | null;
   leadDirectorId?: number | null;
   status?: CaseUpdateStatus;
   messagesLockAt?: Date | null;

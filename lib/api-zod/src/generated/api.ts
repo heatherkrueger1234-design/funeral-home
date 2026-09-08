@@ -406,6 +406,10 @@ export const GetCasesResponseItem = zod
     serviceAt: zod.date().nullable(),
     serviceLocation: zod.string().nullable(),
     serviceNotes: zod.string().nullable(),
+    postalCode: zod
+      .string()
+      .nullable()
+      .describe("Where the family is, for finding anything local to them."),
     leadDirectorId: zod.number().nullable(),
     status: zod.enum(["intake", "active", "closed"]),
     closedAt: zod.date().nullable(),
@@ -462,6 +466,10 @@ export const GetCaseResponse = zod
     serviceAt: zod.date().nullable(),
     serviceLocation: zod.string().nullable(),
     serviceNotes: zod.string().nullable(),
+    postalCode: zod
+      .string()
+      .nullable()
+      .describe("Where the family is, for finding anything local to them."),
     leadDirectorId: zod.number().nullable(),
     status: zod.enum(["intake", "active", "closed"]),
     closedAt: zod.date().nullable(),
@@ -531,6 +539,7 @@ export const UpdateCaseBody = zod.object({
   serviceAt: zod.coerce.date().nullish(),
   serviceLocation: zod.string().nullish(),
   serviceNotes: zod.string().nullish(),
+  postalCode: zod.string().nullish(),
   leadDirectorId: zod.number().nullish(),
   status: zod.enum(["intake", "active", "closed"]).optional(),
   messagesLockAt: zod.coerce.date().nullish(),
@@ -549,6 +558,10 @@ export const UpdateCaseResponse = zod.object({
   serviceAt: zod.date().nullable(),
   serviceLocation: zod.string().nullable(),
   serviceNotes: zod.string().nullable(),
+  postalCode: zod
+    .string()
+    .nullable()
+    .describe("Where the family is, for finding anything local to them."),
   leadDirectorId: zod.number().nullable(),
   status: zod.enum(["intake", "active", "closed"]),
   closedAt: zod.date().nullable(),
@@ -582,6 +595,10 @@ export const CloseCaseResponse = zod
     serviceAt: zod.date().nullable(),
     serviceLocation: zod.string().nullable(),
     serviceNotes: zod.string().nullable(),
+    postalCode: zod
+      .string()
+      .nullable()
+      .describe("Where the family is, for finding anything local to them."),
     leadDirectorId: zod.number().nullable(),
     status: zod.enum(["intake", "active", "closed"]),
     closedAt: zod.date().nullable(),
@@ -1753,6 +1770,413 @@ export const GetAftercareResponseItem = zod.object({
 export const GetAftercareResponse = zod.array(GetAftercareResponseItem);
 
 /**
+ * @summary The home's local network, nearest first
+ */
+export const getVendorsQueryRadiusMilesMax = 500;
+
+export const GetVendorsQueryParams = zod.object({
+  kind: zod
+    .enum([
+      "monument",
+      "cemetery",
+      "casket",
+      "urn",
+      "clergy",
+      "celebrant",
+      "florist",
+      "musician",
+      "caterer",
+      "transport",
+      "other",
+    ])
+    .optional(),
+  near: zod.coerce
+    .string()
+    .optional()
+    .describe("A US ZIP code to measure from."),
+  radiusMiles: zod.coerce
+    .number()
+    .min(1)
+    .max(getVendorsQueryRadiusMilesMax)
+    .optional(),
+  search: zod.coerce.string().optional(),
+});
+
+export const GetVendorsResponseItem = zod.object({
+  id: zod.number(),
+  kind: zod.enum([
+    "monument",
+    "cemetery",
+    "casket",
+    "urn",
+    "clergy",
+    "celebrant",
+    "florist",
+    "musician",
+    "caterer",
+    "transport",
+    "other",
+  ]),
+  name: zod.string(),
+  contactName: zod.string().nullable(),
+  phone: zod.string().nullable(),
+  email: zod.string().nullable(),
+  website: zod.string().nullable(),
+  addressLine1: zod.string().nullable(),
+  city: zod.string().nullable(),
+  region: zod.string().nullable(),
+  postalCode: zod.string().nullable(),
+  specialisms: zod.string().nullable(),
+  languages: zod.string().nullable(),
+  notes: zod.string().nullable(),
+  visibleToFamily: zod.boolean(),
+  preferred: zod.boolean(),
+  source: zod.enum(["home", "places", "gnis"]),
+  distanceMiles: zod
+    .number()
+    .nullable()
+    .describe("From the ZIP searched near, when one was given."),
+});
+export const GetVendorsResponse = zod.array(GetVendorsResponseItem);
+
+/**
+ * @summary Add someone to the network
+ */
+
+export const CreateVendorBody = zod.object({
+  kind: zod.enum([
+    "monument",
+    "cemetery",
+    "casket",
+    "urn",
+    "clergy",
+    "celebrant",
+    "florist",
+    "musician",
+    "caterer",
+    "transport",
+    "other",
+  ]),
+  name: zod.string().min(1),
+  contactName: zod.string().nullish(),
+  phone: zod.string().nullish(),
+  email: zod.string().nullish(),
+  website: zod.string().nullish(),
+  addressLine1: zod.string().nullish(),
+  city: zod.string().nullish(),
+  region: zod.string().nullish(),
+  postalCode: zod.string().nullish(),
+  specialisms: zod.string().nullish(),
+  languages: zod.string().nullish(),
+  notes: zod.string().nullish(),
+  visibleToFamily: zod.boolean().optional(),
+  preferred: zod.boolean().optional(),
+  source: zod.enum(["home", "places", "gnis"]).optional(),
+  sourceRef: zod.string().nullish(),
+});
+
+/**
+ * Nothing is seeded into the directory, because no public-domain
+nationwide listing of monument makers or celebrants exists and
+inventing them would be indefensible. This searches a places provider
+the home has configured with its own key and returns candidates to
+save. With no provider configured it returns `configured: false` and
+an empty list rather than pretending to have looked.
+
+ * @summary Search live for businesses near a ZIP code
+ */
+export const lookupPlacesQueryRadiusMilesMax = 200;
+
+export const LookupPlacesQueryParams = zod.object({
+  kind: zod.enum([
+    "monument",
+    "cemetery",
+    "casket",
+    "urn",
+    "clergy",
+    "celebrant",
+    "florist",
+    "musician",
+    "caterer",
+    "transport",
+    "other",
+  ]),
+  near: zod.coerce.string(),
+  radiusMiles: zod.coerce
+    .number()
+    .min(1)
+    .max(lookupPlacesQueryRadiusMilesMax)
+    .optional(),
+});
+
+export const LookupPlacesResponse = zod
+  .object({
+    configured: zod.boolean(),
+    provider: zod.string().nullable(),
+    results: zod.array(
+      zod.object({
+        sourceRef: zod.string(),
+        name: zod.string(),
+        phone: zod.string().nullable(),
+        website: zod.string().nullable(),
+        addressLine1: zod.string().nullable(),
+        city: zod.string().nullable(),
+        region: zod.string().nullable(),
+        postalCode: zod.string().nullable(),
+        distanceMiles: zod.number().nullable(),
+        alreadySaved: zod.boolean(),
+      }),
+    ),
+    message: zod.string().nullable(),
+  })
+  .describe(
+    "Candidates from a live provider. `configured` is false when the home\nhas not connected one, which is a different thing from finding nothing\nand is reported as such.\n",
+  );
+
+/**
+ * @summary Edit, recommend, or show a vendor to families
+ */
+export const UpdateVendorParams = zod.object({
+  vendorId: zod.coerce.number(),
+});
+
+export const UpdateVendorBody = zod
+  .object({
+    kind: zod.enum([
+      "monument",
+      "cemetery",
+      "casket",
+      "urn",
+      "clergy",
+      "celebrant",
+      "florist",
+      "musician",
+      "caterer",
+      "transport",
+      "other",
+    ]),
+    name: zod.string().min(1),
+    contactName: zod.string().nullish(),
+    phone: zod.string().nullish(),
+    email: zod.string().nullish(),
+    website: zod.string().nullish(),
+    addressLine1: zod.string().nullish(),
+    city: zod.string().nullish(),
+    region: zod.string().nullish(),
+    postalCode: zod.string().nullish(),
+    specialisms: zod.string().nullish(),
+    languages: zod.string().nullish(),
+    notes: zod.string().nullish(),
+    visibleToFamily: zod.boolean().optional(),
+    preferred: zod.boolean().optional(),
+    source: zod.enum(["home", "places", "gnis"]).optional(),
+    sourceRef: zod.string().nullish(),
+  })
+  .and(
+    zod.object({
+      archived: zod.boolean().optional(),
+    }),
+  );
+
+export const UpdateVendorResponse = zod.object({
+  id: zod.number(),
+  kind: zod.enum([
+    "monument",
+    "cemetery",
+    "casket",
+    "urn",
+    "clergy",
+    "celebrant",
+    "florist",
+    "musician",
+    "caterer",
+    "transport",
+    "other",
+  ]),
+  name: zod.string(),
+  contactName: zod.string().nullable(),
+  phone: zod.string().nullable(),
+  email: zod.string().nullable(),
+  website: zod.string().nullable(),
+  addressLine1: zod.string().nullable(),
+  city: zod.string().nullable(),
+  region: zod.string().nullable(),
+  postalCode: zod.string().nullable(),
+  specialisms: zod.string().nullable(),
+  languages: zod.string().nullable(),
+  notes: zod.string().nullable(),
+  visibleToFamily: zod.boolean(),
+  preferred: zod.boolean(),
+  source: zod.enum(["home", "places", "gnis"]),
+  distanceMiles: zod
+    .number()
+    .nullable()
+    .describe("From the ZIP searched near, when one was given."),
+});
+
+/**
+ * @summary Take a vendor out of the network
+ */
+export const ArchiveVendorParams = zod.object({
+  vendorId: zod.coerce.number(),
+});
+
+/**
+ * @summary Quotes requested on this case
+ */
+export const GetQuotesParams = zod.object({
+  caseId: zod.coerce.number(),
+});
+
+export const GetQuotesResponseItem = zod.object({
+  id: zod.number(),
+  caseId: zod.number(),
+  vendorId: zod.number(),
+  vendorName: zod.string(),
+  vendorKind: zod.string(),
+  vendorPhone: zod.string().nullable(),
+  request: zod.string().nullable(),
+  status: zod.enum(["requested", "passed_on", "quoted", "declined", "chosen"]),
+  quotedAmountCents: zod.number().nullable(),
+  response: zod.string().nullable(),
+  requestedByName: zod.string().nullable(),
+  respondedAt: zod.date().nullable(),
+  createdAt: zod.date(),
+});
+export const GetQuotesResponse = zod.array(GetQuotesResponseItem);
+
+/**
+ * @summary Record what a vendor came back with
+ */
+export const UpdateQuoteParams = zod.object({
+  quoteId: zod.coerce.number(),
+});
+
+export const UpdateQuoteBody = zod.object({
+  status: zod
+    .enum(["requested", "passed_on", "quoted", "declined", "chosen"])
+    .optional(),
+  quotedAmountCents: zod.number().nullish(),
+  response: zod.string().nullish(),
+});
+
+export const UpdateQuoteResponse = zod.object({
+  id: zod.number(),
+  caseId: zod.number(),
+  vendorId: zod.number(),
+  vendorName: zod.string(),
+  vendorKind: zod.string(),
+  vendorPhone: zod.string().nullable(),
+  request: zod.string().nullable(),
+  status: zod.enum(["requested", "passed_on", "quoted", "declined", "chosen"]),
+  quotedAmountCents: zod.number().nullable(),
+  response: zod.string().nullable(),
+  requestedByName: zod.string().nullable(),
+  respondedAt: zod.date().nullable(),
+  createdAt: zod.date(),
+});
+
+/**
+ * @summary Local help the funeral home recommends, nearest first
+ */
+export const GetFamilyVendorsQueryParams = zod.object({
+  kind: zod
+    .enum([
+      "monument",
+      "cemetery",
+      "casket",
+      "urn",
+      "clergy",
+      "celebrant",
+      "florist",
+      "musician",
+      "caterer",
+      "transport",
+      "other",
+    ])
+    .optional(),
+});
+
+export const GetFamilyVendorsResponseItem = zod.object({
+  id: zod.number(),
+  kind: zod.enum([
+    "monument",
+    "cemetery",
+    "casket",
+    "urn",
+    "clergy",
+    "celebrant",
+    "florist",
+    "musician",
+    "caterer",
+    "transport",
+    "other",
+  ]),
+  name: zod.string(),
+  contactName: zod.string().nullable(),
+  phone: zod.string().nullable(),
+  email: zod.string().nullable(),
+  website: zod.string().nullable(),
+  addressLine1: zod.string().nullable(),
+  city: zod.string().nullable(),
+  region: zod.string().nullable(),
+  postalCode: zod.string().nullable(),
+  specialisms: zod.string().nullable(),
+  languages: zod.string().nullable(),
+  notes: zod.string().nullable(),
+  visibleToFamily: zod.boolean(),
+  preferred: zod.boolean(),
+  source: zod.enum(["home", "places", "gnis"]),
+  distanceMiles: zod
+    .number()
+    .nullable()
+    .describe("From the ZIP searched near, when one was given."),
+});
+export const GetFamilyVendorsResponse = zod.array(GetFamilyVendorsResponseItem);
+
+/**
+ * @summary Say whereabouts you are, so local suggestions are actually local
+ */
+export const SetFamilyPostalCodeBody = zod.object({
+  postalCode: zod.string(),
+});
+
+export const SetFamilyPostalCodeResponse = zod.object({
+  postalCode: zod.string().nullable(),
+  recognised: zod
+    .boolean()
+    .describe("Whether it matched a known US ZIP, so distances will work."),
+});
+
+/**
+ * @summary Quotes asked for on this case
+ */
+export const GetFamilyQuotesResponseItem = zod.object({
+  id: zod.number(),
+  caseId: zod.number(),
+  vendorId: zod.number(),
+  vendorName: zod.string(),
+  vendorKind: zod.string(),
+  vendorPhone: zod.string().nullable(),
+  request: zod.string().nullable(),
+  status: zod.enum(["requested", "passed_on", "quoted", "declined", "chosen"]),
+  quotedAmountCents: zod.number().nullable(),
+  response: zod.string().nullable(),
+  requestedByName: zod.string().nullable(),
+  respondedAt: zod.date().nullable(),
+  createdAt: zod.date(),
+});
+export const GetFamilyQuotesResponse = zod.array(GetFamilyQuotesResponseItem);
+
+/**
+ * @summary Ask the funeral home to get a price from someone
+ */
+export const RequestFamilyQuoteBody = zod.object({
+  vendorId: zod.number(),
+  request: zod.string().nullish(),
+});
+
+/**
  * @summary Store bytes (the home's logo, or a staff-added photograph)
  */
 export const UploadFileBody = zod.object({
@@ -1820,6 +2244,10 @@ export const GetFamilySessionResponse = zod
       serviceAt: zod.date().nullable(),
       serviceLocation: zod.string().nullable(),
       serviceNotes: zod.string().nullable(),
+      postalCode: zod
+        .string()
+        .nullable()
+        .describe("Where the family is, for finding anything local to them."),
       leadDirectorId: zod.number().nullable(),
       status: zod.enum(["intake", "active", "closed"]),
       closedAt: zod.date().nullable(),

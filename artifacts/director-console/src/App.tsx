@@ -19,6 +19,7 @@ import SignIn from "@/pages/SignIn";
 import Cases from "@/pages/Cases";
 import CaseDetail from "@/pages/CaseDetail";
 import Settings from "@/pages/Settings";
+import Vendors from "@/pages/Vendors";
 import NotFound from "@/pages/NotFound";
 
 function describeError(error: unknown): string {
@@ -69,6 +70,7 @@ function Routes() {
       <Switch>
         <Route path="/" component={Cases} />
         <Route path="/cases/:caseId" component={CaseDetail} />
+        <Route path="/vendors" component={Vendors} />
         <Route path="/settings" component={Settings} />
         <Route component={NotFound} />
       </Switch>

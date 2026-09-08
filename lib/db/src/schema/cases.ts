@@ -76,6 +76,16 @@ export const casesTable = pgTable(
      */
     serviceAt: timestamp("service_at"),
     serviceLocation: text("service_location"),
+
+    /**
+     * Where the family is, for finding anything local to them.
+     *
+     * The family's own ZIP rather than the home's, because a daughter
+     * arranging her mother's funeral from two states away needs monument
+     * companies near the cemetery, and a home whose families are all local
+     * loses nothing by the distinction.
+     */
+    postalCode: text("postal_code"),
     serviceNotes: text("service_notes"),
 
     /**

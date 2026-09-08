@@ -6,6 +6,9 @@ import {
   aftercareEnrollmentsTable,
   caseBelongingsTable,
   casePreparationTable,
+  vendorsTable,
+  vendorQuotesTable,
+  normalisePostalCode,
   caseDeadlinesTable,
   caseMessagesTable,
   casePhotosTable,
@@ -34,6 +37,9 @@ import {
   CreateFamilyBelongingBody,
   UpdateFamilyBelongingBody,
   UpdateFamilyPreparationBody,
+  SetFamilyPostalCodeBody,
+  RequestFamilyQuoteBody,
+  GetFamilyVendorsQueryParams,
 } from "@workspace/api-zod";
 import {
   assertHasUpdates,
@@ -41,6 +47,7 @@ import {
   HttpError,
   parseBody,
   parseId,
+  parseQuery,
   requireRow,
 } from "../lib/http";
 import {
@@ -59,6 +66,8 @@ import {
 import { buildThread, isThreadLocked, markRead } from "../lib/thread";
 import { isWithinOfficeHours } from "../lib/office-hours";
 import { aftercareForCase } from "../lib/aftercare";
+import { findVendors, locate, toVendorJson } from "../lib/vendors";
+import { quotesForCase } from "./vendors";
 import {
   belongingsForCase,
   ensureBelongingPrompts,
@@ -718,6 +727,103 @@ router.put("/preparation", async (req, res) => {
     .returning();
 
   res.json(await toPreparationJson(updated!, row.referencePhotoId));
+});
+
+/* -------------------------------------------------------------- local --- */
+
+/**
+ * Where the family is.
+ *
+ * The one piece of information that makes "local" mean anything, asked once,
+ * on the screen where it is obviously needed rather than buried in a profile
+ * nobody fills in. Their ZIP rather than the home's, because a daughter
+ * arranging her mother's funeral from two states away needs monument
+ * companies near the cemetery, not near her.
+ */
+router.put("/postal-code", async (req, res) => {
+  const row = familyCase(req);
+  const { postalCode } = parseBody(SetFamilyPostalCodeBody, req.body);
+
+  const normalised = normalisePostalCode(postalCode);
+
+  if (!normalised) {
+    throw badRequest("That doesn't look like a ZIP code.");
+  }
+
+  await db
+    .update(casesTable)
+    .set({ postalCode: normalised, updatedAt: new Date() })
+    .where(eq(casesTable.id, row.id));
+
+  // Said plainly, because an unrecognised ZIP means distances will be
+  // missing and the family should know that rather than wonder.
+  const known = await locate(normalised);
+
+  res.json({ postalCode: normalised, recognised: known !== null });
+});
+
+router.get("/vendors", async (req, res) => {
+  const row = familyCase(req);
+  const query = parseQuery(GetFamilyVendorsQueryParams, req.query);
+
+  const rows = await findVendors({
+    funeralHomeId: row.funeralHomeId,
+    kind: query.kind,
+    // The case's own ZIP, so the family never types it twice.
+    near: row.postalCode ?? undefined,
+    // Only what the home has chosen to put in front of families.
+    visibleOnly: true,
+  });
+
+  res.json(rows.map(toVendorJson));
+});
+
+router.get("/quotes", async (req, res) => {
+  const row = familyCase(req);
+  res.json(await quotesForCase(row.id, row.funeralHomeId));
+});
+
+/**
+ * Ask the home to get a price.
+ *
+ * The family never contacts the vendor through us and no money moves here.
+ * This is an introduction with a record kept, so that three headstone quotes
+ * can be compared later without anyone having to remember three phone calls
+ * made in the worst week of their life.
+ */
+router.post("/quotes", async (req, res) => {
+  const contact = familyContact(req);
+  const row = familyCase(req);
+  const values = parseBody(RequestFamilyQuoteBody, req.body);
+
+  const [vendor] = await db
+    .select()
+    .from(vendorsTable)
+    .where(
+      and(
+        eq(vendorsTable.id, values.vendorId),
+        eq(vendorsTable.funeralHomeId, row.funeralHomeId),
+        // A family may only ask about someone the home actually shows them.
+        eq(vendorsTable.visibleToFamily, true),
+      ),
+    )
+    .limit(1);
+
+  const found = requireRow(vendor, "That one could not be found.");
+
+  const [created] = await db
+    .insert(vendorQuotesTable)
+    .values({
+      funeralHomeId: row.funeralHomeId,
+      caseId: row.id,
+      vendorId: found.id,
+      requestedByContactId: contact.id,
+      request: values.request?.trim() || null,
+    })
+    .returning();
+
+  const all = await quotesForCase(row.id, row.funeralHomeId);
+  res.status(201).json(all.find((quote) => quote.id === created!.id));
 });
 
 /* ------------------------------------------------------------ messages --- */

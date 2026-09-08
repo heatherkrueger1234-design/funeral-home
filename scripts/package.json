@@ -7,7 +7,8 @@
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "generate-encryption-key": "node -e \"console.log(require('crypto').randomBytes(32).toString('base64'))\"",
     "backup-database": "tsx ./src/backup-database.ts",
-    "send-aftercare": "tsx ./src/send-aftercare.ts"
+    "send-aftercare": "tsx ./src/send-aftercare.ts",
+    "load-postal-codes": "tsx ./src/load-postal-codes.ts"
   },
   "devDependencies": {
     "@types/node": "catalog:",

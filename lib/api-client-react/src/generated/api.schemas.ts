@@ -263,6 +263,8 @@ export interface Case {
   serviceAt: string | null;
   serviceLocation: string | null;
   serviceNotes: string | null;
+  /** Where the family is, for finding anything local to them. */
+  postalCode: string | null;
   leadDirectorId: number | null;
   status: CaseStatus;
   closedAt: string | null;
@@ -357,6 +359,7 @@ export interface CaseUpdate {
   serviceAt?: string | null;
   serviceLocation?: string | null;
   serviceNotes?: string | null;
+  postalCode?: string | null;
   leadDirectorId?: number | null;
   status?: CaseUpdateStatus;
   messagesLockAt?: string | null;
@@ -553,6 +556,188 @@ export interface UploadSummary {
   mimeType: string;
   sizeBytes: number;
   createdAt: string;
+}
+
+export type VendorKind = (typeof VendorKind)[keyof typeof VendorKind];
+
+export const VendorKind = {
+  monument: "monument",
+  cemetery: "cemetery",
+  casket: "casket",
+  urn: "urn",
+  clergy: "clergy",
+  celebrant: "celebrant",
+  florist: "florist",
+  musician: "musician",
+  caterer: "caterer",
+  transport: "transport",
+  other: "other",
+} as const;
+
+export type VendorSource = (typeof VendorSource)[keyof typeof VendorSource];
+
+export const VendorSource = {
+  home: "home",
+  places: "places",
+  gnis: "gnis",
+} as const;
+
+export interface Vendor {
+  id: number;
+  kind: VendorKind;
+  name: string;
+  contactName: string | null;
+  phone: string | null;
+  email: string | null;
+  website: string | null;
+  addressLine1: string | null;
+  city: string | null;
+  region: string | null;
+  postalCode: string | null;
+  specialisms: string | null;
+  languages: string | null;
+  notes: string | null;
+  visibleToFamily: boolean;
+  preferred: boolean;
+  source: VendorSource;
+  /** From the ZIP searched near, when one was given. */
+  distanceMiles: number | null;
+}
+
+export type VendorInputKind =
+  (typeof VendorInputKind)[keyof typeof VendorInputKind];
+
+export const VendorInputKind = {
+  monument: "monument",
+  cemetery: "cemetery",
+  casket: "casket",
+  urn: "urn",
+  clergy: "clergy",
+  celebrant: "celebrant",
+  florist: "florist",
+  musician: "musician",
+  caterer: "caterer",
+  transport: "transport",
+  other: "other",
+} as const;
+
+export type VendorInputSource =
+  (typeof VendorInputSource)[keyof typeof VendorInputSource];
+
+export const VendorInputSource = {
+  home: "home",
+  places: "places",
+  gnis: "gnis",
+} as const;
+
+export interface VendorInput {
+  kind: VendorInputKind;
+  /** @minLength 1 */
+  name: string;
+  contactName?: string | null;
+  phone?: string | null;
+  email?: string | null;
+  website?: string | null;
+  addressLine1?: string | null;
+  city?: string | null;
+  region?: string | null;
+  postalCode?: string | null;
+  specialisms?: string | null;
+  languages?: string | null;
+  notes?: string | null;
+  visibleToFamily?: boolean;
+  preferred?: boolean;
+  source?: VendorInputSource;
+  sourceRef?: string | null;
+}
+
+export type VendorUpdate = VendorInput & {
+  archived?: boolean;
+};
+
+export interface PlaceCandidate {
+  sourceRef: string;
+  name: string;
+  phone: string | null;
+  website: string | null;
+  addressLine1: string | null;
+  city: string | null;
+  region: string | null;
+  postalCode: string | null;
+  distanceMiles: number | null;
+  alreadySaved: boolean;
+}
+
+/**
+ * Candidates from a live provider. `configured` is false when the home
+has not connected one, which is a different thing from finding nothing
+and is reported as such.
+
+ */
+export interface PlaceLookup {
+  configured: boolean;
+  provider: string | null;
+  results: PlaceCandidate[];
+  message: string | null;
+}
+
+export type VendorQuoteStatus =
+  (typeof VendorQuoteStatus)[keyof typeof VendorQuoteStatus];
+
+export const VendorQuoteStatus = {
+  requested: "requested",
+  passed_on: "passed_on",
+  quoted: "quoted",
+  declined: "declined",
+  chosen: "chosen",
+} as const;
+
+export interface VendorQuote {
+  id: number;
+  caseId: number;
+  vendorId: number;
+  vendorName: string;
+  vendorKind: string;
+  vendorPhone: string | null;
+  request: string | null;
+  status: VendorQuoteStatus;
+  quotedAmountCents: number | null;
+  response: string | null;
+  requestedByName: string | null;
+  respondedAt: string | null;
+  createdAt: string;
+}
+
+export interface QuoteRequestInput {
+  vendorId: number;
+  request?: string | null;
+}
+
+export type QuoteUpdateStatus =
+  (typeof QuoteUpdateStatus)[keyof typeof QuoteUpdateStatus];
+
+export const QuoteUpdateStatus = {
+  requested: "requested",
+  passed_on: "passed_on",
+  quoted: "quoted",
+  declined: "declined",
+  chosen: "chosen",
+} as const;
+
+export interface QuoteUpdate {
+  status?: QuoteUpdateStatus;
+  quotedAmountCents?: number | null;
+  response?: string | null;
+}
+
+export interface PostalCodeInput {
+  postalCode: string;
+}
+
+export interface PostalCodeResult {
+  postalCode: string | null;
+  /** Whether it matched a known US ZIP, so distances will work. */
+  recognised: boolean;
 }
 
 export type BelongingKind = (typeof BelongingKind)[keyof typeof BelongingKind];
@@ -1036,4 +1221,83 @@ export const GetCasesStatus = {
   intake: "intake",
   active: "active",
   closed: "closed",
+} as const;
+
+export type GetVendorsParams = {
+  kind?: GetVendorsKind;
+  /**
+   * A US ZIP code to measure from.
+   */
+  near?: string;
+  /**
+   * @minimum 1
+   * @maximum 500
+   */
+  radiusMiles?: number;
+  search?: string;
+};
+
+export type GetVendorsKind =
+  (typeof GetVendorsKind)[keyof typeof GetVendorsKind];
+
+export const GetVendorsKind = {
+  monument: "monument",
+  cemetery: "cemetery",
+  casket: "casket",
+  urn: "urn",
+  clergy: "clergy",
+  celebrant: "celebrant",
+  florist: "florist",
+  musician: "musician",
+  caterer: "caterer",
+  transport: "transport",
+  other: "other",
+} as const;
+
+export type LookupPlacesParams = {
+  kind: LookupPlacesKind;
+  near: string;
+  /**
+   * @minimum 1
+   * @maximum 200
+   */
+  radiusMiles?: number;
+};
+
+export type LookupPlacesKind =
+  (typeof LookupPlacesKind)[keyof typeof LookupPlacesKind];
+
+export const LookupPlacesKind = {
+  monument: "monument",
+  cemetery: "cemetery",
+  casket: "casket",
+  urn: "urn",
+  clergy: "clergy",
+  celebrant: "celebrant",
+  florist: "florist",
+  musician: "musician",
+  caterer: "caterer",
+  transport: "transport",
+  other: "other",
+} as const;
+
+export type GetFamilyVendorsParams = {
+  kind?: GetFamilyVendorsKind;
+};
+
+export type GetFamilyVendorsKind =
+  (typeof GetFamilyVendorsKind)[keyof typeof GetFamilyVendorsKind];
+
+export const GetFamilyVendorsKind = {
+  monument: "monument",
+  cemetery: "cemetery",
+  casket: "casket",
+  urn: "urn",
+  clergy: "clergy",
+  celebrant: "celebrant",
+  florist: "florist",
+  musician: "musician",
+  caterer: "caterer",
+  transport: "transport",
+  other: "other",
 } as const;

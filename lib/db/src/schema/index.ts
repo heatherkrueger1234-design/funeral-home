@@ -33,5 +33,8 @@ export * from "./timeline-templates";
 export * from "./messages";
 export * from "./deadlines";
 
+/* The local network a home can point a family at. */
+export * from "./vendors";
+
 /* After everyone goes home. */
 export * from "./aftercare";

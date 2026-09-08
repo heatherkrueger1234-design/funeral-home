@@ -41,6 +41,8 @@ tags:
     description: What is due, and when
   - name: belongings
     description: Clothing, jewellery, and how they should look
+  - name: vendors
+    description: The home's local network, and quotes passed through it
   - name: aftercare
     description: Branded grief check-ins after the service
   - name: uploads
@@ -1149,6 +1151,247 @@ paths:
                 items:
                   $ref: "#/components/schemas/AftercareEnrollment"
 
+  /vendors:
+    get:
+      operationId: getVendors
+      tags: [vendors]
+      summary: The home's local network, nearest first
+      parameters:
+        - name: kind
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [monument, cemetery, casket, urn, clergy, celebrant, florist, musician, caterer, transport, other]
+        - name: near
+          in: query
+          required: false
+          description: A US ZIP code to measure from.
+          schema:
+            type: string
+        - name: radiusMiles
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 500
+        - name: search
+          in: query
+          required: false
+          schema:
+            type: string
+      responses:
+        "200":
+          description: List
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Vendor"
+    post:
+      operationId: createVendor
+      tags: [vendors]
+      summary: Add someone to the network
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/VendorInput"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Vendor"
+
+  /vendors/lookup:
+    get:
+      operationId: lookupPlaces
+      tags: [vendors]
+      summary: Search live for businesses near a ZIP code
+      description: |
+        Nothing is seeded into the directory, because no public-domain
+        nationwide listing of monument makers or celebrants exists and
+        inventing them would be indefensible. This searches a places provider
+        the home has configured with its own key and returns candidates to
+        save. With no provider configured it returns `configured: false` and
+        an empty list rather than pretending to have looked.
+      parameters:
+        - name: kind
+          in: query
+          required: true
+          schema:
+            type: string
+            enum: [monument, cemetery, casket, urn, clergy, celebrant, florist, musician, caterer, transport, other]
+        - name: near
+          in: query
+          required: true
+          schema:
+            type: string
+        - name: radiusMiles
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 200
+      responses:
+        "200":
+          description: Candidates
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PlaceLookup"
+
+  /vendors/{vendorId}:
+    put:
+      operationId: updateVendor
+      tags: [vendors]
+      summary: Edit, recommend, or show a vendor to families
+      parameters:
+        - $ref: "#/components/parameters/VendorId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/VendorUpdate"
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Vendor"
+    delete:
+      operationId: archiveVendor
+      tags: [vendors]
+      summary: Take a vendor out of the network
+      parameters:
+        - $ref: "#/components/parameters/VendorId"
+      responses:
+        "204":
+          description: Archived
+
+  /cases/{caseId}/quotes:
+    get:
+      operationId: getQuotes
+      tags: [vendors]
+      summary: Quotes requested on this case
+      parameters:
+        - $ref: "#/components/parameters/CaseId"
+      responses:
+        "200":
+          description: List
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/VendorQuote"
+
+  /quotes/{quoteId}:
+    put:
+      operationId: updateQuote
+      tags: [vendors]
+      summary: Record what a vendor came back with
+      parameters:
+        - name: quoteId
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/QuoteUpdate"
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/VendorQuote"
+
+  /family/vendors:
+    get:
+      operationId: getFamilyVendors
+      tags: [family]
+      summary: Local help the funeral home recommends, nearest first
+      parameters:
+        - name: kind
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [monument, cemetery, casket, urn, clergy, celebrant, florist, musician, caterer, transport, other]
+      responses:
+        "200":
+          description: List
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Vendor"
+
+  /family/postal-code:
+    put:
+      operationId: setFamilyPostalCode
+      tags: [family]
+      summary: Say whereabouts you are, so local suggestions are actually local
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PostalCodeInput"
+      responses:
+        "200":
+          description: Saved
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PostalCodeResult"
+
+  /family/quotes:
+    get:
+      operationId: getFamilyQuotes
+      tags: [family]
+      summary: Quotes asked for on this case
+      responses:
+        "200":
+          description: List
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/VendorQuote"
+    post:
+      operationId: requestFamilyQuote
+      tags: [family]
+      summary: Ask the funeral home to get a price from someone
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/QuoteRequestInput"
+      responses:
+        "201":
+          description: Requested
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/VendorQuote"
+
   /uploads:
     post:
       operationId: uploadFile
@@ -1561,6 +1804,12 @@ components:
         type: integer
     DeadlineId:
       name: deadlineId
+      in: path
+      required: true
+      schema:
+        type: integer
+    VendorId:
+      name: vendorId
       in: path
       required: true
       schema:
@@ -1985,6 +2234,10 @@ components:
         serviceNotes:
           type: string
           nullable: true
+        postalCode:
+          type: string
+          nullable: true
+          description: Where the family is, for finding anything local to them.
         leadDirectorId:
           type: integer
           nullable: true
@@ -2016,6 +2269,7 @@ components:
           serviceAt,
           serviceLocation,
           serviceNotes,
+          postalCode,
           leadDirectorId,
           status,
           closedAt,
@@ -2134,6 +2388,9 @@ components:
           type: string
           nullable: true
         serviceNotes:
+          type: string
+          nullable: true
+        postalCode:
           type: string
           nullable: true
         leadDirectorId:
@@ -2476,6 +2733,296 @@ components:
           type: string
           format: date-time
       required: [id, filename, mimeType, sizeBytes, createdAt]
+
+    # ------------------------------------------------------------- vendors --
+
+    Vendor:
+      type: object
+      properties:
+        id:
+          type: integer
+        kind:
+          type: string
+          enum: [monument, cemetery, casket, urn, clergy, celebrant, florist, musician, caterer, transport, other]
+        name:
+          type: string
+        contactName:
+          type: string
+          nullable: true
+        phone:
+          type: string
+          nullable: true
+        email:
+          type: string
+          nullable: true
+        website:
+          type: string
+          nullable: true
+        addressLine1:
+          type: string
+          nullable: true
+        city:
+          type: string
+          nullable: true
+        region:
+          type: string
+          nullable: true
+        postalCode:
+          type: string
+          nullable: true
+        specialisms:
+          type: string
+          nullable: true
+        languages:
+          type: string
+          nullable: true
+        notes:
+          type: string
+          nullable: true
+        visibleToFamily:
+          type: boolean
+        preferred:
+          type: boolean
+        source:
+          type: string
+          enum: [home, places, gnis]
+        distanceMiles:
+          type: number
+          nullable: true
+          description: From the ZIP searched near, when one was given.
+      required:
+        [
+          id,
+          kind,
+          name,
+          contactName,
+          phone,
+          email,
+          website,
+          addressLine1,
+          city,
+          region,
+          postalCode,
+          specialisms,
+          languages,
+          notes,
+          visibleToFamily,
+          preferred,
+          source,
+          distanceMiles,
+        ]
+
+    VendorInput:
+      type: object
+      properties:
+        kind:
+          type: string
+          enum: [monument, cemetery, casket, urn, clergy, celebrant, florist, musician, caterer, transport, other]
+        name:
+          type: string
+          minLength: 1
+        contactName:
+          type: string
+          nullable: true
+        phone:
+          type: string
+          nullable: true
+        email:
+          type: string
+          nullable: true
+        website:
+          type: string
+          nullable: true
+        addressLine1:
+          type: string
+          nullable: true
+        city:
+          type: string
+          nullable: true
+        region:
+          type: string
+          nullable: true
+        postalCode:
+          type: string
+          nullable: true
+        specialisms:
+          type: string
+          nullable: true
+        languages:
+          type: string
+          nullable: true
+        notes:
+          type: string
+          nullable: true
+        visibleToFamily:
+          type: boolean
+        preferred:
+          type: boolean
+        source:
+          type: string
+          enum: [home, places, gnis]
+        sourceRef:
+          type: string
+          nullable: true
+      required: [kind, name]
+
+    VendorUpdate:
+      allOf:
+        - $ref: "#/components/schemas/VendorInput"
+        - type: object
+          properties:
+            archived:
+              type: boolean
+
+    PlaceLookup:
+      type: object
+      description: |
+        Candidates from a live provider. `configured` is false when the home
+        has not connected one, which is a different thing from finding nothing
+        and is reported as such.
+      properties:
+        configured:
+          type: boolean
+        provider:
+          type: string
+          nullable: true
+        results:
+          type: array
+          items:
+            $ref: "#/components/schemas/PlaceCandidate"
+        message:
+          type: string
+          nullable: true
+      required: [configured, provider, results, message]
+
+    PlaceCandidate:
+      type: object
+      properties:
+        sourceRef:
+          type: string
+        name:
+          type: string
+        phone:
+          type: string
+          nullable: true
+        website:
+          type: string
+          nullable: true
+        addressLine1:
+          type: string
+          nullable: true
+        city:
+          type: string
+          nullable: true
+        region:
+          type: string
+          nullable: true
+        postalCode:
+          type: string
+          nullable: true
+        distanceMiles:
+          type: number
+          nullable: true
+        alreadySaved:
+          type: boolean
+      required:
+        [sourceRef, name, phone, website, addressLine1, city, region, postalCode, distanceMiles, alreadySaved]
+
+    VendorQuote:
+      type: object
+      properties:
+        id:
+          type: integer
+        caseId:
+          type: integer
+        vendorId:
+          type: integer
+        vendorName:
+          type: string
+        vendorKind:
+          type: string
+        vendorPhone:
+          type: string
+          nullable: true
+        request:
+          type: string
+          nullable: true
+        status:
+          type: string
+          enum: [requested, passed_on, quoted, declined, chosen]
+        quotedAmountCents:
+          type: integer
+          nullable: true
+        response:
+          type: string
+          nullable: true
+        requestedByName:
+          type: string
+          nullable: true
+        respondedAt:
+          type: string
+          format: date-time
+          nullable: true
+        createdAt:
+          type: string
+          format: date-time
+      required:
+        [
+          id,
+          caseId,
+          vendorId,
+          vendorName,
+          vendorKind,
+          vendorPhone,
+          request,
+          status,
+          quotedAmountCents,
+          response,
+          requestedByName,
+          respondedAt,
+          createdAt,
+        ]
+
+    QuoteRequestInput:
+      type: object
+      properties:
+        vendorId:
+          type: integer
+        request:
+          type: string
+          nullable: true
+      required: [vendorId]
+
+    QuoteUpdate:
+      type: object
+      properties:
+        status:
+          type: string
+          enum: [requested, passed_on, quoted, declined, chosen]
+        quotedAmountCents:
+          type: integer
+          nullable: true
+        response:
+          type: string
+          nullable: true
+
+    PostalCodeInput:
+      type: object
+      properties:
+        postalCode:
+          type: string
+      required: [postalCode]
+
+    PostalCodeResult:
+      type: object
+      properties:
+        postalCode:
+          type: string
+          nullable: true
+        recognised:
+          type: boolean
+          description: Whether it matched a known US ZIP, so distances will work.
+      required: [postalCode, recognised]
 
     # ---------------------------------------------------------- belongings --
 

@@ -17,26 +17,20 @@ Two audiences, two authentication schemes, and the split is load-bearing:
 
  * OpenAPI spec version: 0.1.0
  */
-import type { CaseStatus } from "./caseStatus";
+import type { VendorQuoteStatus } from "./vendorQuoteStatus";
 
-export interface Case {
+export interface VendorQuote {
   id: number;
-  decedentFirstName: string;
-  decedentLastName: string;
-  decedentPreferredName: string | null;
-  displayName: string;
-  dateOfBirth: Date | null;
-  dateOfDeath: Date | null;
-  portraitPhotoId: number | null;
-  referencePhotoId: number | null;
-  serviceAt: Date | null;
-  serviceLocation: string | null;
-  serviceNotes: string | null;
-  /** Where the family is, for finding anything local to them. */
-  postalCode: string | null;
-  leadDirectorId: number | null;
-  status: CaseStatus;
-  closedAt: Date | null;
-  messagesLockAt: Date | null;
+  caseId: number;
+  vendorId: number;
+  vendorName: string;
+  vendorKind: string;
+  vendorPhone: string | null;
+  request: string | null;
+  status: VendorQuoteStatus;
+  quotedAmountCents: number | null;
+  response: string | null;
+  requestedByName: string | null;
+  respondedAt: Date | null;
   createdAt: Date;
 }

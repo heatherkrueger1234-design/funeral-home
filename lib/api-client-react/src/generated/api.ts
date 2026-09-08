@@ -60,8 +60,11 @@ import type {
   FuneralHome,
   FuneralHomeUpdate,
   GetCasesParams,
+  GetFamilyVendorsParams,
+  GetVendorsParams,
   HealthStatus,
   LoginInput,
+  LookupPlacesParams,
   MessageInput,
   MessageThread,
   ObituaryDraft,
@@ -71,9 +74,14 @@ import type {
   PhotoOrderInput,
   PhotoSelectionInput,
   PhotoUpdate,
+  PlaceLookup,
   PortraitInput,
+  PostalCodeInput,
+  PostalCodeResult,
   Preparation,
   PreparationUpdate,
+  QuoteRequestInput,
+  QuoteUpdate,
   RegisterInput,
   ResetPasswordInput,
   SelectionInput,
@@ -89,6 +97,10 @@ import type {
   TimelineTemplateUpdate,
   UploadInput,
   UploadSummary,
+  Vendor,
+  VendorInput,
+  VendorQuote,
+  VendorUpdate,
 } from "./api.schemas";
 
 import { customFetch } from "../custom-fetch";
@@ -5293,6 +5305,974 @@ export function useGetAftercare<
 
   return { ...query, queryKey: queryOptions.queryKey };
 }
+
+/**
+ * @summary The home's local network, nearest first
+ */
+export const getGetVendorsUrl = (params?: GetVendorsParams) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? "null" : value.toString());
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0
+    ? `/api/vendors?${stringifiedParams}`
+    : `/api/vendors`;
+};
+
+export const getVendors = async (
+  params?: GetVendorsParams,
+  options?: RequestInit,
+): Promise<Vendor[]> => {
+  return customFetch<Vendor[]>(getGetVendorsUrl(params), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getGetVendorsQueryKey = (params?: GetVendorsParams) => {
+  return [`/api/vendors`, ...(params ? [params] : [])] as const;
+};
+
+export const getGetVendorsQueryOptions = <
+  TData = Awaited<ReturnType<typeof getVendors>>,
+  TError = ErrorType<unknown>,
+>(
+  params?: GetVendorsParams,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getVendors>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getGetVendorsQueryKey(params);
+
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof getVendors>>> = ({
+    signal,
+  }) => getVendors(params, { signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof getVendors>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type GetVendorsQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getVendors>>
+>;
+export type GetVendorsQueryError = ErrorType<unknown>;
+
+/**
+ * @summary The home's local network, nearest first
+ */
+
+export function useGetVendors<
+  TData = Awaited<ReturnType<typeof getVendors>>,
+  TError = ErrorType<unknown>,
+>(
+  params?: GetVendorsParams,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getVendors>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getGetVendorsQueryOptions(params, options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary Add someone to the network
+ */
+export const getCreateVendorUrl = () => {
+  return `/api/vendors`;
+};
+
+export const createVendor = async (
+  vendorInput: VendorInput,
+  options?: RequestInit,
+): Promise<Vendor> => {
+  return customFetch<Vendor>(getCreateVendorUrl(), {
+    ...options,
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(vendorInput),
+  });
+};
+
+export const getCreateVendorMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof createVendor>>,
+    TError,
+    { data: BodyType<VendorInput> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof createVendor>>,
+  TError,
+  { data: BodyType<VendorInput> },
+  TContext
+> => {
+  const mutationKey = ["createVendor"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof createVendor>>,
+    { data: BodyType<VendorInput> }
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return createVendor(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type CreateVendorMutationResult = NonNullable<
+  Awaited<ReturnType<typeof createVendor>>
+>;
+export type CreateVendorMutationBody = BodyType<VendorInput>;
+export type CreateVendorMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Add someone to the network
+ */
+export const useCreateVendor = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof createVendor>>,
+    TError,
+    { data: BodyType<VendorInput> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof createVendor>>,
+  TError,
+  { data: BodyType<VendorInput> },
+  TContext
+> => {
+  return useMutation(getCreateVendorMutationOptions(options));
+};
+
+/**
+ * Nothing is seeded into the directory, because no public-domain
+nationwide listing of monument makers or celebrants exists and
+inventing them would be indefensible. This searches a places provider
+the home has configured with its own key and returns candidates to
+save. With no provider configured it returns `configured: false` and
+an empty list rather than pretending to have looked.
+
+ * @summary Search live for businesses near a ZIP code
+ */
+export const getLookupPlacesUrl = (params: LookupPlacesParams) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? "null" : value.toString());
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0
+    ? `/api/vendors/lookup?${stringifiedParams}`
+    : `/api/vendors/lookup`;
+};
+
+export const lookupPlaces = async (
+  params: LookupPlacesParams,
+  options?: RequestInit,
+): Promise<PlaceLookup> => {
+  return customFetch<PlaceLookup>(getLookupPlacesUrl(params), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getLookupPlacesQueryKey = (params?: LookupPlacesParams) => {
+  return [`/api/vendors/lookup`, ...(params ? [params] : [])] as const;
+};
+
+export const getLookupPlacesQueryOptions = <
+  TData = Awaited<ReturnType<typeof lookupPlaces>>,
+  TError = ErrorType<unknown>,
+>(
+  params: LookupPlacesParams,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof lookupPlaces>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getLookupPlacesQueryKey(params);
+
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof lookupPlaces>>> = ({
+    signal,
+  }) => lookupPlaces(params, { signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof lookupPlaces>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type LookupPlacesQueryResult = NonNullable<
+  Awaited<ReturnType<typeof lookupPlaces>>
+>;
+export type LookupPlacesQueryError = ErrorType<unknown>;
+
+/**
+ * @summary Search live for businesses near a ZIP code
+ */
+
+export function useLookupPlaces<
+  TData = Awaited<ReturnType<typeof lookupPlaces>>,
+  TError = ErrorType<unknown>,
+>(
+  params: LookupPlacesParams,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof lookupPlaces>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getLookupPlacesQueryOptions(params, options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary Edit, recommend, or show a vendor to families
+ */
+export const getUpdateVendorUrl = (vendorId: number) => {
+  return `/api/vendors/${vendorId}`;
+};
+
+export const updateVendor = async (
+  vendorId: number,
+  vendorUpdate: VendorUpdate,
+  options?: RequestInit,
+): Promise<Vendor> => {
+  return customFetch<Vendor>(getUpdateVendorUrl(vendorId), {
+    ...options,
+    method: "PUT",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(vendorUpdate),
+  });
+};
+
+export const getUpdateVendorMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof updateVendor>>,
+    TError,
+    { vendorId: number; data: BodyType<VendorUpdate> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof updateVendor>>,
+  TError,
+  { vendorId: number; data: BodyType<VendorUpdate> },
+  TContext
+> => {
+  const mutationKey = ["updateVendor"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof updateVendor>>,
+    { vendorId: number; data: BodyType<VendorUpdate> }
+  > = (props) => {
+    const { vendorId, data } = props ?? {};
+
+    return updateVendor(vendorId, data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type UpdateVendorMutationResult = NonNullable<
+  Awaited<ReturnType<typeof updateVendor>>
+>;
+export type UpdateVendorMutationBody = BodyType<VendorUpdate>;
+export type UpdateVendorMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Edit, recommend, or show a vendor to families
+ */
+export const useUpdateVendor = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof updateVendor>>,
+    TError,
+    { vendorId: number; data: BodyType<VendorUpdate> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof updateVendor>>,
+  TError,
+  { vendorId: number; data: BodyType<VendorUpdate> },
+  TContext
+> => {
+  return useMutation(getUpdateVendorMutationOptions(options));
+};
+
+/**
+ * @summary Take a vendor out of the network
+ */
+export const getArchiveVendorUrl = (vendorId: number) => {
+  return `/api/vendors/${vendorId}`;
+};
+
+export const archiveVendor = async (
+  vendorId: number,
+  options?: RequestInit,
+): Promise<void> => {
+  return customFetch<void>(getArchiveVendorUrl(vendorId), {
+    ...options,
+    method: "DELETE",
+  });
+};
+
+export const getArchiveVendorMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof archiveVendor>>,
+    TError,
+    { vendorId: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof archiveVendor>>,
+  TError,
+  { vendorId: number },
+  TContext
+> => {
+  const mutationKey = ["archiveVendor"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof archiveVendor>>,
+    { vendorId: number }
+  > = (props) => {
+    const { vendorId } = props ?? {};
+
+    return archiveVendor(vendorId, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type ArchiveVendorMutationResult = NonNullable<
+  Awaited<ReturnType<typeof archiveVendor>>
+>;
+
+export type ArchiveVendorMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Take a vendor out of the network
+ */
+export const useArchiveVendor = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof archiveVendor>>,
+    TError,
+    { vendorId: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof archiveVendor>>,
+  TError,
+  { vendorId: number },
+  TContext
+> => {
+  return useMutation(getArchiveVendorMutationOptions(options));
+};
+
+/**
+ * @summary Quotes requested on this case
+ */
+export const getGetQuotesUrl = (caseId: number) => {
+  return `/api/cases/${caseId}/quotes`;
+};
+
+export const getQuotes = async (
+  caseId: number,
+  options?: RequestInit,
+): Promise<VendorQuote[]> => {
+  return customFetch<VendorQuote[]>(getGetQuotesUrl(caseId), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getGetQuotesQueryKey = (caseId: number) => {
+  return [`/api/cases/${caseId}/quotes`] as const;
+};
+
+export const getGetQuotesQueryOptions = <
+  TData = Awaited<ReturnType<typeof getQuotes>>,
+  TError = ErrorType<unknown>,
+>(
+  caseId: number,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getQuotes>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getGetQuotesQueryKey(caseId);
+
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof getQuotes>>> = ({
+    signal,
+  }) => getQuotes(caseId, { signal, ...requestOptions });
+
+  return {
+    queryKey,
+    queryFn,
+    enabled: !!caseId,
+    ...queryOptions,
+  } as UseQueryOptions<Awaited<ReturnType<typeof getQuotes>>, TError, TData> & {
+    queryKey: QueryKey;
+  };
+};
+
+export type GetQuotesQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getQuotes>>
+>;
+export type GetQuotesQueryError = ErrorType<unknown>;
+
+/**
+ * @summary Quotes requested on this case
+ */
+
+export function useGetQuotes<
+  TData = Awaited<ReturnType<typeof getQuotes>>,
+  TError = ErrorType<unknown>,
+>(
+  caseId: number,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getQuotes>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getGetQuotesQueryOptions(caseId, options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary Record what a vendor came back with
+ */
+export const getUpdateQuoteUrl = (quoteId: number) => {
+  return `/api/quotes/${quoteId}`;
+};
+
+export const updateQuote = async (
+  quoteId: number,
+  quoteUpdate: QuoteUpdate,
+  options?: RequestInit,
+): Promise<VendorQuote> => {
+  return customFetch<VendorQuote>(getUpdateQuoteUrl(quoteId), {
+    ...options,
+    method: "PUT",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(quoteUpdate),
+  });
+};
+
+export const getUpdateQuoteMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof updateQuote>>,
+    TError,
+    { quoteId: number; data: BodyType<QuoteUpdate> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof updateQuote>>,
+  TError,
+  { quoteId: number; data: BodyType<QuoteUpdate> },
+  TContext
+> => {
+  const mutationKey = ["updateQuote"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof updateQuote>>,
+    { quoteId: number; data: BodyType<QuoteUpdate> }
+  > = (props) => {
+    const { quoteId, data } = props ?? {};
+
+    return updateQuote(quoteId, data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type UpdateQuoteMutationResult = NonNullable<
+  Awaited<ReturnType<typeof updateQuote>>
+>;
+export type UpdateQuoteMutationBody = BodyType<QuoteUpdate>;
+export type UpdateQuoteMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Record what a vendor came back with
+ */
+export const useUpdateQuote = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof updateQuote>>,
+    TError,
+    { quoteId: number; data: BodyType<QuoteUpdate> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof updateQuote>>,
+  TError,
+  { quoteId: number; data: BodyType<QuoteUpdate> },
+  TContext
+> => {
+  return useMutation(getUpdateQuoteMutationOptions(options));
+};
+
+/**
+ * @summary Local help the funeral home recommends, nearest first
+ */
+export const getGetFamilyVendorsUrl = (params?: GetFamilyVendorsParams) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? "null" : value.toString());
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0
+    ? `/api/family/vendors?${stringifiedParams}`
+    : `/api/family/vendors`;
+};
+
+export const getFamilyVendors = async (
+  params?: GetFamilyVendorsParams,
+  options?: RequestInit,
+): Promise<Vendor[]> => {
+  return customFetch<Vendor[]>(getGetFamilyVendorsUrl(params), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getGetFamilyVendorsQueryKey = (
+  params?: GetFamilyVendorsParams,
+) => {
+  return [`/api/family/vendors`, ...(params ? [params] : [])] as const;
+};
+
+export const getGetFamilyVendorsQueryOptions = <
+  TData = Awaited<ReturnType<typeof getFamilyVendors>>,
+  TError = ErrorType<unknown>,
+>(
+  params?: GetFamilyVendorsParams,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getFamilyVendors>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey =
+    queryOptions?.queryKey ?? getGetFamilyVendorsQueryKey(params);
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof getFamilyVendors>>
+  > = ({ signal }) => getFamilyVendors(params, { signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof getFamilyVendors>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type GetFamilyVendorsQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getFamilyVendors>>
+>;
+export type GetFamilyVendorsQueryError = ErrorType<unknown>;
+
+/**
+ * @summary Local help the funeral home recommends, nearest first
+ */
+
+export function useGetFamilyVendors<
+  TData = Awaited<ReturnType<typeof getFamilyVendors>>,
+  TError = ErrorType<unknown>,
+>(
+  params?: GetFamilyVendorsParams,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getFamilyVendors>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getGetFamilyVendorsQueryOptions(params, options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary Say whereabouts you are, so local suggestions are actually local
+ */
+export const getSetFamilyPostalCodeUrl = () => {
+  return `/api/family/postal-code`;
+};
+
+export const setFamilyPostalCode = async (
+  postalCodeInput: PostalCodeInput,
+  options?: RequestInit,
+): Promise<PostalCodeResult> => {
+  return customFetch<PostalCodeResult>(getSetFamilyPostalCodeUrl(), {
+    ...options,
+    method: "PUT",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(postalCodeInput),
+  });
+};
+
+export const getSetFamilyPostalCodeMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof setFamilyPostalCode>>,
+    TError,
+    { data: BodyType<PostalCodeInput> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof setFamilyPostalCode>>,
+  TError,
+  { data: BodyType<PostalCodeInput> },
+  TContext
+> => {
+  const mutationKey = ["setFamilyPostalCode"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof setFamilyPostalCode>>,
+    { data: BodyType<PostalCodeInput> }
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return setFamilyPostalCode(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type SetFamilyPostalCodeMutationResult = NonNullable<
+  Awaited<ReturnType<typeof setFamilyPostalCode>>
+>;
+export type SetFamilyPostalCodeMutationBody = BodyType<PostalCodeInput>;
+export type SetFamilyPostalCodeMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Say whereabouts you are, so local suggestions are actually local
+ */
+export const useSetFamilyPostalCode = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof setFamilyPostalCode>>,
+    TError,
+    { data: BodyType<PostalCodeInput> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof setFamilyPostalCode>>,
+  TError,
+  { data: BodyType<PostalCodeInput> },
+  TContext
+> => {
+  return useMutation(getSetFamilyPostalCodeMutationOptions(options));
+};
+
+/**
+ * @summary Quotes asked for on this case
+ */
+export const getGetFamilyQuotesUrl = () => {
+  return `/api/family/quotes`;
+};
+
+export const getFamilyQuotes = async (
+  options?: RequestInit,
+): Promise<VendorQuote[]> => {
+  return customFetch<VendorQuote[]>(getGetFamilyQuotesUrl(), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getGetFamilyQuotesQueryKey = () => {
+  return [`/api/family/quotes`] as const;
+};
+
+export const getGetFamilyQuotesQueryOptions = <
+  TData = Awaited<ReturnType<typeof getFamilyQuotes>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof getFamilyQuotes>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getGetFamilyQuotesQueryKey();
+
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof getFamilyQuotes>>> = ({
+    signal,
+  }) => getFamilyQuotes({ signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof getFamilyQuotes>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type GetFamilyQuotesQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getFamilyQuotes>>
+>;
+export type GetFamilyQuotesQueryError = ErrorType<unknown>;
+
+/**
+ * @summary Quotes asked for on this case
+ */
+
+export function useGetFamilyQuotes<
+  TData = Awaited<ReturnType<typeof getFamilyQuotes>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof getFamilyQuotes>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getGetFamilyQuotesQueryOptions(options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary Ask the funeral home to get a price from someone
+ */
+export const getRequestFamilyQuoteUrl = () => {
+  return `/api/family/quotes`;
+};
+
+export const requestFamilyQuote = async (
+  quoteRequestInput: QuoteRequestInput,
+  options?: RequestInit,
+): Promise<VendorQuote> => {
+  return customFetch<VendorQuote>(getRequestFamilyQuoteUrl(), {
+    ...options,
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(quoteRequestInput),
+  });
+};
+
+export const getRequestFamilyQuoteMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof requestFamilyQuote>>,
+    TError,
+    { data: BodyType<QuoteRequestInput> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof requestFamilyQuote>>,
+  TError,
+  { data: BodyType<QuoteRequestInput> },
+  TContext
+> => {
+  const mutationKey = ["requestFamilyQuote"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof requestFamilyQuote>>,
+    { data: BodyType<QuoteRequestInput> }
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return requestFamilyQuote(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type RequestFamilyQuoteMutationResult = NonNullable<
+  Awaited<ReturnType<typeof requestFamilyQuote>>
+>;
+export type RequestFamilyQuoteMutationBody = BodyType<QuoteRequestInput>;
+export type RequestFamilyQuoteMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Ask the funeral home to get a price from someone
+ */
+export const useRequestFamilyQuote = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof requestFamilyQuote>>,
+    TError,
+    { data: BodyType<QuoteRequestInput> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof requestFamilyQuote>>,
+  TError,
+  { data: BodyType<QuoteRequestInput> },
+  TContext
+> => {
+  return useMutation(getRequestFamilyQuoteMutationOptions(options));
+};
 
 /**
  * @summary Store bytes (the home's logo, or a staff-added photograph)

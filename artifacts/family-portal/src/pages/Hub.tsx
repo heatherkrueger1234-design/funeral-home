@@ -8,6 +8,7 @@ import {
   FileText,
   ListMusic,
   Shirt,
+  MapPin,
   CalendarClock,
   MessageCircle,
   HeartHandshake,
@@ -181,6 +182,12 @@ export default function Hub() {
           icon={ListMusic}
           title="Hymns and readings"
           detail="Music, readings, and who will carry"
+        />
+        <Card
+          href="/local"
+          icon={MapPin}
+          title="Local help"
+          detail="Headstones, cemeteries, and who to ask"
         />
         <Card
           href="/timeline"

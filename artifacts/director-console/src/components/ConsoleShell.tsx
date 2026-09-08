@@ -3,7 +3,7 @@ import { Link, useLocation } from "wouter";
 import { useLogout } from "@workspace/api-client-react";
 import { useSession } from "@/lib/session";
 import { Button } from "@/components/ui/button";
-import { Settings, LogOut, ClipboardList } from "lucide-react";
+import { Settings, LogOut, ClipboardList, Contact } from "lucide-react";
 
 export function ConsoleShell({ children }: { children: ReactNode }) {
   const { session, refresh } = useSession();
@@ -35,6 +35,16 @@ export function ConsoleShell({ children }: { children: ReactNode }) {
               <Link href="/">
                 <ClipboardList className="size-4" />
                 Cases
+              </Link>
+            </Button>
+            <Button
+              asChild
+              variant={location === "/vendors" ? "secondary" : "ghost"}
+              size="sm"
+            >
+              <Link href="/vendors">
+                <Contact className="size-4" />
+                Local
               </Link>
             </Button>
             <Button
