@@ -2690,6 +2690,98 @@ export const useDeletePhoto = <
 };
 
 /**
+ * A ZIP the director can drop straight into slideshow software: files
+numbered in the order they will be shown, named with the caption the
+family wrote, plus a `captions.txt` for the order of service. Hidden
+photographs are left out.
+
+ * @summary Download the photographs as a numbered folder, in slideshow order
+ */
+export const getGetPhotoPackUrl = (caseId: number) => {
+  return `/api/cases/${caseId}/photo-pack`;
+};
+
+export const getPhotoPack = async (
+  caseId: number,
+  options?: RequestInit,
+): Promise<Blob> => {
+  return customFetch<Blob>(getGetPhotoPackUrl(caseId), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getGetPhotoPackQueryKey = (caseId: number) => {
+  return [`/api/cases/${caseId}/photo-pack`] as const;
+};
+
+export const getGetPhotoPackQueryOptions = <
+  TData = Awaited<ReturnType<typeof getPhotoPack>>,
+  TError = ErrorType<unknown>,
+>(
+  caseId: number,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getPhotoPack>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getGetPhotoPackQueryKey(caseId);
+
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof getPhotoPack>>> = ({
+    signal,
+  }) => getPhotoPack(caseId, { signal, ...requestOptions });
+
+  return {
+    queryKey,
+    queryFn,
+    enabled: !!caseId,
+    ...queryOptions,
+  } as UseQueryOptions<
+    Awaited<ReturnType<typeof getPhotoPack>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type GetPhotoPackQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getPhotoPack>>
+>;
+export type GetPhotoPackQueryError = ErrorType<unknown>;
+
+/**
+ * @summary Download the photographs as a numbered folder, in slideshow order
+ */
+
+export function useGetPhotoPack<
+  TData = Awaited<ReturnType<typeof getPhotoPack>>,
+  TError = ErrorType<unknown>,
+>(
+  caseId: number,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getPhotoPack>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getGetPhotoPackQueryOptions(caseId, options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
  * @summary The obituary draft and its fields
  */
 export const getGetObituaryUrl = (caseId: number) => {

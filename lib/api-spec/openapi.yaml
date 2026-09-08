@@ -590,6 +590,27 @@ paths:
         "204":
           description: Deleted
 
+  /cases/{caseId}/photo-pack:
+    get:
+      operationId: getPhotoPack
+      tags: [photos]
+      summary: Download the photographs as a numbered folder, in slideshow order
+      description: |
+        A ZIP the director can drop straight into slideshow software: files
+        numbered in the order they will be shown, named with the caption the
+        family wrote, plus a `captions.txt` for the order of service. Hidden
+        photographs are left out.
+      parameters:
+        - $ref: "#/components/parameters/CaseId"
+      responses:
+        "200":
+          description: The pack
+          content:
+            application/zip:
+              schema:
+                type: string
+                format: binary
+
   /cases/{caseId}/obituary:
     get:
       operationId: getObituary

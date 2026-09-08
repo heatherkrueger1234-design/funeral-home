@@ -854,6 +854,18 @@ export const DeletePhotoParams = zod.object({
 });
 
 /**
+ * A ZIP the director can drop straight into slideshow software: files
+numbered in the order they will be shown, named with the caption the
+family wrote, plus a `captions.txt` for the order of service. Hidden
+photographs are left out.
+
+ * @summary Download the photographs as a numbered folder, in slideshow order
+ */
+export const GetPhotoPackParams = zod.object({
+  caseId: zod.coerce.number(),
+});
+
+/**
  * @summary The obituary draft and its fields
  */
 export const GetObituaryParams = zod.object({

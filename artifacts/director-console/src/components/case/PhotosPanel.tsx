@@ -8,7 +8,7 @@ import {
   getGetCaseQueryKey,
 } from "@workspace/api-client-react";
 import { Button } from "@/components/ui/button";
-import { Eye, EyeOff, Loader2, Star, Trash2 } from "lucide-react";
+import { Download, Eye, EyeOff, Loader2, Star, Trash2 } from "lucide-react";
 
 /**
  * The photographs, as the director sees them: including the ones they have
@@ -57,7 +57,28 @@ export function PhotosPanel({
     );
   }
 
+  const visible = rows.filter((photo) => photo.status === "visible").length;
+
   return (
+    <div className="space-y-4">
+      {/*
+        The step after collecting is putting them into slideshow software, so
+        the download is a plain link rather than a fetch: the browser saves
+        the file itself, which keeps a 700 MB pack out of the page's memory.
+      */}
+      <div className="flex flex-wrap items-center gap-3">
+        <p className="text-sm text-muted-foreground">
+          {visible} in the slideshow
+          {rows.length - visible > 0 ? `, ${rows.length - visible} hidden` : ""}.
+        </p>
+        <Button asChild variant="outline" size="sm" className="ml-auto">
+          <a href={`/api/cases/${caseId}/photo-pack`} download>
+            <Download className="size-4" />
+            Download the pack
+          </a>
+        </Button>
+      </div>
+
     <ul className="grid gap-3 sm:grid-cols-2">
       {rows.map((photo) => {
         const hidden = photo.status === "hidden";
@@ -133,5 +154,6 @@ export function PhotosPanel({
         );
       })}
     </ul>
+    </div>
   );
 }

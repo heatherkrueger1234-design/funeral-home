@@ -1,6 +1,14 @@
 import { Router, type IRouter } from "express";
 import { and, eq } from "drizzle-orm";
-import { db, casePhotosTable, casesTable, uploadsTable, type CasePhoto } from "@workspace/db";
+import {
+  db,
+  casePhotosTable,
+  casesTable,
+  uploadsTable,
+  familyContactsTable,
+  decedentDisplayName,
+  type CasePhoto,
+} from "@workspace/db";
 import { UpdatePhotoBody, ReorderCasePhotosBody } from "@workspace/api-zod";
 import {
   assertHasUpdates,
@@ -11,6 +19,8 @@ import {
 } from "../lib/http";
 import { tenant } from "../middleware/require-auth";
 import { photosForCase, toPhotoJson } from "../lib/media";
+import { decryptBuffer } from "@workspace/db/crypto";
+import { ZipWriter } from "../lib/zip";
 import { loadCase } from "./cases";
 
 const router: IRouter = Router();
@@ -146,6 +156,110 @@ router.delete("/photos/:photoId", async (req, res) => {
   });
 
   res.status(204).end();
+});
+
+/**
+ * The photo pack: everything the family collected, as a folder.
+ *
+ * This is the moment the subscription justifies itself. Without it a director
+ * finishes the collection step and then saves forty images by hand, in a
+ * guessed order, from a web page -- which is most of the time the tool was
+ * supposed to save. So: numbered in slideshow order, named with the caption
+ * the family wrote, with a `captions.txt` for whoever is typesetting the
+ * order of service.
+ *
+ * Streamed a file at a time rather than assembled in memory. Fifty
+ * photographs at 15 MB is 750 MB, and buffering that per concurrent download
+ * is how a small server falls over on the morning everyone is preparing
+ * Saturday's funerals.
+ */
+router.get("/cases/:caseId/photo-pack", async (req, res) => {
+  const home = tenant(req);
+  const row = await loadCase(req, req.params.caseId);
+
+  const rows = await db
+    .select({ photo: casePhotosTable, uploadedByName: familyContactsTable.name })
+    .from(casePhotosTable)
+    .leftJoin(
+      familyContactsTable,
+      eq(familyContactsTable.id, casePhotosTable.uploadedByContactId),
+    )
+    .where(
+      and(
+        eq(casePhotosTable.caseId, row.id),
+        eq(casePhotosTable.funeralHomeId, home.id),
+        // What a director hid is not in the slideshow, so it is not in the
+        // pack either -- otherwise hiding it achieved nothing.
+        eq(casePhotosTable.status, "visible"),
+      ),
+    );
+
+  if (rows.length === 0) {
+    throw badRequest("There are no photographs on this case yet.");
+  }
+
+  rows.sort(
+    (a, b) => a.photo.position - b.photo.position || a.photo.id - b.photo.id,
+  );
+
+  const name = decedentDisplayName(row).replace(/[^a-zA-Z0-9]+/g, "-");
+  const filename = `${name || "photographs"}-photographs.zip`;
+
+  res.setHeader("Content-Type", "application/zip");
+  res.setHeader("Content-Disposition", `attachment; filename="${filename}"`);
+  res.setHeader("X-Content-Type-Options", "nosniff");
+
+  const zip = new ZipWriter(res);
+  const manifest: string[] = [
+    decedentDisplayName(row),
+    row.serviceAt ? `Service: ${row.serviceAt.toISOString()}` : "",
+    "",
+  ].filter(Boolean);
+
+  for (const [index, { photo, uploadedByName }] of rows.entries()) {
+    const [upload] = await db
+      .select()
+      .from(uploadsTable)
+      .where(eq(uploadsTable.id, photo.uploadId))
+      .limit(1);
+
+    if (!upload) continue;
+
+    let bytes: Buffer;
+    try {
+      bytes = decryptBuffer(upload.data);
+    } catch {
+      // One unreadable file must not abort a download the director is
+      // waiting on; it is recorded in the manifest instead.
+      manifest.push(`${String(index + 1).padStart(2, "0")}. [could not be read]`);
+      continue;
+    }
+
+    const order = String(index + 1).padStart(2, "0");
+    const extension = upload.filename.includes(".")
+      ? upload.filename.slice(upload.filename.lastIndexOf(".") + 1)
+      : "jpg";
+    const caption = photo.caption?.trim();
+    const label = caption ? `-${caption.replace(/[^a-zA-Z0-9]+/g, "-")}` : "";
+
+    await zip.addFile(
+      ZipWriter.safeName(`${order}${label}.${extension}`.slice(0, 120)),
+      bytes,
+      upload.createdAt,
+    );
+
+    manifest.push(
+      `${order}. ${caption || "(no caption)"}${uploadedByName ? ` — from ${uploadedByName}` : ""}`,
+    );
+  }
+
+  await zip.addFile("captions.txt", Buffer.from(manifest.join("\n"), "utf8"));
+  await zip.finish();
+
+  // `finish` writes the central directory; ending the response is the
+  // caller's job, and without it the browser waits forever on an archive
+  // that is already complete on the wire.
+  res.end();
 });
 
 export default router;
