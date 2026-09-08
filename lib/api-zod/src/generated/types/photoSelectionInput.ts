@@ -17,26 +17,8 @@ Two audiences, two authentication schemes, and the split is load-bearing:
 
  * OpenAPI spec version: 0.1.0
  */
-import type { CasePhotoStatus } from "./casePhotoStatus";
 
-export interface CasePhoto {
-  id: number;
-  caseId: number;
-  uploadId: number;
-  uploadedByContactId: number | null;
-  /** Who sent it, resolved for display. Null when staff added it. */
-  uploadedByName: string | null;
-  caption: string | null;
-  cropX: number | null;
-  cropY: number | null;
-  cropWidth: number | null;
-  cropHeight: number | null;
-  position: number;
-  status: CasePhotoStatus;
-  /** Whether this one runs in the slideshow. */
-  selected: boolean;
-  isPortrait: boolean;
-  /** The photograph given to whoever does hair and cosmetics. */
-  isReference: boolean;
-  createdAt: Date;
+export interface PhotoSelectionInput {
+  /** In slideshow order. Anything omitted is deselected. */
+  photoIds: number[];
 }

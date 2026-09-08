@@ -148,7 +148,11 @@ export default function CaseDetail() {
             <FamilyPanel caseId={caseId} contacts={detail.contacts} />
           </TabsContent>
           <TabsContent value="photos">
-            <PhotosPanel caseId={caseId} portraitPhotoId={detail.portraitPhotoId} />
+            <PhotosPanel
+              caseId={caseId}
+              portraitPhotoId={detail.portraitPhotoId}
+              referencePhotoId={detail.referencePhotoId}
+            />
           </TabsContent>
           <TabsContent value="obituary">
             <ObituaryPanel caseId={caseId} />

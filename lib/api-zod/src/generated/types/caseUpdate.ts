@@ -28,6 +28,7 @@ export interface CaseUpdate {
   dateOfBirth?: Date | null;
   dateOfDeath?: Date | null;
   portraitPhotoId?: number | null;
+  referencePhotoId?: number | null;
   serviceAt?: Date | null;
   serviceLocation?: string | null;
   serviceNotes?: string | null;

@@ -43,9 +43,11 @@ describe("the photo pack", () => {
       .send({ status: "hidden" })
       .expect(200);
 
+    // The pack is the slideshow, so the selection is what decides both what
+    // is in it and the order.
     await staff.agent
-      .put(`/api/cases/${row.id}/photos/order`)
-      .send({ photoIds: [second.body.id, first.body.id, hidden.body.id] })
+      .put(`/api/cases/${row.id}/photos/selection`)
+      .send({ photoIds: [second.body.id, first.body.id] })
       .expect(200);
 
     const pack = await staff.agent
@@ -69,8 +71,8 @@ describe("the photo pack", () => {
     execFileSync("unzip", ["-q", zipPath, "-d", path.join(dir, "out")]);
     const files = readdirSync(path.join(dir, "out")).sort();
 
-    // Two visible photographs plus the manifest. The hidden one is absent,
-    // because hiding it should mean it is not in the slideshow.
+    // Two chosen photographs plus the manifest. The third is absent because
+    // it was never selected -- and it is still in the bin, not deleted.
     expect(files).toHaveLength(3);
     expect(files.filter((f) => f.endsWith(".png"))).toHaveLength(2);
 
@@ -96,5 +98,51 @@ describe("the photo pack", () => {
     const row = await createCase(staff);
 
     await staff.agent.get(`/api/cases/${row.id}/photo-pack`).expect(400);
+  });
+
+  it("asks for a selection rather than dumping the whole bin", async () => {
+    const staff = await signUpHome();
+    const row = await createCase(staff);
+    const { token } = await inviteFamily(staff, row.id);
+
+    // Photographs uploaded but none chosen yet.
+    await asFamily(token)
+      .post("/api/family/photos")
+      .attach("file", PNG_BYTES, "a.png")
+      .expect(201);
+
+    const refused = await staff.agent
+      .get(`/api/cases/${row.id}/photo-pack`)
+      .expect(400);
+
+    expect(refused.body.error).toMatch(/chosen/i);
+  });
+
+  it("keeps an unselected photograph in the bin", async () => {
+    const staff = await signUpHome();
+    const row = await createCase(staff);
+    const { token } = await inviteFamily(staff, row.id);
+
+    const a = await asFamily(token)
+      .post("/api/family/photos")
+      .attach("file", PNG_BYTES, "a.png")
+      .expect(201);
+    const b = await asFamily(token)
+      .post("/api/family/photos")
+      .attach("file", PNG_BYTES, "b.png")
+      .expect(201);
+
+    await asFamily(token)
+      .put("/api/family/photos/selection")
+      .send({ photoIds: [a.body.id] })
+      .expect(200);
+
+    // Choosing one does not throw the other away.
+    const bin = await asFamily(token).get("/api/family/photos").expect(200);
+    expect(bin.body).toHaveLength(2);
+    expect(bin.body.find((p: { id: number }) => p.id === b.body.id).selected).toBe(false);
+
+    // Selected photographs sort to the front, in slideshow order.
+    expect(bin.body[0].id).toBe(a.body.id);
   });
 });

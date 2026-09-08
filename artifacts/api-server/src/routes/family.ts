@@ -17,11 +17,14 @@ import {
   toStaffSignature,
   decedentDisplayName,
   MAX_PHOTOS_PER_CASE,
+  SLIDESHOW_TARGET,
 } from "@workspace/db";
 import {
   UpdateFamilyPhotoBody,
   UpdateFamilyObituaryBody,
   SetFamilyPortraitBody,
+  SetFamilyReferencePhotoBody,
+  SetFamilyPhotoSelectionBody,
   CreateFamilySelectionBody,
   PostFamilyMessageBody,
   CompleteFamilyDeadlineBody,
@@ -40,7 +43,14 @@ import {
   familyContact,
   familyHome,
 } from "../middleware/require-family";
-import { photoUpload, photosForCase, serveUpload, storeUpload, toPhotoJson } from "../lib/media";
+import {
+  photoUpload,
+  photosForCase,
+  serveUpload,
+  setSelection,
+  storeUpload,
+  toPhotoJson,
+} from "../lib/media";
 import { buildThread, isThreadLocked, markRead } from "../lib/thread";
 import { isWithinOfficeHours } from "../lib/office-hours";
 import { aftercareForCase } from "../lib/aftercare";
@@ -75,11 +85,21 @@ router.get("/session", async (req, res) => {
   const row = familyCase(req);
   const home = familyHome(req);
 
-  const [photos, deadlines, unread, obituary, lead, aftercare] = await Promise.all([
+  const [photos, selectedPhotos, deadlines, unread, obituary, lead, aftercare] =
+    await Promise.all([
     db
       .select({ value: count() })
       .from(casePhotosTable)
       .where(eq(casePhotosTable.caseId, row.id)),
+    db
+      .select({ value: count() })
+      .from(casePhotosTable)
+      .where(
+        and(
+          eq(casePhotosTable.caseId, row.id),
+          eq(casePhotosTable.selected, true),
+        ),
+      ),
     db
       .select({ value: count() })
       .from(caseDeadlinesTable)
@@ -134,6 +154,8 @@ router.get("/session", async (req, res) => {
     leadDirector: lead[0] ? toStaffSignature(lead[0]) : null,
     photoCount: Number(photos[0]?.value ?? 0),
     photoLimit: MAX_PHOTOS_PER_CASE,
+    selectedPhotoCount: Number(selectedPhotos[0]?.value ?? 0),
+    slideshowTarget: SLIDESHOW_TARGET,
     obituaryStatus: obituary[0]?.status ?? "family_draft",
     outstandingDeadlines: Number(deadlines[0]?.value ?? 0),
     unreadMessages: Number(unread[0]?.value ?? 0),
@@ -165,7 +187,12 @@ router.get("/photos", async (req, res) => {
   // Families do not see what a director has hidden. Showing someone that
   // their photograph was taken out of the slideshow, without the
   // conversation that should go with it, would be unkind.
-  res.json(await photosForCase(row.id, home.id, row.portraitPhotoId, { includeHidden: false }));
+  res.json(
+    await photosForCase(row.id, home.id, row.portraitPhotoId, {
+      includeHidden: false,
+      referencePhotoId: row.referencePhotoId,
+    }),
+  );
 });
 
 router.post("/photos", photoUpload.single("file"), async (req, res) => {
@@ -222,6 +249,7 @@ router.post("/photos", photoUpload.single("file"), async (req, res) => {
   res.status(201).json(
     toPhotoJson(created, {
       portraitPhotoId: row.portraitPhotoId,
+      referencePhotoId: row.referencePhotoId,
       uploadedByName: contact.name,
     }),
   );
@@ -252,7 +280,12 @@ router.patch("/photos/:photoId", async (req, res) => {
     .where(eq(casePhotosTable.id, photo.id))
     .returning();
 
-  res.json(toPhotoJson(updated!, { portraitPhotoId: row.portraitPhotoId }));
+  res.json(
+    toPhotoJson(updated!, {
+      portraitPhotoId: row.portraitPhotoId,
+      referencePhotoId: row.referencePhotoId,
+    }),
+  );
 });
 
 /**
@@ -283,6 +316,15 @@ router.delete("/photos/:photoId", async (req, res) => {
           eq(casesTable.portraitPhotoId, photo.id),
         ),
       );
+    await tx
+      .update(casesTable)
+      .set({ referencePhotoId: null, updatedAt: new Date() })
+      .where(
+        and(
+          eq(casesTable.id, photo.caseId),
+          eq(casesTable.referencePhotoId, photo.id),
+        ),
+      );
     await tx.delete(casePhotosTable).where(eq(casePhotosTable.id, photo.id));
     await tx
       .delete(uploadsTable)
@@ -295,6 +337,68 @@ router.delete("/photos/:photoId", async (req, res) => {
   });
 
   res.status(204).end();
+});
+
+/**
+ * Choose which photographs run in the chapel.
+ *
+ * The family is the right person to make this cut -- they know which three of
+ * the seven Christmas pictures is the one -- and the portal shows them a
+ * count against a recommended fifty rather than refusing the fifty-first.
+ */
+router.put("/photos/selection", async (req, res) => {
+  const row = familyCase(req);
+  const home = familyHome(req);
+  const { photoIds } = parseBody(SetFamilyPhotoSelectionBody, req.body);
+
+  await setSelection({
+    caseId: row.id,
+    funeralHomeId: home.id,
+    photoIds,
+  });
+
+  res.json(
+    await photosForCase(row.id, home.id, row.portraitPhotoId, {
+      includeHidden: false,
+      referencePhotoId: row.referencePhotoId,
+    }),
+  );
+});
+
+/**
+ * The photograph handed to whoever does hair and cosmetics.
+ *
+ * Kept separate from the portrait on purpose: the portrait is the one the
+ * family loves, which is often decades old and in profile; the preparation
+ * room needs a clear recent front-on face. Asking for it here is what stops a
+ * director having to ring a daughter to ask how her mother wore her hair.
+ */
+router.put("/reference-photo", async (req, res) => {
+  const row = familyCase(req);
+  const home = familyHome(req);
+  const { photoId } = parseBody(SetFamilyReferencePhotoBody, req.body);
+
+  const [photo] = await db
+    .select()
+    .from(casePhotosTable)
+    .where(
+      and(eq(casePhotosTable.id, photoId), eq(casePhotosTable.caseId, row.id)),
+    )
+    .limit(1);
+
+  const found = requireRow(photo, "That photograph could not be found.");
+
+  await db
+    .update(casesTable)
+    .set({ referencePhotoId: found.id, updatedAt: new Date() })
+    .where(eq(casesTable.id, row.id));
+
+  res.json(
+    toPhotoJson(found, {
+      portraitPhotoId: row.portraitPhotoId,
+      referencePhotoId: found.id,
+    }),
+  );
 });
 
 /** Choose the portrait, and store the crop as instructions on the photo. */
@@ -334,7 +438,12 @@ router.put("/portrait", async (req, res) => {
       .returning();
   });
 
-  res.json(toPhotoJson(updated!, { portraitPhotoId: found.id }));
+  res.json(
+    toPhotoJson(updated!, {
+      portraitPhotoId: found.id,
+      referencePhotoId: row.referencePhotoId,
+    }),
+  );
 });
 
 /* ------------------------------------------------------------ obituary --- */

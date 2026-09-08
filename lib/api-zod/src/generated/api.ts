@@ -402,6 +402,7 @@ export const GetCasesResponseItem = zod
     dateOfBirth: zod.date().nullable(),
     dateOfDeath: zod.date().nullable(),
     portraitPhotoId: zod.number().nullable(),
+    referencePhotoId: zod.number().nullable(),
     serviceAt: zod.date().nullable(),
     serviceLocation: zod.string().nullable(),
     serviceNotes: zod.string().nullable(),
@@ -457,6 +458,7 @@ export const GetCaseResponse = zod
     dateOfBirth: zod.date().nullable(),
     dateOfDeath: zod.date().nullable(),
     portraitPhotoId: zod.number().nullable(),
+    referencePhotoId: zod.number().nullable(),
     serviceAt: zod.date().nullable(),
     serviceLocation: zod.string().nullable(),
     serviceNotes: zod.string().nullable(),
@@ -525,6 +527,7 @@ export const UpdateCaseBody = zod.object({
   dateOfBirth: zod.coerce.date().nullish(),
   dateOfDeath: zod.coerce.date().nullish(),
   portraitPhotoId: zod.number().nullish(),
+  referencePhotoId: zod.number().nullish(),
   serviceAt: zod.coerce.date().nullish(),
   serviceLocation: zod.string().nullish(),
   serviceNotes: zod.string().nullish(),
@@ -542,6 +545,7 @@ export const UpdateCaseResponse = zod.object({
   dateOfBirth: zod.date().nullable(),
   dateOfDeath: zod.date().nullable(),
   portraitPhotoId: zod.number().nullable(),
+  referencePhotoId: zod.number().nullable(),
   serviceAt: zod.date().nullable(),
   serviceLocation: zod.string().nullable(),
   serviceNotes: zod.string().nullable(),
@@ -574,6 +578,7 @@ export const CloseCaseResponse = zod
     dateOfBirth: zod.date().nullable(),
     dateOfDeath: zod.date().nullable(),
     portraitPhotoId: zod.number().nullable(),
+    referencePhotoId: zod.number().nullable(),
     serviceAt: zod.date().nullable(),
     serviceLocation: zod.string().nullable(),
     serviceNotes: zod.string().nullable(),
@@ -812,10 +817,59 @@ export const GetCasePhotosResponseItem = zod.object({
   cropHeight: zod.number().nullable(),
   position: zod.number(),
   status: zod.enum(["visible", "hidden"]),
+  selected: zod.boolean().describe("Whether this one runs in the slideshow."),
   isPortrait: zod.boolean(),
+  isReference: zod
+    .boolean()
+    .describe("The photograph given to whoever does hair and cosmetics."),
   createdAt: zod.date(),
 });
 export const GetCasePhotosResponse = zod.array(GetCasePhotosResponseItem);
+
+/**
+ * Replaces the selection wholesale and sets its order from the list
+given. Photographs not named are deselected but never deleted -- they
+stay in the bin, because a family's picture of their own mother is not
+something this software throws away for being left out of a slideshow.
+
+ * @summary Choose which photographs run in the slideshow
+ */
+export const SetPhotoSelectionParams = zod.object({
+  caseId: zod.coerce.number(),
+});
+
+export const SetPhotoSelectionBody = zod.object({
+  photoIds: zod
+    .array(zod.number())
+    .describe("In slideshow order. Anything omitted is deselected."),
+});
+
+export const SetPhotoSelectionResponseItem = zod.object({
+  id: zod.number(),
+  caseId: zod.number(),
+  uploadId: zod.number(),
+  uploadedByContactId: zod.number().nullable(),
+  uploadedByName: zod
+    .string()
+    .nullable()
+    .describe("Who sent it, resolved for display. Null when staff added it."),
+  caption: zod.string().nullable(),
+  cropX: zod.number().nullable(),
+  cropY: zod.number().nullable(),
+  cropWidth: zod.number().nullable(),
+  cropHeight: zod.number().nullable(),
+  position: zod.number(),
+  status: zod.enum(["visible", "hidden"]),
+  selected: zod.boolean().describe("Whether this one runs in the slideshow."),
+  isPortrait: zod.boolean(),
+  isReference: zod
+    .boolean()
+    .describe("The photograph given to whoever does hair and cosmetics."),
+  createdAt: zod.date(),
+});
+export const SetPhotoSelectionResponse = zod.array(
+  SetPhotoSelectionResponseItem,
+);
 
 /**
  * @summary Set the slideshow order
@@ -844,7 +898,11 @@ export const ReorderCasePhotosResponseItem = zod.object({
   cropHeight: zod.number().nullable(),
   position: zod.number(),
   status: zod.enum(["visible", "hidden"]),
+  selected: zod.boolean().describe("Whether this one runs in the slideshow."),
   isPortrait: zod.boolean(),
+  isReference: zod
+    .boolean()
+    .describe("The photograph given to whoever does hair and cosmetics."),
   createdAt: zod.date(),
 });
 export const ReorderCasePhotosResponse = zod.array(
@@ -911,7 +969,11 @@ export const UpdatePhotoResponse = zod.object({
   cropHeight: zod.number().nullable(),
   position: zod.number(),
   status: zod.enum(["visible", "hidden"]),
+  selected: zod.boolean().describe("Whether this one runs in the slideshow."),
   isPortrait: zod.boolean(),
+  isReference: zod
+    .boolean()
+    .describe("The photograph given to whoever does hair and cosmetics."),
   createdAt: zod.date(),
 });
 
@@ -1381,6 +1443,7 @@ export const GetFamilySessionResponse = zod
       dateOfBirth: zod.date().nullable(),
       dateOfDeath: zod.date().nullable(),
       portraitPhotoId: zod.number().nullable(),
+      referencePhotoId: zod.number().nullable(),
       serviceAt: zod.date().nullable(),
       serviceLocation: zod.string().nullable(),
       serviceNotes: zod.string().nullable(),
@@ -1401,6 +1464,10 @@ export const GetFamilySessionResponse = zod
     ]),
     photoCount: zod.number(),
     photoLimit: zod.number(),
+    selectedPhotoCount: zod.number(),
+    slideshowTarget: zod
+      .number()
+      .describe("A recommendation for a watchable slideshow, never enforced."),
     obituaryStatus: zod.enum(["family_draft", "submitted", "approved"]),
     outstandingDeadlines: zod.number(),
     unreadMessages: zod.number(),
@@ -1454,7 +1521,11 @@ export const GetFamilyPhotosResponseItem = zod.object({
   cropHeight: zod.number().nullable(),
   position: zod.number(),
   status: zod.enum(["visible", "hidden"]),
+  selected: zod.boolean().describe("Whether this one runs in the slideshow."),
   isPortrait: zod.boolean(),
+  isReference: zod
+    .boolean()
+    .describe("The photograph given to whoever does hair and cosmetics."),
   createdAt: zod.date(),
 });
 export const GetFamilyPhotosResponse = zod.array(GetFamilyPhotosResponseItem);
@@ -1526,7 +1597,11 @@ export const UpdateFamilyPhotoResponse = zod.object({
   cropHeight: zod.number().nullable(),
   position: zod.number(),
   status: zod.enum(["visible", "hidden"]),
+  selected: zod.boolean().describe("Whether this one runs in the slideshow."),
   isPortrait: zod.boolean(),
+  isReference: zod
+    .boolean()
+    .describe("The photograph given to whoever does hair and cosmetics."),
   createdAt: zod.date(),
 });
 
@@ -1536,6 +1611,78 @@ export const UpdateFamilyPhotoResponse = zod.object({
 export const DeleteFamilyPhotoParams = zod.object({
   photoId: zod.coerce.number(),
 });
+
+/**
+ * Handed to whoever prepares them. Deliberately separate from the
+portrait: the portrait is the picture the family loves, which is often
+thirty years old and in profile, and what the preparation room needs
+is a clear recent front-on face.
+
+ * @summary Choose the photograph showing how they wore their hair and makeup
+ */
+export const SetFamilyReferencePhotoBody = zod.object({
+  photoId: zod.number(),
+});
+
+export const SetFamilyReferencePhotoResponse = zod.object({
+  id: zod.number(),
+  caseId: zod.number(),
+  uploadId: zod.number(),
+  uploadedByContactId: zod.number().nullable(),
+  uploadedByName: zod
+    .string()
+    .nullable()
+    .describe("Who sent it, resolved for display. Null when staff added it."),
+  caption: zod.string().nullable(),
+  cropX: zod.number().nullable(),
+  cropY: zod.number().nullable(),
+  cropWidth: zod.number().nullable(),
+  cropHeight: zod.number().nullable(),
+  position: zod.number(),
+  status: zod.enum(["visible", "hidden"]),
+  selected: zod.boolean().describe("Whether this one runs in the slideshow."),
+  isPortrait: zod.boolean(),
+  isReference: zod
+    .boolean()
+    .describe("The photograph given to whoever does hair and cosmetics."),
+  createdAt: zod.date(),
+});
+
+/**
+ * @summary Choose which photographs run in the slideshow
+ */
+export const SetFamilyPhotoSelectionBody = zod.object({
+  photoIds: zod
+    .array(zod.number())
+    .describe("In slideshow order. Anything omitted is deselected."),
+});
+
+export const SetFamilyPhotoSelectionResponseItem = zod.object({
+  id: zod.number(),
+  caseId: zod.number(),
+  uploadId: zod.number(),
+  uploadedByContactId: zod.number().nullable(),
+  uploadedByName: zod
+    .string()
+    .nullable()
+    .describe("Who sent it, resolved for display. Null when staff added it."),
+  caption: zod.string().nullable(),
+  cropX: zod.number().nullable(),
+  cropY: zod.number().nullable(),
+  cropWidth: zod.number().nullable(),
+  cropHeight: zod.number().nullable(),
+  position: zod.number(),
+  status: zod.enum(["visible", "hidden"]),
+  selected: zod.boolean().describe("Whether this one runs in the slideshow."),
+  isPortrait: zod.boolean(),
+  isReference: zod
+    .boolean()
+    .describe("The photograph given to whoever does hair and cosmetics."),
+  createdAt: zod.date(),
+});
+export const SetFamilyPhotoSelectionResponse = zod.array(
+  SetFamilyPhotoSelectionResponseItem,
+);
 
 /**
  * @summary Choose the main portrait
@@ -1592,7 +1739,11 @@ export const SetFamilyPortraitResponse = zod.object({
   cropHeight: zod.number().nullable(),
   position: zod.number(),
   status: zod.enum(["visible", "hidden"]),
+  selected: zod.boolean().describe("Whether this one runs in the slideshow."),
   isPortrait: zod.boolean(),
+  isReference: zod
+    .boolean()
+    .describe("The photograph given to whoever does hair and cosmetics."),
   createdAt: zod.date(),
 });
 

@@ -571,6 +571,34 @@ paths:
                 items:
                   $ref: "#/components/schemas/CasePhoto"
 
+  /cases/{caseId}/photos/selection:
+    put:
+      operationId: setPhotoSelection
+      tags: [photos]
+      summary: Choose which photographs run in the slideshow
+      description: |
+        Replaces the selection wholesale and sets its order from the list
+        given. Photographs not named are deselected but never deleted -- they
+        stay in the bin, because a family's picture of their own mother is not
+        something this software throws away for being left out of a slideshow.
+      parameters:
+        - $ref: "#/components/parameters/CaseId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PhotoSelectionInput"
+      responses:
+        "200":
+          description: The bin, with the new selection marked
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/CasePhoto"
+
   /cases/{caseId}/photos/order:
     put:
       operationId: reorderCasePhotos
@@ -1025,6 +1053,51 @@ paths:
       responses:
         "204":
           description: Deleted
+
+  /family/reference-photo:
+    put:
+      operationId: setFamilyReferencePhoto
+      tags: [family]
+      summary: Choose the photograph showing how they wore their hair and makeup
+      description: |
+        Handed to whoever prepares them. Deliberately separate from the
+        portrait: the portrait is the picture the family loves, which is often
+        thirty years old and in profile, and what the preparation room needs
+        is a clear recent front-on face.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PhotoIdInput"
+      responses:
+        "200":
+          description: The chosen photograph
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CasePhoto"
+
+  /family/photos/selection:
+    put:
+      operationId: setFamilyPhotoSelection
+      tags: [family]
+      summary: Choose which photographs run in the slideshow
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PhotoSelectionInput"
+      responses:
+        "200":
+          description: The bin, with the new selection marked
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/CasePhoto"
 
   /family/portrait:
     put:
@@ -1680,6 +1753,9 @@ components:
         portraitPhotoId:
           type: integer
           nullable: true
+        referencePhotoId:
+          type: integer
+          nullable: true
         serviceAt:
           type: string
           format: date-time
@@ -1717,6 +1793,7 @@ components:
           dateOfBirth,
           dateOfDeath,
           portraitPhotoId,
+          referencePhotoId,
           serviceAt,
           serviceLocation,
           serviceNotes,
@@ -1825,6 +1902,9 @@ components:
           format: date-time
           nullable: true
         portraitPhotoId:
+          type: integer
+          nullable: true
+        referencePhotoId:
           type: integer
           nullable: true
         serviceAt:
@@ -2015,8 +2095,14 @@ components:
         status:
           type: string
           enum: [visible, hidden]
+        selected:
+          type: boolean
+          description: Whether this one runs in the slideshow.
         isPortrait:
           type: boolean
+        isReference:
+          type: boolean
+          description: The photograph given to whoever does hair and cosmetics.
         createdAt:
           type: string
           format: date-time
@@ -2034,7 +2120,9 @@ components:
           cropHeight,
           position,
           status,
+          selected,
           isPortrait,
+          isReference,
           createdAt,
         ]
 
@@ -2086,6 +2174,23 @@ components:
           type: number
           minimum: 0
           maximum: 1
+
+    PhotoSelectionInput:
+      type: object
+      properties:
+        photoIds:
+          type: array
+          description: In slideshow order. Anything omitted is deselected.
+          items:
+            type: integer
+      required: [photoIds]
+
+    PhotoIdInput:
+      type: object
+      properties:
+        photoId:
+          type: integer
+      required: [photoId]
 
     PhotoOrderInput:
       type: object
@@ -2630,6 +2735,11 @@ components:
           type: integer
         photoLimit:
           type: integer
+        selectedPhotoCount:
+          type: integer
+        slideshowTarget:
+          type: integer
+          description: A recommendation for a watchable slideshow, never enforced.
         obituaryStatus:
           type: string
           enum: [family_draft, submitted, approved]
@@ -2651,6 +2761,8 @@ components:
           leadDirector,
           photoCount,
           photoLimit,
+          selectedPhotoCount,
+          slideshowTarget,
           obituaryStatus,
           outstandingDeadlines,
           unreadMessages,

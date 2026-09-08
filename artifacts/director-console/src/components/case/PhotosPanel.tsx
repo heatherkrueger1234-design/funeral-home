@@ -4,11 +4,12 @@ import {
   useUpdatePhoto,
   useDeletePhoto,
   useUpdateCase,
+  useSetPhotoSelection,
   getGetCasePhotosQueryKey,
   getGetCaseQueryKey,
 } from "@workspace/api-client-react";
 import { Button } from "@/components/ui/button";
-import { Download, Eye, EyeOff, Loader2, Star, Trash2 } from "lucide-react";
+import { Check, Download, Eye, EyeOff, Loader2, Scissors, Star, Trash2 } from "lucide-react";
 
 /**
  * The photographs, as the director sees them: including the ones they have
@@ -21,9 +22,11 @@ import { Download, Eye, EyeOff, Loader2, Star, Trash2 } from "lucide-react";
 export function PhotosPanel({
   caseId,
   portraitPhotoId,
+  referencePhotoId,
 }: {
   caseId: number;
   portraitPhotoId: number | null;
+  referencePhotoId: number | null;
 }) {
   const queryClient = useQueryClient();
   const photos = useGetCasePhotos(caseId);
@@ -38,6 +41,7 @@ export function PhotosPanel({
   const update = useUpdatePhoto({ mutation: { onSuccess: refresh } });
   const remove = useDeletePhoto({ mutation: { onSuccess: refresh } });
   const updateCase = useUpdateCase({ mutation: { onSuccess: refresh } });
+  const setSelection = useSetPhotoSelection({ mutation: { onSuccess: refresh } });
 
   if (photos.isPending) {
     return (
@@ -58,6 +62,34 @@ export function PhotosPanel({
   }
 
   const visible = rows.filter((photo) => photo.status === "visible").length;
+  const chosen = rows.filter((photo) => photo.selected);
+
+  const toggle = (photoId: number) => {
+    const current = chosen.map((photo) => photo.id);
+    setSelection.mutate({
+      caseId,
+      data: {
+        photoIds: current.includes(photoId)
+          ? current.filter((id) => id !== photoId)
+          : [...current, photoId],
+      },
+    });
+  };
+
+  /**
+   * The common case is a family who sent thirty and meant all of them, so
+   * selecting the lot has to be one click — otherwise the director does
+   * thirty taps to express "yes, those".
+   */
+  const selectAllVisible = () =>
+    setSelection.mutate({
+      caseId,
+      data: {
+        photoIds: rows
+          .filter((photo) => photo.status === "visible")
+          .map((photo) => photo.id),
+      },
+    });
 
   return (
     <div className="space-y-4">
@@ -67,16 +99,41 @@ export function PhotosPanel({
         the file itself, which keeps a 700 MB pack out of the page's memory.
       */}
       <div className="flex flex-wrap items-center gap-3">
-        <p className="text-sm text-muted-foreground">
-          {visible} in the slideshow
-          {rows.length - visible > 0 ? `, ${rows.length - visible} hidden` : ""}.
+        <p className="flex items-center gap-2 text-sm text-muted-foreground">
+          <Scissors className="size-4" />
+          <span>
+            <strong className="text-foreground">{chosen.length}</strong> chosen
+            of {visible} in the bin
+            {rows.length - visible > 0
+              ? `, ${rows.length - visible} hidden`
+              : ""}
+          </span>
         </p>
-        <Button asChild variant="outline" size="sm" className="ml-auto">
-          <a href={`/api/cases/${caseId}/photo-pack`} download>
-            <Download className="size-4" />
-            Download the pack
-          </a>
-        </Button>
+
+        <div className="ml-auto flex gap-2">
+          <Button
+            variant="ghost"
+            size="sm"
+            disabled={setSelection.isPending}
+            onClick={selectAllVisible}
+          >
+            <Check className="size-4" />
+            Choose all
+          </Button>
+          <Button
+            asChild
+            variant="outline"
+            size="sm"
+            // The pack is the selection, so offering it empty would only
+            // produce an error the director has to interpret.
+            className={chosen.length === 0 ? "pointer-events-none opacity-50" : ""}
+          >
+            <a href={`/api/cases/${caseId}/photo-pack`} download>
+              <Download className="size-4" />
+              Download the pack
+            </a>
+          </Button>
+        </div>
       </div>
 
     <ul className="grid gap-3 sm:grid-cols-2">
@@ -87,7 +144,7 @@ export function PhotosPanel({
           <li
             key={photo.id}
             className={`rounded-xl border bg-card p-3 ${
-              photo.isPortrait ? "border-[var(--accent)]" : "border-border"
+              photo.selected ? "border-[var(--accent)]" : "border-border"
             }`}
           >
             <img
@@ -112,7 +169,16 @@ export function PhotosPanel({
 
             <div className="flex flex-wrap gap-1">
               <Button
-                variant={photo.isPortrait ? "default" : "outline"}
+                variant={photo.selected ? "default" : "outline"}
+                size="sm"
+                onClick={() => toggle(photo.id)}
+              >
+                <Check className="size-4" />
+                {photo.selected ? "Chosen" : "Choose"}
+              </Button>
+
+              <Button
+                variant={photo.isPortrait ? "secondary" : "ghost"}
                 size="sm"
                 onClick={() =>
                   updateCase.mutate({
@@ -125,6 +191,20 @@ export function PhotosPanel({
                   className={photo.isPortrait ? "size-4 fill-current" : "size-4"}
                 />
                 Portrait
+              </Button>
+
+              {/* What the preparation room gets. */}
+              <Button
+                variant={photo.isReference ? "secondary" : "ghost"}
+                size="sm"
+                onClick={() =>
+                  updateCase.mutate({
+                    caseId,
+                    data: { referencePhotoId: photo.id },
+                  })
+                }
+              >
+                {photo.isReference ? "Reference" : "Use as reference"}
               </Button>
 
               <Button

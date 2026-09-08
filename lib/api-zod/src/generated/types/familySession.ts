@@ -38,6 +38,9 @@ export interface FamilySession {
   leadDirector: StaffSignature | null;
   photoCount: number;
   photoLimit: number;
+  selectedPhotoCount: number;
+  /** A recommendation for a watchable slideshow, never enforced. */
+  slideshowTarget: number;
   obituaryStatus: FamilySessionObituaryStatus;
   outstandingDeadlines: number;
   unreadMessages: number;

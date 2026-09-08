@@ -9,7 +9,11 @@ import {
   decedentDisplayName,
   type CasePhoto,
 } from "@workspace/db";
-import { UpdatePhotoBody, ReorderCasePhotosBody } from "@workspace/api-zod";
+import {
+  UpdatePhotoBody,
+  ReorderCasePhotosBody,
+  SetPhotoSelectionBody,
+} from "@workspace/api-zod";
 import {
   assertHasUpdates,
   badRequest,
@@ -18,7 +22,7 @@ import {
   requireRow,
 } from "../lib/http";
 import { tenant } from "../middleware/require-auth";
-import { photosForCase, toPhotoJson } from "../lib/media";
+import { photosForCase, setSelection, toPhotoJson } from "../lib/media";
 import { decryptBuffer } from "@workspace/db/crypto";
 import { ZipWriter } from "../lib/zip";
 import { loadCase } from "./cases";
@@ -52,7 +56,34 @@ router.get("/cases/:caseId/photos", async (req, res) => {
 
   // Staff see hidden photographs too — a director needs to know what was
   // taken out of the slideshow, and by whom.
-  res.json(await photosForCase(row.id, home.id, row.portraitPhotoId, { includeHidden: true }));
+  res.json(
+    await photosForCase(row.id, home.id, row.portraitPhotoId, {
+      includeHidden: true,
+      referencePhotoId: row.referencePhotoId,
+    }),
+  );
+});
+
+/**
+ * Choose what runs in the chapel.
+ *
+ * The bin holds everything the family sent -- which for a family that went
+ * through every album in the house can be several hundred. This is the cut,
+ * and it is made here rather than at the door.
+ */
+router.put("/cases/:caseId/photos/selection", async (req, res) => {
+  const home = tenant(req);
+  const row = await loadCase(req, req.params.caseId);
+  const { photoIds } = parseBody(SetPhotoSelectionBody, req.body);
+
+  await setSelection({ caseId: row.id, funeralHomeId: home.id, photoIds });
+
+  res.json(
+    await photosForCase(row.id, home.id, row.portraitPhotoId, {
+      includeHidden: true,
+      referencePhotoId: row.referencePhotoId,
+    }),
+  );
 });
 
 /**
@@ -95,7 +126,12 @@ router.put("/cases/:caseId/photos/order", async (req, res) => {
     }
   });
 
-  res.json(await photosForCase(row.id, home.id, row.portraitPhotoId, { includeHidden: true }));
+  res.json(
+    await photosForCase(row.id, home.id, row.portraitPhotoId, {
+      includeHidden: true,
+      referencePhotoId: row.referencePhotoId,
+    }),
+  );
 });
 
 router.patch("/photos/:photoId", async (req, res) => {
@@ -110,13 +146,19 @@ router.patch("/photos/:photoId", async (req, res) => {
     .returning();
 
   const [row] = await db
-    .select({ portraitPhotoId: casesTable.portraitPhotoId })
+    .select({
+      portraitPhotoId: casesTable.portraitPhotoId,
+      referencePhotoId: casesTable.referencePhotoId,
+    })
     .from(casesTable)
     .where(eq(casesTable.id, existing.caseId))
     .limit(1);
 
   res.json(
-    toPhotoJson(updated!, { portraitPhotoId: row?.portraitPhotoId ?? null }),
+    toPhotoJson(updated!, {
+      portraitPhotoId: row?.portraitPhotoId ?? null,
+      referencePhotoId: row?.referencePhotoId ?? null,
+    }),
   );
 });
 
@@ -132,6 +174,8 @@ router.delete("/photos/:photoId", async (req, res) => {
   const existing = await loadPhoto(req, req.params.photoId);
 
   await db.transaction(async (tx) => {
+    // Both pointers, or the register book renders with a hole in it and the
+    // preparation room is handed a reference photo that no longer exists.
     await tx
       .update(casesTable)
       .set({ portraitPhotoId: null, updatedAt: new Date() })
@@ -139,6 +183,16 @@ router.delete("/photos/:photoId", async (req, res) => {
         and(
           eq(casesTable.id, existing.caseId),
           eq(casesTable.portraitPhotoId, existing.id),
+        ),
+      );
+
+    await tx
+      .update(casesTable)
+      .set({ referencePhotoId: null, updatedAt: new Date() })
+      .where(
+        and(
+          eq(casesTable.id, existing.caseId),
+          eq(casesTable.referencePhotoId, existing.id),
         ),
       );
 
@@ -191,11 +245,22 @@ router.get("/cases/:caseId/photo-pack", async (req, res) => {
         // What a director hid is not in the slideshow, so it is not in the
         // pack either -- otherwise hiding it achieved nothing.
         eq(casePhotosTable.status, "visible"),
+        /*
+         * The pack is the slideshow, not the bin.
+         *
+         * A family may have uploaded four hundred photographs; the director
+         * needs the fifty that were chosen, in the order they were chosen.
+         * Handing over the whole bin would put the editing work straight back
+         * on them, which is the thing this feature exists to remove.
+         */
+        eq(casePhotosTable.selected, true),
       ),
     );
 
   if (rows.length === 0) {
-    throw badRequest("There are no photographs on this case yet.");
+    throw badRequest(
+      "No photographs have been chosen for the slideshow yet. Pick the ones to include first.",
+    );
   }
 
   rows.sort(

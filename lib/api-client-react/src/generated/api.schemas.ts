@@ -259,6 +259,7 @@ export interface Case {
   dateOfBirth: string | null;
   dateOfDeath: string | null;
   portraitPhotoId: number | null;
+  referencePhotoId: number | null;
   serviceAt: string | null;
   serviceLocation: string | null;
   serviceNotes: string | null;
@@ -352,6 +353,7 @@ export interface CaseUpdate {
   dateOfBirth?: string | null;
   dateOfDeath?: string | null;
   portraitPhotoId?: number | null;
+  referencePhotoId?: number | null;
   serviceAt?: string | null;
   serviceLocation?: string | null;
   serviceNotes?: string | null;
@@ -434,7 +436,11 @@ export interface CasePhoto {
   cropHeight: number | null;
   position: number;
   status: CasePhotoStatus;
+  /** Whether this one runs in the slideshow. */
+  selected: boolean;
   isPortrait: boolean;
+  /** The photograph given to whoever does hair and cosmetics. */
+  isReference: boolean;
   createdAt: string;
 }
 
@@ -493,6 +499,15 @@ export interface FamilyPhotoUpdate {
    * @maximum 1
    */
   cropHeight?: number;
+}
+
+export interface PhotoSelectionInput {
+  /** In slideshow order. Anything omitted is deselected. */
+  photoIds: number[];
+}
+
+export interface PhotoIdInput {
+  photoId: number;
 }
 
 export interface PhotoOrderInput {
@@ -802,6 +817,9 @@ export interface FamilySession {
   leadDirector: StaffSignature | null;
   photoCount: number;
   photoLimit: number;
+  selectedPhotoCount: number;
+  /** A recommendation for a watchable slideshow, never enforced. */
+  slideshowTarget: number;
   obituaryStatus: FamilySessionObituaryStatus;
   outstandingDeadlines: number;
   unreadMessages: number;

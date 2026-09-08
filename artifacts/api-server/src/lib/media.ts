@@ -172,12 +172,17 @@ export async function serveUpload(
  */
 export function toPhotoJson(
   photo: CasePhoto,
-  options: { portraitPhotoId: number | null; uploadedByName?: string | null },
+  options: {
+    portraitPhotoId: number | null;
+    referencePhotoId?: number | null;
+    uploadedByName?: string | null;
+  },
 ) {
   return {
     ...photo,
     uploadedByName: options.uploadedByName ?? null,
     isPortrait: options.portraitPhotoId === photo.id,
+    isReference: (options.referencePhotoId ?? null) === photo.id,
   };
 }
 
@@ -186,7 +191,7 @@ export async function photosForCase(
   caseId: number,
   funeralHomeId: number,
   portraitPhotoId: number | null,
-  options: { includeHidden: boolean },
+  options: { includeHidden: boolean; referencePhotoId?: number | null },
 ) {
   const rows = await db
     .select({ photo: casePhotosTable, uploadedByName: familyContactsTable.name })
@@ -203,9 +208,91 @@ export async function photosForCase(
       ),
     );
 
+  /*
+   * Selected photographs first, in slideshow order; then the rest of the bin
+   * oldest first.
+   *
+   * The bin is deliberately chronological rather than ordered, because a pile
+   * of four hundred photographs nobody has looked at yet has no meaningful
+   * order except the one they arrived in -- and a family scrolling for the
+   * one they uploaded a minute ago should find it where they left it.
+   */
   return rows
-    .sort((a, b) => a.photo.position - b.photo.position || a.photo.id - b.photo.id)
+    .sort((a, b) => {
+      if (a.photo.selected !== b.photo.selected) return a.photo.selected ? -1 : 1;
+      if (a.photo.selected) {
+        return a.photo.position - b.photo.position || a.photo.id - b.photo.id;
+      }
+      return a.photo.id - b.photo.id;
+    })
     .map(({ photo, uploadedByName }) =>
-      toPhotoJson(photo, { portraitPhotoId, uploadedByName }),
+      toPhotoJson(photo, {
+        portraitPhotoId,
+        referencePhotoId: options.referencePhotoId,
+        uploadedByName,
+      }),
     );
+}
+
+/**
+ * Replace a case's slideshow selection, in the order given.
+ *
+ * Wholesale rather than per-photo toggling, because the question "which
+ * fifty of these four hundred" is answered by looking at all of them at once,
+ * and a per-photo endpoint would mean the client sending four hundred
+ * requests to express one decision.
+ *
+ * Nothing is ever deleted here. A photograph left out of the slideshow stays
+ * in the bin, keeps its caption, and can still be the portrait -- being cut
+ * from a slideshow is not a reason for this software to throw away a
+ * family's picture of their own mother.
+ */
+export async function setSelection(options: {
+  caseId: number;
+  funeralHomeId: number;
+  photoIds: number[];
+}): Promise<void> {
+  const { caseId, funeralHomeId, photoIds } = options;
+
+  const owned = await db
+    .select({ id: casePhotosTable.id })
+    .from(casePhotosTable)
+    .where(
+      and(
+        eq(casePhotosTable.caseId, caseId),
+        eq(casePhotosTable.funeralHomeId, funeralHomeId),
+      ),
+    );
+
+  const known = new Set(owned.map((row) => row.id));
+  const seen = new Set<number>();
+
+  for (const id of photoIds) {
+    if (!known.has(id)) throw badRequest("That photograph is not on this case.");
+    if (seen.has(id)) throw badRequest("A photograph was listed twice.");
+    seen.add(id);
+  }
+
+  const now = new Date();
+
+  await db.transaction(async (tx) => {
+    // Clear first, so a photograph dropped from the selection cannot keep a
+    // stale position and reappear in the middle of the running order.
+    await tx
+      .update(casePhotosTable)
+      .set({ selected: false, position: 0, updatedAt: now })
+      .where(
+        and(
+          eq(casePhotosTable.caseId, caseId),
+          eq(casePhotosTable.funeralHomeId, funeralHomeId),
+        ),
+      );
+
+    for (const [index, id] of photoIds.entries()) {
+      await tx
+        .update(casePhotosTable)
+        .set({ selected: true, position: index, updatedAt: now })
+        .where(eq(casePhotosTable.id, id));
+    }
+  });
 }

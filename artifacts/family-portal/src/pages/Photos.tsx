@@ -6,6 +6,8 @@ import {
   useDeleteFamilyPhoto,
   useUpdateFamilyPhoto,
   useSetFamilyPortrait,
+  useSetFamilyReferencePhoto,
+  useSetFamilyPhotoSelection,
   getGetFamilyPhotosQueryKey,
   getGetFamilySessionQueryKey,
   postFamilyPhotoMultipart,
@@ -15,7 +17,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
-import { Images, Loader2, Star, Trash2, Upload } from "lucide-react";
+import { Check, Images, Loader2, Scissors, Star, Trash2, Upload } from "lucide-react";
 
 /**
  * The photo bin.
@@ -50,10 +52,32 @@ export default function Photos() {
   const removePhoto = useDeleteFamilyPhoto({ mutation: { onSuccess: refresh } });
   const updatePhoto = useUpdateFamilyPhoto({ mutation: { onSuccess: refresh } });
   const setPortrait = useSetFamilyPortrait({ mutation: { onSuccess: refresh } });
+  const setReference = useSetFamilyReferencePhoto({
+    mutation: { onSuccess: refresh },
+  });
+  const setSelection = useSetFamilyPhotoSelection({
+    mutation: { onSuccess: refresh },
+  });
 
-  const limit = session.data?.photoLimit ?? 50;
+  const limit = session.data?.photoLimit ?? 1000;
+  const target = session.data?.slideshowTarget ?? 50;
   const count = photos.data?.length ?? 0;
   const remaining = Math.max(0, limit - count);
+
+  const chosen = (photos.data ?? []).filter((photo) => photo.selected);
+
+  /**
+   * Selection is expressed as the whole list, so a tap has to rebuild it.
+   * Toggling on appends, which puts a newly chosen photograph at the end of
+   * the running order — where somebody adding one more expects it to land.
+   */
+  const toggle = (photoId: number) => {
+    const current = chosen.map((photo) => photo.id);
+    const next = current.includes(photoId)
+      ? current.filter((id) => id !== photoId)
+      : [...current, photoId];
+    setSelection.mutate({ data: { photoIds: next } });
+  };
 
   async function onFilesChosen(files: FileList | null) {
     if (!files?.length) return;
@@ -103,11 +127,26 @@ export default function Photos() {
       <header>
         <h1 className="font-display text-2xl mb-1">Photographs</h1>
         <p className="text-muted-foreground">
-          These become the slideshow and the service cards. {remaining > 0
-            ? `Room for ${remaining} more.`
-            : "That's the full set."}
+          Add as many as you like — go through every album if you want to.
+          You'll choose the ones for the slideshow afterwards.
         </p>
       </header>
+
+      {count > 0 && (
+        <div className="rounded-xl border border-border bg-card px-4 py-3">
+          <p className="flex items-center gap-2 font-medium">
+            <Scissors className="size-4 text-[var(--accent-deep)]" />
+            {chosen.length} chosen for the slideshow
+          </p>
+          <p className="mt-1 text-sm text-muted-foreground">
+            {chosen.length === 0
+              ? `Tap “Use this” on the ones you'd like shown. Around ${target} is comfortable to watch.`
+              : chosen.length > target
+                ? `That's more than the ${target} or so that plays comfortably — it's your choice, and the funeral home will help if you'd like to trim it.`
+                : `Around ${target} plays comfortably. Nothing you leave out is deleted.`}
+          </p>
+        </div>
+      )}
 
       <div>
         <input
@@ -137,7 +176,9 @@ export default function Photos() {
           )}
         </Button>
         <p className="mt-2 text-center text-sm text-muted-foreground">
-          You can pick several at once, and come back later for more.
+          {remaining > 0
+            ? "You can pick several at once, and come back later for more."
+            : "That's as many as we can hold — please ask the funeral home."}
         </p>
       </div>
 
@@ -185,10 +226,20 @@ export default function Photos() {
                   }}
                 />
 
-                <div className="flex items-center gap-2">
+                <div className="flex flex-wrap items-center gap-2">
                   <Button
                     type="button"
-                    variant={photo.isPortrait ? "default" : "outline"}
+                    variant={photo.selected ? "default" : "outline"}
+                    size="sm"
+                    onClick={() => toggle(photo.id)}
+                  >
+                    <Check className="size-4" />
+                    {photo.selected ? "In the slideshow" : "Use this"}
+                  </Button>
+
+                  <Button
+                    type="button"
+                    variant={photo.isPortrait ? "secondary" : "ghost"}
                     size="sm"
                     onClick={() =>
                       setPortrait.mutate({ data: { photoId: photo.id } })
@@ -200,6 +251,23 @@ export default function Photos() {
                       }
                     />
                     {photo.isPortrait ? "Main photograph" : "Use as main"}
+                  </Button>
+
+                  {/*
+                    Asked for plainly, because the alternative is the director
+                    ringing a daughter to ask how her mother wore her hair.
+                  */}
+                  <Button
+                    type="button"
+                    variant={photo.isReference ? "secondary" : "ghost"}
+                    size="sm"
+                    onClick={() =>
+                      setReference.mutate({ data: { photoId: photo.id } })
+                    }
+                  >
+                    {photo.isReference
+                      ? "Shows how they looked"
+                      : "This is how they looked"}
                   </Button>
 
                   {/* Only what this person added — see the API's own rule. */}

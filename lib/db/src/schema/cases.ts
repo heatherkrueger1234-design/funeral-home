@@ -51,6 +51,22 @@ export const casesTable = pgTable(
      */
     portraitPhotoId: integer("portrait_photo_id"),
 
+    /**
+     * The photo handed to whoever does hair and cosmetics.
+     *
+     * A different photograph from the portrait, and the distinction is not
+     * cosmetic in the trivial sense. The portrait is the picture the family
+     * loves -- often thirty years old, often three-quarter profile, often
+     * the one where the light is beautiful. What the preparation room needs
+     * is a clear, recent, front-on face: how they parted their hair, whether
+     * they wore lipstick, which side the glasses sat.
+     *
+     * Asking for it explicitly is also the only reliable way to get it. A
+     * director who has to ring the daughter to ask "do you have a photo of
+     * how she did her hair" is making a phone call nobody wants to make.
+     */
+    referencePhotoId: integer("reference_photo_id"),
+
     /* ------------------------------------------------------- the service */
 
     /**

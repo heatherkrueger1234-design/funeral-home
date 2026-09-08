@@ -45,7 +45,10 @@ describe("a case from intake to aftercare", () => {
 
     expect(session.body.home.name).toBe("Horan & McConaty");
     expect(session.body.case.displayName).toBe("Peggy Hale");
-    expect(session.body.photoLimit).toBe(50);
+    // The bin is generous; the cut happens later, deliberately.
+    expect(session.body.photoLimit).toBe(1000);
+    expect(session.body.slideshowTarget).toBe(50);
+    expect(session.body.selectedPhotoCount).toBe(0);
     expect(session.body.contact).not.toHaveProperty("tokenHash");
 
     /* --- the asset drop: photographs --------------------------------- */
@@ -68,6 +71,20 @@ describe("a case from intake to aftercare", () => {
 
     expect(portrait.body.isPortrait).toBe(true);
     expect(portrait.body.cropX).toBeCloseTo(0.1);
+
+    // And the separate photograph for whoever does hair and cosmetics.
+    const reference = await asFamily(token)
+      .put("/api/family/reference-photo")
+      .send({ photoId: photo.body.id })
+      .expect(200);
+    expect(reference.body.isReference).toBe(true);
+
+    // The family chooses what actually runs in the chapel.
+    const chosen = await asFamily(token)
+      .put("/api/family/photos/selection")
+      .send({ photoIds: [photo.body.id] })
+      .expect(200);
+    expect(chosen.body[0].selected).toBe(true);
 
     /* --- the asset drop: the obituary -------------------------------- */
 

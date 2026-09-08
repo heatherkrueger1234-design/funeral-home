@@ -62,7 +62,9 @@ import type {
   ObituaryDraft,
   ObituaryFieldsInput,
   ObituaryUpdate,
+  PhotoIdInput,
   PhotoOrderInput,
+  PhotoSelectionInput,
   PhotoUpdate,
   PortraitInput,
   RegisterInput,
@@ -2522,6 +2524,98 @@ export function useGetCasePhotos<
 }
 
 /**
+ * Replaces the selection wholesale and sets its order from the list
+given. Photographs not named are deselected but never deleted -- they
+stay in the bin, because a family's picture of their own mother is not
+something this software throws away for being left out of a slideshow.
+
+ * @summary Choose which photographs run in the slideshow
+ */
+export const getSetPhotoSelectionUrl = (caseId: number) => {
+  return `/api/cases/${caseId}/photos/selection`;
+};
+
+export const setPhotoSelection = async (
+  caseId: number,
+  photoSelectionInput: PhotoSelectionInput,
+  options?: RequestInit,
+): Promise<CasePhoto[]> => {
+  return customFetch<CasePhoto[]>(getSetPhotoSelectionUrl(caseId), {
+    ...options,
+    method: "PUT",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(photoSelectionInput),
+  });
+};
+
+export const getSetPhotoSelectionMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof setPhotoSelection>>,
+    TError,
+    { caseId: number; data: BodyType<PhotoSelectionInput> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof setPhotoSelection>>,
+  TError,
+  { caseId: number; data: BodyType<PhotoSelectionInput> },
+  TContext
+> => {
+  const mutationKey = ["setPhotoSelection"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof setPhotoSelection>>,
+    { caseId: number; data: BodyType<PhotoSelectionInput> }
+  > = (props) => {
+    const { caseId, data } = props ?? {};
+
+    return setPhotoSelection(caseId, data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type SetPhotoSelectionMutationResult = NonNullable<
+  Awaited<ReturnType<typeof setPhotoSelection>>
+>;
+export type SetPhotoSelectionMutationBody = BodyType<PhotoSelectionInput>;
+export type SetPhotoSelectionMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Choose which photographs run in the slideshow
+ */
+export const useSetPhotoSelection = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof setPhotoSelection>>,
+    TError,
+    { caseId: number; data: BodyType<PhotoSelectionInput> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof setPhotoSelection>>,
+  TError,
+  { caseId: number; data: BodyType<PhotoSelectionInput> },
+  TContext
+> => {
+  return useMutation(getSetPhotoSelectionMutationOptions(options));
+};
+
+/**
  * @summary Set the slideshow order
  */
 export const getReorderCasePhotosUrl = (caseId: number) => {
@@ -4760,6 +4854,183 @@ export const useDeleteFamilyPhoto = <
   TContext
 > => {
   return useMutation(getDeleteFamilyPhotoMutationOptions(options));
+};
+
+/**
+ * Handed to whoever prepares them. Deliberately separate from the
+portrait: the portrait is the picture the family loves, which is often
+thirty years old and in profile, and what the preparation room needs
+is a clear recent front-on face.
+
+ * @summary Choose the photograph showing how they wore their hair and makeup
+ */
+export const getSetFamilyReferencePhotoUrl = () => {
+  return `/api/family/reference-photo`;
+};
+
+export const setFamilyReferencePhoto = async (
+  photoIdInput: PhotoIdInput,
+  options?: RequestInit,
+): Promise<CasePhoto> => {
+  return customFetch<CasePhoto>(getSetFamilyReferencePhotoUrl(), {
+    ...options,
+    method: "PUT",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(photoIdInput),
+  });
+};
+
+export const getSetFamilyReferencePhotoMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof setFamilyReferencePhoto>>,
+    TError,
+    { data: BodyType<PhotoIdInput> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof setFamilyReferencePhoto>>,
+  TError,
+  { data: BodyType<PhotoIdInput> },
+  TContext
+> => {
+  const mutationKey = ["setFamilyReferencePhoto"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof setFamilyReferencePhoto>>,
+    { data: BodyType<PhotoIdInput> }
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return setFamilyReferencePhoto(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type SetFamilyReferencePhotoMutationResult = NonNullable<
+  Awaited<ReturnType<typeof setFamilyReferencePhoto>>
+>;
+export type SetFamilyReferencePhotoMutationBody = BodyType<PhotoIdInput>;
+export type SetFamilyReferencePhotoMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Choose the photograph showing how they wore their hair and makeup
+ */
+export const useSetFamilyReferencePhoto = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof setFamilyReferencePhoto>>,
+    TError,
+    { data: BodyType<PhotoIdInput> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof setFamilyReferencePhoto>>,
+  TError,
+  { data: BodyType<PhotoIdInput> },
+  TContext
+> => {
+  return useMutation(getSetFamilyReferencePhotoMutationOptions(options));
+};
+
+/**
+ * @summary Choose which photographs run in the slideshow
+ */
+export const getSetFamilyPhotoSelectionUrl = () => {
+  return `/api/family/photos/selection`;
+};
+
+export const setFamilyPhotoSelection = async (
+  photoSelectionInput: PhotoSelectionInput,
+  options?: RequestInit,
+): Promise<CasePhoto[]> => {
+  return customFetch<CasePhoto[]>(getSetFamilyPhotoSelectionUrl(), {
+    ...options,
+    method: "PUT",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(photoSelectionInput),
+  });
+};
+
+export const getSetFamilyPhotoSelectionMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof setFamilyPhotoSelection>>,
+    TError,
+    { data: BodyType<PhotoSelectionInput> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof setFamilyPhotoSelection>>,
+  TError,
+  { data: BodyType<PhotoSelectionInput> },
+  TContext
+> => {
+  const mutationKey = ["setFamilyPhotoSelection"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof setFamilyPhotoSelection>>,
+    { data: BodyType<PhotoSelectionInput> }
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return setFamilyPhotoSelection(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type SetFamilyPhotoSelectionMutationResult = NonNullable<
+  Awaited<ReturnType<typeof setFamilyPhotoSelection>>
+>;
+export type SetFamilyPhotoSelectionMutationBody = BodyType<PhotoSelectionInput>;
+export type SetFamilyPhotoSelectionMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Choose which photographs run in the slideshow
+ */
+export const useSetFamilyPhotoSelection = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof setFamilyPhotoSelection>>,
+    TError,
+    { data: BodyType<PhotoSelectionInput> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof setFamilyPhotoSelection>>,
+  TError,
+  { data: BodyType<PhotoSelectionInput> },
+  TContext
+> => {
+  return useMutation(getSetFamilyPhotoSelectionMutationOptions(options));
 };
 
 /**
