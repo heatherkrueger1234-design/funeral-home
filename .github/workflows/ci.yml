@@ -19,7 +19,7 @@ jobs:
         env:
           POSTGRES_USER: postgres
           POSTGRES_PASSWORD: postgres
-          POSTGRES_DB: memory_haven_test
+          POSTGRES_DB: funeral_home_test
         ports:
           - 5432:5432
         options: >-
@@ -29,7 +29,7 @@ jobs:
           --health-retries 10
 
     env:
-      DATABASE_URL: postgresql://postgres:postgres@localhost:5432/memory_haven_test
+      DATABASE_URL: postgresql://postgres:postgres@localhost:5432/funeral_home_test
       # Fixed test key. This is not, and must never become, a deployed secret.
       ENCRYPTION_KEY: BwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwc=
 
@@ -51,6 +51,11 @@ jobs:
 
       - name: Test
         run: pnpm run test
+
+      - name: Check the generated API client is in step with the spec
+        run: |
+          pnpm --filter @workspace/api-spec run codegen
+          git diff --exit-code -- lib/api-zod lib/api-client-react
 
       - name: Build
         run: pnpm run build

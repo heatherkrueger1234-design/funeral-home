@@ -1,0 +1,18 @@
+packages:
+  "framer-motion": "For elegant, soft transitions and animations fitting the sacred theme"
+  "date-fns": "For formatting timeline and journal dates"
+  "lucide-react": "Beautiful icons for the navigation and actions"
+  "clsx": "Utility for constructing className strings conditionally"
+  "tailwind-merge": "Utility for merging tailwind classes without conflicts"
+
+images:
+  - path: "artifacts/holding-today/public/images/hero-bg.png"
+    description: "Soft glowing deep blue gradient, midnight navy fading into ethereal cerulean light, subtle floating dust motes, sacred and serene feel"
+    aspect_ratio: "16:9"
+  - path: "artifacts/holding-today/public/images/spirit-light.png"
+    description: "Abstract glowing orb of soft white and blue light on a dark background, ethereal and comforting"
+    aspect_ratio: "1:1"
+
+notes:
+  - "App uses a strictly dark, deep blue theme with luminous accents to convey a sacred, serene space."
+  - "Using generated React Query hooks from @workspace/api-client-react"
