@@ -4,7 +4,10 @@ modules = ["nodejs-24"]
 id = "artifacts/api-server"
 
 [[artifacts]]
-id = "artifacts/holding-today"
+id = "artifacts/family-portal"
+
+[[artifacts]]
+id = "artifacts/director-console"
 
 [[artifacts]]
 id = "artifacts/mockup-sandbox"

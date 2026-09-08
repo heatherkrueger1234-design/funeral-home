@@ -1,0 +1,99 @@
+@import url('https://fonts.googleapis.com/css2?family=Lora:ital,wght@0,400;0,500;0,600;1,400&family=Nunito:wght@300;400;500;600;700&display=swap');
+@import "tailwindcss";
+@import "tw-animate-css";
+@plugin "@tailwindcss/typography";
+
+/*
+ * The family portal's surface.
+ *
+ * Light, warm and low-contrast on purpose. This is opened on a phone by
+ * someone whose mother died on Tuesday, and the design job is to look calm
+ * and finishable rather than impressive. No dark mode: a bereaved family
+ * should see the same screen the director described to them on the phone.
+ *
+ * `--accent` is overwritten at runtime from the funeral home's own brand
+ * colour, which is the whole point of the white-labelling — the family should
+ * feel they are somewhere their funeral home sent them, not on a startup's
+ * website.
+ */
+
+@theme inline {
+  --font-sans: 'Nunito', ui-sans-serif, system-ui, sans-serif;
+  --font-display: 'Lora', ui-serif, Georgia, serif;
+
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--foreground);
+  --color-border: var(--border);
+  --color-input: var(--border);
+  --color-ring: var(--accent);
+
+  --color-primary: var(--accent);
+  --color-primary-foreground: #ffffff;
+  --color-secondary: var(--muted);
+  --color-secondary-foreground: var(--foreground);
+  --color-accent: var(--accent-soft);
+  --color-accent-foreground: var(--accent-deep);
+  --color-destructive: #b3261e;
+  --color-destructive-foreground: #ffffff;
+  --color-popover: var(--card);
+  --color-popover-foreground: var(--foreground);
+
+  --radius-lg: 1rem;
+  --radius-md: 0.75rem;
+  --radius-sm: 0.5rem;
+}
+
+:root {
+  --background: #faf8f5;
+  --foreground: #1f2421;
+  --muted: #f0ece6;
+  --muted-foreground: #6b7069;
+  --card: #ffffff;
+  --border: #e5ded4;
+
+  /* Replaced at runtime by the home's own colour. */
+  --accent: #1f4e46;
+  --accent-soft: #eef3f1;
+  --accent-deep: #14332e;
+
+  --radius: 0.75rem;
+}
+
+* {
+  border-color: var(--border);
+}
+
+body {
+  background: var(--background);
+  color: var(--foreground);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+  /* Nothing here is dense enough to need a scrollbar sideways. */
+  overflow-x: hidden;
+}
+
+h1, h2, h3, .font-display {
+  font-family: var(--font-display);
+  letter-spacing: -0.01em;
+}
+
+/*
+ * Bigger than a marketing site would use. The people reading this are often
+ * in their seventies and are reading it on a phone in a hospital corridor.
+ */
+html {
+  font-size: 17px;
+}
+
+@media (min-width: 768px) {
+  html { font-size: 16px; }
+}
+
+/* A tap target you can hit while crying. */
+button, [role="button"], a {
+  touch-action: manipulation;
+}
