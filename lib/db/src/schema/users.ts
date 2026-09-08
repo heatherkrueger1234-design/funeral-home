@@ -2,72 +2,71 @@ import {
   pgTable,
   text,
   serial,
+  integer,
   boolean,
   timestamp,
   uniqueIndex,
+  index,
 } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
+import { funeralHomesTable } from "./funeral-homes";
 
 /**
- * Accounts. Everything else in this database hangs off `users.id` and is
- * deleted with it — see the `onDelete: "cascade"` on every `userId` column.
+ * Staff accounts: directors, and whoever else at the home works cases.
  *
- * `email` is stored already lower-cased (normalised in `lib/auth.ts`) so the
- * unique index below is a true case-insensitive constraint without needing
- * the citext extension.
+ * Note who is *not* in this table. Families never get an account. They arrive
+ * through a texted link and are identified by a token (see `family_contacts`),
+ * because the single fastest way to lose a grieving family at the door is to
+ * ask them to choose a password. Everything in here is somebody who works at
+ * a funeral home and is paid to be here.
  *
- * `passwordHash` is nullable because an account created through Google has no
- * password and never needs one. Every flow that used to assume a password
- * exists now has to say what it does when there isn't one — which is the
- * point of leaving the column nullable rather than storing a placeholder.
+ * `funeralHomeId` is the tenant boundary. It is read off this row after the
+ * session resolves and is the only source of tenancy the API trusts — a home
+ * id arriving in a request body or a URL is never enough to reach data.
  */
 export const usersTable = pgTable(
   "users",
   {
     id: serial("id").primaryKey(),
+    funeralHomeId: integer("funeral_home_id")
+      .notNull()
+      .references(() => funeralHomesTable.id, { onDelete: "cascade" }),
     email: text("email").notNull(),
+    /** Stored already lower-cased, so the unique index below is truly
+     * case-insensitive without needing the citext extension. */
     passwordHash: text("password_hash"),
-    googleId: text("google_id"),
-    /**
-     * Whether the address is known to belong to whoever holds the account.
-     * Google tells us; a self-registered email is taken on trust for now, and
-     * this is the flag a future confirmation step would set.
-     */
     emailVerified: boolean("email_verified").notNull().default(false),
     displayName: text("display_name"),
     /**
-     * How this account appears in the one shared room, and nowhere else.
-     * Assigned on first post when left blank — a parent posting at 3am should
-     * not have to invent a username, or accidentally publish under their own
-     * name. Unique so nobody can dress as somebody else.
+     * How the family sees them signed. "Karen" is colder than "Karen Voss,
+     * Funeral Director", and the family is reading it on the worst week of
+     * their life.
      */
-    screenName: text("screen_name"),
+    title: text("title"),
     /**
-     * Whether this account can hide other people's posts.
-     *
-     * A public room on a site for bereaved parents needs someone able to
-     * remove what turns up in it, and that has to be a real person rather
-     * than a heuristic. Granted by hand in the database, never by any route.
+     * `owner` can change billing and invite staff; `director` and `staff`
+     * differ only in that a director is offered as a case's lead. Roles are
+     * intentionally few — a funeral home has eight employees, not a
+     * permissions matrix.
      */
-    isModerator: boolean("is_moderator").notNull().default(false),
+    role: text("role").notNull().default("director"),
     /**
-     * Whether the home page offers the "something you wrote" door at all.
-     *
-     * On by default, because the door is only a door — nothing is revealed
-     * until it is opened. Off means it disappears entirely, for the person who
-     * does not want their own writing to be a thing that can arrive.
+     * Cleared rather than deleted when somebody leaves, so the cases they
+     * handled keep a real name against them.
      */
-    resurfacingEnabled: boolean("resurfacing_enabled").notNull().default(true),
+    deactivatedAt: timestamp("deactivated_at"),
     createdAt: timestamp("created_at").notNull().defaultNow(),
     updatedAt: timestamp("updated_at").notNull().defaultNow(),
   },
   (table) => [
     uniqueIndex("users_email_unique").on(table.email),
-    uniqueIndex("users_google_id_unique").on(table.googleId),
-    uniqueIndex("users_screen_name_unique").on(table.screenName),
+    index("users_funeral_home_id_idx").on(table.funeralHomeId),
   ],
 );
+
+export const USER_ROLES = ["owner", "director", "staff"] as const;
+export type UserRole = (typeof USER_ROLES)[number];
 
 export const insertUserSchema = createInsertSchema(usersTable).omit({
   id: true,
@@ -78,20 +77,29 @@ export type InsertUser = z.infer<typeof insertUserSchema>;
 export type User = typeof usersTable.$inferSelect;
 
 /**
- * A user as the API is allowed to describe it. The hash never leaves the
- * server, and `hasPassword` / `hasGoogle` are what the client actually needs:
- * enough to render the right account controls, without exposing the secret.
+ * A staff member as the API describes them. The hash never leaves the server;
+ * `hasPassword` is what the client actually needs to render account controls.
  */
-export type PublicUser = Omit<User, "passwordHash" | "googleId"> & {
+export type PublicUser = Omit<User, "passwordHash"> & {
   hasPassword: boolean;
-  hasGoogle: boolean;
 };
 
 export function toPublicUser(user: User): PublicUser {
-  const { passwordHash, googleId, ...rest } = user;
-  return {
-    ...rest,
-    hasPassword: passwordHash !== null,
-    hasGoogle: googleId !== null,
-  };
+  const { passwordHash, ...rest } = user;
+  return { ...rest, hasPassword: passwordHash !== null };
+}
+
+/**
+ * How a staff member is shown to a *family* — a name and a title, nothing
+ * else. Their email address is not the family's business, and a case chat
+ * that leaked it would put the director's inbox back in the loop that this
+ * product exists to close.
+ */
+export type StaffSignature = {
+  displayName: string | null;
+  title: string | null;
+};
+
+export function toStaffSignature(user: User): StaffSignature {
+  return { displayName: user.displayName, title: user.title };
 }

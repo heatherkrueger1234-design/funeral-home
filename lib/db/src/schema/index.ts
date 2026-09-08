@@ -1,26 +1,33 @@
+/**
+ * The funeral-home schema, in dependency order.
+ *
+ * The shape to hold in your head: a `funeral_homes` row is the tenant, and
+ * everything else carries `funeralHomeId` so that every query can be scoped
+ * with one predicate. Below that, a `cases` row is one death, and the family
+ * reaches it through a `family_contacts` token rather than an account.
+ */
+
+/* The tenant, and the people who work there. */
+export * from "./funeral-homes";
 export * from "./users";
 export * from "./sessions";
 export * from "./password-resets";
+
+/* Bytes. */
 export * from "./uploads";
-export * from "./profile";
-export * from "./memories";
-export * from "./journal";
-export * from "./letters";
-export * from "./creative";
-export * from "./documents";
-export * from "./quotes";
-export * from "./tribute";
-export * from "./todos";
-export * from "./affirmations";
-export * from "./milestones";
-export * from "./stories";
-export * from "./signs";
-export * from "./belongings";
-export * from "./gifts";
-export * from "./contacts";
+
+/* A death, and the family's way in. */
+export * from "./cases";
+export * from "./family-contacts";
+
+/* The asset drop. */
+export * from "./photos";
 export * from "./obituary";
-export * from "./memorial";
-export * from "./shares";
-export * from "./community";
-export * from "./keepsakes";
-export * from "./albums";
+export * from "./selections";
+
+/* Working the case together. */
+export * from "./messages";
+export * from "./deadlines";
+
+/* After everyone goes home. */
+export * from "./aftercare";
