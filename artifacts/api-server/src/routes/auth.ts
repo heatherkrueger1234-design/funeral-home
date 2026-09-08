@@ -32,7 +32,7 @@ import {
   SESSION_COOKIE,
   verifyPassword,
 } from "../lib/auth";
-import { sendPasswordResetEmail } from "../lib/mailer";
+import { sendPasswordResetEmail } from "@workspace/mailer";
 import { authRateLimit } from "../middleware/rate-limit";
 import { seedTimelineTemplate } from "../lib/timeline";
 import { currentUser, requireAuth, tenant } from "../middleware/require-auth";

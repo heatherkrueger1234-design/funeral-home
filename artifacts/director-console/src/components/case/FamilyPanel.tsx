@@ -3,6 +3,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import {
   useCreateCaseContact,
   useReissueContactLink,
+  useSendContactLink,
   useRevokeContact,
   getGetCaseQueryKey,
   type FamilyContact,
@@ -18,7 +19,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
-import { Check, Copy, Link2, Loader2, UserPlus } from "lucide-react";
+import { Check, Copy, Link2, Loader2, MessageSquare, UserPlus } from "lucide-react";
 
 /**
  * The family's people, and their links.
@@ -31,7 +32,7 @@ import { Check, Copy, Link2, Loader2, UserPlus } from "lucide-react";
  * later is one a departing employee could walk away with.
  */
 
-function LinkOnce({ link }: { link: string }) {
+function LinkOnce({ link, phone }: { link: string; phone?: string | null }) {
   const { toast } = useToast();
   const [copied, setCopied] = useState(false);
 
@@ -63,6 +64,20 @@ function LinkOnce({ link }: { link: string }) {
           {copied ? "Copied" : "Copy"}
         </Button>
       </div>
+
+      {/*
+        The last resort, and on a phone the fastest route: hand it to the
+        director's own messaging app pre-filled. Costs nothing and works on a
+        deployment with no SMS credentials at all.
+      */}
+      {phone && (
+        <a
+          href={`sms:${phone.replace(/[^\d+]/g, "")}?&body=${encodeURIComponent(link)}`}
+          className="mt-2 inline-block text-sm text-[var(--accent-deep)] underline"
+        >
+          Open in your messages app
+        </a>
+      )}
     </div>
   );
 }
@@ -70,8 +85,10 @@ function LinkOnce({ link }: { link: string }) {
 type Props = { caseId: number; contacts: FamilyContact[] };
 
 export function FamilyPanel({ caseId, contacts }: Props) {
+  const { toast } = useToast();
   const queryClient = useQueryClient();
   const [freshLink, setFreshLink] = useState<string | null>(null);
+  const [lastPhone, setLastPhone] = useState<string | null>(null);
 
   const [name, setName] = useState("");
   const [relationship, setRelationship] = useState("");
@@ -86,6 +103,7 @@ export function FamilyPanel({ caseId, contacts }: Props) {
     mutation: {
       onSuccess: (created) => {
         setFreshLink(created.link);
+        setLastPhone(created.phone);
         setName("");
         setRelationship("");
         setPhone("");
@@ -100,6 +118,7 @@ export function FamilyPanel({ caseId, contacts }: Props) {
     mutation: {
       onSuccess: (updated) => {
         setFreshLink(updated.link);
+        setLastPhone(updated.phone);
         refresh();
       },
     },
@@ -107,9 +126,29 @@ export function FamilyPanel({ caseId, contacts }: Props) {
 
   const revoke = useRevokeContact({ mutation: { onSuccess: refresh } });
 
+  const sendLink = useSendContactLink({
+    mutation: {
+      onSuccess: (result) => {
+        setFreshLink(result.link);
+        setLastPhone(result.phone);
+        refresh();
+        toast(
+          result.sent
+            ? { title: "Text sent" }
+            : {
+                // Not an error toast: they have the link on screen and can
+                // send it themselves, which is a working outcome.
+                title: "Couldn't text it from here",
+                description: `${result.smsError ?? "Text messaging isn't set up."} The link is below — send it however suits.`,
+              },
+        );
+      },
+    },
+  });
+
   return (
     <div className="space-y-6">
-      {freshLink && <LinkOnce link={freshLink} />}
+      {freshLink && <LinkOnce link={freshLink} phone={lastPhone} />}
 
       {contacts.length > 0 && (
         <ul className="space-y-2">
@@ -146,13 +185,30 @@ export function FamilyPanel({ caseId, contacts }: Props) {
                 </span>
 
                 <span className="flex shrink-0 gap-1">
+                  {contact.phone && (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      disabled={sendLink.isPending}
+                      onClick={() =>
+                        sendLink.mutate({ contactId: contact.id })
+                      }
+                    >
+                      {sendLink.isPending ? (
+                        <Loader2 className="size-4 animate-spin" />
+                      ) : (
+                        <MessageSquare className="size-4" />
+                      )}
+                      Text it
+                    </Button>
+                  )}
                   <Button
                     variant="ghost"
                     size="sm"
                     onClick={() => reissue.mutate({ contactId: contact.id })}
                   >
                     <Link2 className="size-4" />
-                    {revoked ? "New link" : "Resend"}
+                    {revoked ? "New link" : "Copy a new one"}
                   </Button>
                   {!revoked && (
                     <Button

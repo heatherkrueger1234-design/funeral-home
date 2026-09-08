@@ -28,7 +28,7 @@ import {
   normaliseEmail,
   PASSWORD_RESET_TTL_MS,
 } from "../lib/auth";
-import { sendStaffInviteEmail } from "../lib/mailer";
+import { sendStaffInviteEmail } from "@workspace/mailer";
 import { templateFor, toTemplateJson } from "../lib/timeline";
 
 const router: IRouter = Router();

@@ -689,6 +689,52 @@ export const RevokeContactParams = zod.object({
 });
 
 /**
+ * Mints a new link and sends it, so the previous one stops working. The
+response says whether the text actually went; where the home has no
+SMS credentials it returns the link and `sent: false` so the director
+can send it themselves rather than being told nothing happened.
+
+ * @summary Text a fresh link to this person's mobile
+ */
+export const SendContactLinkParams = zod.object({
+  contactId: zod.coerce.number(),
+});
+
+export const SendContactLinkResponse = zod
+  .object({
+    id: zod.number(),
+    caseId: zod.number(),
+    name: zod.string(),
+    relationship: zod.string().nullable(),
+    phone: zod.string().nullable(),
+    email: zod.string().nullable(),
+    role: zod.enum(["next_of_kin", "contributor"]),
+    canInvite: zod.boolean(),
+    expiresAt: zod.date(),
+    revokedAt: zod.date().nullable(),
+    firstSeenAt: zod.date().nullable(),
+    lastSeenAt: zod.date().nullable(),
+    createdAt: zod.date(),
+  })
+  .and(
+    zod.object({
+      link: zod.string(),
+    }),
+  )
+  .describe(
+    "Returned only at the moment a link is minted. `link` is the working\nURL to paste into a text message and is never retrievable again -\nonly its digest is stored.\n",
+  )
+  .and(
+    zod.object({
+      sent: zod.boolean(),
+      smsError: zod
+        .string()
+        .nullable()
+        .describe("Why the text did not go, in words a director can act on."),
+    }),
+  );
+
+/**
  * @summary Mint a fresh link, invalidating the old one
  */
 export const ReissueContactLinkParams = zod.object({

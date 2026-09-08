@@ -76,6 +76,7 @@ export * from "./selectionInput";
 export * from "./selectionInputKind";
 export * from "./selectionUpdate";
 export * from "./selectionUpdateKind";
+export * from "./sentLink";
 export * from "./serviceSelection";
 export * from "./serviceSelectionKind";
 export * from "./staffInviteInput";

@@ -1,7 +1,8 @@
 import { Router, type IRouter } from "express";
-import { and, count, eq, isNull } from "drizzle-orm";
+import { and, asc, count, eq, isNull } from "drizzle-orm";
 import {
   db,
+  aftercareDeliveriesTable,
   aftercareEnrollmentsTable,
   caseDeadlinesTable,
   caseMessagesTable,
@@ -118,6 +119,14 @@ router.get("/session", async (req, res) => {
       .limit(1),
   ]);
 
+  const deliveries = aftercare[0]
+    ? await db
+        .select()
+        .from(aftercareDeliveriesTable)
+        .where(eq(aftercareDeliveriesTable.enrollmentId, aftercare[0].id))
+        .orderBy(asc(aftercareDeliveriesTable.dayOffset))
+    : [];
+
   res.json({
     contact: toPublicFamilyContact(contact),
     home: toPublicFuneralHome(home),
@@ -133,7 +142,15 @@ router.get("/session", async (req, res) => {
       ? {
           ...aftercare[0],
           contactName: contact.name,
-          deliveries: [],
+          // The family is shown when the check-ins would land, so they are
+          // consenting to something specific rather than to "emails".
+          deliveries: deliveries.map((entry) => ({
+            id: entry.id,
+            dayOffset: entry.dayOffset,
+            dueAt: entry.dueAt,
+            sentAt: entry.sentAt,
+            failedAt: entry.failedAt,
+          })),
         }
       : null,
   });

@@ -1,5 +1,18 @@
 import nodemailer, { type Transporter } from "nodemailer";
-import { logger } from "./logger";
+import pino from "pino";
+
+/**
+ * Its own logger rather than the API server's.
+ *
+ * This package is used by the server and by the aftercare worker, which is a
+ * plain script with no request context. Reaching back into the server's
+ * logger would make the worker depend on the whole HTTP stack to send an
+ * email.
+ */
+const logger = pino({
+  level: process.env["LOG_LEVEL"] ?? "info",
+  base: { component: "mailer" },
+});
 
 /**
  * Outbound email, over plain SMTP.
@@ -84,11 +97,26 @@ export function isMailConfigured(): boolean {
   return getTransport() !== null;
 }
 
+/** Raised only by `send({ rethrow: true })`. */
+export class MailNotSentError extends Error {
+  readonly name = "MailNotSentError";
+}
+
 async function send(message: {
   to: string;
   subject: string;
   text: string;
   html: string;
+  /**
+   * Report failure to the caller instead of swallowing it.
+   *
+   * Off by default, because `/auth/forgot-password` must answer identically
+   * whatever happens — a provider outage there would otherwise become a
+   * signal about which addresses have accounts. The aftercare worker is the
+   * opposite case: it has to know a send failed so it can record it against
+   * the delivery rather than mark it sent and move on.
+   */
+  rethrow?: boolean;
 }): Promise<void> {
   const mailer = getTransport();
 
@@ -97,17 +125,28 @@ async function send(message: {
       { to: message.to, subject: message.subject, body: message.text },
       "SMTP not configured — email not sent, logged instead",
     );
+    if (message.rethrow) {
+      throw new MailNotSentError("SMTP is not configured on this deployment.");
+    }
     return;
   }
 
   try {
-    await mailer.transport.sendMail({ from: mailer.from, ...message });
+    const { rethrow, ...payload } = message;
+    void rethrow;
+    await mailer.transport.sendMail({ from: mailer.from, ...payload });
     logger.info({ to: message.to, subject: message.subject }, "Email sent");
   } catch (err) {
     // Never rethrow to the caller: /auth/forgot-password must answer the same
     // way whatever happens, and a provider outage must not become a signal
     // about whether an account exists.
     logger.error({ err, to: message.to }, "Failed to send email");
+
+    if (message.rethrow) {
+      throw new MailNotSentError(
+        err instanceof Error ? err.message : "The mail server refused it.",
+      );
+    }
   }
 }
 
@@ -208,4 +247,45 @@ export async function sendStaffInviteEmail(options: {
 </div>`.trim();
 
   await send({ to, subject: `You've been added to ${homeName}`, text, html });
+}
+
+/**
+ * A grief check-in.
+ *
+ * Plain text with a minimal HTML twin, and no images, tracking pixel or
+ * unsubscribe-tracking link. This lands in somebody's inbox on the
+ * anniversary of their mother's death; it should look like a note from their
+ * funeral director, because that is what it is, and not like a campaign.
+ *
+ * Throws on failure so the worker can record it rather than assume it landed.
+ */
+export async function sendAftercareEmail(options: {
+  to: string;
+  subject: string;
+  body: string;
+  brandedAs: string;
+}): Promise<void> {
+  const { to, subject, body, brandedAs } = options;
+
+  const text = `${body}\n\n— Provided in care with ${brandedAs}`;
+
+  const paragraphs = body
+    .split("\n\n")
+    .map(
+      (para) =>
+        `<p style="margin:0 0 18px">${para.replace(/\n/g, "<br>")}</p>`,
+    )
+    .join("\n  ");
+
+  const html = `
+<div style="font-family:-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;
+            max-width:520px;margin:0 auto;padding:32px 24px;color:#1f2937;
+            line-height:1.7;font-size:15px">
+  ${paragraphs}
+  <p style="margin:28px 0 0;color:#6b7280;font-size:13px">
+    Provided in care with ${brandedAs}
+  </p>
+</div>`.trim();
+
+  await send({ to, subject, text, html, rethrow: true });
 }

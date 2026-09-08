@@ -69,6 +69,7 @@ import type {
   ResetPasswordInput,
   SelectionInput,
   SelectionUpdate,
+  SentLink,
   ServiceSelection,
   StaffInviteInput,
   StaffMember,
@@ -2255,6 +2256,95 @@ export const useRevokeContact = <
   TContext
 > => {
   return useMutation(getRevokeContactMutationOptions(options));
+};
+
+/**
+ * Mints a new link and sends it, so the previous one stops working. The
+response says whether the text actually went; where the home has no
+SMS credentials it returns the link and `sent: false` so the director
+can send it themselves rather than being told nothing happened.
+
+ * @summary Text a fresh link to this person's mobile
+ */
+export const getSendContactLinkUrl = (contactId: number) => {
+  return `/api/contacts/${contactId}/send-link`;
+};
+
+export const sendContactLink = async (
+  contactId: number,
+  options?: RequestInit,
+): Promise<SentLink> => {
+  return customFetch<SentLink>(getSendContactLinkUrl(contactId), {
+    ...options,
+    method: "POST",
+  });
+};
+
+export const getSendContactLinkMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof sendContactLink>>,
+    TError,
+    { contactId: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof sendContactLink>>,
+  TError,
+  { contactId: number },
+  TContext
+> => {
+  const mutationKey = ["sendContactLink"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof sendContactLink>>,
+    { contactId: number }
+  > = (props) => {
+    const { contactId } = props ?? {};
+
+    return sendContactLink(contactId, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type SendContactLinkMutationResult = NonNullable<
+  Awaited<ReturnType<typeof sendContactLink>>
+>;
+
+export type SendContactLinkMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Text a fresh link to this person's mobile
+ */
+export const useSendContactLink = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof sendContactLink>>,
+    TError,
+    { contactId: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof sendContactLink>>,
+  TError,
+  { contactId: number },
+  TContext
+> => {
+  return useMutation(getSendContactLinkMutationOptions(options));
 };
 
 /**

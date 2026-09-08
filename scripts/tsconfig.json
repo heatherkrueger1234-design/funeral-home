@@ -13,6 +13,9 @@
   "references": [
     {
       "path": "../lib/db"
+    },
+    {
+      "path": "../lib/mailer"
     }
   ]
 }

@@ -32,6 +32,7 @@ import {
   casesTable,
   familyContactsTable,
 } from "@workspace/db";
+import { sendAftercareEmail, isMailConfigured } from "@workspace/mailer";
 
 const dryRun = process.argv.includes("--dry-run");
 
@@ -120,6 +121,18 @@ async function main(): Promise<void> {
     return;
   }
 
+  // Worth saying out loud rather than discovering from a silent run: with no
+  // SMTP the mailer logs instead of sending, and every delivery would be
+  // recorded as failed.
+  if (!dryRun && !isMailConfigured()) {
+    console.warn(
+      "SMTP is not configured. Nothing can actually be sent; run with " +
+        "--dry-run to see what is due without marking anything failed.",
+    );
+    process.exitCode = 1;
+    return;
+  }
+
   console.log(`${due.length} check-in(s) due${dryRun ? " (dry run)" : ""}.`);
 
   let sent = 0;
@@ -168,18 +181,12 @@ async function main(): Promise<void> {
     if (claimed.length === 0) continue;
 
     try {
-      const body =
-        `${template.body(deceased)}\n\n` +
-        `— Provided in care with ${row.enrollment.brandedAs}`;
-
-      // Delivery itself is intentionally out of scope for this script: the
-      // API server owns the SMTP transport, and a funeral home may want these
-      // going out over their own system. Printing keeps the schedule honest
-      // and observable until that is wired up.
-      console.log(
-        `\n--- to ${to} (${row.contactName}), day ${row.delivery.dayOffset} ---\n` +
-          `Subject: ${template.subject}\n\n${body}\n`,
-      );
+      await sendAftercareEmail({
+        to,
+        subject: template.subject,
+        body: template.body(deceased),
+        brandedAs: row.enrollment.brandedAs,
+      });
 
       sent += 1;
     } catch (error) {

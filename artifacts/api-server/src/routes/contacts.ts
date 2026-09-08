@@ -17,6 +17,7 @@ import {
 } from "../lib/http";
 import { currentUser, tenant } from "../middleware/require-auth";
 import { linkUrl, mintLink } from "../lib/family-link";
+import { sendSms, SmsNotSentError } from "../lib/sms";
 import { loadCase } from "./cases";
 
 const router: IRouter = Router();
@@ -155,6 +156,68 @@ router.post("/contacts/:contactId/link", async (req, res) => {
     .returning();
 
   res.json({ ...toPublicFamilyContact(updated!), link: linkUrl(link.token) });
+});
+
+/**
+ * Mint a link and text it.
+ *
+ * A partial failure here is the normal case, not an edge case: plenty of
+ * homes will not have SMS credentials on day one, and plenty of numbers a
+ * director types will be landlines. So the link is always returned and `sent`
+ * says what happened -- a director who is told "couldn't send" and handed the
+ * link can carry on, whereas an error page leaves them with nothing on the
+ * morning of an arrangement conference.
+ *
+ * The link is minted before the send is attempted, so a text that does go out
+ * is never carrying a token that was about to be replaced.
+ */
+router.post("/contacts/:contactId/send-link", async (req, res) => {
+  const home = tenant(req);
+  const existing = await loadContact(req, req.params.contactId);
+
+  if (!existing.phone?.trim()) {
+    throw badRequest("There is no mobile number for this person.");
+  }
+
+  const link = mintLink();
+
+  const [updated] = await db
+    .update(familyContactsTable)
+    .set({
+      tokenHash: link.tokenHash,
+      expiresAt: link.expiresAt,
+      revokedAt: null,
+      updatedAt: new Date(),
+    })
+    .where(eq(familyContactsTable.id, existing.id))
+    .returning();
+
+  const url = linkUrl(link.token);
+
+  // Short, and it names the home. A link arriving from an unknown number
+  // three days after a death reads like a scam unless it says who it is.
+  const body = `${home.name}: here is your private page for the arrangements. ${url}`;
+
+  let sent = false;
+  let smsError: string | null = null;
+
+  try {
+    await sendSms({ to: existing.phone, body });
+    sent = true;
+  } catch (error) {
+    if (error instanceof SmsNotSentError) {
+      smsError = error.message;
+    } else {
+      throw error;
+    }
+  }
+
+  res.json({
+    ...toPublicFamilyContact(updated!),
+    link: url,
+    sent,
+    smsError,
+  });
 });
 
 export default router;

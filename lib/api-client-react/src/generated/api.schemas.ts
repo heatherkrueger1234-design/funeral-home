@@ -351,6 +351,12 @@ export type FamilyContactWithLink = FamilyContact & {
   link: string;
 };
 
+export type SentLink = FamilyContactWithLink & {
+  sent: boolean;
+  /** Why the text did not go, in words a director can act on. */
+  smsError: string | null;
+};
+
 export type FamilyContactInputRole =
   (typeof FamilyContactInputRole)[keyof typeof FamilyContactInputRole];
 

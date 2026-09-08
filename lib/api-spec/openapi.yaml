@@ -503,6 +503,26 @@ paths:
         "204":
           description: Revoked
 
+  /contacts/{contactId}/send-link:
+    post:
+      operationId: sendContactLink
+      tags: [contacts]
+      summary: Text a fresh link to this person's mobile
+      description: |
+        Mints a new link and sends it, so the previous one stops working. The
+        response says whether the text actually went; where the home has no
+        SMS credentials it returns the link and `sent: false` so the director
+        can send it themselves rather than being told nothing happened.
+      parameters:
+        - $ref: "#/components/parameters/ContactId"
+      responses:
+        "200":
+          description: Minted, and sent if possible
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SentLink"
+
   /contacts/{contactId}/link:
     post:
       operationId: reissueContactLink
@@ -1873,6 +1893,19 @@ components:
             link:
               type: string
           required: [link]
+
+    SentLink:
+      allOf:
+        - $ref: "#/components/schemas/FamilyContactWithLink"
+        - type: object
+          properties:
+            sent:
+              type: boolean
+            smsError:
+              type: string
+              nullable: true
+              description: Why the text did not go, in words a director can act on.
+          required: [sent, smsError]
 
     FamilyContactInput:
       type: object

@@ -9,6 +9,7 @@ import {
   ListMusic,
   CalendarClock,
   MessageCircle,
+  HeartHandshake,
   ChevronRight,
 } from "lucide-react";
 
@@ -84,6 +85,7 @@ export default function Hub() {
     outstandingDeadlines,
     unreadMessages,
     messagesLocked,
+    aftercare,
   } = session.data;
 
   const serviceWhen = formatWhen(deceased.serviceAt);
@@ -111,6 +113,26 @@ export default function Hub() {
           </p>
         )}
       </section>
+
+      {/*
+        Asked once, at the top, and only while it is undecided. A consent
+        question that keeps reappearing after somebody has answered it is the
+        thing that turns a kindness into a nuisance.
+      */}
+      {aftercare?.status === "pending" && (
+        <section className="rounded-xl border border-[var(--accent)] bg-[var(--accent-soft)] px-4 py-4">
+          <p className="font-medium mb-1">Would you like {home.name} to check in?</p>
+          <p className="text-sm text-muted-foreground mb-3">
+            A few short notes over the next year. You can say no.
+          </p>
+          <Link
+            href="/aftercare"
+            className="text-sm font-medium text-[var(--accent-deep)] underline"
+          >
+            Have a look at what would arrive
+          </Link>
+        </section>
+      )}
 
       {nextDue && (
         <section className="rounded-xl border border-[var(--accent)] bg-[var(--accent-soft)] px-4 py-4">
@@ -175,6 +197,14 @@ export default function Hub() {
                 : `Message ${home.name}`
             }
             badge={unreadMessages}
+          />
+        )}
+        {aftercare?.status === "active" && (
+          <Card
+            href="/aftercare"
+            icon={HeartHandshake}
+            title="Checking in"
+            detail={`${home.name} will write a few times over the year`}
           />
         )}
       </section>

@@ -16,6 +16,7 @@ import Obituary from "@/pages/Obituary";
 import Selections from "@/pages/Selections";
 import Timeline from "@/pages/Timeline";
 import Messages from "@/pages/Messages";
+import Aftercare from "@/pages/Aftercare";
 import NotFound from "@/pages/NotFound";
 
 function describeError(error: unknown): string {
@@ -80,6 +81,7 @@ export default function App() {
               <Route path="/service" component={Selections} />
               <Route path="/timeline" component={Timeline} />
               <Route path="/messages" component={Messages} />
+              <Route path="/aftercare" component={Aftercare} />
               <Route component={NotFound} />
             </Switch>
           </PortalShell>

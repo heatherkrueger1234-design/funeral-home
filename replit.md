@@ -31,7 +31,16 @@ ticked off.
 
 **4. Aftercare that costs no staff hours.** Closing a case enrols the family in
 30/60/90-day and anniversary check-ins, signed in the home's name. Enrolments
-start `pending` and send nothing until the family consents.
+start `pending` and send nothing until the family consents — they are shown
+the actual dates and a decline of equal visual weight, and a no is final.
+
+Two things hold the rest together. The **standard schedule** is written once
+per home as offsets from the service, and every case gets it automatically the
+moment a service date exists — without it a director with four funerals this
+week never builds a timeline and the anti-funeral-fog feature silently does not
+happen. The **photo pack** is a ZIP in slideshow order, numbered, captioned,
+with a `captions.txt` for the order of service, because collecting forty
+photographs a director then saves by hand is most of the time back.
 
 ## Shape of the code
 
@@ -41,10 +50,11 @@ frontends use, so a contract change cannot land on one side only. CI fails if
 the checked-in generated code drifts from the spec.
 
 ```
-lib/db              Drizzle schema. 14 tables, all reachable from funeral_homes.
+lib/db              Drizzle schema. 15 tables, all reachable from funeral_homes.
 lib/api-spec        openapi.yaml + orval config. The contract.
 lib/api-zod         Generated: zod validators (server-side).
 lib/api-client-react Generated: react-query hooks (+ hand-written multipart).
+lib/mailer          SMTP. Shared, because the aftercare worker sends mail too.
 artifacts/api-server Express. Two auth surfaces; see below.
 artifacts/family-portal   What the family opens. Mobile-first, brandable.
 artifacts/director-console What the home works cases from.
@@ -95,6 +105,8 @@ Environment the server reads:
 | `FAMILY_PORTAL_URL` | Origin used to build the texted link. Falls back to a relative path — an obviously incomplete link beats one that opens someone else's deployment. |
 | `CONSOLE_URL` | Origin used in staff password-reset emails. |
 | `SMTP_*` | Optional. Without it, mail is logged rather than sent, which keeps local development and the tests working. |
+| `TWILIO_ACCOUNT_SID` / `TWILIO_AUTH_TOKEN` / `TWILIO_FROM_NUMBER` | Optional. Without them a director is handed the link to send themselves rather than being told nothing happened. |
+| `SMS_DEFAULT_COUNTRY_CODE` | Defaults to `+1`. Used only for numbers typed without one. |
 
 The aftercare sender is a cron job, not a server loop:
 
