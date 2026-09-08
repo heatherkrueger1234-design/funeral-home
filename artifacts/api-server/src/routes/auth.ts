@@ -34,6 +34,7 @@ import {
 } from "../lib/auth";
 import { sendPasswordResetEmail } from "../lib/mailer";
 import { authRateLimit } from "../middleware/rate-limit";
+import { seedTimelineTemplate } from "../lib/timeline";
 import { currentUser, requireAuth, tenant } from "../middleware/require-auth";
 
 /**
@@ -127,6 +128,11 @@ router.post("/auth/register", authRateLimit, async (req, res) => {
         role: "owner",
       })
       .returning();
+
+    // A home that never opens the settings screen still gets a working
+    // timeline on every case; one that wants something different edits this
+    // list once.
+    await seedTimelineTemplate(createdHome!.id, tx);
 
     return { user: createdUser!, home: createdHome! };
   });

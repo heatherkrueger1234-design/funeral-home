@@ -26,6 +26,7 @@ export * from "./obituary";
 export * from "./selections";
 
 /* Working the case together. */
+export * from "./timeline-templates";
 export * from "./messages";
 export * from "./deadlines";
 

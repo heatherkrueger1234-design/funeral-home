@@ -245,6 +245,97 @@ paths:
               schema:
                 $ref: "#/components/schemas/StaffMember"
 
+  /home/timeline-template:
+    get:
+      operationId: getTimelineTemplate
+      tags: [home]
+      summary: The home's standard schedule, as offsets from the service
+      responses:
+        "200":
+          description: List
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/TimelineTemplate"
+    post:
+      operationId: createTimelineTemplate
+      tags: [home]
+      summary: Add a step to the standard schedule
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/TimelineTemplateInput"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TimelineTemplate"
+
+  /home/timeline-template/{templateId}:
+    put:
+      operationId: updateTimelineTemplate
+      tags: [home]
+      summary: Edit a step
+      parameters:
+        - name: templateId
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/TimelineTemplateUpdate"
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TimelineTemplate"
+    delete:
+      operationId: deleteTimelineTemplate
+      tags: [home]
+      summary: Remove a step
+      parameters:
+        - name: templateId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: Deleted
+
+  /cases/{caseId}/deadlines/from-template:
+    post:
+      operationId: applyTimelineTemplate
+      tags: [deadlines]
+      summary: Build this case's schedule from the home's standard one
+      description: |
+        Needs a service date, because every step is an offset from it. Steps
+        already on the timeline are matched by title and left alone, so this
+        is safe to run twice and safe to run after the service date moves.
+      parameters:
+        - $ref: "#/components/parameters/CaseId"
+      responses:
+        "200":
+          description: The rebuilt timeline
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/CaseDeadline"
+
   # ----------------------------------------------------------------- cases --
 
   /cases:
@@ -1210,6 +1301,64 @@ components:
           format: date-time
           nullable: true
       required: [id, email, displayName, title, role, deactivatedAt]
+
+    TimelineTemplate:
+      type: object
+      properties:
+        id:
+          type: integer
+        title:
+          type: string
+        description:
+          type: string
+          nullable: true
+        offsetMinutes:
+          type: integer
+          description: Relative to the service. Negative is before it.
+        offsetLabel:
+          type: string
+          description: The offset in words, e.g. "3 days before".
+        isEvent:
+          type: boolean
+        enabled:
+          type: boolean
+        position:
+          type: integer
+      required:
+        [id, title, description, offsetMinutes, offsetLabel, isEvent, enabled, position]
+
+    TimelineTemplateInput:
+      type: object
+      properties:
+        title:
+          type: string
+          minLength: 1
+        description:
+          type: string
+          nullable: true
+        offsetMinutes:
+          type: integer
+        isEvent:
+          type: boolean
+      required: [title, offsetMinutes]
+
+    TimelineTemplateUpdate:
+      type: object
+      properties:
+        title:
+          type: string
+          minLength: 1
+        description:
+          type: string
+          nullable: true
+        offsetMinutes:
+          type: integer
+        isEvent:
+          type: boolean
+        enabled:
+          type: boolean
+        position:
+          type: integer
 
     StaffInviteInput:
       type: object

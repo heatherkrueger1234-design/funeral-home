@@ -74,6 +74,9 @@ import type {
   StaffMember,
   StaffMemberWithInvite,
   StaffUpdate,
+  TimelineTemplate,
+  TimelineTemplateInput,
+  TimelineTemplateUpdate,
   UploadInput,
   UploadSummary,
 } from "./api.schemas";
@@ -1045,6 +1048,431 @@ export const useUpdateStaff = <
   TContext
 > => {
   return useMutation(getUpdateStaffMutationOptions(options));
+};
+
+/**
+ * @summary The home's standard schedule, as offsets from the service
+ */
+export const getGetTimelineTemplateUrl = () => {
+  return `/api/home/timeline-template`;
+};
+
+export const getTimelineTemplate = async (
+  options?: RequestInit,
+): Promise<TimelineTemplate[]> => {
+  return customFetch<TimelineTemplate[]>(getGetTimelineTemplateUrl(), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getGetTimelineTemplateQueryKey = () => {
+  return [`/api/home/timeline-template`] as const;
+};
+
+export const getGetTimelineTemplateQueryOptions = <
+  TData = Awaited<ReturnType<typeof getTimelineTemplate>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof getTimelineTemplate>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getGetTimelineTemplateQueryKey();
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof getTimelineTemplate>>
+  > = ({ signal }) => getTimelineTemplate({ signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof getTimelineTemplate>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type GetTimelineTemplateQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getTimelineTemplate>>
+>;
+export type GetTimelineTemplateQueryError = ErrorType<unknown>;
+
+/**
+ * @summary The home's standard schedule, as offsets from the service
+ */
+
+export function useGetTimelineTemplate<
+  TData = Awaited<ReturnType<typeof getTimelineTemplate>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof getTimelineTemplate>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getGetTimelineTemplateQueryOptions(options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary Add a step to the standard schedule
+ */
+export const getCreateTimelineTemplateUrl = () => {
+  return `/api/home/timeline-template`;
+};
+
+export const createTimelineTemplate = async (
+  timelineTemplateInput: TimelineTemplateInput,
+  options?: RequestInit,
+): Promise<TimelineTemplate> => {
+  return customFetch<TimelineTemplate>(getCreateTimelineTemplateUrl(), {
+    ...options,
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(timelineTemplateInput),
+  });
+};
+
+export const getCreateTimelineTemplateMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof createTimelineTemplate>>,
+    TError,
+    { data: BodyType<TimelineTemplateInput> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof createTimelineTemplate>>,
+  TError,
+  { data: BodyType<TimelineTemplateInput> },
+  TContext
+> => {
+  const mutationKey = ["createTimelineTemplate"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof createTimelineTemplate>>,
+    { data: BodyType<TimelineTemplateInput> }
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return createTimelineTemplate(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type CreateTimelineTemplateMutationResult = NonNullable<
+  Awaited<ReturnType<typeof createTimelineTemplate>>
+>;
+export type CreateTimelineTemplateMutationBody =
+  BodyType<TimelineTemplateInput>;
+export type CreateTimelineTemplateMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Add a step to the standard schedule
+ */
+export const useCreateTimelineTemplate = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof createTimelineTemplate>>,
+    TError,
+    { data: BodyType<TimelineTemplateInput> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof createTimelineTemplate>>,
+  TError,
+  { data: BodyType<TimelineTemplateInput> },
+  TContext
+> => {
+  return useMutation(getCreateTimelineTemplateMutationOptions(options));
+};
+
+/**
+ * @summary Edit a step
+ */
+export const getUpdateTimelineTemplateUrl = (templateId: number) => {
+  return `/api/home/timeline-template/${templateId}`;
+};
+
+export const updateTimelineTemplate = async (
+  templateId: number,
+  timelineTemplateUpdate: TimelineTemplateUpdate,
+  options?: RequestInit,
+): Promise<TimelineTemplate> => {
+  return customFetch<TimelineTemplate>(
+    getUpdateTimelineTemplateUrl(templateId),
+    {
+      ...options,
+      method: "PUT",
+      headers: { "Content-Type": "application/json", ...options?.headers },
+      body: JSON.stringify(timelineTemplateUpdate),
+    },
+  );
+};
+
+export const getUpdateTimelineTemplateMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof updateTimelineTemplate>>,
+    TError,
+    { templateId: number; data: BodyType<TimelineTemplateUpdate> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof updateTimelineTemplate>>,
+  TError,
+  { templateId: number; data: BodyType<TimelineTemplateUpdate> },
+  TContext
+> => {
+  const mutationKey = ["updateTimelineTemplate"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof updateTimelineTemplate>>,
+    { templateId: number; data: BodyType<TimelineTemplateUpdate> }
+  > = (props) => {
+    const { templateId, data } = props ?? {};
+
+    return updateTimelineTemplate(templateId, data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type UpdateTimelineTemplateMutationResult = NonNullable<
+  Awaited<ReturnType<typeof updateTimelineTemplate>>
+>;
+export type UpdateTimelineTemplateMutationBody =
+  BodyType<TimelineTemplateUpdate>;
+export type UpdateTimelineTemplateMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Edit a step
+ */
+export const useUpdateTimelineTemplate = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof updateTimelineTemplate>>,
+    TError,
+    { templateId: number; data: BodyType<TimelineTemplateUpdate> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof updateTimelineTemplate>>,
+  TError,
+  { templateId: number; data: BodyType<TimelineTemplateUpdate> },
+  TContext
+> => {
+  return useMutation(getUpdateTimelineTemplateMutationOptions(options));
+};
+
+/**
+ * @summary Remove a step
+ */
+export const getDeleteTimelineTemplateUrl = (templateId: number) => {
+  return `/api/home/timeline-template/${templateId}`;
+};
+
+export const deleteTimelineTemplate = async (
+  templateId: number,
+  options?: RequestInit,
+): Promise<void> => {
+  return customFetch<void>(getDeleteTimelineTemplateUrl(templateId), {
+    ...options,
+    method: "DELETE",
+  });
+};
+
+export const getDeleteTimelineTemplateMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof deleteTimelineTemplate>>,
+    TError,
+    { templateId: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof deleteTimelineTemplate>>,
+  TError,
+  { templateId: number },
+  TContext
+> => {
+  const mutationKey = ["deleteTimelineTemplate"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof deleteTimelineTemplate>>,
+    { templateId: number }
+  > = (props) => {
+    const { templateId } = props ?? {};
+
+    return deleteTimelineTemplate(templateId, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type DeleteTimelineTemplateMutationResult = NonNullable<
+  Awaited<ReturnType<typeof deleteTimelineTemplate>>
+>;
+
+export type DeleteTimelineTemplateMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Remove a step
+ */
+export const useDeleteTimelineTemplate = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof deleteTimelineTemplate>>,
+    TError,
+    { templateId: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof deleteTimelineTemplate>>,
+  TError,
+  { templateId: number },
+  TContext
+> => {
+  return useMutation(getDeleteTimelineTemplateMutationOptions(options));
+};
+
+/**
+ * Needs a service date, because every step is an offset from it. Steps
+already on the timeline are matched by title and left alone, so this
+is safe to run twice and safe to run after the service date moves.
+
+ * @summary Build this case's schedule from the home's standard one
+ */
+export const getApplyTimelineTemplateUrl = (caseId: number) => {
+  return `/api/cases/${caseId}/deadlines/from-template`;
+};
+
+export const applyTimelineTemplate = async (
+  caseId: number,
+  options?: RequestInit,
+): Promise<CaseDeadline[]> => {
+  return customFetch<CaseDeadline[]>(getApplyTimelineTemplateUrl(caseId), {
+    ...options,
+    method: "POST",
+  });
+};
+
+export const getApplyTimelineTemplateMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof applyTimelineTemplate>>,
+    TError,
+    { caseId: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof applyTimelineTemplate>>,
+  TError,
+  { caseId: number },
+  TContext
+> => {
+  const mutationKey = ["applyTimelineTemplate"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof applyTimelineTemplate>>,
+    { caseId: number }
+  > = (props) => {
+    const { caseId } = props ?? {};
+
+    return applyTimelineTemplate(caseId, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type ApplyTimelineTemplateMutationResult = NonNullable<
+  Awaited<ReturnType<typeof applyTimelineTemplate>>
+>;
+
+export type ApplyTimelineTemplateMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Build this case's schedule from the home's standard one
+ */
+export const useApplyTimelineTemplate = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof applyTimelineTemplate>>,
+    TError,
+    { caseId: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof applyTimelineTemplate>>,
+  TError,
+  { caseId: number },
+  TContext
+> => {
+  return useMutation(getApplyTimelineTemplateMutationOptions(options));
 };
 
 /**

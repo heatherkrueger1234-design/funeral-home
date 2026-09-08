@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import {
   useGetDeadlines,
+  useApplyTimelineTemplate,
   useCreateDeadline,
   useUpdateDeadline,
   useDeleteDeadline,
@@ -12,7 +13,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Church, Loader2, Plus, X } from "lucide-react";
+import { CalendarSync, Church, Loader2, Plus, X } from "lucide-react";
 
 /**
  * The timeline the family is shown.
@@ -21,7 +22,13 @@ import { Church, Loader2, Plus, X } from "lucide-react";
  * here would produce a screen the family reads none of. Four or five things,
  * each with a real time.
  */
-export function TimelinePanel({ caseId }: { caseId: number }) {
+export function TimelinePanel({
+  caseId,
+  serviceAt,
+}: {
+  caseId: number;
+  serviceAt: string | null;
+}) {
   const queryClient = useQueryClient();
   const deadlines = useGetDeadlines(caseId);
 
@@ -47,12 +54,42 @@ export function TimelinePanel({ caseId }: { caseId: number }) {
     },
   });
   const update = useUpdateDeadline({ mutation: { onSuccess: refresh } });
+  const applyTemplate = useApplyTimelineTemplate({
+    mutation: { onSuccess: refresh },
+  });
   const remove = useDeleteDeadline({ mutation: { onSuccess: refresh } });
 
   const rows = deadlines.data ?? [];
 
   return (
     <div className="space-y-6">
+      {/*
+        The escape hatch for the one case the standard schedule got wrong,
+        and the button to press after a funeral moves. Steps already done keep
+        their date; unfinished ones follow the service.
+      */}
+      <div className="flex flex-wrap items-center gap-3">
+        <p className="text-sm text-muted-foreground">
+          {serviceAt
+            ? "Built from your standard schedule."
+            : "Set a service date on the Details tab and the schedule builds itself."}
+        </p>
+        <Button
+          variant="outline"
+          size="sm"
+          className="ml-auto"
+          disabled={!serviceAt || applyTemplate.isPending}
+          onClick={() => applyTemplate.mutate({ caseId })}
+        >
+          {applyTemplate.isPending ? (
+            <Loader2 className="size-4 animate-spin" />
+          ) : (
+            <CalendarSync className="size-4" />
+          )}
+          {rows.length === 0 ? "Build the schedule" : "Rebuild from template"}
+        </Button>
+      </div>
+
       {deadlines.isPending ? (
         <div className="py-12 text-center">
           <Loader2 className="size-5 animate-spin mx-auto text-muted-foreground" />

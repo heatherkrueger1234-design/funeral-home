@@ -10,6 +10,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Loader2 } from "lucide-react";
+import { StandardSchedule } from "@/components/StandardSchedule";
 
 /** "08:00" for a time input, from minutes since midnight. */
 const toTimeInput = (minute: number) =>
@@ -181,6 +182,8 @@ export default function Settings() {
           </div>
         </div>
       </section>
+
+      <StandardSchedule readOnly={readOnly} />
 
       <section className="space-y-4 rounded-xl border border-border bg-card p-4">
         <h2 className="font-medium">Aftercare</h2>

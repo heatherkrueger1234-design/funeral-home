@@ -24,6 +24,7 @@ import {
 import { currentUser, tenant } from "../middleware/require-auth";
 import { countsForCases, toCaseJson } from "../lib/case-view";
 import { enrolCaseInAftercare } from "../lib/aftercare";
+import { applyTemplateToCase, hasDeadlines } from "../lib/timeline";
 
 const router: IRouter = Router();
 
@@ -119,6 +120,13 @@ router.post("/cases", async (req, res) => {
     return row!;
   });
 
+  // A director who already knows the funeral time when they open the case
+  // should get the schedule straight away, exactly as they would if they
+  // added the date a day later.
+  if (created.serviceAt !== null) {
+    await applyTemplateToCase(created);
+  }
+
   res.status(201).json(toCaseJson(created));
 });
 
@@ -183,6 +191,26 @@ router.put("/cases/:caseId", async (req, res) => {
     .set({ ...values, updatedAt: new Date() })
     .where(eq(casesTable.id, existing.id))
     .returning();
+
+  /*
+   * The moment that makes the timeline actually happen.
+   *
+   * A director sets the service date once they have it, and that is the last
+   * point at which anybody was going to think about deadlines. Building the
+   * schedule here means the family is told when their clothing is due without
+   * anyone remembering to tell them.
+   *
+   * Only when the case has no timeline yet, so this cannot trample a schedule
+   * somebody has already adjusted by hand. Rebuilding after a date change is
+   * an explicit button.
+   */
+  if (
+    updated!.serviceAt !== null &&
+    existing.serviceAt === null &&
+    !(await hasDeadlines(updated!.id))
+  ) {
+    await applyTemplateToCase(updated!);
+  }
 
   res.json(toCaseJson(updated!));
 });

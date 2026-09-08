@@ -157,7 +157,7 @@ export default function CaseDetail() {
             <ServicePanel caseId={caseId} />
           </TabsContent>
           <TabsContent value="timeline">
-            <TimelinePanel caseId={caseId} />
+            <TimelinePanel caseId={caseId} serviceAt={detail.serviceAt} />
           </TabsContent>
           <TabsContent value="messages">
             <MessagesPanel caseId={caseId} />

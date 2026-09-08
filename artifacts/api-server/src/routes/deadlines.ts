@@ -16,6 +16,7 @@ import {
   requireRow,
 } from "../lib/http";
 import { currentUser, tenant } from "../middleware/require-auth";
+import { applyTemplateToCase } from "../lib/timeline";
 import { loadCase } from "./cases";
 
 const router: IRouter = Router();
@@ -112,6 +113,28 @@ router.post("/cases/:caseId/deadlines", async (req, res) => {
     ...created!,
     completedByName: null,
   });
+});
+
+/**
+ * Build or rebuild this case's timeline from the home's standard schedule.
+ *
+ * Safe to press twice, and safe to press after moving the service: steps are
+ * matched by title, unfinished ones move with the date, and anything the
+ * family has already done is left exactly where it is.
+ */
+router.post("/cases/:caseId/deadlines/from-template", async (req, res) => {
+  const home = tenant(req);
+  const row = await loadCase(req, req.params.caseId);
+
+  if (!row.serviceAt) {
+    throw badRequest(
+      "Set the service date first — every step is measured from it.",
+    );
+  }
+
+  await applyTemplateToCase(row);
+
+  res.json(await deadlinesForCase(row.id, home.id));
 });
 
 router.put("/deadlines/:deadlineId", async (req, res) => {

@@ -63,6 +63,37 @@ export interface StaffMember {
   deactivatedAt: string | null;
 }
 
+export interface TimelineTemplate {
+  id: number;
+  title: string;
+  description: string | null;
+  /** Relative to the service. Negative is before it. */
+  offsetMinutes: number;
+  /** The offset in words, e.g. "3 days before". */
+  offsetLabel: string;
+  isEvent: boolean;
+  enabled: boolean;
+  position: number;
+}
+
+export interface TimelineTemplateInput {
+  /** @minLength 1 */
+  title: string;
+  description?: string | null;
+  offsetMinutes: number;
+  isEvent?: boolean;
+}
+
+export interface TimelineTemplateUpdate {
+  /** @minLength 1 */
+  title?: string;
+  description?: string | null;
+  offsetMinutes?: number;
+  isEvent?: boolean;
+  enabled?: boolean;
+  position?: number;
+}
+
 export type StaffInviteInputRole =
   (typeof StaffInviteInputRole)[keyof typeof StaffInviteInputRole];
 

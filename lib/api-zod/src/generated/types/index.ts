@@ -86,5 +86,8 @@ export * from "./staffMemberWithInvite";
 export * from "./staffSignature";
 export * from "./staffUpdate";
 export * from "./staffUpdateRole";
+export * from "./timelineTemplate";
+export * from "./timelineTemplateInput";
+export * from "./timelineTemplateUpdate";
 export * from "./uploadInput";
 export * from "./uploadSummary";

@@ -267,6 +267,102 @@ export const UpdateStaffResponse = zod.object({
 });
 
 /**
+ * @summary The home's standard schedule, as offsets from the service
+ */
+export const GetTimelineTemplateResponseItem = zod.object({
+  id: zod.number(),
+  title: zod.string(),
+  description: zod.string().nullable(),
+  offsetMinutes: zod
+    .number()
+    .describe("Relative to the service. Negative is before it."),
+  offsetLabel: zod
+    .string()
+    .describe('The offset in words, e.g. \"3 days before\".'),
+  isEvent: zod.boolean(),
+  enabled: zod.boolean(),
+  position: zod.number(),
+});
+export const GetTimelineTemplateResponse = zod.array(
+  GetTimelineTemplateResponseItem,
+);
+
+/**
+ * @summary Add a step to the standard schedule
+ */
+
+export const CreateTimelineTemplateBody = zod.object({
+  title: zod.string().min(1),
+  description: zod.string().nullish(),
+  offsetMinutes: zod.number(),
+  isEvent: zod.boolean().optional(),
+});
+
+/**
+ * @summary Edit a step
+ */
+export const UpdateTimelineTemplateParams = zod.object({
+  templateId: zod.coerce.number(),
+});
+
+export const UpdateTimelineTemplateBody = zod.object({
+  title: zod.string().min(1).optional(),
+  description: zod.string().nullish(),
+  offsetMinutes: zod.number().optional(),
+  isEvent: zod.boolean().optional(),
+  enabled: zod.boolean().optional(),
+  position: zod.number().optional(),
+});
+
+export const UpdateTimelineTemplateResponse = zod.object({
+  id: zod.number(),
+  title: zod.string(),
+  description: zod.string().nullable(),
+  offsetMinutes: zod
+    .number()
+    .describe("Relative to the service. Negative is before it."),
+  offsetLabel: zod
+    .string()
+    .describe('The offset in words, e.g. \"3 days before\".'),
+  isEvent: zod.boolean(),
+  enabled: zod.boolean(),
+  position: zod.number(),
+});
+
+/**
+ * @summary Remove a step
+ */
+export const DeleteTimelineTemplateParams = zod.object({
+  templateId: zod.coerce.number(),
+});
+
+/**
+ * Needs a service date, because every step is an offset from it. Steps
+already on the timeline are matched by title and left alone, so this
+is safe to run twice and safe to run after the service date moves.
+
+ * @summary Build this case's schedule from the home's standard one
+ */
+export const ApplyTimelineTemplateParams = zod.object({
+  caseId: zod.coerce.number(),
+});
+
+export const ApplyTimelineTemplateResponseItem = zod.object({
+  id: zod.number(),
+  caseId: zod.number(),
+  title: zod.string(),
+  description: zod.string().nullable(),
+  dueAt: zod.date(),
+  isEvent: zod.boolean(),
+  completedAt: zod.date().nullable(),
+  completedByName: zod.string().nullable(),
+  position: zod.number(),
+});
+export const ApplyTimelineTemplateResponse = zod.array(
+  ApplyTimelineTemplateResponseItem,
+);
+
+/**
  * @summary The home's cases, soonest service first
  */
 export const GetCasesQueryParams = zod.object({
