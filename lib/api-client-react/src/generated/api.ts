@@ -70,7 +70,10 @@ import type {
   SelectionInput,
   SelectionUpdate,
   ServiceSelection,
+  StaffInviteInput,
   StaffMember,
+  StaffMemberWithInvite,
+  StaffUpdate,
   UploadInput,
   UploadSummary,
 } from "./api.schemas";
@@ -866,6 +869,183 @@ export function useGetStaff<
 
   return { ...query, queryKey: queryOptions.queryKey };
 }
+
+/**
+ * Owner only. The account is created with no password; the invitee sets
+one through the ordinary reset link, so a password is never typed by
+one person on behalf of another and never travels in an email.
+
+ * @summary Add a colleague, and send them a link to set a password
+ */
+export const getInviteStaffUrl = () => {
+  return `/api/home/staff`;
+};
+
+export const inviteStaff = async (
+  staffInviteInput: StaffInviteInput,
+  options?: RequestInit,
+): Promise<StaffMemberWithInvite> => {
+  return customFetch<StaffMemberWithInvite>(getInviteStaffUrl(), {
+    ...options,
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(staffInviteInput),
+  });
+};
+
+export const getInviteStaffMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof inviteStaff>>,
+    TError,
+    { data: BodyType<StaffInviteInput> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof inviteStaff>>,
+  TError,
+  { data: BodyType<StaffInviteInput> },
+  TContext
+> => {
+  const mutationKey = ["inviteStaff"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof inviteStaff>>,
+    { data: BodyType<StaffInviteInput> }
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return inviteStaff(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type InviteStaffMutationResult = NonNullable<
+  Awaited<ReturnType<typeof inviteStaff>>
+>;
+export type InviteStaffMutationBody = BodyType<StaffInviteInput>;
+export type InviteStaffMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Add a colleague, and send them a link to set a password
+ */
+export const useInviteStaff = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof inviteStaff>>,
+    TError,
+    { data: BodyType<StaffInviteInput> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof inviteStaff>>,
+  TError,
+  { data: BodyType<StaffInviteInput> },
+  TContext
+> => {
+  return useMutation(getInviteStaffMutationOptions(options));
+};
+
+/**
+ * @summary Change a colleague's role, or take their access away
+ */
+export const getUpdateStaffUrl = (userId: number) => {
+  return `/api/home/staff/${userId}`;
+};
+
+export const updateStaff = async (
+  userId: number,
+  staffUpdate: StaffUpdate,
+  options?: RequestInit,
+): Promise<StaffMember> => {
+  return customFetch<StaffMember>(getUpdateStaffUrl(userId), {
+    ...options,
+    method: "PUT",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(staffUpdate),
+  });
+};
+
+export const getUpdateStaffMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof updateStaff>>,
+    TError,
+    { userId: number; data: BodyType<StaffUpdate> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof updateStaff>>,
+  TError,
+  { userId: number; data: BodyType<StaffUpdate> },
+  TContext
+> => {
+  const mutationKey = ["updateStaff"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof updateStaff>>,
+    { userId: number; data: BodyType<StaffUpdate> }
+  > = (props) => {
+    const { userId, data } = props ?? {};
+
+    return updateStaff(userId, data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type UpdateStaffMutationResult = NonNullable<
+  Awaited<ReturnType<typeof updateStaff>>
+>;
+export type UpdateStaffMutationBody = BodyType<StaffUpdate>;
+export type UpdateStaffMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Change a colleague's role, or take their access away
+ */
+export const useUpdateStaff = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof updateStaff>>,
+    TError,
+    { userId: number; data: BodyType<StaffUpdate> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof updateStaff>>,
+  TError,
+  { userId: number; data: BodyType<StaffUpdate> },
+  TContext
+> => {
+  return useMutation(getUpdateStaffMutationOptions(options));
+};
 
 /**
  * @summary The home's cases, soonest service first

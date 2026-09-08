@@ -182,6 +182,9 @@ router.post("/photos", photoUpload.single("file"), async (req, res) => {
       caseId: row.id,
       uploadedByContactId: contact.id,
       file: req.file!,
+      // Same transaction as the photo row below: if that insert fails, the
+      // bytes must go with it rather than linger unreferenced.
+      tx,
     });
 
     const [photo] = await tx
@@ -616,12 +619,13 @@ router.get("/uploads/:uploadId", async (req, res) => {
   const row = familyCase(req);
   const home = familyHome(req);
 
-  // Scoped to this case, plus home-level files such as the logo. However the
-  // id is mangled, nothing from another family is reachable.
+  // Scoped to this case, plus the home's logo and nothing else. However the
+  // id is mangled, no other family's file is reachable.
   await serveUpload(res, {
     uploadId: parseId(req.params.uploadId),
     funeralHomeId: home.id,
     caseId: row.id,
+    logoUploadId: home.logoUploadId,
   });
 });
 

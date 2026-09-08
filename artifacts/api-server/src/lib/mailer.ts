@@ -164,3 +164,48 @@ export async function sendPasswordResetEmail(options: {
     html,
   });
 }
+
+export async function sendStaffInviteEmail(options: {
+  to: string;
+  homeName: string;
+  invitedBy: string;
+  inviteLink: string;
+  expiresInMinutes: number;
+}): Promise<void> {
+  const { to, homeName, invitedBy, inviteLink, expiresInMinutes } = options;
+
+  const text = [
+    `${invitedBy} has added you to ${homeName} on Holding Today.`,
+    "",
+    "Choose a password to get in:",
+    inviteLink,
+    "",
+    `The link works once, and expires in ${expiresInMinutes} minutes. Ask`,
+    "them to send another if it runs out.",
+    "",
+    "— Holding Today",
+  ].join("\n");
+
+  const html = `
+<div style="font-family:-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;
+            max-width:520px;margin:0 auto;padding:32px 24px;color:#1f2937;
+            line-height:1.6;font-size:15px">
+  <p style="margin:0 0 20px">
+    ${invitedBy} has added you to <strong>${homeName}</strong> on Holding&nbsp;Today.
+  </p>
+  <p style="margin:0 0 28px">
+    <a href="${inviteLink}"
+       style="display:inline-block;background:#1f4e46;color:#ffffff;
+              text-decoration:none;padding:12px 26px;border-radius:999px;
+              font-weight:600">Choose a password</a>
+  </p>
+  <p style="margin:0 0 20px;color:#6b7280;font-size:13px">
+    The link works once and expires in ${expiresInMinutes} minutes. If the
+    button doesn't work, paste this into your browser:<br>
+    <span style="word-break:break-all">${inviteLink}</span>
+  </p>
+  <p style="margin:24px 0 0;color:#9ca3af;font-size:12px">— Holding Today</p>
+</div>`.trim();
+
+  await send({ to, subject: `You've been added to ${homeName}`, text, html });
+}

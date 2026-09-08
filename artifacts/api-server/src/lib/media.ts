@@ -37,6 +37,13 @@ export const photoUpload = multer({
 
 export type StoredUpload = Omit<Upload, "data">;
 
+/**
+ * Either the pool or an open transaction. Callers that write an upload and a
+ * row referring to it must pass their transaction, or a failure on the second
+ * write leaves the bytes behind with nothing pointing at them.
+ */
+type Db = typeof db | Parameters<Parameters<typeof db.transaction>[0]>[0];
+
 export async function storeUpload(options: {
   funeralHomeId: number;
   caseId: number | null;
@@ -44,6 +51,8 @@ export async function storeUpload(options: {
   uploadedByContactId?: number | null;
   file: Express.Multer.File;
   imagesOnly?: boolean;
+  /** Defaults to the pool, for the single-write case. */
+  tx?: Db;
 }): Promise<StoredUpload> {
   const { file } = options;
 
@@ -63,7 +72,7 @@ export async function storeUpload(options: {
     throw badRequest("Please upload a photograph.");
   }
 
-  const [row] = await db
+  const [row] = await (options.tx ?? db)
     .insert(uploadsTable)
     .values({
       funeralHomeId: options.funeralHomeId,
@@ -92,7 +101,17 @@ export async function storeUpload(options: {
  */
 export async function serveUpload(
   res: Response,
-  options: { uploadId: number; funeralHomeId: number; caseId?: number },
+  options: {
+    uploadId: number;
+    funeralHomeId: number;
+    /**
+     * Set for family requests. When present, the only files that may be
+     * served are the ones on that case, plus `logoUploadId` below.
+     */
+    caseId?: number;
+    /** The home's logo, which families legitimately need for branding. */
+    logoUploadId?: number | null;
+  },
 ): Promise<void> {
   const [row] = await db
     .select()
@@ -107,10 +126,23 @@ export async function serveUpload(
 
   if (!row) throw notFound("That file could not be found.");
 
-  // A family may fetch files on their own case, plus home-level files (the
-  // logo), which have no case id at all.
-  if (options.caseId !== undefined && row.caseId !== null && row.caseId !== options.caseId) {
-    throw notFound("That file could not be found.");
+  /*
+   * A family request is scoped to one case, and to the logo.
+   *
+   * This used to allow anything with a null case id, on the reasoning that
+   * the logo has no case. That was wrong: every staff upload is stored with
+   * a null case id too, so one family's link could fetch any file the home
+   * had ever uploaded -- including one meant for another family. Now the
+   * exception is the specific logo id and nothing else.
+   */
+  if (options.caseId !== undefined) {
+    const isOwnCaseFile = row.caseId === options.caseId;
+    const isTheLogo =
+      options.logoUploadId != null && row.id === options.logoUploadId;
+
+    if (!isOwnCaseFile && !isTheLogo) {
+      throw notFound("That file could not be found.");
+    }
   }
 
   let bytes: Buffer;

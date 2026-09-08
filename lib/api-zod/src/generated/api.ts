@@ -227,6 +227,46 @@ export const GetStaffResponseItem = zod.object({
 export const GetStaffResponse = zod.array(GetStaffResponseItem);
 
 /**
+ * Owner only. The account is created with no password; the invitee sets
+one through the ordinary reset link, so a password is never typed by
+one person on behalf of another and never travels in an email.
+
+ * @summary Add a colleague, and send them a link to set a password
+ */
+export const InviteStaffBody = zod.object({
+  email: zod.string().email(),
+  displayName: zod.string().nullish(),
+  title: zod.string().nullish(),
+  role: zod.enum(["owner", "director", "staff"]).optional(),
+});
+
+/**
+ * @summary Change a colleague's role, or take their access away
+ */
+export const UpdateStaffParams = zod.object({
+  userId: zod.coerce.number(),
+});
+
+export const UpdateStaffBody = zod.object({
+  displayName: zod.string().nullish(),
+  title: zod.string().nullish(),
+  role: zod.enum(["owner", "director", "staff"]).optional(),
+  active: zod
+    .boolean()
+    .optional()
+    .describe("False takes their access away without deleting their history."),
+});
+
+export const UpdateStaffResponse = zod.object({
+  id: zod.number(),
+  email: zod.string(),
+  displayName: zod.string().nullable(),
+  title: zod.string().nullable(),
+  role: zod.enum(["owner", "director", "staff"]),
+  deactivatedAt: zod.date().nullable(),
+});
+
+/**
  * @summary The home's cases, soonest service first
  */
 export const GetCasesQueryParams = zod.object({

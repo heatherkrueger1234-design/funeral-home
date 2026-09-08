@@ -8,6 +8,7 @@ import {
   index,
 } from "drizzle-orm/pg-core";
 import { funeralHomesTable } from "./funeral-homes";
+import { casesTable } from "./cases";
 
 const bytea = customType<{ data: Buffer; default: false }>({
   dataType: () => "bytea",
@@ -40,10 +41,16 @@ export const uploadsTable = pgTable(
       .notNull()
       .references(() => funeralHomesTable.id, { onDelete: "cascade" }),
     /**
-     * Nullable: the home's logo belongs to no case. Photographs set it, and
-     * are deleted with the case.
+     * Nullable: the home's logo belongs to no case.
+     *
+     * The cascade is load-bearing rather than tidy. Without it, deleting a
+     * case leaves the encrypted photographs of somebody's dead relative in
+     * this table indefinitely -- invisible to every screen, still in every
+     * backup, and impossible to answer a deletion request about.
      */
-    caseId: integer("case_id"),
+    caseId: integer("case_id").references(() => casesTable.id, {
+      onDelete: "cascade",
+    }),
     /** Whichever side sent it. Exactly one of these is set in practice. */
     uploadedByUserId: integer("uploaded_by_user_id"),
     uploadedByContactId: integer("uploaded_by_contact_id"),

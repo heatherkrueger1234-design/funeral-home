@@ -63,6 +63,49 @@ export interface StaffMember {
   deactivatedAt: string | null;
 }
 
+export type StaffInviteInputRole =
+  (typeof StaffInviteInputRole)[keyof typeof StaffInviteInputRole];
+
+export const StaffInviteInputRole = {
+  owner: "owner",
+  director: "director",
+  staff: "staff",
+} as const;
+
+export interface StaffInviteInput {
+  email: string;
+  displayName?: string | null;
+  title?: string | null;
+  role?: StaffInviteInputRole;
+}
+
+/**
+ * Returned once, when a colleague is added. `inviteLink` is shown to the
+owner so they can pass it on if the email does not arrive; it is the
+ordinary single-use password-reset link and is never retrievable again.
+
+ */
+export type StaffMemberWithInvite = StaffMember & {
+  inviteLink: string;
+};
+
+export type StaffUpdateRole =
+  (typeof StaffUpdateRole)[keyof typeof StaffUpdateRole];
+
+export const StaffUpdateRole = {
+  owner: "owner",
+  director: "director",
+  staff: "staff",
+} as const;
+
+export interface StaffUpdate {
+  displayName?: string | null;
+  title?: string | null;
+  role?: StaffUpdateRole;
+  /** False takes their access away without deleting their history. */
+  active?: boolean;
+}
+
 export type FuneralHomeSubscriptionStatus =
   (typeof FuneralHomeSubscriptionStatus)[keyof typeof FuneralHomeSubscriptionStatus];
 

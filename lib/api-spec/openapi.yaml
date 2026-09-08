@@ -198,6 +198,52 @@ paths:
                 type: array
                 items:
                   $ref: "#/components/schemas/StaffMember"
+    post:
+      operationId: inviteStaff
+      tags: [home]
+      summary: Add a colleague, and send them a link to set a password
+      description: |
+        Owner only. The account is created with no password; the invitee sets
+        one through the ordinary reset link, so a password is never typed by
+        one person on behalf of another and never travels in an email.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/StaffInviteInput"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StaffMemberWithInvite"
+
+  /home/staff/{userId}:
+    put:
+      operationId: updateStaff
+      tags: [home]
+      summary: Change a colleague's role, or take their access away
+      parameters:
+        - name: userId
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/StaffUpdate"
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StaffMember"
 
   # ----------------------------------------------------------------- cases --
 
@@ -1164,6 +1210,52 @@ components:
           format: date-time
           nullable: true
       required: [id, email, displayName, title, role, deactivatedAt]
+
+    StaffInviteInput:
+      type: object
+      properties:
+        email:
+          type: string
+          format: email
+        displayName:
+          type: string
+          nullable: true
+        title:
+          type: string
+          nullable: true
+        role:
+          type: string
+          enum: [owner, director, staff]
+      required: [email]
+
+    StaffMemberWithInvite:
+      description: |
+        Returned once, when a colleague is added. `inviteLink` is shown to the
+        owner so they can pass it on if the email does not arrive; it is the
+        ordinary single-use password-reset link and is never retrievable again.
+      allOf:
+        - $ref: "#/components/schemas/StaffMember"
+        - type: object
+          properties:
+            inviteLink:
+              type: string
+          required: [inviteLink]
+
+    StaffUpdate:
+      type: object
+      properties:
+        displayName:
+          type: string
+          nullable: true
+        title:
+          type: string
+          nullable: true
+        role:
+          type: string
+          enum: [owner, director, staff]
+        active:
+          type: boolean
+          description: False takes their access away without deleting their history.
 
     AuthUser:
       type: object
