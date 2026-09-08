@@ -13,6 +13,7 @@ import obituaryRouter from "./obituary";
 import selectionsRouter from "./selections";
 import messagesRouter from "./messages";
 import deadlinesRouter from "./deadlines";
+import belongingsRouter from "./belongings";
 import aftercareRouter from "./aftercare";
 import uploadsRouter from "./uploads";
 
@@ -63,6 +64,7 @@ router.use(obituaryRouter);
 router.use(selectionsRouter);
 router.use(messagesRouter);
 router.use(deadlinesRouter);
+router.use(belongingsRouter);
 router.use(aftercareRouter);
 router.use(uploadsRouter);
 

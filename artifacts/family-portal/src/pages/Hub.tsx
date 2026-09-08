@@ -7,6 +7,7 @@ import {
   Images,
   FileText,
   ListMusic,
+  Shirt,
   CalendarClock,
   MessageCircle,
   HeartHandshake,
@@ -168,6 +169,12 @@ export default function Hub() {
                 ? "With the funeral home"
                 : "Tell us about them"
           }
+        />
+        <Card
+          href="/belongings"
+          icon={Shirt}
+          title="Clothing and belongings"
+          detail="What they'll wear, and how they looked"
         />
         <Card
           href="/service"

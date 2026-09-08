@@ -1,9 +1,11 @@
 import { Router, type IRouter } from "express";
-import { and, asc, count, eq, isNull } from "drizzle-orm";
+import { and, asc, count, eq, isNull, max } from "drizzle-orm";
 import {
   db,
   aftercareDeliveriesTable,
   aftercareEnrollmentsTable,
+  caseBelongingsTable,
+  casePreparationTable,
   caseDeadlinesTable,
   caseMessagesTable,
   casePhotosTable,
@@ -29,6 +31,9 @@ import {
   PostFamilyMessageBody,
   CompleteFamilyDeadlineBody,
   SetFamilyAftercareConsentBody,
+  CreateFamilyBelongingBody,
+  UpdateFamilyBelongingBody,
+  UpdateFamilyPreparationBody,
 } from "@workspace/api-zod";
 import {
   assertHasUpdates,
@@ -54,6 +59,12 @@ import {
 import { buildThread, isThreadLocked, markRead } from "../lib/thread";
 import { isWithinOfficeHours } from "../lib/office-hours";
 import { aftercareForCase } from "../lib/aftercare";
+import {
+  belongingsForCase,
+  ensureBelongingPrompts,
+  preparationForCase,
+  toPreparationJson,
+} from "../lib/belongings";
 import { deadlinesForCase } from "./deadlines";
 import { nextPosition, selectionsForCase } from "./selections";
 
@@ -573,6 +584,140 @@ router.delete("/selections/:selectionId", async (req, res) => {
     .where(eq(serviceSelectionsTable.id, found.id));
 
   res.status(204).end();
+});
+
+/* ---------------------------------------------------------- belongings --- */
+
+router.get("/belongings", async (req, res) => {
+  const row = familyCase(req);
+  await ensureBelongingPrompts(row.id, row.funeralHomeId);
+  res.json(await belongingsForCase(row.id, row.funeralHomeId));
+});
+
+router.post("/belongings", async (req, res) => {
+  const row = familyCase(req);
+  const values = parseBody(CreateFamilyBelongingBody, req.body);
+
+  const description = values.description.trim();
+  if (!description) throw badRequest("Please say what the item is.");
+
+  const [last] = await db
+    .select({ value: max(caseBelongingsTable.position) })
+    .from(caseBelongingsTable)
+    .where(eq(caseBelongingsTable.caseId, row.id));
+
+  const [created] = await db
+    .insert(caseBelongingsTable)
+    .values({
+      funeralHomeId: row.funeralHomeId,
+      caseId: row.id,
+      kind: values.kind ?? "other",
+      description,
+      disposition: values.disposition ?? "undecided",
+      notes: values.notes ?? null,
+      position: (last?.value ?? -1) + 1,
+    })
+    .returning();
+
+  const all = await belongingsForCase(row.id, row.funeralHomeId);
+  res.status(201).json(all.find((item) => item.id === created!.id));
+});
+
+/**
+ * A family may describe an item and say what should happen to it. They cannot
+ * move it through the chain of custody: only the home records that something
+ * was received or handed back, because the home is what a family relies on
+ * when a wedding ring cannot be found.
+ */
+router.put("/belongings/:belongingId", async (req, res) => {
+  const row = familyCase(req);
+  const id = parseId(req.params.belongingId);
+  const values = assertHasUpdates(parseBody(UpdateFamilyBelongingBody, req.body));
+
+  const [item] = await db
+    .select()
+    .from(caseBelongingsTable)
+    .where(
+      and(eq(caseBelongingsTable.id, id), eq(caseBelongingsTable.caseId, row.id)),
+    )
+    .limit(1);
+
+  const found = requireRow(item, "That item could not be found.");
+
+  // Once the home is holding it, its description is the home's record.
+  if (found.receivedAt !== null) {
+    throw new HttpError(
+      409,
+      "The funeral home already has this one. Send them a message if something needs changing.",
+    );
+  }
+
+  await db
+    .update(caseBelongingsTable)
+    .set({ ...values, updatedAt: new Date() })
+    .where(eq(caseBelongingsTable.id, found.id));
+
+  const all = await belongingsForCase(row.id, row.funeralHomeId);
+  res.json(all.find((entry) => entry.id === found.id));
+});
+
+router.delete("/belongings/:belongingId", async (req, res) => {
+  const row = familyCase(req);
+  const id = parseId(req.params.belongingId);
+
+  const [item] = await db
+    .select()
+    .from(caseBelongingsTable)
+    .where(
+      and(eq(caseBelongingsTable.id, id), eq(caseBelongingsTable.caseId, row.id)),
+    )
+    .limit(1);
+
+  const found = requireRow(item, "That item could not be found.");
+
+  if (found.receivedAt !== null) {
+    throw new HttpError(
+      409,
+      "The funeral home already has this one, so its record stays.",
+    );
+  }
+
+  await db
+    .delete(caseBelongingsTable)
+    .where(eq(caseBelongingsTable.id, found.id));
+
+  res.status(204).end();
+});
+
+/* --------------------------------------------------------- preparation --- */
+
+router.get("/preparation", async (req, res) => {
+  const row = familyCase(req);
+  const sheet = await preparationForCase(row.id, row.funeralHomeId);
+  res.json(await toPreparationJson(sheet, row.referencePhotoId));
+});
+
+router.put("/preparation", async (req, res) => {
+  const row = familyCase(req);
+  const sheet = await preparationForCase(row.id, row.funeralHomeId);
+  const values = assertHasUpdates(
+    parseBody(UpdateFamilyPreparationBody, req.body),
+  );
+
+  // Editing after staff have signed the sheet off resets that: what the
+  // preparation room read is no longer what the family has said.
+  const [updated] = await db
+    .update(casePreparationTable)
+    .set({
+      ...values,
+      reviewedAt: null,
+      reviewedByUserId: null,
+      updatedAt: new Date(),
+    })
+    .where(eq(casePreparationTable.id, sheet.id))
+    .returning();
+
+  res.json(await toPreparationJson(updated!, row.referencePhotoId));
 });
 
 /* ------------------------------------------------------------ messages --- */

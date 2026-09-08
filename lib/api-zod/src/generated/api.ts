@@ -997,6 +997,379 @@ export const GetPhotoPackParams = zod.object({
 });
 
 /**
+ * @summary Everything the family is bringing in, and where it is
+ */
+export const GetBelongingsParams = zod.object({
+  caseId: zod.coerce.number(),
+});
+
+export const GetBelongingsResponseItem = zod.object({
+  id: zod.number(),
+  caseId: zod.number(),
+  kind: zod.enum([
+    "clothing",
+    "undergarments",
+    "shoes",
+    "jewellery",
+    "glasses",
+    "dentures",
+    "keepsake",
+    "photograph",
+    "other",
+  ]),
+  description: zod.string(),
+  disposition: zod.enum(["undecided", "with_deceased", "return_to_family"]),
+  status: zod.enum(["expected", "received", "with_deceased", "returned"]),
+  photoUploadId: zod.number().nullable(),
+  notes: zod.string().nullable(),
+  receivedAt: zod.date().nullable(),
+  receivedByName: zod.string().nullable(),
+  returnedAt: zod.date().nullable(),
+  returnedToName: zod.string().nullable(),
+  position: zod.number(),
+});
+export const GetBelongingsResponse = zod.array(GetBelongingsResponseItem);
+
+/**
+ * @summary Log an item
+ */
+export const CreateBelongingParams = zod.object({
+  caseId: zod.coerce.number(),
+});
+
+export const CreateBelongingBody = zod.object({
+  kind: zod
+    .enum([
+      "clothing",
+      "undergarments",
+      "shoes",
+      "jewellery",
+      "glasses",
+      "dentures",
+      "keepsake",
+      "photograph",
+      "other",
+    ])
+    .optional(),
+  description: zod.string().min(1),
+  disposition: zod
+    .enum(["undecided", "with_deceased", "return_to_family"])
+    .optional(),
+  notes: zod.string().nullish(),
+});
+
+/**
+ * Setting `status` to `received` or `returned` stamps the time and the
+staff member automatically -- the chain of custody is a side effect of
+doing the work, not a second form to fill in.
+
+ * @summary Take an item in, send it back, or correct it
+ */
+export const UpdateBelongingParams = zod.object({
+  belongingId: zod.coerce.number(),
+});
+
+export const UpdateBelongingBody = zod.object({
+  kind: zod
+    .enum([
+      "clothing",
+      "undergarments",
+      "shoes",
+      "jewellery",
+      "glasses",
+      "dentures",
+      "keepsake",
+      "photograph",
+      "other",
+    ])
+    .optional(),
+  description: zod.string().min(1).optional(),
+  disposition: zod
+    .enum(["undecided", "with_deceased", "return_to_family"])
+    .optional(),
+  status: zod
+    .enum(["expected", "received", "with_deceased", "returned"])
+    .optional(),
+  notes: zod.string().nullish(),
+  photoUploadId: zod.number().nullish(),
+  returnedToName: zod.string().nullish(),
+  position: zod.number().optional(),
+});
+
+export const UpdateBelongingResponse = zod.object({
+  id: zod.number(),
+  caseId: zod.number(),
+  kind: zod.enum([
+    "clothing",
+    "undergarments",
+    "shoes",
+    "jewellery",
+    "glasses",
+    "dentures",
+    "keepsake",
+    "photograph",
+    "other",
+  ]),
+  description: zod.string(),
+  disposition: zod.enum(["undecided", "with_deceased", "return_to_family"]),
+  status: zod.enum(["expected", "received", "with_deceased", "returned"]),
+  photoUploadId: zod.number().nullable(),
+  notes: zod.string().nullable(),
+  receivedAt: zod.date().nullable(),
+  receivedByName: zod.string().nullable(),
+  returnedAt: zod.date().nullable(),
+  returnedToName: zod.string().nullable(),
+  position: zod.number(),
+});
+
+/**
+ * @summary Remove an item logged in error
+ */
+export const DeleteBelongingParams = zod.object({
+  belongingId: zod.coerce.number(),
+});
+
+/**
+ * @summary How the family would like them to look
+ */
+export const GetPreparationParams = zod.object({
+  caseId: zod.coerce.number(),
+});
+
+export const GetPreparationResponse = zod.object({
+  caseId: zod.number(),
+  hairNotes: zod.string().nullable(),
+  cosmeticsNotes: zod.string().nullable(),
+  nailNotes: zod.string().nullable(),
+  glassesWorn: zod.boolean().nullable(),
+  dentures: zod.boolean().nullable(),
+  jewelleryNotes: zod.string().nullable(),
+  otherNotes: zod.string().nullable(),
+  referencePhotoUploadId: zod
+    .number()
+    .nullable()
+    .describe("The upload behind the chosen reference photograph."),
+  reviewedAt: zod.date().nullable(),
+  reviewedByName: zod.string().nullable(),
+});
+
+/**
+ * @summary Edit or acknowledge the preparation sheet
+ */
+export const UpdatePreparationParams = zod.object({
+  caseId: zod.coerce.number(),
+});
+
+export const UpdatePreparationBody = zod
+  .object({
+    hairNotes: zod.string().nullish(),
+    cosmeticsNotes: zod.string().nullish(),
+    nailNotes: zod.string().nullish(),
+    glassesWorn: zod.boolean().nullish(),
+    dentures: zod.boolean().nullish(),
+    jewelleryNotes: zod.string().nullish(),
+    otherNotes: zod.string().nullish(),
+  })
+  .and(
+    zod.object({
+      reviewed: zod
+        .boolean()
+        .optional()
+        .describe("Mark the sheet as read before it goes to the room."),
+    }),
+  );
+
+export const UpdatePreparationResponse = zod.object({
+  caseId: zod.number(),
+  hairNotes: zod.string().nullable(),
+  cosmeticsNotes: zod.string().nullable(),
+  nailNotes: zod.string().nullable(),
+  glassesWorn: zod.boolean().nullable(),
+  dentures: zod.boolean().nullable(),
+  jewelleryNotes: zod.string().nullable(),
+  otherNotes: zod.string().nullable(),
+  referencePhotoUploadId: zod
+    .number()
+    .nullable()
+    .describe("The upload behind the chosen reference photograph."),
+  reviewedAt: zod.date().nullable(),
+  reviewedByName: zod.string().nullable(),
+});
+
+/**
+ * @summary What to bring in, and what has arrived
+ */
+export const GetFamilyBelongingsResponseItem = zod.object({
+  id: zod.number(),
+  caseId: zod.number(),
+  kind: zod.enum([
+    "clothing",
+    "undergarments",
+    "shoes",
+    "jewellery",
+    "glasses",
+    "dentures",
+    "keepsake",
+    "photograph",
+    "other",
+  ]),
+  description: zod.string(),
+  disposition: zod.enum(["undecided", "with_deceased", "return_to_family"]),
+  status: zod.enum(["expected", "received", "with_deceased", "returned"]),
+  photoUploadId: zod.number().nullable(),
+  notes: zod.string().nullable(),
+  receivedAt: zod.date().nullable(),
+  receivedByName: zod.string().nullable(),
+  returnedAt: zod.date().nullable(),
+  returnedToName: zod.string().nullable(),
+  position: zod.number(),
+});
+export const GetFamilyBelongingsResponse = zod.array(
+  GetFamilyBelongingsResponseItem,
+);
+
+/**
+ * @summary Add something the family is bringing
+ */
+
+export const CreateFamilyBelongingBody = zod.object({
+  kind: zod
+    .enum([
+      "clothing",
+      "undergarments",
+      "shoes",
+      "jewellery",
+      "glasses",
+      "dentures",
+      "keepsake",
+      "photograph",
+      "other",
+    ])
+    .optional(),
+  description: zod.string().min(1),
+  disposition: zod
+    .enum(["undecided", "with_deceased", "return_to_family"])
+    .optional(),
+  notes: zod.string().nullish(),
+});
+
+/**
+ * A family may describe an item and choose its disposition. They cannot
+move it through the chain of custody -- only the home can say an item
+has been received or returned, because that is the record the home
+stands behind.
+
+ * @summary Change a description or say what should happen to an item
+ */
+export const UpdateFamilyBelongingParams = zod.object({
+  belongingId: zod.coerce.number(),
+});
+
+export const UpdateFamilyBelongingBody = zod.object({
+  kind: zod
+    .enum([
+      "clothing",
+      "undergarments",
+      "shoes",
+      "jewellery",
+      "glasses",
+      "dentures",
+      "keepsake",
+      "photograph",
+      "other",
+    ])
+    .optional(),
+  description: zod.string().min(1).optional(),
+  disposition: zod
+    .enum(["undecided", "with_deceased", "return_to_family"])
+    .optional(),
+  notes: zod.string().nullish(),
+});
+
+export const UpdateFamilyBelongingResponse = zod.object({
+  id: zod.number(),
+  caseId: zod.number(),
+  kind: zod.enum([
+    "clothing",
+    "undergarments",
+    "shoes",
+    "jewellery",
+    "glasses",
+    "dentures",
+    "keepsake",
+    "photograph",
+    "other",
+  ]),
+  description: zod.string(),
+  disposition: zod.enum(["undecided", "with_deceased", "return_to_family"]),
+  status: zod.enum(["expected", "received", "with_deceased", "returned"]),
+  photoUploadId: zod.number().nullable(),
+  notes: zod.string().nullable(),
+  receivedAt: zod.date().nullable(),
+  receivedByName: zod.string().nullable(),
+  returnedAt: zod.date().nullable(),
+  returnedToName: zod.string().nullable(),
+  position: zod.number(),
+});
+
+/**
+ * @summary Remove something not yet handed over
+ */
+export const DeleteFamilyBelongingParams = zod.object({
+  belongingId: zod.coerce.number(),
+});
+
+/**
+ * @summary How they would like them to look
+ */
+export const GetFamilyPreparationResponse = zod.object({
+  caseId: zod.number(),
+  hairNotes: zod.string().nullable(),
+  cosmeticsNotes: zod.string().nullable(),
+  nailNotes: zod.string().nullable(),
+  glassesWorn: zod.boolean().nullable(),
+  dentures: zod.boolean().nullable(),
+  jewelleryNotes: zod.string().nullable(),
+  otherNotes: zod.string().nullable(),
+  referencePhotoUploadId: zod
+    .number()
+    .nullable()
+    .describe("The upload behind the chosen reference photograph."),
+  reviewedAt: zod.date().nullable(),
+  reviewedByName: zod.string().nullable(),
+});
+
+/**
+ * @summary Tell the funeral home how they wore their hair, and the rest
+ */
+export const UpdateFamilyPreparationBody = zod.object({
+  hairNotes: zod.string().nullish(),
+  cosmeticsNotes: zod.string().nullish(),
+  nailNotes: zod.string().nullish(),
+  glassesWorn: zod.boolean().nullish(),
+  dentures: zod.boolean().nullish(),
+  jewelleryNotes: zod.string().nullish(),
+  otherNotes: zod.string().nullish(),
+});
+
+export const UpdateFamilyPreparationResponse = zod.object({
+  caseId: zod.number(),
+  hairNotes: zod.string().nullable(),
+  cosmeticsNotes: zod.string().nullable(),
+  nailNotes: zod.string().nullable(),
+  glassesWorn: zod.boolean().nullable(),
+  dentures: zod.boolean().nullable(),
+  jewelleryNotes: zod.string().nullable(),
+  otherNotes: zod.string().nullable(),
+  referencePhotoUploadId: zod
+    .number()
+    .nullable()
+    .describe("The upload behind the chosen reference photograph."),
+  reviewedAt: zod.date().nullable(),
+  reviewedByName: zod.string().nullable(),
+});
+
+/**
  * @summary The obituary draft and its fields
  */
 export const GetObituaryParams = zod.object({

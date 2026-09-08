@@ -25,6 +25,9 @@ export * from "./photos";
 export * from "./obituary";
 export * from "./selections";
 
+/* What the family brings in, and how they should look. */
+export * from "./belongings";
+
 /* Working the case together. */
 export * from "./timeline-templates";
 export * from "./messages";

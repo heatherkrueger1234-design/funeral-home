@@ -555,6 +555,195 @@ export interface UploadSummary {
   createdAt: string;
 }
 
+export type BelongingKind = (typeof BelongingKind)[keyof typeof BelongingKind];
+
+export const BelongingKind = {
+  clothing: "clothing",
+  undergarments: "undergarments",
+  shoes: "shoes",
+  jewellery: "jewellery",
+  glasses: "glasses",
+  dentures: "dentures",
+  keepsake: "keepsake",
+  photograph: "photograph",
+  other: "other",
+} as const;
+
+export type BelongingDisposition =
+  (typeof BelongingDisposition)[keyof typeof BelongingDisposition];
+
+export const BelongingDisposition = {
+  undecided: "undecided",
+  with_deceased: "with_deceased",
+  return_to_family: "return_to_family",
+} as const;
+
+export type BelongingStatus =
+  (typeof BelongingStatus)[keyof typeof BelongingStatus];
+
+export const BelongingStatus = {
+  expected: "expected",
+  received: "received",
+  with_deceased: "with_deceased",
+  returned: "returned",
+} as const;
+
+export interface Belonging {
+  id: number;
+  caseId: number;
+  kind: BelongingKind;
+  description: string;
+  disposition: BelongingDisposition;
+  status: BelongingStatus;
+  photoUploadId: number | null;
+  notes: string | null;
+  receivedAt: string | null;
+  receivedByName: string | null;
+  returnedAt: string | null;
+  returnedToName: string | null;
+  position: number;
+}
+
+export type BelongingInputKind =
+  (typeof BelongingInputKind)[keyof typeof BelongingInputKind];
+
+export const BelongingInputKind = {
+  clothing: "clothing",
+  undergarments: "undergarments",
+  shoes: "shoes",
+  jewellery: "jewellery",
+  glasses: "glasses",
+  dentures: "dentures",
+  keepsake: "keepsake",
+  photograph: "photograph",
+  other: "other",
+} as const;
+
+export type BelongingInputDisposition =
+  (typeof BelongingInputDisposition)[keyof typeof BelongingInputDisposition];
+
+export const BelongingInputDisposition = {
+  undecided: "undecided",
+  with_deceased: "with_deceased",
+  return_to_family: "return_to_family",
+} as const;
+
+export interface BelongingInput {
+  kind?: BelongingInputKind;
+  /** @minLength 1 */
+  description: string;
+  disposition?: BelongingInputDisposition;
+  notes?: string | null;
+}
+
+export type BelongingUpdateKind =
+  (typeof BelongingUpdateKind)[keyof typeof BelongingUpdateKind];
+
+export const BelongingUpdateKind = {
+  clothing: "clothing",
+  undergarments: "undergarments",
+  shoes: "shoes",
+  jewellery: "jewellery",
+  glasses: "glasses",
+  dentures: "dentures",
+  keepsake: "keepsake",
+  photograph: "photograph",
+  other: "other",
+} as const;
+
+export type BelongingUpdateDisposition =
+  (typeof BelongingUpdateDisposition)[keyof typeof BelongingUpdateDisposition];
+
+export const BelongingUpdateDisposition = {
+  undecided: "undecided",
+  with_deceased: "with_deceased",
+  return_to_family: "return_to_family",
+} as const;
+
+export type BelongingUpdateStatus =
+  (typeof BelongingUpdateStatus)[keyof typeof BelongingUpdateStatus];
+
+export const BelongingUpdateStatus = {
+  expected: "expected",
+  received: "received",
+  with_deceased: "with_deceased",
+  returned: "returned",
+} as const;
+
+export interface BelongingUpdate {
+  kind?: BelongingUpdateKind;
+  /** @minLength 1 */
+  description?: string;
+  disposition?: BelongingUpdateDisposition;
+  status?: BelongingUpdateStatus;
+  notes?: string | null;
+  photoUploadId?: number | null;
+  returnedToName?: string | null;
+  position?: number;
+}
+
+export type FamilyBelongingUpdateKind =
+  (typeof FamilyBelongingUpdateKind)[keyof typeof FamilyBelongingUpdateKind];
+
+export const FamilyBelongingUpdateKind = {
+  clothing: "clothing",
+  undergarments: "undergarments",
+  shoes: "shoes",
+  jewellery: "jewellery",
+  glasses: "glasses",
+  dentures: "dentures",
+  keepsake: "keepsake",
+  photograph: "photograph",
+  other: "other",
+} as const;
+
+export type FamilyBelongingUpdateDisposition =
+  (typeof FamilyBelongingUpdateDisposition)[keyof typeof FamilyBelongingUpdateDisposition];
+
+export const FamilyBelongingUpdateDisposition = {
+  undecided: "undecided",
+  with_deceased: "with_deceased",
+  return_to_family: "return_to_family",
+} as const;
+
+export interface FamilyBelongingUpdate {
+  kind?: FamilyBelongingUpdateKind;
+  /** @minLength 1 */
+  description?: string;
+  disposition?: FamilyBelongingUpdateDisposition;
+  notes?: string | null;
+}
+
+export interface Preparation {
+  caseId: number;
+  hairNotes: string | null;
+  cosmeticsNotes: string | null;
+  nailNotes: string | null;
+  glassesWorn: boolean | null;
+  dentures: boolean | null;
+  jewelleryNotes: string | null;
+  otherNotes: string | null;
+  /** The upload behind the chosen reference photograph. */
+  referencePhotoUploadId: number | null;
+  reviewedAt: string | null;
+  reviewedByName: string | null;
+}
+
+export interface FamilyPreparationUpdate {
+  hairNotes?: string | null;
+  cosmeticsNotes?: string | null;
+  nailNotes?: string | null;
+  glassesWorn?: boolean | null;
+  dentures?: boolean | null;
+  jewelleryNotes?: string | null;
+  otherNotes?: string | null;
+}
+
+export type PreparationUpdate = FamilyPreparationUpdate & {
+  /** Mark the sheet as read before it goes to the room. */
+  reviewed?: boolean;
+};
+
 export type ObituaryDraftStatus =
   (typeof ObituaryDraftStatus)[keyof typeof ObituaryDraftStatus];
 

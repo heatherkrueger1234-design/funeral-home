@@ -32,6 +32,9 @@ import type {
   AftercareConsentInput,
   AftercareEnrollment,
   AuthUser,
+  Belonging,
+  BelongingInput,
+  BelongingUpdate,
   Case,
   CaseDeadline,
   CaseDetail,
@@ -44,12 +47,14 @@ import type {
   ComposeObituaryInput,
   DeadlineInput,
   DeadlineUpdate,
+  FamilyBelongingUpdate,
   FamilyContact,
   FamilyContactInput,
   FamilyContactUpdate,
   FamilyContactWithLink,
   FamilyPhotoUpdate,
   FamilyPhotoUploadInput,
+  FamilyPreparationUpdate,
   FamilySession,
   ForgotPasswordInput,
   FuneralHome,
@@ -67,6 +72,8 @@ import type {
   PhotoSelectionInput,
   PhotoUpdate,
   PortraitInput,
+  Preparation,
+  PreparationUpdate,
   RegisterInput,
   ResetPasswordInput,
   SelectionInput,
@@ -2964,6 +2971,1028 @@ export function useGetPhotoPack<
 
   return { ...query, queryKey: queryOptions.queryKey };
 }
+
+/**
+ * @summary Everything the family is bringing in, and where it is
+ */
+export const getGetBelongingsUrl = (caseId: number) => {
+  return `/api/cases/${caseId}/belongings`;
+};
+
+export const getBelongings = async (
+  caseId: number,
+  options?: RequestInit,
+): Promise<Belonging[]> => {
+  return customFetch<Belonging[]>(getGetBelongingsUrl(caseId), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getGetBelongingsQueryKey = (caseId: number) => {
+  return [`/api/cases/${caseId}/belongings`] as const;
+};
+
+export const getGetBelongingsQueryOptions = <
+  TData = Awaited<ReturnType<typeof getBelongings>>,
+  TError = ErrorType<unknown>,
+>(
+  caseId: number,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getBelongings>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getGetBelongingsQueryKey(caseId);
+
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof getBelongings>>> = ({
+    signal,
+  }) => getBelongings(caseId, { signal, ...requestOptions });
+
+  return {
+    queryKey,
+    queryFn,
+    enabled: !!caseId,
+    ...queryOptions,
+  } as UseQueryOptions<
+    Awaited<ReturnType<typeof getBelongings>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type GetBelongingsQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getBelongings>>
+>;
+export type GetBelongingsQueryError = ErrorType<unknown>;
+
+/**
+ * @summary Everything the family is bringing in, and where it is
+ */
+
+export function useGetBelongings<
+  TData = Awaited<ReturnType<typeof getBelongings>>,
+  TError = ErrorType<unknown>,
+>(
+  caseId: number,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getBelongings>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getGetBelongingsQueryOptions(caseId, options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary Log an item
+ */
+export const getCreateBelongingUrl = (caseId: number) => {
+  return `/api/cases/${caseId}/belongings`;
+};
+
+export const createBelonging = async (
+  caseId: number,
+  belongingInput: BelongingInput,
+  options?: RequestInit,
+): Promise<Belonging> => {
+  return customFetch<Belonging>(getCreateBelongingUrl(caseId), {
+    ...options,
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(belongingInput),
+  });
+};
+
+export const getCreateBelongingMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof createBelonging>>,
+    TError,
+    { caseId: number; data: BodyType<BelongingInput> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof createBelonging>>,
+  TError,
+  { caseId: number; data: BodyType<BelongingInput> },
+  TContext
+> => {
+  const mutationKey = ["createBelonging"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof createBelonging>>,
+    { caseId: number; data: BodyType<BelongingInput> }
+  > = (props) => {
+    const { caseId, data } = props ?? {};
+
+    return createBelonging(caseId, data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type CreateBelongingMutationResult = NonNullable<
+  Awaited<ReturnType<typeof createBelonging>>
+>;
+export type CreateBelongingMutationBody = BodyType<BelongingInput>;
+export type CreateBelongingMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Log an item
+ */
+export const useCreateBelonging = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof createBelonging>>,
+    TError,
+    { caseId: number; data: BodyType<BelongingInput> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof createBelonging>>,
+  TError,
+  { caseId: number; data: BodyType<BelongingInput> },
+  TContext
+> => {
+  return useMutation(getCreateBelongingMutationOptions(options));
+};
+
+/**
+ * Setting `status` to `received` or `returned` stamps the time and the
+staff member automatically -- the chain of custody is a side effect of
+doing the work, not a second form to fill in.
+
+ * @summary Take an item in, send it back, or correct it
+ */
+export const getUpdateBelongingUrl = (belongingId: number) => {
+  return `/api/belongings/${belongingId}`;
+};
+
+export const updateBelonging = async (
+  belongingId: number,
+  belongingUpdate: BelongingUpdate,
+  options?: RequestInit,
+): Promise<Belonging> => {
+  return customFetch<Belonging>(getUpdateBelongingUrl(belongingId), {
+    ...options,
+    method: "PUT",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(belongingUpdate),
+  });
+};
+
+export const getUpdateBelongingMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof updateBelonging>>,
+    TError,
+    { belongingId: number; data: BodyType<BelongingUpdate> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof updateBelonging>>,
+  TError,
+  { belongingId: number; data: BodyType<BelongingUpdate> },
+  TContext
+> => {
+  const mutationKey = ["updateBelonging"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof updateBelonging>>,
+    { belongingId: number; data: BodyType<BelongingUpdate> }
+  > = (props) => {
+    const { belongingId, data } = props ?? {};
+
+    return updateBelonging(belongingId, data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type UpdateBelongingMutationResult = NonNullable<
+  Awaited<ReturnType<typeof updateBelonging>>
+>;
+export type UpdateBelongingMutationBody = BodyType<BelongingUpdate>;
+export type UpdateBelongingMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Take an item in, send it back, or correct it
+ */
+export const useUpdateBelonging = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof updateBelonging>>,
+    TError,
+    { belongingId: number; data: BodyType<BelongingUpdate> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof updateBelonging>>,
+  TError,
+  { belongingId: number; data: BodyType<BelongingUpdate> },
+  TContext
+> => {
+  return useMutation(getUpdateBelongingMutationOptions(options));
+};
+
+/**
+ * @summary Remove an item logged in error
+ */
+export const getDeleteBelongingUrl = (belongingId: number) => {
+  return `/api/belongings/${belongingId}`;
+};
+
+export const deleteBelonging = async (
+  belongingId: number,
+  options?: RequestInit,
+): Promise<void> => {
+  return customFetch<void>(getDeleteBelongingUrl(belongingId), {
+    ...options,
+    method: "DELETE",
+  });
+};
+
+export const getDeleteBelongingMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof deleteBelonging>>,
+    TError,
+    { belongingId: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof deleteBelonging>>,
+  TError,
+  { belongingId: number },
+  TContext
+> => {
+  const mutationKey = ["deleteBelonging"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof deleteBelonging>>,
+    { belongingId: number }
+  > = (props) => {
+    const { belongingId } = props ?? {};
+
+    return deleteBelonging(belongingId, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type DeleteBelongingMutationResult = NonNullable<
+  Awaited<ReturnType<typeof deleteBelonging>>
+>;
+
+export type DeleteBelongingMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Remove an item logged in error
+ */
+export const useDeleteBelonging = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof deleteBelonging>>,
+    TError,
+    { belongingId: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof deleteBelonging>>,
+  TError,
+  { belongingId: number },
+  TContext
+> => {
+  return useMutation(getDeleteBelongingMutationOptions(options));
+};
+
+/**
+ * @summary How the family would like them to look
+ */
+export const getGetPreparationUrl = (caseId: number) => {
+  return `/api/cases/${caseId}/preparation`;
+};
+
+export const getPreparation = async (
+  caseId: number,
+  options?: RequestInit,
+): Promise<Preparation> => {
+  return customFetch<Preparation>(getGetPreparationUrl(caseId), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getGetPreparationQueryKey = (caseId: number) => {
+  return [`/api/cases/${caseId}/preparation`] as const;
+};
+
+export const getGetPreparationQueryOptions = <
+  TData = Awaited<ReturnType<typeof getPreparation>>,
+  TError = ErrorType<unknown>,
+>(
+  caseId: number,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getPreparation>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getGetPreparationQueryKey(caseId);
+
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof getPreparation>>> = ({
+    signal,
+  }) => getPreparation(caseId, { signal, ...requestOptions });
+
+  return {
+    queryKey,
+    queryFn,
+    enabled: !!caseId,
+    ...queryOptions,
+  } as UseQueryOptions<
+    Awaited<ReturnType<typeof getPreparation>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type GetPreparationQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getPreparation>>
+>;
+export type GetPreparationQueryError = ErrorType<unknown>;
+
+/**
+ * @summary How the family would like them to look
+ */
+
+export function useGetPreparation<
+  TData = Awaited<ReturnType<typeof getPreparation>>,
+  TError = ErrorType<unknown>,
+>(
+  caseId: number,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getPreparation>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getGetPreparationQueryOptions(caseId, options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary Edit or acknowledge the preparation sheet
+ */
+export const getUpdatePreparationUrl = (caseId: number) => {
+  return `/api/cases/${caseId}/preparation`;
+};
+
+export const updatePreparation = async (
+  caseId: number,
+  preparationUpdate: PreparationUpdate,
+  options?: RequestInit,
+): Promise<Preparation> => {
+  return customFetch<Preparation>(getUpdatePreparationUrl(caseId), {
+    ...options,
+    method: "PUT",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(preparationUpdate),
+  });
+};
+
+export const getUpdatePreparationMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof updatePreparation>>,
+    TError,
+    { caseId: number; data: BodyType<PreparationUpdate> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof updatePreparation>>,
+  TError,
+  { caseId: number; data: BodyType<PreparationUpdate> },
+  TContext
+> => {
+  const mutationKey = ["updatePreparation"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof updatePreparation>>,
+    { caseId: number; data: BodyType<PreparationUpdate> }
+  > = (props) => {
+    const { caseId, data } = props ?? {};
+
+    return updatePreparation(caseId, data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type UpdatePreparationMutationResult = NonNullable<
+  Awaited<ReturnType<typeof updatePreparation>>
+>;
+export type UpdatePreparationMutationBody = BodyType<PreparationUpdate>;
+export type UpdatePreparationMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Edit or acknowledge the preparation sheet
+ */
+export const useUpdatePreparation = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof updatePreparation>>,
+    TError,
+    { caseId: number; data: BodyType<PreparationUpdate> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof updatePreparation>>,
+  TError,
+  { caseId: number; data: BodyType<PreparationUpdate> },
+  TContext
+> => {
+  return useMutation(getUpdatePreparationMutationOptions(options));
+};
+
+/**
+ * @summary What to bring in, and what has arrived
+ */
+export const getGetFamilyBelongingsUrl = () => {
+  return `/api/family/belongings`;
+};
+
+export const getFamilyBelongings = async (
+  options?: RequestInit,
+): Promise<Belonging[]> => {
+  return customFetch<Belonging[]>(getGetFamilyBelongingsUrl(), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getGetFamilyBelongingsQueryKey = () => {
+  return [`/api/family/belongings`] as const;
+};
+
+export const getGetFamilyBelongingsQueryOptions = <
+  TData = Awaited<ReturnType<typeof getFamilyBelongings>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof getFamilyBelongings>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getGetFamilyBelongingsQueryKey();
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof getFamilyBelongings>>
+  > = ({ signal }) => getFamilyBelongings({ signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof getFamilyBelongings>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type GetFamilyBelongingsQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getFamilyBelongings>>
+>;
+export type GetFamilyBelongingsQueryError = ErrorType<unknown>;
+
+/**
+ * @summary What to bring in, and what has arrived
+ */
+
+export function useGetFamilyBelongings<
+  TData = Awaited<ReturnType<typeof getFamilyBelongings>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof getFamilyBelongings>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getGetFamilyBelongingsQueryOptions(options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary Add something the family is bringing
+ */
+export const getCreateFamilyBelongingUrl = () => {
+  return `/api/family/belongings`;
+};
+
+export const createFamilyBelonging = async (
+  belongingInput: BelongingInput,
+  options?: RequestInit,
+): Promise<Belonging> => {
+  return customFetch<Belonging>(getCreateFamilyBelongingUrl(), {
+    ...options,
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(belongingInput),
+  });
+};
+
+export const getCreateFamilyBelongingMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof createFamilyBelonging>>,
+    TError,
+    { data: BodyType<BelongingInput> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof createFamilyBelonging>>,
+  TError,
+  { data: BodyType<BelongingInput> },
+  TContext
+> => {
+  const mutationKey = ["createFamilyBelonging"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof createFamilyBelonging>>,
+    { data: BodyType<BelongingInput> }
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return createFamilyBelonging(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type CreateFamilyBelongingMutationResult = NonNullable<
+  Awaited<ReturnType<typeof createFamilyBelonging>>
+>;
+export type CreateFamilyBelongingMutationBody = BodyType<BelongingInput>;
+export type CreateFamilyBelongingMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Add something the family is bringing
+ */
+export const useCreateFamilyBelonging = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof createFamilyBelonging>>,
+    TError,
+    { data: BodyType<BelongingInput> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof createFamilyBelonging>>,
+  TError,
+  { data: BodyType<BelongingInput> },
+  TContext
+> => {
+  return useMutation(getCreateFamilyBelongingMutationOptions(options));
+};
+
+/**
+ * A family may describe an item and choose its disposition. They cannot
+move it through the chain of custody -- only the home can say an item
+has been received or returned, because that is the record the home
+stands behind.
+
+ * @summary Change a description or say what should happen to an item
+ */
+export const getUpdateFamilyBelongingUrl = (belongingId: number) => {
+  return `/api/family/belongings/${belongingId}`;
+};
+
+export const updateFamilyBelonging = async (
+  belongingId: number,
+  familyBelongingUpdate: FamilyBelongingUpdate,
+  options?: RequestInit,
+): Promise<Belonging> => {
+  return customFetch<Belonging>(getUpdateFamilyBelongingUrl(belongingId), {
+    ...options,
+    method: "PUT",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(familyBelongingUpdate),
+  });
+};
+
+export const getUpdateFamilyBelongingMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof updateFamilyBelonging>>,
+    TError,
+    { belongingId: number; data: BodyType<FamilyBelongingUpdate> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof updateFamilyBelonging>>,
+  TError,
+  { belongingId: number; data: BodyType<FamilyBelongingUpdate> },
+  TContext
+> => {
+  const mutationKey = ["updateFamilyBelonging"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof updateFamilyBelonging>>,
+    { belongingId: number; data: BodyType<FamilyBelongingUpdate> }
+  > = (props) => {
+    const { belongingId, data } = props ?? {};
+
+    return updateFamilyBelonging(belongingId, data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type UpdateFamilyBelongingMutationResult = NonNullable<
+  Awaited<ReturnType<typeof updateFamilyBelonging>>
+>;
+export type UpdateFamilyBelongingMutationBody = BodyType<FamilyBelongingUpdate>;
+export type UpdateFamilyBelongingMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Change a description or say what should happen to an item
+ */
+export const useUpdateFamilyBelonging = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof updateFamilyBelonging>>,
+    TError,
+    { belongingId: number; data: BodyType<FamilyBelongingUpdate> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof updateFamilyBelonging>>,
+  TError,
+  { belongingId: number; data: BodyType<FamilyBelongingUpdate> },
+  TContext
+> => {
+  return useMutation(getUpdateFamilyBelongingMutationOptions(options));
+};
+
+/**
+ * @summary Remove something not yet handed over
+ */
+export const getDeleteFamilyBelongingUrl = (belongingId: number) => {
+  return `/api/family/belongings/${belongingId}`;
+};
+
+export const deleteFamilyBelonging = async (
+  belongingId: number,
+  options?: RequestInit,
+): Promise<void> => {
+  return customFetch<void>(getDeleteFamilyBelongingUrl(belongingId), {
+    ...options,
+    method: "DELETE",
+  });
+};
+
+export const getDeleteFamilyBelongingMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof deleteFamilyBelonging>>,
+    TError,
+    { belongingId: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof deleteFamilyBelonging>>,
+  TError,
+  { belongingId: number },
+  TContext
+> => {
+  const mutationKey = ["deleteFamilyBelonging"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof deleteFamilyBelonging>>,
+    { belongingId: number }
+  > = (props) => {
+    const { belongingId } = props ?? {};
+
+    return deleteFamilyBelonging(belongingId, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type DeleteFamilyBelongingMutationResult = NonNullable<
+  Awaited<ReturnType<typeof deleteFamilyBelonging>>
+>;
+
+export type DeleteFamilyBelongingMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Remove something not yet handed over
+ */
+export const useDeleteFamilyBelonging = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof deleteFamilyBelonging>>,
+    TError,
+    { belongingId: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof deleteFamilyBelonging>>,
+  TError,
+  { belongingId: number },
+  TContext
+> => {
+  return useMutation(getDeleteFamilyBelongingMutationOptions(options));
+};
+
+/**
+ * @summary How they would like them to look
+ */
+export const getGetFamilyPreparationUrl = () => {
+  return `/api/family/preparation`;
+};
+
+export const getFamilyPreparation = async (
+  options?: RequestInit,
+): Promise<Preparation> => {
+  return customFetch<Preparation>(getGetFamilyPreparationUrl(), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getGetFamilyPreparationQueryKey = () => {
+  return [`/api/family/preparation`] as const;
+};
+
+export const getGetFamilyPreparationQueryOptions = <
+  TData = Awaited<ReturnType<typeof getFamilyPreparation>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof getFamilyPreparation>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getGetFamilyPreparationQueryKey();
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof getFamilyPreparation>>
+  > = ({ signal }) => getFamilyPreparation({ signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof getFamilyPreparation>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type GetFamilyPreparationQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getFamilyPreparation>>
+>;
+export type GetFamilyPreparationQueryError = ErrorType<unknown>;
+
+/**
+ * @summary How they would like them to look
+ */
+
+export function useGetFamilyPreparation<
+  TData = Awaited<ReturnType<typeof getFamilyPreparation>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof getFamilyPreparation>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getGetFamilyPreparationQueryOptions(options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary Tell the funeral home how they wore their hair, and the rest
+ */
+export const getUpdateFamilyPreparationUrl = () => {
+  return `/api/family/preparation`;
+};
+
+export const updateFamilyPreparation = async (
+  familyPreparationUpdate: FamilyPreparationUpdate,
+  options?: RequestInit,
+): Promise<Preparation> => {
+  return customFetch<Preparation>(getUpdateFamilyPreparationUrl(), {
+    ...options,
+    method: "PUT",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(familyPreparationUpdate),
+  });
+};
+
+export const getUpdateFamilyPreparationMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof updateFamilyPreparation>>,
+    TError,
+    { data: BodyType<FamilyPreparationUpdate> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof updateFamilyPreparation>>,
+  TError,
+  { data: BodyType<FamilyPreparationUpdate> },
+  TContext
+> => {
+  const mutationKey = ["updateFamilyPreparation"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof updateFamilyPreparation>>,
+    { data: BodyType<FamilyPreparationUpdate> }
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return updateFamilyPreparation(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type UpdateFamilyPreparationMutationResult = NonNullable<
+  Awaited<ReturnType<typeof updateFamilyPreparation>>
+>;
+export type UpdateFamilyPreparationMutationBody =
+  BodyType<FamilyPreparationUpdate>;
+export type UpdateFamilyPreparationMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Tell the funeral home how they wore their hair, and the rest
+ */
+export const useUpdateFamilyPreparation = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof updateFamilyPreparation>>,
+    TError,
+    { data: BodyType<FamilyPreparationUpdate> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof updateFamilyPreparation>>,
+  TError,
+  { data: BodyType<FamilyPreparationUpdate> },
+  TContext
+> => {
+  return useMutation(getUpdateFamilyPreparationMutationOptions(options));
+};
 
 /**
  * @summary The obituary draft and its fields

@@ -39,6 +39,8 @@ tags:
     description: The one thread per case
   - name: deadlines
     description: What is due, and when
+  - name: belongings
+    description: Clothing, jewellery, and how they should look
   - name: aftercare
     description: Branded grief check-ins after the service
   - name: uploads
@@ -672,6 +674,223 @@ paths:
               schema:
                 type: string
                 format: binary
+
+  /cases/{caseId}/belongings:
+    get:
+      operationId: getBelongings
+      tags: [belongings]
+      summary: Everything the family is bringing in, and where it is
+      parameters:
+        - $ref: "#/components/parameters/CaseId"
+      responses:
+        "200":
+          description: List
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Belonging"
+    post:
+      operationId: createBelonging
+      tags: [belongings]
+      summary: Log an item
+      parameters:
+        - $ref: "#/components/parameters/CaseId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/BelongingInput"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Belonging"
+
+  /belongings/{belongingId}:
+    put:
+      operationId: updateBelonging
+      tags: [belongings]
+      summary: Take an item in, send it back, or correct it
+      description: |
+        Setting `status` to `received` or `returned` stamps the time and the
+        staff member automatically -- the chain of custody is a side effect of
+        doing the work, not a second form to fill in.
+      parameters:
+        - name: belongingId
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/BelongingUpdate"
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Belonging"
+    delete:
+      operationId: deleteBelonging
+      tags: [belongings]
+      summary: Remove an item logged in error
+      parameters:
+        - name: belongingId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: Deleted
+
+  /cases/{caseId}/preparation:
+    get:
+      operationId: getPreparation
+      tags: [belongings]
+      summary: How the family would like them to look
+      parameters:
+        - $ref: "#/components/parameters/CaseId"
+      responses:
+        "200":
+          description: The sheet
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Preparation"
+    put:
+      operationId: updatePreparation
+      tags: [belongings]
+      summary: Edit or acknowledge the preparation sheet
+      parameters:
+        - $ref: "#/components/parameters/CaseId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PreparationUpdate"
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Preparation"
+
+  /family/belongings:
+    get:
+      operationId: getFamilyBelongings
+      tags: [family]
+      summary: What to bring in, and what has arrived
+      responses:
+        "200":
+          description: List
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Belonging"
+    post:
+      operationId: createFamilyBelonging
+      tags: [family]
+      summary: Add something the family is bringing
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/BelongingInput"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Belonging"
+
+  /family/belongings/{belongingId}:
+    put:
+      operationId: updateFamilyBelonging
+      tags: [family]
+      summary: Change a description or say what should happen to an item
+      description: |
+        A family may describe an item and choose its disposition. They cannot
+        move it through the chain of custody -- only the home can say an item
+        has been received or returned, because that is the record the home
+        stands behind.
+      parameters:
+        - name: belongingId
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/FamilyBelongingUpdate"
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Belonging"
+    delete:
+      operationId: deleteFamilyBelonging
+      tags: [family]
+      summary: Remove something not yet handed over
+      parameters:
+        - name: belongingId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: Deleted
+
+  /family/preparation:
+    get:
+      operationId: getFamilyPreparation
+      tags: [family]
+      summary: How they would like them to look
+      responses:
+        "200":
+          description: The sheet
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Preparation"
+    put:
+      operationId: updateFamilyPreparation
+      tags: [family]
+      summary: Tell the funeral home how they wore their hair, and the rest
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/FamilyPreparationUpdate"
+      responses:
+        "200":
+          description: Saved
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Preparation"
 
   /cases/{caseId}/obituary:
     get:
@@ -2257,6 +2476,215 @@ components:
           type: string
           format: date-time
       required: [id, filename, mimeType, sizeBytes, createdAt]
+
+    # ---------------------------------------------------------- belongings --
+
+    Belonging:
+      type: object
+      properties:
+        id:
+          type: integer
+        caseId:
+          type: integer
+        kind:
+          type: string
+          enum:
+            [clothing, undergarments, shoes, jewellery, glasses, dentures, keepsake, photograph, other]
+        description:
+          type: string
+        disposition:
+          type: string
+          enum: [undecided, with_deceased, return_to_family]
+        status:
+          type: string
+          enum: [expected, received, with_deceased, returned]
+        photoUploadId:
+          type: integer
+          nullable: true
+        notes:
+          type: string
+          nullable: true
+        receivedAt:
+          type: string
+          format: date-time
+          nullable: true
+        receivedByName:
+          type: string
+          nullable: true
+        returnedAt:
+          type: string
+          format: date-time
+          nullable: true
+        returnedToName:
+          type: string
+          nullable: true
+        position:
+          type: integer
+      required:
+        [
+          id,
+          caseId,
+          kind,
+          description,
+          disposition,
+          status,
+          photoUploadId,
+          notes,
+          receivedAt,
+          receivedByName,
+          returnedAt,
+          returnedToName,
+          position,
+        ]
+
+    BelongingInput:
+      type: object
+      properties:
+        kind:
+          type: string
+          enum:
+            [clothing, undergarments, shoes, jewellery, glasses, dentures, keepsake, photograph, other]
+        description:
+          type: string
+          minLength: 1
+        disposition:
+          type: string
+          enum: [undecided, with_deceased, return_to_family]
+        notes:
+          type: string
+          nullable: true
+      required: [description]
+
+    BelongingUpdate:
+      type: object
+      properties:
+        kind:
+          type: string
+          enum:
+            [clothing, undergarments, shoes, jewellery, glasses, dentures, keepsake, photograph, other]
+        description:
+          type: string
+          minLength: 1
+        disposition:
+          type: string
+          enum: [undecided, with_deceased, return_to_family]
+        status:
+          type: string
+          enum: [expected, received, with_deceased, returned]
+        notes:
+          type: string
+          nullable: true
+        photoUploadId:
+          type: integer
+          nullable: true
+        returnedToName:
+          type: string
+          nullable: true
+        position:
+          type: integer
+
+    FamilyBelongingUpdate:
+      type: object
+      properties:
+        kind:
+          type: string
+          enum:
+            [clothing, undergarments, shoes, jewellery, glasses, dentures, keepsake, photograph, other]
+        description:
+          type: string
+          minLength: 1
+        disposition:
+          type: string
+          enum: [undecided, with_deceased, return_to_family]
+        notes:
+          type: string
+          nullable: true
+
+    Preparation:
+      type: object
+      properties:
+        caseId:
+          type: integer
+        hairNotes:
+          type: string
+          nullable: true
+        cosmeticsNotes:
+          type: string
+          nullable: true
+        nailNotes:
+          type: string
+          nullable: true
+        glassesWorn:
+          type: boolean
+          nullable: true
+        dentures:
+          type: boolean
+          nullable: true
+        jewelleryNotes:
+          type: string
+          nullable: true
+        otherNotes:
+          type: string
+          nullable: true
+        referencePhotoUploadId:
+          type: integer
+          nullable: true
+          description: The upload behind the chosen reference photograph.
+        reviewedAt:
+          type: string
+          format: date-time
+          nullable: true
+        reviewedByName:
+          type: string
+          nullable: true
+      required:
+        [
+          caseId,
+          hairNotes,
+          cosmeticsNotes,
+          nailNotes,
+          glassesWorn,
+          dentures,
+          jewelleryNotes,
+          otherNotes,
+          referencePhotoUploadId,
+          reviewedAt,
+          reviewedByName,
+        ]
+
+    FamilyPreparationUpdate:
+      type: object
+      properties:
+        hairNotes:
+          type: string
+          nullable: true
+        cosmeticsNotes:
+          type: string
+          nullable: true
+        nailNotes:
+          type: string
+          nullable: true
+        glassesWorn:
+          type: boolean
+          nullable: true
+        dentures:
+          type: boolean
+          nullable: true
+        jewelleryNotes:
+          type: string
+          nullable: true
+        otherNotes:
+          type: string
+          nullable: true
+
+    PreparationUpdate:
+      allOf:
+        - $ref: "#/components/schemas/FamilyPreparationUpdate"
+        - type: object
+          properties:
+            reviewed:
+              type: boolean
+              description: Mark the sheet as read before it goes to the room.
 
     # ------------------------------------------------------------ obituary --
 
