@@ -1,219 +1,139 @@
+import { describe, expect, it } from "vitest";
 import request from "supertest";
-import { describe, expect, it, afterAll } from "vitest";
-import { app, closeDatabase, signUp, useCleanDatabase } from "./helpers";
+import app from "../src/app";
+import { asFamily, createCase, inviteFamily, signUpHome, PNG_BYTES } from "./helpers";
 
 /**
- * The suite that matters most.
+ * The tests that would matter most if they ever failed.
  *
- * This application stores what a bereaved parent wrote about their child. The
- * original schema had no owner column and no query filtered by one, so any
- * account could read every other account's memories, letters, journal and
- * documents. These cases exist so that can never quietly come back — a
- * forgotten `.where` in one route file should fail here, loudly, rather than
- * in production.
+ * One funeral home must never reach another's families, and a link token must
+ * never reach a case other than its own. Both are enforced by query scoping
+ * rather than by anything visible in a route's shape, which is exactly the
+ * kind of guarantee that rots silently — so it is asserted here directly.
  */
 
-type Resource = {
-  path: string;
-  create: Record<string, unknown>;
-  update?: Record<string, unknown>;
-};
+describe("one home cannot reach another home's data", () => {
+  it("returns 404 for another home's case, rather than the case", async () => {
+    const mine = await signUpHome("Green Lawn");
+    const theirs = await signUpHome("Elm Street Chapel");
 
-const RESOURCES: readonly Resource[] = [
-  { path: "memories", create: { title: "Her last birthday" }, update: { title: "changed" } },
-  {
-    path: "journal",
-    create: { title: "Today", content: "private", entryDate: "2026-01-01" },
-    update: { title: "changed" },
-  },
-  {
-    path: "letters",
-    create: { title: "To you", content: "private", direction: "to_child" },
-    update: { title: "changed" },
-  },
-  {
-    path: "creative",
-    create: { title: "A poem", content: "private", type: "poem" },
-    update: { title: "changed" },
-  },
-  {
-    path: "documents",
-    create: { title: "Records", category: "medical", content: "private" },
-    update: { title: "changed" },
-  },
-  { path: "quotes", create: { text: "a quote", type: "quote" } },
-  { path: "todos", create: { text: "call the registrar" }, update: { completed: true } },
-  { path: "affirmations", create: { text: "survival is enough" } },
-  {
-    path: "milestones",
-    create: { title: "Would have turned 12", milestoneDate: "2026-04-01", type: "birthday" },
-  },
-  { path: "stories", create: { authorName: "A friend", content: "private" } },
-  {
-    path: "signs",
-    create: { what: "A cardinal on the fence", kind: "cardinal" },
-    update: { what: "changed" },
-  },
-  {
-    path: "belongings",
-    create: { item: "His leather jacket", status: "kept" },
-    update: { status: "given", person: "his brother" },
-  },
-  {
-    path: "gifts",
-    create: { fromName: "The Hendersons", kind: "food" },
-    update: { thanked: true },
-  },
-  {
-    path: "contacts",
-    create: { name: "His football coach", category: "school" },
-    update: { told: true },
-  },
-  {
-    path: "obituaries",
-    create: { label: "For the paper", fullName: "Sam" },
-    update: { label: "changed" },
-  },
-  {
-    path: "memorial-choices",
-    create: { category: "song", title: "The one he played constantly" },
-    update: { status: "chosen" },
-  },
-];
+    const theirCase = await createCase(theirs, { decedentLastName: "Okonkwo" });
 
-afterAll(closeDatabase);
+    // The id is real and the request is authenticated — it is only the
+    // tenant filter standing between this and someone else's family.
+    await mine.agent.get(`/api/cases/${theirCase.id}`).expect(404);
+    await mine.agent.put(`/api/cases/${theirCase.id}`).send({ serviceLocation: "x" }).expect(404);
+    await mine.agent.post(`/api/cases/${theirCase.id}/close`).expect(404);
+    await mine.agent.get(`/api/cases/${theirCase.id}/photos`).expect(404);
+    await mine.agent.get(`/api/cases/${theirCase.id}/messages`).expect(404);
+    await mine.agent.get(`/api/cases/${theirCase.id}/obituary`).expect(404);
+    await mine.agent.get(`/api/cases/${theirCase.id}/deadlines`).expect(404);
+    await mine.agent.get(`/api/cases/${theirCase.id}/contacts`).expect(404);
+  });
 
-describe("tenant isolation", () => {
-  useCleanDatabase();
+  it("does not list another home's cases", async () => {
+    const mine = await signUpHome("Green Lawn");
+    const theirs = await signUpHome("Elm Street Chapel");
 
-  for (const resource of RESOURCES) {
-    describe(`/${resource.path}`, () => {
-      it("is unreachable without a session", async () => {
-        await request(app).get(`/api/${resource.path}`).expect(401);
-        await request(app)
-          .post(`/api/${resource.path}`)
-          .send(resource.create)
-          .expect(401);
-      });
+    await createCase(mine, { decedentLastName: "Mine" });
+    await createCase(theirs, { decedentLastName: "Theirs" });
 
-      it("never shows one account's rows to another", async () => {
-        const alice = await signUp();
-        const bob = await signUp();
+    const res = await mine.agent.get("/api/cases").expect(200);
 
-        await request(app)
-          .post(`/api/${resource.path}`)
-          .set("Cookie", alice.cookie)
-          .send(resource.create)
-          .expect(201);
+    expect(res.body).toHaveLength(1);
+    expect(res.body[0].decedentLastName).toBe("Mine");
+  });
 
-        const bobsList = await request(app)
-          .get(`/api/${resource.path}`)
-          .set("Cookie", bob.cookie)
-          .expect(200);
+  it("will not revoke another home's family link", async () => {
+    const mine = await signUpHome("Green Lawn");
+    const theirs = await signUpHome("Elm Street Chapel");
 
-        expect(bobsList.body).toEqual([]);
+    const theirCase = await createCase(theirs);
+    const { contactId, token } = await inviteFamily(theirs, theirCase.id);
 
-        const alicesList = await request(app)
-          .get(`/api/${resource.path}`)
-          .set("Cookie", alice.cookie)
-          .expect(200);
+    await mine.agent.delete(`/api/contacts/${contactId}`).expect(404);
+    await mine.agent.post(`/api/contacts/${contactId}/link`).expect(404);
 
-        expect(alicesList.body).toHaveLength(1);
-      });
+    // Still works, because nothing was revoked.
+    await asFamily(token).get("/api/family/session").expect(200);
+  });
+});
 
-      it("refuses cross-account writes and deletes by id", async () => {
-        const alice = await signUp();
-        const bob = await signUp();
+describe("a family link reaches exactly one case", () => {
+  it("is refused entirely without a token", async () => {
+    await request(app).get("/api/family/session").expect(401);
+    await request(app).get("/api/family/photos").expect(401);
+    await request(app).get("/api/family/messages").expect(401);
+  });
 
-        const created = await request(app)
-          .post(`/api/${resource.path}`)
-          .set("Cookie", alice.cookie)
-          .send(resource.create)
-          .expect(201);
+  it("is refused once revoked, expired or unknown", async () => {
+    const staff = await signUpHome();
+    const row = await createCase(staff);
+    const { contactId, token } = await inviteFamily(staff, row.id);
 
-        const id: number = created.body.id;
+    await asFamily(token).get("/api/family/session").expect(200);
 
-        if (resource.update) {
-          await request(app)
-            .put(`/api/${resource.path}/${id}`)
-            .set("Cookie", bob.cookie)
-            .send(resource.update)
-            .expect(404);
-        }
+    await staff.agent.delete(`/api/contacts/${contactId}`).expect(204);
 
-        await request(app)
-          .delete(`/api/${resource.path}/${id}`)
-          .set("Cookie", bob.cookie)
-          .expect(404);
+    await asFamily(token).get("/api/family/session").expect(401);
+    await asFamily("not-a-real-token").get("/api/family/session").expect(401);
+  });
 
-        // Alice's row is untouched by any of the above.
-        const after = await request(app)
-          .get(`/api/${resource.path}`)
-          .set("Cookie", alice.cookie)
-          .expect(200);
+  it("reissuing a link kills the previous one", async () => {
+    const staff = await signUpHome();
+    const row = await createCase(staff);
+    const { contactId, token } = await inviteFamily(staff, row.id);
 
-        expect(after.body).toHaveLength(1);
-      });
+    const res = await staff.agent
+      .post(`/api/contacts/${contactId}/link`)
+      .expect(200);
+    const fresh = String(res.body.link).split("/f/")[1]!;
 
-      it("ignores a userId supplied by the client", async () => {
-        const alice = await signUp();
-        const bob = await signUp();
+    expect(fresh).not.toBe(token);
+    await asFamily(fresh).get("/api/family/session").expect(200);
+    await asFamily(token).get("/api/family/session").expect(401);
+  });
 
-        const created = await request(app)
-          .post(`/api/${resource.path}`)
-          .set("Cookie", alice.cookie)
-          .send({ ...resource.create, userId: bob.id })
-          .expect(201);
+  it("cannot fetch an upload belonging to another case", async () => {
+    const staff = await signUpHome();
 
-        expect(created.body.userId).toBe(alice.id);
+    const caseA = await createCase(staff, { decedentLastName: "Alpha" });
+    const caseB = await createCase(staff, { decedentLastName: "Beta" });
 
-        const bobsList = await request(app)
-          .get(`/api/${resource.path}`)
-          .set("Cookie", bob.cookie)
-          .expect(200);
+    const familyA = await inviteFamily(staff, caseA.id);
+    const familyB = await inviteFamily(staff, caseB.id, { name: "Bob Beta" });
 
-        expect(bobsList.body).toEqual([]);
-      });
-    });
-  }
+    const upload = await asFamily(familyA.token)
+      .post("/api/family/photos")
+      .attach("file", PNG_BYTES, "gran.png")
+      .expect(201);
 
-  describe("the singleton resources", () => {
-    for (const path of ["profile", "tribute"] as const) {
-      it(`gives each account its own ${path}`, async () => {
-        const alice = await signUp();
-        const bob = await signUp();
+    const uploadId = upload.body.uploadId;
 
-        const field = path === "profile" ? "childName" : "obituary";
+    // The owner can read it back...
+    await asFamily(familyA.token).get(`/api/family/uploads/${uploadId}`).expect(200);
+    // ...and the other family, at the same home, cannot.
+    await asFamily(familyB.token).get(`/api/family/uploads/${uploadId}`).expect(404);
+  });
 
-        await request(app)
-          .put(`/api/${path}`)
-          .set("Cookie", alice.cookie)
-          .send({ [field]: "Alice's entry" })
-          .expect(200);
+  it("will not let one family member delete another's photograph", async () => {
+    const staff = await signUpHome();
+    const row = await createCase(staff);
 
-        await request(app)
-          .put(`/api/${path}`)
-          .set("Cookie", bob.cookie)
-          .send({ [field]: "Bob's entry" })
-          .expect(200);
+    const anne = await inviteFamily(staff, row.id, { name: "Anne" });
+    const bob = await inviteFamily(staff, row.id, { name: "Bob" });
 
-        const alices = await request(app)
-          .get(`/api/${path}`)
-          .set("Cookie", alice.cookie)
-          .expect(200);
-        const bobs = await request(app)
-          .get(`/api/${path}`)
-          .set("Cookie", bob.cookie)
-          .expect(200);
+    const photo = await asFamily(anne.token)
+      .post("/api/family/photos")
+      .attach("file", PNG_BYTES, "gran.png")
+      .expect(201);
 
-        expect(alices.body[field]).toBe("Alice's entry");
-        expect(bobs.body[field]).toBe("Bob's entry");
-        expect(alices.body.id).not.toBe(bobs.body.id);
-      });
+    await asFamily(bob.token)
+      .delete(`/api/family/photos/${photo.body.id}`)
+      .expect(403);
 
-      it(`does not leak ${path} to an anonymous request`, async () => {
-        await request(app).get(`/api/${path}`).expect(401);
-      });
-    }
+    await asFamily(anne.token)
+      .delete(`/api/family/photos/${photo.body.id}`)
+      .expect(204);
   });
 });

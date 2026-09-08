@@ -1,98 +1,68 @@
 import { Router, type IRouter } from "express";
 import { requireAuth } from "../middleware/require-auth";
+import { requireFamilyLink } from "../middleware/require-family";
 import healthRouter from "./health";
 import authRouter from "./auth";
-import googleRouter from "./google";
-import profileRouter from "./profile";
-import memoriesRouter from "./memories";
-import journalRouter from "./journal";
-import lettersRouter from "./letters";
-import creativeRouter from "./creative";
-import documentsRouter from "./documents";
-import quotesRouter from "./quotes";
-import tributeRouter from "./tribute";
-import todosRouter from "./todos";
-import affirmationsRouter from "./affirmations";
-import milestonesRouter from "./milestones";
-import storiesRouter from "./stories";
-import signsRouter from "./signs";
-import uploadsRouter from "./uploads";
-import belongingsRouter from "./belongings";
-import giftsRouter from "./gifts";
+import familyRouter from "./family";
+import homeRouter from "./home";
+import casesRouter from "./cases";
 import contactsRouter from "./contacts";
-import obituariesRouter from "./obituaries";
-import memorialRouter from "./memorial";
-import sharesRouter, { publicSharesRouter } from "./shares";
-import communityRouter from "./community";
-import keepsakesRouter from "./keepsakes";
-import albumsRouter from "./albums";
-import guidesRouter from "./guides";
+import photosRouter from "./photos";
+import obituaryRouter from "./obituary";
+import selectionsRouter from "./selections";
+import messagesRouter from "./messages";
+import deadlinesRouter from "./deadlines";
+import aftercareRouter from "./aftercare";
+import uploadsRouter from "./uploads";
 
 const router: IRouter = Router();
 
-// Public surface: liveness, and the endpoints used to obtain a session.
+/**
+ * Three tiers, and the order they are mounted in is the security model.
+ *
+ * 1. Public: liveness, and the endpoints used to obtain a staff session.
+ * 2. The family surface, gated by a link token.
+ * 3. The staff surface, gated by a session cookie.
+ *
+ * Both gates are mounted once, here, rather than per route file. Adding a
+ * router below a gate cannot accidentally expose a family's photographs
+ * because a handler forgot its middleware — the only way to be reachable
+ * without authentication is to be mounted above one of these lines, which is
+ * a visible edit to this file rather than an omission somewhere else.
+ */
+
 router.use(healthRouter);
 router.use(authRouter);
-router.use(googleRouter);
 
 /**
- * Read-only share links, which are public by design — the point of one is
- * that it opens for someone with no account. It is mounted here, above the
- * gate, and kept in its own router so that the public half and the owning
- * half of shares.ts cannot be merged by accident. What it will return is
- * narrow: one named row, by token digest, scoped to the sharer.
- */
-router.use(publicSharesRouter);
-
-/**
- * Searching the guides is public for the same reason the guides are: the
- * parent who needs the chapter on viewing a body is in a hospital corridor and
- * is not about to register for anything. It reads a fixed catalogue of public
- * chapter titles and returns ids — there is no account data anywhere near it.
- */
-router.use(guidesRouter);
-
-/**
- * Everything below this line requires a session. The gate is mounted once,
- * here, rather than per route file — adding a router cannot accidentally
- * expose someone's memories because a handler forgot its middleware.
+ * The family surface, mounted under `/family` so the gate applies to those
+ * paths and only those paths — mounting the middleware without a prefix would
+ * put it in front of every staff route as well.
  *
- * Handlers then read the owner via `currentUser(req)` and scope every query
- * to `user.id`. Both halves are required: this gate proves *someone* is
- * signed in, the query scope proves they are looking at their own data.
+ * Everything here is reached with the token from a texted link and is scoped
+ * to the single case that token names. No path below carries a case id, so
+ * there is nothing for a handler to check and nothing for a family member to
+ * tamper with.
+ */
+router.use("/family", requireFamilyLink, familyRouter);
+
+/**
+ * Everything below requires a staff session. Handlers then scope every query
+ * with `tenant(req).id`, which is read off the signed-in user's own row.
+ * Both halves are required: the gate proves somebody is signed in, the scope
+ * proves they are looking at their own home's cases.
  */
 router.use(requireAuth);
 
-router.use(profileRouter);
-router.use(memoriesRouter);
-router.use(journalRouter);
-router.use(lettersRouter);
-router.use(creativeRouter);
-router.use(documentsRouter);
-router.use(quotesRouter);
-router.use(tributeRouter);
-router.use(todosRouter);
-router.use(affirmationsRouter);
-router.use(milestonesRouter);
-router.use(storiesRouter);
-router.use(signsRouter);
-router.use(uploadsRouter);
-router.use(belongingsRouter);
-router.use(giftsRouter);
+router.use(homeRouter);
+router.use(casesRouter);
 router.use(contactsRouter);
-router.use(obituariesRouter);
-router.use(memorialRouter);
-router.use(sharesRouter);
-
-/**
- * The shared room. Mounted here, below the gate, on purpose: the guides are
- * public because a parent in a hospital corridor will not register for
- * anything, but a room where people write about their child's death is not the
- * same thing. Making it public later is one line; making it private again
- * after a search engine has indexed it is not.
- */
-router.use(communityRouter);
-router.use(keepsakesRouter);
-router.use(albumsRouter);
+router.use(photosRouter);
+router.use(obituaryRouter);
+router.use(selectionsRouter);
+router.use(messagesRouter);
+router.use(deadlinesRouter);
+router.use(aftercareRouter);
+router.use(uploadsRouter);
 
 export default router;

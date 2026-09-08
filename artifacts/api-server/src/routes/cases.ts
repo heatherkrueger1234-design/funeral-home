@@ -1,0 +1,270 @@
+import { Router, type IRouter } from "express";
+import { and, asc, desc, eq, sql } from "drizzle-orm";
+import {
+  db,
+  casesTable,
+  casePhotosTable,
+  familyContactsTable,
+  obituaryDraftsTable,
+  usersTable,
+  toPublicFamilyContact,
+  toStaffSignature,
+  MESSAGE_LOCK_DAYS,
+  type Case,
+} from "@workspace/db";
+import { CreateCaseBody, UpdateCaseBody, GetCasesQueryParams } from "@workspace/api-zod";
+import {
+  assertHasUpdates,
+  badRequest,
+  parseBody,
+  parseId,
+  parseQuery,
+  requireRow,
+} from "../lib/http";
+import { currentUser, tenant } from "../middleware/require-auth";
+import { countsForCases, toCaseJson } from "../lib/case-view";
+import { enrolCaseInAftercare } from "../lib/aftercare";
+
+const router: IRouter = Router();
+
+/**
+ * Load a case, scoped to the signed-in home.
+ *
+ * Every handler in every staff file that takes a case id goes through here.
+ * The id in the URL is attacker-controlled; the home id is not, and the
+ * `and()` is what makes naming another home's case id return a 404 rather
+ * than their family's photographs.
+ */
+async function loadCase(req: Parameters<typeof tenant>[0], rawId: string | undefined): Promise<Case> {
+  const home = tenant(req);
+  const id = parseId(rawId);
+
+  const [row] = await db
+    .select()
+    .from(casesTable)
+    .where(and(eq(casesTable.id, id), eq(casesTable.funeralHomeId, home.id)))
+    .limit(1);
+
+  return requireRow(row, "That case could not be found.");
+}
+
+export { loadCase };
+
+router.get("/cases", async (req, res) => {
+  const home = tenant(req);
+  const query = parseQuery(GetCasesQueryParams, req.query);
+
+  const rows = await db
+    .select()
+    .from(casesTable)
+    .where(
+      query.status
+        ? and(
+            eq(casesTable.funeralHomeId, home.id),
+            eq(casesTable.status, query.status),
+          )
+        : eq(casesTable.funeralHomeId, home.id),
+    )
+    // Soonest service first, with cases that have no date yet at the top:
+    // an undated case is one nobody has scheduled, which is the one most
+    // likely to be forgotten.
+    // `asc()` around raw SQL emits "nulls first asc", which Postgres rejects,
+    // so the whole ordering term is written out here.
+    .orderBy(
+      sql`${casesTable.serviceAt} asc nulls first`,
+      desc(casesTable.createdAt),
+    );
+
+  const counts = await countsForCases(
+    rows.map((row) => row.id),
+    home.id,
+  );
+
+  res.json(
+    rows.map((row) => ({
+      ...toCaseJson(row),
+      ...counts.get(row.id)!,
+    })),
+  );
+});
+
+router.post("/cases", async (req, res) => {
+  const home = tenant(req);
+  const user = currentUser(req);
+  const values = parseBody(CreateCaseBody, req.body);
+
+  if (values.leadDirectorId != null) {
+    await assertStaffBelongsHere(values.leadDirectorId, home.id);
+  }
+
+  const created = await db.transaction(async (tx) => {
+    const [row] = await tx
+      .insert(casesTable)
+      .values({
+        ...values,
+        funeralHomeId: home.id,
+        createdByUserId: user.id,
+      })
+      .returning();
+
+    // The obituary row is created with the case rather than lazily on first
+    // visit, so that "what stage is the obituary at" is answerable for every
+    // case without a null check in five different places.
+    await tx.insert(obituaryDraftsTable).values({
+      funeralHomeId: home.id,
+      caseId: row!.id,
+      fullName: `${row!.decedentFirstName} ${row!.decedentLastName}`.trim(),
+    });
+
+    return row!;
+  });
+
+  res.status(201).json(toCaseJson(created));
+});
+
+/** A lead director has to actually work here. */
+async function assertStaffBelongsHere(userId: number, funeralHomeId: number) {
+  const [staff] = await db
+    .select({ id: usersTable.id })
+    .from(usersTable)
+    .where(
+      and(eq(usersTable.id, userId), eq(usersTable.funeralHomeId, funeralHomeId)),
+    )
+    .limit(1);
+
+  if (!staff) throw badRequest("That director does not work at this home.");
+}
+
+router.get("/cases/:caseId", async (req, res) => {
+  const home = tenant(req);
+  const row = await loadCase(req, req.params.caseId);
+
+  const [counts, contacts, lead] = await Promise.all([
+    countsForCases([row.id], home.id),
+    db
+      .select()
+      .from(familyContactsTable)
+      .where(eq(familyContactsTable.caseId, row.id))
+      .orderBy(asc(familyContactsTable.createdAt)),
+    row.leadDirectorId === null
+      ? Promise.resolve([])
+      : db
+          .select()
+          .from(usersTable)
+          .where(eq(usersTable.id, row.leadDirectorId))
+          .limit(1),
+  ]);
+
+  res.json({
+    ...toCaseJson(row),
+    ...counts.get(row.id)!,
+    leadDirector: lead[0] ? toStaffSignature(lead[0]) : null,
+    contacts: contacts.map(toPublicFamilyContact),
+  });
+});
+
+router.put("/cases/:caseId", async (req, res) => {
+  const home = tenant(req);
+  const existing = await loadCase(req, req.params.caseId);
+  const values = assertHasUpdates(parseBody(UpdateCaseBody, req.body));
+
+  if (values.leadDirectorId != null) {
+    await assertStaffBelongsHere(values.leadDirectorId, home.id);
+  }
+
+  // The portrait has to be a photograph on this case. Without the check, a
+  // director could point one family's portrait at another family's photo id.
+  if (values.portraitPhotoId != null) {
+    await assertPhotoOnCase(values.portraitPhotoId, existing.id, home.id);
+  }
+
+  const [updated] = await db
+    .update(casesTable)
+    .set({ ...values, updatedAt: new Date() })
+    .where(eq(casesTable.id, existing.id))
+    .returning();
+
+  res.json(toCaseJson(updated!));
+});
+
+async function assertPhotoOnCase(
+  photoId: number,
+  caseId: number,
+  funeralHomeId: number,
+) {
+  const [photo] = await db
+    .select({ id: casePhotosTable.id })
+    .from(casePhotosTable)
+    .where(
+      and(
+        eq(casePhotosTable.id, photoId),
+        eq(casePhotosTable.caseId, caseId),
+        eq(casePhotosTable.funeralHomeId, funeralHomeId),
+      ),
+    )
+    .limit(1);
+
+  if (!photo) throw badRequest("That photograph is not on this case.");
+}
+
+/**
+ * Close the case.
+ *
+ * Three things happen, and the third is the one the home is paying for:
+ * the case stops being active, the chat is given a date it locks (a
+ * fortnight past the service, so nobody is fielding logistics in March about
+ * a funeral in January), and every family contact with an address is enrolled
+ * — pending their consent — in the branded grief check-ins.
+ *
+ * Idempotent: closing an already-closed case returns it unchanged rather
+ * than moving the lock date and re-enrolling everyone.
+ */
+router.post("/cases/:caseId/close", async (req, res) => {
+  const home = tenant(req);
+  const existing = await loadCase(req, req.params.caseId);
+
+  if (existing.status === "closed") {
+    const counts = await countsForCases([existing.id], home.id);
+    res.json({
+      ...toCaseJson(existing),
+      ...counts.get(existing.id)!,
+      leadDirector: null,
+      contacts: [],
+    });
+    return;
+  }
+
+  const now = new Date();
+  // Measured from the service where there is one. A case closed without a
+  // service date still gets a fortnight, counted from today.
+  const from = existing.serviceAt ?? now;
+  const lockAt = new Date(from.getTime() + MESSAGE_LOCK_DAYS * 24 * 60 * 60 * 1000);
+
+  const [closed] = await db
+    .update(casesTable)
+    .set({ status: "closed", closedAt: now, messagesLockAt: lockAt, updatedAt: now })
+    .where(eq(casesTable.id, existing.id))
+    .returning();
+
+  if (home.aftercareEnabled) {
+    await enrolCaseInAftercare(closed!, home, now);
+  }
+
+  const [counts, contacts] = await Promise.all([
+    countsForCases([closed!.id], home.id),
+    db
+      .select()
+      .from(familyContactsTable)
+      .where(eq(familyContactsTable.caseId, closed!.id))
+      .orderBy(asc(familyContactsTable.createdAt)),
+  ]);
+
+  res.json({
+    ...toCaseJson(closed!),
+    ...counts.get(closed!.id)!,
+    leadDirector: null,
+    contacts: contacts.map(toPublicFamilyContact),
+  });
+});
+
+export default router;

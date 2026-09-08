@@ -2,815 +2,71 @@ openapi: 3.1.0
 info:
   title: Api
   version: 0.1.0
-  description: Holding Today - a private place for bereaved parents
+  description: |
+    Holding Today for funeral homes - the calm, private portal a home gives a
+    family, and the console the director works it from.
+
+    Two audiences, two authentication schemes, and the split is load-bearing:
+
+    - **Staff** sign in and carry a session cookie. Their funeral home is read
+      off their user row; a home id arriving in a request is never trusted.
+    - **Families** have no account. They arrive through a link that was texted
+      to them and send its token as `Authorization: Bearer <token>`. Every one
+      of their endpoints lives under `/family` and is scoped to the single
+      case that token belongs to - there is no case id in any of those paths,
+      because there is no case they could ask for other than their own.
 servers:
   - url: /api
     description: Base API path
 tags:
   - name: health
-    description: Health operations
-  - name: memories
-    description: Photo memories and memory wall
-  - name: journal
-    description: Journal entries
-  - name: letters
-    description: Letters to and from child
-  - name: creative
-    description: Creative works - poems, songs, art
-  - name: documents
-    description: Important documents and records
-  - name: quotes
-    description: Favorite quotes and songs
-  - name: tribute
-    description: Obituary, speeches, memorials
-  - name: todos
-    description: To-do lists
-  - name: affirmations
-    description: Daily affirmations
-  - name: milestones
-    description: Timeline milestones and memories
-  - name: stories
-    description: Shared community stories and memories
-  - name: profile
-    description: Child profile and details
-  - name: signs
-    description: Signs and visits
-  - name: belongings
-    description: Who has what of theirs
-  - name: gifts
-    description: What arrived, and the thank-you cards
-  - name: contacts
-    description: People who need to be told
-  - name: obituaries
-    description: Obituary drafts
-  - name: memorial
-    description: Memorial planning choices
-  - name: keepsakes
-    description: Answers to the small questions
-  - name: guides
-    description: Searching the written guides
-  - name: community
-    description: The one shared room
-  - name: shares
-    description: Read-only public links
+    description: Liveness
   - name: auth
-    description: Accounts, sessions and personal-data controls
+    description: Staff accounts and sessions
+  - name: home
+    description: The funeral home's own settings and branding
+  - name: cases
+    description: Cases - one death, and the work around it
+  - name: contacts
+    description: The family's people, and their links
+  - name: photos
+    description: The photo bin
+  - name: obituary
+    description: The obituary draft
+  - name: selections
+    description: Hymns, readings, pallbearers
+  - name: messages
+    description: The one thread per case
+  - name: deadlines
+    description: What is due, and when
+  - name: aftercare
+    description: Branded grief check-ins after the service
+  - name: uploads
+    description: Serving stored bytes
+  - name: family
+    description: Everything the family-facing portal calls
+
 paths:
   /healthz:
     get:
-      operationId: healthCheck
+      operationId: getHealth
       tags: [health]
-      summary: Health check
+      summary: Liveness probe
       responses:
         "200":
-          description: Healthy
+          description: Alive
           content:
             application/json:
               schema:
                 $ref: "#/components/schemas/HealthStatus"
 
-  /profile:
-    get:
-      operationId: getProfile
-      tags: [profile]
-      summary: Get child profile
-      responses:
-        "200":
-          description: Profile
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/Profile"
-    put:
-      operationId: updateProfile
-      tags: [profile]
-      summary: Update child profile
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: "#/components/schemas/ProfileUpdate"
-      responses:
-        "200":
-          description: Updated
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/Profile"
-
-  /memories:
-    get:
-      operationId: getMemories
-      tags: [memories]
-      summary: Get all memories
-      parameters:
-        - name: category
-          in: query
-          schema:
-            type: string
-      responses:
-        "200":
-          description: List of memories
-          content:
-            application/json:
-              schema:
-                type: array
-                items:
-                  $ref: "#/components/schemas/Memory"
-    post:
-      operationId: createMemory
-      tags: [memories]
-      summary: Create a memory
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: "#/components/schemas/MemoryInput"
-      responses:
-        "201":
-          description: Created
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/Memory"
-
-  /memories/{id}:
-    put:
-      operationId: updateMemory
-      tags: [memories]
-      summary: Update a memory
-      parameters:
-        - name: id
-          in: path
-          required: true
-          schema:
-            type: integer
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: "#/components/schemas/MemoryInput"
-      responses:
-        "200":
-          description: Updated
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/Memory"
-    delete:
-      operationId: deleteMemory
-      tags: [memories]
-      summary: Delete a memory
-      parameters:
-        - name: id
-          in: path
-          required: true
-          schema:
-            type: integer
-      responses:
-        "204":
-          description: Deleted
-
-  /journal:
-    get:
-      operationId: getJournalEntries
-      tags: [journal]
-      summary: Get all journal entries
-      responses:
-        "200":
-          description: List of entries
-          content:
-            application/json:
-              schema:
-                type: array
-                items:
-                  $ref: "#/components/schemas/JournalEntry"
-    post:
-      operationId: createJournalEntry
-      tags: [journal]
-      summary: Create journal entry
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: "#/components/schemas/JournalEntryInput"
-      responses:
-        "201":
-          description: Created
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/JournalEntry"
-
-  /journal/{id}:
-    put:
-      operationId: updateJournalEntry
-      tags: [journal]
-      summary: Update journal entry
-      parameters:
-        - name: id
-          in: path
-          required: true
-          schema:
-            type: integer
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: "#/components/schemas/JournalEntryInput"
-      responses:
-        "200":
-          description: Updated
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/JournalEntry"
-    delete:
-      operationId: deleteJournalEntry
-      tags: [journal]
-      summary: Delete journal entry
-      parameters:
-        - name: id
-          in: path
-          required: true
-          schema:
-            type: integer
-      responses:
-        "204":
-          description: Deleted
-
-  /letters:
-    get:
-      operationId: getLetters
-      tags: [letters]
-      summary: Get all letters
-      parameters:
-        - name: direction
-          in: query
-          schema:
-            type: string
-            enum: [to_child, from_child, received]
-      responses:
-        "200":
-          description: List of letters
-          content:
-            application/json:
-              schema:
-                type: array
-                items:
-                  $ref: "#/components/schemas/Letter"
-    post:
-      operationId: createLetter
-      tags: [letters]
-      summary: Create a letter
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: "#/components/schemas/LetterInput"
-      responses:
-        "201":
-          description: Created
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/Letter"
-
-  /letters/{id}:
-    put:
-      operationId: updateLetter
-      tags: [letters]
-      summary: Update a letter
-      parameters:
-        - name: id
-          in: path
-          required: true
-          schema:
-            type: integer
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: "#/components/schemas/LetterInput"
-      responses:
-        "200":
-          description: Updated
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/Letter"
-    delete:
-      operationId: deleteLetter
-      tags: [letters]
-      summary: Delete a letter
-      parameters:
-        - name: id
-          in: path
-          required: true
-          schema:
-            type: integer
-      responses:
-        "204":
-          description: Deleted
-
-  /creative:
-    get:
-      operationId: getCreativeWorks
-      tags: [creative]
-      summary: Get all creative works
-      parameters:
-        - name: type
-          in: query
-          schema:
-            type: string
-            enum: [poem, song, art, other]
-      responses:
-        "200":
-          description: List of creative works
-          content:
-            application/json:
-              schema:
-                type: array
-                items:
-                  $ref: "#/components/schemas/CreativeWork"
-    post:
-      operationId: createCreativeWork
-      tags: [creative]
-      summary: Create creative work
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: "#/components/schemas/CreativeWorkInput"
-      responses:
-        "201":
-          description: Created
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/CreativeWork"
-
-  /creative/{id}:
-    put:
-      operationId: updateCreativeWork
-      tags: [creative]
-      summary: Update creative work
-      parameters:
-        - name: id
-          in: path
-          required: true
-          schema:
-            type: integer
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: "#/components/schemas/CreativeWorkInput"
-      responses:
-        "200":
-          description: Updated
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/CreativeWork"
-    delete:
-      operationId: deleteCreativeWork
-      tags: [creative]
-      summary: Delete creative work
-      parameters:
-        - name: id
-          in: path
-          required: true
-          schema:
-            type: integer
-      responses:
-        "204":
-          description: Deleted
-
-  /documents:
-    get:
-      operationId: getDocuments
-      tags: [documents]
-      summary: Get all documents
-      parameters:
-        - name: category
-          in: query
-          schema:
-            type: string
-            enum: [medical, legal, financial, funeral, passwords, autopsy, other]
-      responses:
-        "200":
-          description: List of documents
-          content:
-            application/json:
-              schema:
-                type: array
-                items:
-                  $ref: "#/components/schemas/Document"
-    post:
-      operationId: createDocument
-      tags: [documents]
-      summary: Create a document record
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: "#/components/schemas/DocumentInput"
-      responses:
-        "201":
-          description: Created
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/Document"
-
-  /documents/{id}:
-    get:
-      operationId: getDocument
-      tags: [documents]
-      summary: Read one document, including content hidden from the list
-      parameters:
-        - name: id
-          in: path
-          required: true
-          schema:
-            type: integer
-      responses:
-        "200":
-          description: Document
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/Document"
-    put:
-      operationId: updateDocument
-      tags: [documents]
-      summary: Update a document
-      parameters:
-        - name: id
-          in: path
-          required: true
-          schema:
-            type: integer
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: "#/components/schemas/DocumentInput"
-      responses:
-        "200":
-          description: Updated
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/Document"
-    delete:
-      operationId: deleteDocument
-      tags: [documents]
-      summary: Delete a document
-      parameters:
-        - name: id
-          in: path
-          required: true
-          schema:
-            type: integer
-      responses:
-        "204":
-          description: Deleted
-
-  /quotes:
-    get:
-      operationId: getQuotes
-      tags: [quotes]
-      summary: Get quotes and songs
-      parameters:
-        - name: type
-          in: query
-          schema:
-            type: string
-            enum: [quote, song, both]
-      responses:
-        "200":
-          description: List of quotes and songs
-          content:
-            application/json:
-              schema:
-                type: array
-                items:
-                  $ref: "#/components/schemas/QuoteSong"
-    post:
-      operationId: createQuote
-      tags: [quotes]
-      summary: Add a quote or song
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: "#/components/schemas/QuoteSongInput"
-      responses:
-        "201":
-          description: Created
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/QuoteSong"
-
-  /quotes/{id}:
-    delete:
-      operationId: deleteQuote
-      tags: [quotes]
-      summary: Delete a quote or song
-      parameters:
-        - name: id
-          in: path
-          required: true
-          schema:
-            type: integer
-      responses:
-        "204":
-          description: Deleted
-
-  /tribute:
-    get:
-      operationId: getTribute
-      tags: [tribute]
-      summary: Get tribute information
-      responses:
-        "200":
-          description: Tribute info
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/Tribute"
-    put:
-      operationId: updateTribute
-      tags: [tribute]
-      summary: Update tribute information
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: "#/components/schemas/TributeInput"
-      responses:
-        "200":
-          description: Updated
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/Tribute"
-
-  /todos:
-    get:
-      operationId: getTodos
-      tags: [todos]
-      summary: Get all todos
-      responses:
-        "200":
-          description: List of todos
-          content:
-            application/json:
-              schema:
-                type: array
-                items:
-                  $ref: "#/components/schemas/Todo"
-    post:
-      operationId: createTodo
-      tags: [todos]
-      summary: Create a todo
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: "#/components/schemas/TodoInput"
-      responses:
-        "201":
-          description: Created
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/Todo"
-
-  /todos/{id}:
-    put:
-      operationId: updateTodo
-      tags: [todos]
-      summary: Update a todo
-      parameters:
-        - name: id
-          in: path
-          required: true
-          schema:
-            type: integer
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: "#/components/schemas/TodoInput"
-      responses:
-        "200":
-          description: Updated
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/Todo"
-    delete:
-      operationId: deleteTodo
-      tags: [todos]
-      summary: Delete a todo
-      parameters:
-        - name: id
-          in: path
-          required: true
-          schema:
-            type: integer
-      responses:
-        "204":
-          description: Deleted
-
-  /affirmations:
-    get:
-      operationId: getAffirmations
-      tags: [affirmations]
-      summary: Get all affirmations
-      responses:
-        "200":
-          description: List of affirmations
-          content:
-            application/json:
-              schema:
-                type: array
-                items:
-                  $ref: "#/components/schemas/Affirmation"
-    post:
-      operationId: createAffirmation
-      tags: [affirmations]
-      summary: Create an affirmation
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: "#/components/schemas/AffirmationInput"
-      responses:
-        "201":
-          description: Created
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/Affirmation"
-
-  /affirmations/{id}:
-    delete:
-      operationId: deleteAffirmation
-      tags: [affirmations]
-      summary: Delete an affirmation
-      parameters:
-        - name: id
-          in: path
-          required: true
-          schema:
-            type: integer
-      responses:
-        "204":
-          description: Deleted
-
-  /milestones:
-    get:
-      operationId: getMilestones
-      tags: [milestones]
-      summary: Get timeline milestones
-      responses:
-        "200":
-          description: List of milestones
-          content:
-            application/json:
-              schema:
-                type: array
-                items:
-                  $ref: "#/components/schemas/Milestone"
-    post:
-      operationId: createMilestone
-      tags: [milestones]
-      summary: Create a milestone
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: "#/components/schemas/MilestoneInput"
-      responses:
-        "201":
-          description: Created
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/Milestone"
-
-  /milestones/{id}:
-    put:
-      operationId: updateMilestone
-      tags: [milestones]
-      summary: Update a milestone
-      parameters:
-        - name: id
-          in: path
-          required: true
-          schema:
-            type: integer
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: "#/components/schemas/MilestoneInput"
-      responses:
-        "200":
-          description: Updated
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/Milestone"
-    delete:
-      operationId: deleteMilestone
-      tags: [milestones]
-      summary: Delete a milestone
-      parameters:
-        - name: id
-          in: path
-          required: true
-          schema:
-            type: integer
-      responses:
-        "204":
-          description: Deleted
-
-  /stories:
-    get:
-      operationId: getStories
-      tags: [stories]
-      summary: Get all shared stories
-      responses:
-        "200":
-          description: List of stories
-          content:
-            application/json:
-              schema:
-                type: array
-                items:
-                  $ref: "#/components/schemas/Story"
-    post:
-      operationId: createStory
-      tags: [stories]
-      summary: Share a story
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: "#/components/schemas/StoryInput"
-      responses:
-        "201":
-          description: Created
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/Story"
-
-  /stories/{id}:
-    delete:
-      operationId: deleteStory
-      tags: [stories]
-      summary: Delete a story
-      parameters:
-        - name: id
-          in: path
-          required: true
-          schema:
-            type: integer
-      responses:
-        "204":
-          description: Deleted
+  # ------------------------------------------------------------------ auth --
 
   /auth/register:
     post:
-      operationId: register
+      operationId: registerHome
       tags: [auth]
-      summary: Create an account and start a session
+      summary: Open an account, creating the funeral home and its first owner
       requestBody:
         required: true
         content:
@@ -819,7 +75,7 @@ paths:
               $ref: "#/components/schemas/RegisterInput"
       responses:
         "201":
-          description: Account created
+          description: Signed in
           content:
             application/json:
               schema:
@@ -829,7 +85,7 @@ paths:
     post:
       operationId: login
       tags: [auth]
-      summary: Start a session
+      summary: Sign in
       requestBody:
         required: true
         content:
@@ -848,7 +104,7 @@ paths:
     post:
       operationId: logout
       tags: [auth]
-      summary: End the current session
+      summary: Sign out on this device
       responses:
         "204":
           description: Signed out
@@ -857,55 +113,20 @@ paths:
     get:
       operationId: getCurrentUser
       tags: [auth]
-      summary: The signed-in account, if any
+      summary: Who is signed in, and which home they work at
       responses:
         "200":
-          description: Current account
+          description: The signed-in staff member
           content:
             application/json:
               schema:
                 $ref: "#/components/schemas/AuthUser"
-        "401":
-          description: Not signed in
-
-  /auth/password:
-    put:
-      operationId: changePassword
-      tags: [auth]
-      summary: Change password and sign out every other device
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: "#/components/schemas/ChangePasswordInput"
-      responses:
-        "204":
-          description: Password changed
-
-  /auth/methods:
-    get:
-      operationId: getAuthMethods
-      tags: [auth]
-      summary: Which ways of signing in this deployment offers
-      responses:
-        "200":
-          description: Available sign-in methods
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/AuthMethods"
 
   /auth/forgot-password:
     post:
       operationId: forgotPassword
       tags: [auth]
-      summary: Send a password reset link
-      description: >-
-        Always succeeds, whether or not an account exists for that address.
-        Answering differently would turn this into a way to discover who has
-        an account here, which for this application means discovering who has
-        lost a child.
+      summary: Send a reset link
       requestBody:
         required: true
         content:
@@ -913,14 +134,14 @@ paths:
             schema:
               $ref: "#/components/schemas/ForgotPasswordInput"
       responses:
-        "204":
-          description: Accepted
+        "202":
+          description: Accepted, whether or not the address is known
 
   /auth/reset-password:
     post:
       operationId: resetPassword
       tags: [auth]
-      summary: Set a new password using a emailed token
+      summary: Set a new password from a reset token
       requestBody:
         required: true
         content:
@@ -929,361 +150,329 @@ paths:
               $ref: "#/components/schemas/ResetPasswordInput"
       responses:
         "204":
-          description: Password set
+          description: Password changed and other sessions ended
 
-  /auth/export:
+  # ------------------------------------------------------------------ home --
+
+  /home:
     get:
-      operationId: exportMyData
-      tags: [auth]
-      summary: Download everything this account has written
+      operationId: getHome
+      tags: [home]
+      summary: The signed-in staff member's funeral home
       responses:
         "200":
-          description: Export bundle
+          description: The home
           content:
             application/json:
               schema:
-                type: object
-                additionalProperties: true
-
-  /auth/account:
-    delete:
-      operationId: deleteAccount
-      tags: [auth]
-      summary: Permanently delete this account and all of its data
+                $ref: "#/components/schemas/FuneralHome"
+    put:
+      operationId: updateHome
+      tags: [home]
+      summary: Update branding, hours and contact details
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              $ref: "#/components/schemas/DeleteAccountInput"
+              $ref: "#/components/schemas/FuneralHomeUpdate"
+      responses:
+        "200":
+          description: The updated home
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FuneralHome"
+
+  /home/staff:
+    get:
+      operationId: getStaff
+      tags: [home]
+      summary: Everyone who works cases at this home
+      responses:
+        "200":
+          description: List
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/StaffMember"
+
+  # ----------------------------------------------------------------- cases --
+
+  /cases:
+    get:
+      operationId: getCases
+      tags: [cases]
+      summary: The home's cases, soonest service first
+      parameters:
+        - name: status
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [intake, active, closed]
+      responses:
+        "200":
+          description: List
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/CaseSummary"
+    post:
+      operationId: createCase
+      tags: [cases]
+      summary: Open a case
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CaseInput"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Case"
+
+  /cases/{caseId}:
+    get:
+      operationId: getCase
+      tags: [cases]
+      summary: One case, with everything the director needs at a glance
+      parameters:
+        - $ref: "#/components/parameters/CaseId"
+      responses:
+        "200":
+          description: The case
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CaseDetail"
+    put:
+      operationId: updateCase
+      tags: [cases]
+      summary: Update the person, the service, or the lead director
+      parameters:
+        - $ref: "#/components/parameters/CaseId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CaseUpdate"
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Case"
+
+  /cases/{caseId}/close:
+    post:
+      operationId: closeCase
+      tags: [cases]
+      summary: Close the case, lock the thread, and hand the family to aftercare
+      description: |
+        The commercially important endpoint. Closing sets the date the chat
+        locks (a fortnight after the service) and, when the home has aftercare
+        switched on, creates a pending enrolment for every family contact who
+        left an address. Enrolments stay `pending` until the family consents.
+      parameters:
+        - $ref: "#/components/parameters/CaseId"
+      responses:
+        "200":
+          description: The closed case
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CaseDetail"
+
+  # -------------------------------------------------------------- contacts --
+
+  /cases/{caseId}/contacts:
+    get:
+      operationId: getCaseContacts
+      tags: [contacts]
+      summary: The family's people on this case
+      parameters:
+        - $ref: "#/components/parameters/CaseId"
+      responses:
+        "200":
+          description: List
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/FamilyContact"
+    post:
+      operationId: createCaseContact
+      tags: [contacts]
+      summary: Add a family member and mint their link
+      description: |
+        The only time the working link is ever returned. It is shown once, for
+        the director to paste into a text message, and cannot be retrieved
+        afterwards - only the digest is stored.
+      parameters:
+        - $ref: "#/components/parameters/CaseId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/FamilyContactInput"
+      responses:
+        "201":
+          description: Created, with the one-time link
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FamilyContactWithLink"
+
+  /contacts/{contactId}:
+    put:
+      operationId: updateContact
+      tags: [contacts]
+      summary: Correct a name, number or role
+      parameters:
+        - $ref: "#/components/parameters/ContactId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/FamilyContactUpdate"
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FamilyContact"
+    delete:
+      operationId: revokeContact
+      tags: [contacts]
+      summary: Revoke this person's link
+      parameters:
+        - $ref: "#/components/parameters/ContactId"
+      responses:
+        "204":
+          description: Revoked
+
+  /contacts/{contactId}/link:
+    post:
+      operationId: reissueContactLink
+      tags: [contacts]
+      summary: Mint a fresh link, invalidating the old one
+      parameters:
+        - $ref: "#/components/parameters/ContactId"
+      responses:
+        "200":
+          description: The new one-time link
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FamilyContactWithLink"
+
+  # ---------------------------------------------------- staff: the asset drop
+
+  /cases/{caseId}/photos:
+    get:
+      operationId: getCasePhotos
+      tags: [photos]
+      summary: Every photograph on the case, in slideshow order
+      parameters:
+        - $ref: "#/components/parameters/CaseId"
+      responses:
+        "200":
+          description: List
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/CasePhoto"
+
+  /cases/{caseId}/photos/order:
+    put:
+      operationId: reorderCasePhotos
+      tags: [photos]
+      summary: Set the slideshow order
+      parameters:
+        - $ref: "#/components/parameters/CaseId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PhotoOrderInput"
+      responses:
+        "200":
+          description: The reordered list
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/CasePhoto"
+
+  /photos/{photoId}:
+    patch:
+      operationId: updatePhoto
+      tags: [photos]
+      summary: Caption, crop, or hide a photograph
+      parameters:
+        - $ref: "#/components/parameters/PhotoId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PhotoUpdate"
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CasePhoto"
+    delete:
+      operationId: deletePhoto
+      tags: [photos]
+      summary: Remove a photograph entirely
+      parameters:
+        - $ref: "#/components/parameters/PhotoId"
       responses:
         "204":
           description: Deleted
 
-
-  /signs:
+  /cases/{caseId}/obituary:
     get:
-      operationId: getSigns
-      tags: [signs]
-      summary: List signs
-      responses:
-        "200":
-          description: Signs
-          content:
-            application/json:
-              schema:
-                type: array
-                items:
-                  $ref: "#/components/schemas/Sign"
-    post:
-      operationId: createSign
-      tags: [signs]
-      summary: Record a sign
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: "#/components/schemas/SignInput"
-      responses:
-        "201":
-          description: Created
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/Sign"
-
-  /signs/{id}:
-    put:
-      operationId: updateSign
-      tags: [signs]
-      summary: Update a sign
+      operationId: getObituary
+      tags: [obituary]
+      summary: The obituary draft and its fields
       parameters:
-        - name: id
-          in: path
-          required: true
-          schema:
-            type: integer
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: "#/components/schemas/SignInput"
+        - $ref: "#/components/parameters/CaseId"
       responses:
         "200":
-          description: Updated
+          description: The draft
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/Sign"
-    delete:
-      operationId: deleteSign
-      tags: [signs]
-      summary: Remove a sign
-      parameters:
-        - name: id
-          in: path
-          required: true
-          schema:
-            type: integer
-      responses:
-        "204":
-          description: Removed
-
-  /belongings:
-    get:
-      operationId: getBelongings
-      tags: [belongings]
-      summary: List their belongings
-      responses:
-        "200":
-          description: List
-          content:
-            application/json:
-              schema:
-                type: array
-                items:
-                  $ref: "#/components/schemas/Belonging"
-    post:
-      operationId: createBelonging
-      tags: [belongings]
-      summary: Add one
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: "#/components/schemas/BelongingInput"
-      responses:
-        "201":
-          description: Created
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/Belonging"
-
-  /belongings/{id}:
-    put:
-      operationId: updateBelonging
-      tags: [belongings]
-      summary: Update one
-      parameters:
-        - name: id
-          in: path
-          required: true
-          schema:
-            type: integer
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: "#/components/schemas/BelongingUpdate"
-      responses:
-        "200":
-          description: Updated
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/Belonging"
-    delete:
-      operationId: deleteBelonging
-      tags: [belongings]
-      summary: Remove one
-      parameters:
-        - name: id
-          in: path
-          required: true
-          schema:
-            type: integer
-      responses:
-        "204":
-          description: Removed
-
-  /gifts:
-    get:
-      operationId: getGifts
-      tags: [gifts]
-      summary: List gifts received
-      responses:
-        "200":
-          description: List
-          content:
-            application/json:
-              schema:
-                type: array
-                items:
-                  $ref: "#/components/schemas/Gift"
-    post:
-      operationId: createGift
-      tags: [gifts]
-      summary: Add one
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: "#/components/schemas/GiftInput"
-      responses:
-        "201":
-          description: Created
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/Gift"
-
-  /gifts/{id}:
-    put:
-      operationId: updateGift
-      tags: [gifts]
-      summary: Update one
-      parameters:
-        - name: id
-          in: path
-          required: true
-          schema:
-            type: integer
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: "#/components/schemas/GiftUpdate"
-      responses:
-        "200":
-          description: Updated
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/Gift"
-    delete:
-      operationId: deleteGift
-      tags: [gifts]
-      summary: Remove one
-      parameters:
-        - name: id
-          in: path
-          required: true
-          schema:
-            type: integer
-      responses:
-        "204":
-          description: Removed
-
-  /contacts:
-    get:
-      operationId: getContacts
-      tags: [contacts]
-      summary: List people to notify
-      responses:
-        "200":
-          description: List
-          content:
-            application/json:
-              schema:
-                type: array
-                items:
-                  $ref: "#/components/schemas/Contact"
-    post:
-      operationId: createContact
-      tags: [contacts]
-      summary: Add one
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: "#/components/schemas/ContactInput"
-      responses:
-        "201":
-          description: Created
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/Contact"
-
-  /contacts/{id}:
-    put:
-      operationId: updateContact
-      tags: [contacts]
-      summary: Update one
-      parameters:
-        - name: id
-          in: path
-          required: true
-          schema:
-            type: integer
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: "#/components/schemas/ContactUpdate"
-      responses:
-        "200":
-          description: Updated
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/Contact"
-    delete:
-      operationId: deleteContact
-      tags: [contacts]
-      summary: Remove one
-      parameters:
-        - name: id
-          in: path
-          required: true
-          schema:
-            type: integer
-      responses:
-        "204":
-          description: Removed
-
-  /obituaries:
-    get:
-      operationId: getObituarys
-      tags: [obituaries]
-      summary: List obituary drafts
-      responses:
-        "200":
-          description: List
-          content:
-            application/json:
-              schema:
-                type: array
-                items:
-                  $ref: "#/components/schemas/Obituary"
-    post:
-      operationId: createObituary
-      tags: [obituaries]
-      summary: Add one
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: "#/components/schemas/ObituaryInput"
-      responses:
-        "201":
-          description: Created
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/Obituary"
-
-  /obituaries/{id}:
+                $ref: "#/components/schemas/ObituaryDraft"
     put:
       operationId: updateObituary
-      tags: [obituaries]
-      summary: Update one
+      tags: [obituary]
+      summary: Edit the fields or the composed text
       parameters:
-        - name: id
-          in: path
-          required: true
-          schema:
-            type: integer
+        - $ref: "#/components/parameters/CaseId"
       requestBody:
         required: true
         content:
@@ -1296,26 +485,55 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/Obituary"
-    delete:
-      operationId: deleteObituary
-      tags: [obituaries]
-      summary: Remove one
-      parameters:
-        - name: id
-          in: path
-          required: true
-          schema:
-            type: integer
-      responses:
-        "204":
-          description: Removed
+                $ref: "#/components/schemas/ObituaryDraft"
 
-  /memorial-choices:
+  /cases/{caseId}/obituary/compose:
+    post:
+      operationId: composeObituary
+      tags: [obituary]
+      summary: Recompose the draft text from the fields
+      description: |
+        Overwrites `draftText`. Refused once staff have hand-edited the text
+        unless `force` is set, so that regenerating cannot silently discard a
+        director's rewrite.
+      parameters:
+        - $ref: "#/components/parameters/CaseId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ComposeObituaryInput"
+      responses:
+        "200":
+          description: Recomposed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ObituaryDraft"
+
+  /cases/{caseId}/obituary/approve:
+    post:
+      operationId: approveObituary
+      tags: [obituary]
+      summary: Sign the obituary off for print
+      parameters:
+        - $ref: "#/components/parameters/CaseId"
+      responses:
+        "200":
+          description: Approved
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ObituaryDraft"
+
+  /cases/{caseId}/selections:
     get:
-      operationId: getMemorialChoices
-      tags: [memorial]
-      summary: List memorial choices
+      operationId: getSelections
+      tags: [selections]
+      summary: Hymns, readings, music, pallbearers
+      parameters:
+        - $ref: "#/components/parameters/CaseId"
       responses:
         "200":
           description: List
@@ -1324,434 +542,98 @@ paths:
               schema:
                 type: array
                 items:
-                  $ref: "#/components/schemas/MemorialChoice"
+                  $ref: "#/components/schemas/ServiceSelection"
     post:
-      operationId: createMemorialChoice
-      tags: [memorial]
-      summary: Add one
+      operationId: createSelection
+      tags: [selections]
+      summary: Add a selection
+      parameters:
+        - $ref: "#/components/parameters/CaseId"
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              $ref: "#/components/schemas/MemorialChoiceInput"
+              $ref: "#/components/schemas/SelectionInput"
       responses:
         "201":
           description: Created
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/MemorialChoice"
+                $ref: "#/components/schemas/ServiceSelection"
 
-  /memorial-choices/{id}:
+  /selections/{selectionId}:
     put:
-      operationId: updateMemorialChoice
-      tags: [memorial]
-      summary: Update one
+      operationId: updateSelection
+      tags: [selections]
+      summary: Edit or confirm a selection
       parameters:
-        - name: id
-          in: path
-          required: true
-          schema:
-            type: integer
+        - $ref: "#/components/parameters/SelectionId"
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              $ref: "#/components/schemas/MemorialChoiceUpdate"
+              $ref: "#/components/schemas/SelectionUpdate"
       responses:
         "200":
           description: Updated
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/MemorialChoice"
+                $ref: "#/components/schemas/ServiceSelection"
     delete:
-      operationId: deleteMemorialChoice
-      tags: [memorial]
-      summary: Remove one
+      operationId: deleteSelection
+      tags: [selections]
+      summary: Remove a selection
       parameters:
-        - name: id
-          in: path
-          required: true
-          schema:
-            type: integer
-      responses:
-        "204":
-          description: Removed
-
-  /shares:
-    get:
-      operationId: getShares
-      tags: [shares]
-      summary: List active share links
-      responses:
-        "200":
-          description: List
-          content:
-            application/json:
-              schema:
-                type: array
-                items:
-                  $ref: "#/components/schemas/Share"
-    post:
-      operationId: createShare
-      tags: [shares]
-      summary: Create a read-only link to one thing
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: "#/components/schemas/ShareInput"
-      responses:
-        "201":
-          description: >-
-            Created. The token is returned here and nowhere else, ever again.
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/CreatedShare"
-
-  /shares/{id}:
-    delete:
-      operationId: deleteShare
-      tags: [shares]
-      summary: Revoke a link
-      parameters:
-        - name: id
-          in: path
-          required: true
-          schema:
-            type: integer
-      responses:
-        "204":
-          description: Revoked
-
-  /shared/{token}:
-    get:
-      operationId: getSharedItem
-      tags: [shares]
-      summary: Read a shared item. Public - no session required.
-      parameters:
-        - name: token
-          in: path
-          required: true
-          schema:
-            type: string
-      responses:
-        "200":
-          description: The shared item
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/SharedItem"
-        "404":
-          description: No such link, or it was revoked
-
-  /community/posts:
-    get:
-      operationId: getCommunityPosts
-      tags: [community]
-      summary: Recent posts in the shared room
-      parameters:
-        - name: kind
-          in: query
-          required: false
-          schema:
-            type: string
-            enum: [signs, story, advice]
-      responses:
-        "200":
-          description: Posts
-          content:
-            application/json:
-              schema:
-                type: array
-                items:
-                  $ref: "#/components/schemas/CommunityPost"
-    post:
-      operationId: createCommunityPost
-      tags: [community]
-      summary: Share something with the room
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: "#/components/schemas/CommunityPostInput"
-      responses:
-        "201":
-          description: Posted
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/CreatedCommunityPost"
-
-  /community/posts/{id}:
-    get:
-      operationId: getCommunityPost
-      tags: [community]
-      summary: One post and its replies
-      parameters:
-        - name: id
-          in: path
-          required: true
-          schema:
-            type: integer
-      responses:
-        "200":
-          description: The post
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/CommunityPostDetail"
-        "404":
-          description: No such post, or it has been removed
-    delete:
-      operationId: deleteCommunityPost
-      tags: [community]
-      summary: Take your own post down
-      parameters:
-        - name: id
-          in: path
-          required: true
-          schema:
-            type: integer
-      responses:
-        "204":
-          description: Removed
-
-  /community/posts/{id}/comments:
-    post:
-      operationId: createCommunityComment
-      tags: [community]
-      summary: Reply to a post
-      parameters:
-        - name: id
-          in: path
-          required: true
-          schema:
-            type: integer
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: "#/components/schemas/CommunityCommentInput"
-      responses:
-        "201":
-          description: Posted
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/CreatedCommunityComment"
-
-  /community/comments/{id}:
-    delete:
-      operationId: deleteCommunityComment
-      tags: [community]
-      summary: Take your own reply down
-      parameters:
-        - name: id
-          in: path
-          required: true
-          schema:
-            type: integer
-      responses:
-        "204":
-          description: Removed
-
-  /community/reports:
-    post:
-      operationId: reportCommunityContent
-      tags: [community]
-      summary: Report a post or a reply
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: "#/components/schemas/CommunityReportInput"
-      responses:
-        "201":
-          description: Reported
-
-  /community/screen-name:
-    put:
-      operationId: setScreenName
-      tags: [community]
-      summary: Choose the name you appear under in the shared room
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: "#/components/schemas/ScreenNameInput"
-      responses:
-        "200":
-          description: Set
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ScreenName"
-
-  /community/moderation/reports:
-    get:
-      operationId: getCommunityReports
-      tags: [community]
-      summary: Open reports. Moderators only.
-      responses:
-        "200":
-          description: Reports
-          content:
-            application/json:
-              schema:
-                type: array
-                items:
-                  $ref: "#/components/schemas/CommunityReportEntry"
-        "403":
-          description: Not a moderator
-
-  /community/moderation/hide:
-    post:
-      operationId: hideCommunityContent
-      tags: [community]
-      summary: Hide or restore a post or reply. Moderators only.
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: "#/components/schemas/HideInput"
-      responses:
-        "204":
-          description: Done
-        "403":
-          description: Not a moderator
-
-  /albums:
-    get:
-      operationId: getAlbums
-      tags: [albums]
-      summary: Every album, newest first
-      responses:
-        "200":
-          description: List
-          content:
-            application/json:
-              schema:
-                type: array
-                items:
-                  $ref: "#/components/schemas/Album"
-    post:
-      operationId: createAlbum
-      tags: [albums]
-      summary: Start an album
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: "#/components/schemas/AlbumInput"
-      responses:
-        "201":
-          description: Created
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/Album"
-
-  /albums/{id}:
-    get:
-      operationId: getAlbum
-      tags: [albums]
-      summary: One album with its photographs in order
-      parameters:
-        - name: id
-          in: path
-          required: true
-          schema:
-            type: integer
-      responses:
-        "200":
-          description: The album
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/AlbumDetail"
-    put:
-      operationId: updateAlbum
-      tags: [albums]
-      summary: Rename an album
-      parameters:
-        - name: id
-          in: path
-          required: true
-          schema:
-            type: integer
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: "#/components/schemas/AlbumUpdate"
-      responses:
-        "200":
-          description: Updated
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/Album"
-    delete:
-      operationId: deleteAlbum
-      tags: [albums]
-      summary: Delete the album, never the photographs
-      parameters:
-        - name: id
-          in: path
-          required: true
-          schema:
-            type: integer
+        - $ref: "#/components/parameters/SelectionId"
       responses:
         "204":
           description: Deleted
 
-  /albums/{id}/items:
-    put:
-      operationId: setAlbumItems
-      tags: [albums]
-      summary: Set which photographs are in the album, and their order
-      description: >-
-        The whole list, in the order it should be shown. Sent as one call
-        rather than as add, remove and move, so the order on the screen and
-        the order in the database can never disagree.
+  /cases/{caseId}/messages:
+    get:
+      operationId: getCaseMessages
+      tags: [messages]
+      summary: The thread, oldest first
       parameters:
-        - name: id
-          in: path
-          required: true
-          schema:
-            type: integer
+        - $ref: "#/components/parameters/CaseId"
+      responses:
+        "200":
+          description: The thread
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MessageThread"
+    post:
+      operationId: postCaseMessage
+      tags: [messages]
+      summary: Reply to the family
+      parameters:
+        - $ref: "#/components/parameters/CaseId"
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              $ref: "#/components/schemas/AlbumItemsInput"
+              $ref: "#/components/schemas/MessageInput"
       responses:
-        "200":
-          description: The album as it now stands
+        "201":
+          description: Sent
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/AlbumDetail"
+                $ref: "#/components/schemas/CaseMessage"
 
-  /keepsakes:
+  /cases/{caseId}/deadlines:
     get:
-      operationId: getKeepsakes
-      tags: [keepsakes]
-      summary: Every small question answered so far
+      operationId: getDeadlines
+      tags: [deadlines]
+      summary: The timeline, soonest first
+      parameters:
+        - $ref: "#/components/parameters/CaseId"
       responses:
         "200":
           description: List
@@ -1760,115 +642,452 @@ paths:
               schema:
                 type: array
                 items:
-                  $ref: "#/components/schemas/Keepsake"
+                  $ref: "#/components/schemas/CaseDeadline"
     post:
-      operationId: createKeepsake
-      tags: [keepsakes]
-      summary: Answer one
+      operationId: createDeadline
+      tags: [deadlines]
+      summary: Add something due, or an event
+      parameters:
+        - $ref: "#/components/parameters/CaseId"
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              $ref: "#/components/schemas/KeepsakeInput"
+              $ref: "#/components/schemas/DeadlineInput"
       responses:
         "201":
           description: Created
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/Keepsake"
+                $ref: "#/components/schemas/CaseDeadline"
 
-  /keepsakes/{id}:
+  /deadlines/{deadlineId}:
     put:
-      operationId: updateKeepsake
-      tags: [keepsakes]
-      summary: Change an answer
+      operationId: updateDeadline
+      tags: [deadlines]
+      summary: Edit, complete or reopen
       parameters:
-        - name: id
-          in: path
-          required: true
-          schema:
-            type: integer
+        - $ref: "#/components/parameters/DeadlineId"
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              $ref: "#/components/schemas/KeepsakeUpdate"
+              $ref: "#/components/schemas/DeadlineUpdate"
       responses:
         "200":
           description: Updated
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/Keepsake"
+                $ref: "#/components/schemas/CaseDeadline"
     delete:
-      operationId: deleteKeepsake
-      tags: [keepsakes]
-      summary: Remove an answer
+      operationId: deleteDeadline
+      tags: [deadlines]
+      summary: Remove a timeline entry
       parameters:
-        - name: id
-          in: path
-          required: true
-          schema:
-            type: integer
+        - $ref: "#/components/parameters/DeadlineId"
       responses:
         "204":
-          description: Removed
+          description: Deleted
 
-  /resurface:
+  /cases/{caseId}/aftercare:
     get:
-      operationId: getResurfaced
-      tags: [keepsakes]
-      summary: >-
-        One thing the person wrote, drawn only from safe places. Never returned
-        unless asked for - this endpoint is the door, and opening it is the ask.
+      operationId: getAftercare
+      tags: [aftercare]
+      summary: Who is enrolled, and what has gone out
+      parameters:
+        - $ref: "#/components/parameters/CaseId"
       responses:
         "200":
-          description: Something they wrote, or nothing yet
+          description: List
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/Resurfaced"
+                type: array
+                items:
+                  $ref: "#/components/schemas/AftercareEnrollment"
 
-  /treasures:
+  /uploads:
     post:
-      operationId: setTreasure
-      tags: [keepsakes]
-      summary: Mark or unmark something as one to see again
+      operationId: uploadFile
+      tags: [uploads]
+      summary: Store bytes (the home's logo, or a staff-added photograph)
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              $ref: "#/components/schemas/UploadInput"
+      responses:
+        "201":
+          description: Stored
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UploadSummary"
+
+  /uploads/{uploadId}:
+    get:
+      operationId: getUpload
+      tags: [uploads]
+      summary: Serve stored bytes
+      parameters:
+        - $ref: "#/components/parameters/UploadId"
+      responses:
+        "200":
+          description: The file
+          content:
+            application/octet-stream:
+              schema:
+                type: string
+                format: binary
+
+  # ---------------------------------------------------------------- family --
+  #
+  # Everything below is reached with the link token, not a session. None of
+  # these paths carry a case id: the token names exactly one case, and a
+  # family member has no other case they could be asking for. That is what
+  # makes the whole surface safe to expose to an unauthenticated stranger
+  # holding a forwarded text message.
+
+  /family/session:
+    get:
+      operationId: getFamilySession
+      tags: [family]
+      summary: Who this link belongs to, and everything needed to draw the portal
+      description: |
+        The first call the portal makes. Returns the home (for branding and
+        the urgent number), the person who died, the service details, what is
+        outstanding, and the contact the link identifies. A revoked, expired
+        or unknown token is a 401 here and the portal shows the "ask the home
+        for a new link" screen.
+      responses:
+        "200":
+          description: The session
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FamilySession"
+
+  /family/photos:
+    get:
+      operationId: getFamilyPhotos
+      tags: [family]
+      summary: The photographs uploaded so far
+      responses:
+        "200":
+          description: List
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/CasePhoto"
+    post:
+      operationId: uploadFamilyPhoto
+      tags: [family]
+      summary: Add a photograph to the bin
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              $ref: "#/components/schemas/FamilyPhotoUploadInput"
+      responses:
+        "201":
+          description: Stored
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CasePhoto"
+
+  /family/photos/{photoId}:
+    patch:
+      operationId: updateFamilyPhoto
+      tags: [family]
+      summary: Caption a photograph, or set its portrait crop
+      parameters:
+        - $ref: "#/components/parameters/PhotoId"
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              $ref: "#/components/schemas/TreasureInput"
+              $ref: "#/components/schemas/FamilyPhotoUpdate"
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CasePhoto"
+    delete:
+      operationId: deleteFamilyPhoto
+      tags: [family]
+      summary: Remove a photograph this family uploaded
+      parameters:
+        - $ref: "#/components/parameters/PhotoId"
       responses:
         "204":
-          description: Set
+          description: Deleted
 
-  /guides/search:
-    post:
-      operationId: searchGuides
-      tags: [guides]
-      summary: >-
-        Find the chapters that answer a question. Returns chapter ids only,
-        never generated prose.
+  /family/portrait:
+    put:
+      operationId: setFamilyPortrait
+      tags: [family]
+      summary: Choose the main portrait
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              $ref: "#/components/schemas/GuideSearchInput"
+              $ref: "#/components/schemas/PortraitInput"
       responses:
         "200":
-          description: Matching chapters
+          description: The chosen photograph
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/GuideSearchResult"
+                $ref: "#/components/schemas/CasePhoto"
+
+  /family/obituary:
+    get:
+      operationId: getFamilyObituary
+      tags: [family]
+      summary: The obituary form as the family left it
+      responses:
+        "200":
+          description: The draft
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ObituaryDraft"
+    put:
+      operationId: updateFamilyObituary
+      tags: [family]
+      summary: Save the obituary fields
+      description: |
+        Refused once the director has approved the obituary for print, so that
+        a well-meaning relative cannot change the text after it has gone to
+        the printer.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ObituaryFieldsInput"
+      responses:
+        "200":
+          description: Saved
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ObituaryDraft"
+
+  /family/obituary/submit:
+    post:
+      operationId: submitFamilyObituary
+      tags: [family]
+      summary: Hand the obituary to the director
+      responses:
+        "200":
+          description: Submitted
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ObituaryDraft"
+
+  /family/selections:
+    get:
+      operationId: getFamilySelections
+      tags: [family]
+      summary: Hymns, readings and pallbearers chosen so far
+      responses:
+        "200":
+          description: List
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/ServiceSelection"
+    post:
+      operationId: createFamilySelection
+      tags: [family]
+      summary: Add a hymn, reading, or pallbearer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SelectionInput"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ServiceSelection"
+
+  /family/selections/{selectionId}:
+    delete:
+      operationId: deleteFamilySelection
+      tags: [family]
+      summary: Remove a selection the director has not confirmed
+      parameters:
+        - $ref: "#/components/parameters/SelectionId"
+      responses:
+        "204":
+          description: Deleted
+
+  /family/messages:
+    get:
+      operationId: getFamilyMessages
+      tags: [family]
+      summary: The thread with the funeral home
+      responses:
+        "200":
+          description: The thread
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MessageThread"
+    post:
+      operationId: postFamilyMessage
+      tags: [family]
+      summary: Ask the director something
+      description: |
+        Always delivered, whatever the hour. When it is sent outside the
+        home's office hours the response says so, so the portal can tell the
+        family plainly when it will be read and offer the 24-hour line - which
+        is a truthful thing to say, unlike holding the message back.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/MessageInput"
+      responses:
+        "201":
+          description: Sent
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CaseMessage"
+
+  /family/deadlines:
+    get:
+      operationId: getFamilyDeadlines
+      tags: [family]
+      summary: What is due, and when the service is
+      responses:
+        "200":
+          description: List
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/CaseDeadline"
+
+  /family/deadlines/{deadlineId}:
+    post:
+      operationId: completeFamilyDeadline
+      tags: [family]
+      summary: Mark something done, or undo that
+      parameters:
+        - $ref: "#/components/parameters/DeadlineId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CompleteDeadlineInput"
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CaseDeadline"
+
+  /family/aftercare:
+    post:
+      operationId: setFamilyAftercareConsent
+      tags: [family]
+      summary: Accept or decline the grief check-ins
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AftercareConsentInput"
+      responses:
+        "200":
+          description: Recorded
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AftercareEnrollment"
+
+  /family/uploads/{uploadId}:
+    get:
+      operationId: getFamilyUpload
+      tags: [family]
+      summary: Serve a photograph on this case, or the home's logo
+      parameters:
+        - $ref: "#/components/parameters/UploadId"
+      responses:
+        "200":
+          description: The file
+          content:
+            application/octet-stream:
+              schema:
+                type: string
+                format: binary
 
 components:
+  parameters:
+    CaseId:
+      name: caseId
+      in: path
+      required: true
+      schema:
+        type: integer
+    ContactId:
+      name: contactId
+      in: path
+      required: true
+      schema:
+        type: integer
+    PhotoId:
+      name: photoId
+      in: path
+      required: true
+      schema:
+        type: integer
+    SelectionId:
+      name: selectionId
+      in: path
+      required: true
+      schema:
+        type: integer
+    DeadlineId:
+      name: deadlineId
+      in: path
+      required: true
+      schema:
+        type: integer
+    UploadId:
+      name: uploadId
+      in: path
+      required: true
+      schema:
+        type: integer
+
   schemas:
     HealthStatus:
       type: object
@@ -1877,662 +1096,14 @@ components:
           type: string
       required: [status]
 
-    Profile:
-      type: object
-      properties:
-        relationships:
-          type: array
-          nullable: true
-          items:
-            type: string
-        id:
-          type: integer
-        childName:
-          type: string
-        childBirthDate:
-          type: string
-          nullable: true
-        childPassingDate:
-          type: string
-          nullable: true
-        childAge:
-          type: string
-          nullable: true
-        parentName:
-          type: string
-          nullable: true
-        causeOfDeath:
-          type: string
-          nullable: true
-        favoriteColor:
-          type: string
-          nullable: true
-        favoriteFood:
-          type: string
-          nullable: true
-        favoriteAnimal:
-          type: string
-          nullable: true
-        hobbies:
-          type: string
-          nullable: true
-        personality:
-          type: string
-          nullable: true
-        howTheySmelled:
-          type: string
-          nullable: true
-        whatDroveYouCrazy:
-          type: string
-          nullable: true
-        lastHugDate:
-          type: string
-          nullable: true
-        lastWords:
-          type: string
-          nullable: true
-        lastFight:
-          type: string
-          nullable: true
-        photoUrl:
-          type: string
-          nullable: true
-        createdAt:
-          type: string
-        updatedAt:
-          type: string
-      required: [id, childName, createdAt, updatedAt]
-
-    ProfileInput:
-      type: object
-      properties:
-        relationships:
-          type: array
-          nullable: true
-          items:
-            type: string
-            enum: [child, partner, parent, sibling, friend, other]
-        childName:
-          type: string
-        childBirthDate:
-          type: string
-          nullable: true
-        childPassingDate:
-          type: string
-          nullable: true
-        childAge:
-          type: string
-          nullable: true
-        parentName:
-          type: string
-          nullable: true
-        causeOfDeath:
-          type: string
-          nullable: true
-        favoriteColor:
-          type: string
-          nullable: true
-        favoriteFood:
-          type: string
-          nullable: true
-        favoriteAnimal:
-          type: string
-          nullable: true
-        hobbies:
-          type: string
-          nullable: true
-        personality:
-          type: string
-          nullable: true
-        howTheySmelled:
-          type: string
-          nullable: true
-        whatDroveYouCrazy:
-          type: string
-          nullable: true
-        lastHugDate:
-          type: string
-          nullable: true
-        lastWords:
-          type: string
-          nullable: true
-        lastFight:
-          type: string
-          nullable: true
-        photoUrl:
-          type: string
-          nullable: true
-      required: [childName]
-
-    Memory:
-      type: object
-      properties:
-        isStarred:
-          type: boolean
-        id:
-          type: integer
-        title:
-          type: string
-        description:
-          type: string
-          nullable: true
-        imageUrl:
-          type: string
-          nullable: true
-        category:
-          type: string
-          nullable: true
-        dateTaken:
-          type: string
-          nullable: true
-        tags:
-          type: string
-          nullable: true
-        isAiGenerated:
-          type: boolean
-        createdAt:
-          type: string
-      required: [id, title, isAiGenerated, createdAt]
-
-    MemoryInput:
-      type: object
-      properties:
-        title:
-          type: string
-        description:
-          type: string
-          nullable: true
-        imageUrl:
-          type: string
-          nullable: true
-        category:
-          type: string
-          nullable: true
-        dateTaken:
-          type: string
-          nullable: true
-        tags:
-          type: string
-          nullable: true
-        isAiGenerated:
-          type: boolean
-      required: [title]
-
-    JournalEntry:
-      type: object
-      properties:
-        id:
-          type: integer
-        title:
-          type: string
-        content:
-          type: string
-        mood:
-          type: string
-          nullable: true
-        entryDate:
-          type: string
-        createdAt:
-          type: string
-        updatedAt:
-          type: string
-      required: [id, title, content, entryDate, createdAt, updatedAt]
-
-    JournalEntryInput:
-      type: object
-      properties:
-        title:
-          type: string
-        content:
-          type: string
-        mood:
-          type: string
-          nullable: true
-        entryDate:
-          type: string
-      required: [title, content, entryDate]
-
-    Letter:
-      type: object
-      properties:
-        id:
-          type: integer
-        title:
-          type: string
-        content:
-          type: string
-        direction:
-          type: string
-          enum: [to_child, from_child, received]
-        author:
-          type: string
-          nullable: true
-        letterDate:
-          type: string
-          nullable: true
-        createdAt:
-          type: string
-        updatedAt:
-          type: string
-      required: [id, title, content, direction, createdAt, updatedAt]
-
-    LetterInput:
-      type: object
-      properties:
-        title:
-          type: string
-        content:
-          type: string
-        direction:
-          type: string
-          enum: [to_child, from_child, received]
-        author:
-          type: string
-          nullable: true
-        letterDate:
-          type: string
-          nullable: true
-      required: [title, content, direction]
-
-    CreativeWork:
-      type: object
-      properties:
-        id:
-          type: integer
-        title:
-          type: string
-        content:
-          type: string
-        type:
-          type: string
-          enum: [poem, song, art, other]
-        mediaUrl:
-          type: string
-          nullable: true
-        createdAt:
-          type: string
-        updatedAt:
-          type: string
-      required: [id, title, content, type, createdAt, updatedAt]
-
-    CreativeWorkInput:
-      type: object
-      properties:
-        title:
-          type: string
-        content:
-          type: string
-        type:
-          type: string
-          enum: [poem, song, art, other]
-        mediaUrl:
-          type: string
-          nullable: true
-      required: [title, content, type]
-
-    Document:
-      type: object
-      properties:
-        id:
-          type: integer
-        title:
-          type: string
-        content:
-          type: string
-          nullable: true
-        category:
-          type: string
-          enum: [medical, legal, financial, funeral, passwords, autopsy, other]
-        fileUrl:
-          type: string
-          nullable: true
-        notes:
-          type: string
-          nullable: true
-        documentDate:
-          type: string
-          nullable: true
-        isPrivate:
-          type: boolean
-        contentHidden:
-          type: boolean
-          description: >-
-            True when this document is marked private and its content and
-            notes were withheld from a list response. Fetch the document by
-            id to read them.
-        contentUnreadable:
-          type: boolean
-          description: >-
-            True when this document's stored content could not be decrypted.
-            The record is shown rather than hidden, so the loss is visible
-            instead of silent.
-        createdAt:
-          type: string
-        updatedAt:
-          type: string
-      required: [id, title, category, isPrivate, createdAt, updatedAt]
-
-    DocumentInput:
-      type: object
-      properties:
-        title:
-          type: string
-        content:
-          type: string
-          nullable: true
-        category:
-          type: string
-          enum: [medical, legal, financial, funeral, passwords, autopsy, other]
-        fileUrl:
-          type: string
-          nullable: true
-        notes:
-          type: string
-          nullable: true
-        documentDate:
-          type: string
-          nullable: true
-        isPrivate:
-          type: boolean
-      required: [title, category]
-
-    QuoteSong:
-      type: object
-      properties:
-        isStarred:
-          type: boolean
-        id:
-          type: integer
-        text:
-          type: string
-        author:
-          type: string
-          nullable: true
-        type:
-          type: string
-          enum: [quote, song]
-        source:
-          type: string
-          nullable: true
-        isFavoriteOfChild:
-          type: boolean
-        createdAt:
-          type: string
-      required: [id, text, type, isFavoriteOfChild, createdAt]
-
-    QuoteSongInput:
-      type: object
-      properties:
-        text:
-          type: string
-        author:
-          type: string
-          nullable: true
-        type:
-          type: string
-          enum: [quote, song]
-        source:
-          type: string
-          nullable: true
-        isFavoriteOfChild:
-          type: boolean
-      required: [text, type]
-
-    Tribute:
-      type: object
-      properties:
-        id:
-          type: integer
-        obituary:
-          type: string
-          nullable: true
-        eulogy:
-          type: string
-          nullable: true
-        funeralDetails:
-          type: string
-          nullable: true
-        memorialDetails:
-          type: string
-          nullable: true
-        speechNotes:
-          type: string
-          nullable: true
-        burialLocation:
-          type: string
-          nullable: true
-        funeralHome:
-          type: string
-          nullable: true
-        funeralDate:
-          type: string
-          nullable: true
-        funeralCost:
-          type: string
-          nullable: true
-        createdAt:
-          type: string
-        updatedAt:
-          type: string
-      required: [id, createdAt, updatedAt]
-
-    TributeInput:
-      type: object
-      properties:
-        obituary:
-          type: string
-          nullable: true
-        eulogy:
-          type: string
-          nullable: true
-        funeralDetails:
-          type: string
-          nullable: true
-        memorialDetails:
-          type: string
-          nullable: true
-        speechNotes:
-          type: string
-          nullable: true
-        burialLocation:
-          type: string
-          nullable: true
-        funeralHome:
-          type: string
-          nullable: true
-        funeralDate:
-          type: string
-          nullable: true
-        funeralCost:
-          type: string
-          nullable: true
-
-    Todo:
-      type: object
-      properties:
-        id:
-          type: integer
-        text:
-          type: string
-        completed:
-          type: boolean
-        category:
-          type: string
-          nullable: true
-        dueDate:
-          type: string
-          nullable: true
-        createdAt:
-          type: string
-      required: [id, text, completed, createdAt]
-
-    TodoInput:
-      type: object
-      properties:
-        text:
-          type: string
-        completed:
-          type: boolean
-        category:
-          type: string
-          nullable: true
-        dueDate:
-          type: string
-          nullable: true
-      required: [text]
-
-    Affirmation:
-      type: object
-      properties:
-        id:
-          type: integer
-        text:
-          type: string
-        author:
-          type: string
-          nullable: true
-        isFavorite:
-          type: boolean
-        createdAt:
-          type: string
-      required: [id, text, isFavorite, createdAt]
-
-    AffirmationInput:
-      type: object
-      properties:
-        text:
-          type: string
-        author:
-          type: string
-          nullable: true
-        isFavorite:
-          type: boolean
-      required: [text]
-
-    Milestone:
-      type: object
-      properties:
-        id:
-          type: integer
-        title:
-          type: string
-        description:
-          type: string
-          nullable: true
-        milestoneDate:
-          type: string
-        type:
-          type: string
-          enum: [birthday, deathday, anniversary, holiday, graduation, sibling, achievement, memory, healing, other]
-        isChildMilestone:
-          type: boolean
-        recurring:
-          type: boolean
-        noticeDays:
-          type: integer
-          nullable: true
-        createdAt:
-          type: string
-      required: [id, title, milestoneDate, type, isChildMilestone, recurring, createdAt]
-
-    MilestoneInput:
-      type: object
-      properties:
-        title:
-          type: string
-        description:
-          type: string
-          nullable: true
-        milestoneDate:
-          type: string
-        type:
-          type: string
-          enum: [birthday, deathday, anniversary, holiday, graduation, sibling, achievement, memory, healing, other]
-        isChildMilestone:
-          type: boolean
-        recurring:
-          type: boolean
-        noticeDays:
-          type: integer
-          nullable: true
-      required: [title, milestoneDate, type]
-
-    Story:
-      type: object
-      properties:
-        id:
-          type: integer
-        authorName:
-          type: string
-        relationship:
-          type: string
-          nullable: true
-        content:
-          type: string
-        title:
-          type: string
-          nullable: true
-        imageUrl:
-          type: string
-          nullable: true
-        createdAt:
-          type: string
-      required: [id, authorName, content, createdAt]
-
-    StoryInput:
-      type: object
-      properties:
-        authorName:
-          type: string
-        relationship:
-          type: string
-          nullable: true
-        content:
-          type: string
-        title:
-          type: string
-          nullable: true
-        imageUrl:
-          type: string
-          nullable: true
-      required: [authorName, content]
-
-    AuthUser:
-      type: object
-      properties:
-        id:
-          type: integer
-        email:
-          type: string
-        displayName:
-          type: string
-          nullable: true
-        emailVerified:
-          type: boolean
-        hasPassword:
-          type: boolean
-          description: >-
-            False for an account that only signs in with Google. The account
-            page offers to set a password rather than to change one.
-        hasGoogle:
-          type: boolean
-        screenName:
-          type: string
-          nullable: true
-          description: >-
-            How this account appears in the shared room, and nowhere else.
-            Null until they first post, when one is assigned.
-        isModerator:
-          type: boolean
-        resurfacingEnabled:
-          type: boolean
-        createdAt:
-          type: string
-      required: [id, email, emailVerified, hasPassword, hasGoogle, isModerator, resurfacingEnabled, createdAt]
+    # ---------------------------------------------------------------- auth --
 
     RegisterInput:
       type: object
       properties:
+        homeName:
+          type: string
+          minLength: 1
         email:
           type: string
           format: email
@@ -2542,7 +1113,7 @@ components:
         displayName:
           type: string
           nullable: true
-      required: [email, password]
+      required: [homeName, email, password]
 
     LoginInput:
       type: object
@@ -2553,47 +1124,6 @@ components:
         password:
           type: string
       required: [email, password]
-
-    ChangePasswordInput:
-      type: object
-      properties:
-        currentPassword:
-          type: string
-          description: >-
-            Required when the account already has a password. Omitted when a
-            Google account is setting one for the first time.
-        newPassword:
-          type: string
-          minLength: 10
-      required: [newPassword]
-
-    DeleteAccountInput:
-      type: object
-      properties:
-        password:
-          type: string
-          description: Required when the account has a password.
-        confirmEmail:
-          type: string
-          description: >-
-            For an account with no password, the account's own email address,
-            typed out. Deleting is irreversible, so it always takes a
-            deliberate act rather than a single click.
-      required: []
-
-    AuthMethods:
-      type: object
-      properties:
-        google:
-          type: boolean
-          description: True when Google sign-in is configured on the server.
-        passwordReset:
-          type: boolean
-          description: >-
-            True when email is configured, so a reset link can actually be
-            delivered. When false the app says so rather than pretending to
-            send one.
-      required: [google, passwordReset]
 
     ForgotPasswordInput:
       type: object
@@ -2608,511 +1138,418 @@ components:
       properties:
         token:
           type: string
-        newPassword:
+        password:
           type: string
           minLength: 10
-      required: [token, newPassword]
+      required: [token, password]
 
-    Sign:
+    StaffMember:
       type: object
       properties:
         id:
           type: integer
-        what:
+        email:
           type: string
-        story:
-          type: string
-          nullable: true
-        kind:
-          type: string
-          enum: [cardinal, feather, number, song, dream, butterfly, scent, other]
-        signDate:
+        displayName:
           type: string
           nullable: true
-        location:
+        title:
           type: string
           nullable: true
-        isSignificant:
-          type: boolean
-        createdAt:
+        role:
           type: string
-      required: [id, what, kind, isSignificant, createdAt]
+          enum: [owner, director, staff]
+        deactivatedAt:
+          type: string
+          format: date-time
+          nullable: true
+      required: [id, email, displayName, title, role, deactivatedAt]
 
-    SignInput:
+    AuthUser:
       type: object
       properties:
-        what:
-          type: string
-        story:
-          type: string
-          nullable: true
-        kind:
-          type: string
-          enum: [cardinal, feather, number, song, dream, butterfly, scent, other]
-        signDate:
-          type: string
-          nullable: true
-        location:
-          type: string
-          nullable: true
-        isSignificant:
-          type: boolean
-      required: [what]
+        user:
+          $ref: "#/components/schemas/StaffMember"
+        home:
+          $ref: "#/components/schemas/FuneralHome"
+      required: [user, home]
 
-    Belonging:
-      type: object
-      properties:
-        id:
-          type: integer
-        item:
-          type: string
-        status:
-          type: string
-          enum: [kept, promised, given, requested]
-        person:
-          type: string
-          nullable: true
-        relationship:
-          type: string
-          nullable: true
-        givenDate:
-          type: string
-          nullable: true
-        notes:
-          type: string
-          nullable: true
-        createdAt:
-          type: string
-      required: [id, item, status, createdAt]
+    # ---------------------------------------------------------------- home --
 
-    BelongingInput:
-      type: object
-      properties:
-        item:
-          type: string
-        status:
-          type: string
-          enum: [kept, promised, given, requested]
-        person:
-          type: string
-          nullable: true
-        relationship:
-          type: string
-          nullable: true
-        givenDate:
-          type: string
-          nullable: true
-        notes:
-          type: string
-          nullable: true
-      required: [item]
-
-    Gift:
-      type: object
-      properties:
-        id:
-          type: integer
-        fromName:
-          type: string
-        kind:
-          type: string
-          enum: [flowers, food, money, card, donation, gift, help, other]
-        description:
-          type: string
-          nullable: true
-        receivedDate:
-          type: string
-          nullable: true
-        thanked:
-          type: boolean
-        address:
-          type: string
-          nullable: true
-        notes:
-          type: string
-          nullable: true
-        createdAt:
-          type: string
-      required: [id, fromName, kind, thanked, createdAt]
-
-    GiftInput:
-      type: object
-      properties:
-        fromName:
-          type: string
-        kind:
-          type: string
-          enum: [flowers, food, money, card, donation, gift, help, other]
-        description:
-          type: string
-          nullable: true
-        receivedDate:
-          type: string
-          nullable: true
-        thanked:
-          type: boolean
-        address:
-          type: string
-          nullable: true
-        notes:
-          type: string
-          nullable: true
-      required: [fromName]
-
-    Contact:
+    FuneralHome:
       type: object
       properties:
         id:
           type: integer
         name:
           type: string
-        category:
+        slug:
           type: string
-          enum: [family, friend, school, work, medical, official, other]
-        relationship:
-          type: string
+        logoUploadId:
+          type: integer
           nullable: true
+        accentColor:
+          type: string
         phone:
           type: string
           nullable: true
-        email:
+        urgentPhone:
           type: string
           nullable: true
-        told:
+        addressLine1:
+          type: string
+          nullable: true
+        addressLine2:
+          type: string
+          nullable: true
+        city:
+          type: string
+          nullable: true
+        region:
+          type: string
+          nullable: true
+        postalCode:
+          type: string
+          nullable: true
+        officeOpensMinute:
+          type: integer
+        officeClosesMinute:
+          type: integer
+        timezone:
+          type: string
+        aftercareEnabled:
           type: boolean
-        toldDate:
+        aftercareSenderName:
           type: string
           nullable: true
-        toldBy:
+        subscriptionStatus:
           type: string
+          enum: [trial, active, past_due, canceled]
+        trialEndsAt:
+          type: string
+          format: date-time
           nullable: true
-        notes:
-          type: string
-          nullable: true
-        createdAt:
-          type: string
-      required: [id, name, category, told, createdAt]
+      required:
+        [
+          id,
+          name,
+          slug,
+          logoUploadId,
+          accentColor,
+          phone,
+          urgentPhone,
+          officeOpensMinute,
+          officeClosesMinute,
+          timezone,
+          aftercareEnabled,
+          subscriptionStatus,
+        ]
 
-    ContactInput:
+    FuneralHomeUpdate:
       type: object
       properties:
         name:
           type: string
-        category:
+        logoUploadId:
+          type: integer
+          nullable: true
+        accentColor:
           type: string
-          enum: [family, friend, school, work, medical, official, other]
-        relationship:
+        phone:
           type: string
+          nullable: true
+        urgentPhone:
+          type: string
+          nullable: true
+        addressLine1:
+          type: string
+          nullable: true
+        addressLine2:
+          type: string
+          nullable: true
+        city:
+          type: string
+          nullable: true
+        region:
+          type: string
+          nullable: true
+        postalCode:
+          type: string
+          nullable: true
+        officeOpensMinute:
+          type: integer
+          minimum: 0
+          maximum: 1439
+        officeClosesMinute:
+          type: integer
+          minimum: 0
+          maximum: 1439
+        timezone:
+          type: string
+        aftercareEnabled:
+          type: boolean
+        aftercareSenderName:
+          type: string
+          nullable: true
+
+    # ------------------------------------------------------- what a family sees
+
+    PublicFuneralHome:
+      type: object
+      description: The home as a family may see it - branding and how to reach it.
+      properties:
+        name:
+          type: string
+        slug:
+          type: string
+        accentColor:
+          type: string
+        logoUploadId:
+          type: integer
           nullable: true
         phone:
           type: string
           nullable: true
-        email:
+        urgentPhone:
           type: string
           nullable: true
-        told:
-          type: boolean
-        toldDate:
-          type: string
-          nullable: true
-        toldBy:
-          type: string
-          nullable: true
-        notes:
-          type: string
-          nullable: true
-      required: [name]
-
-    Obituary:
-      type: object
-      properties:
-        id:
+        officeOpensMinute:
           type: integer
-        label:
-          type: string
-        fullName:
-          type: string
-          nullable: true
-        nickname:
-          type: string
-          nullable: true
-        bornDate:
-          type: string
-          nullable: true
-        diedDate:
-          type: string
-          nullable: true
-        bornPlace:
-          type: string
-          nullable: true
-        diedPlace:
-          type: string
-          nullable: true
-        causeOfDeath:
-          type: string
-          nullable: true
-        survivedBy:
-          type: string
-          nullable: true
-        precededBy:
-          type: string
-          nullable: true
-        lifeDetails:
-          type: string
-          nullable: true
-        personality:
-          type: string
-          nullable: true
-        hobbies:
-          type: string
-          nullable: true
-        serviceDetails:
-          type: string
-          nullable: true
-        donations:
-          type: string
-          nullable: true
-        additional:
-          type: string
-          nullable: true
-        finalText:
-          type: string
-          nullable: true
-        createdAt:
-          type: string
-      required: [id, label, createdAt]
-
-    ObituaryInput:
-      type: object
-      properties:
-        label:
-          type: string
-        fullName:
-          type: string
-          nullable: true
-        nickname:
-          type: string
-          nullable: true
-        bornDate:
-          type: string
-          nullable: true
-        diedDate:
-          type: string
-          nullable: true
-        bornPlace:
-          type: string
-          nullable: true
-        diedPlace:
-          type: string
-          nullable: true
-        causeOfDeath:
-          type: string
-          nullable: true
-        survivedBy:
-          type: string
-          nullable: true
-        precededBy:
-          type: string
-          nullable: true
-        lifeDetails:
-          type: string
-          nullable: true
-        personality:
-          type: string
-          nullable: true
-        hobbies:
-          type: string
-          nullable: true
-        serviceDetails:
-          type: string
-          nullable: true
-        donations:
-          type: string
-          nullable: true
-        additional:
-          type: string
-          nullable: true
-        finalText:
-          type: string
-          nullable: true
-      required: [label]
-
-    MemorialChoice:
-      type: object
-      properties:
-        id:
+        officeClosesMinute:
           type: integer
-        category:
+        timezone:
           type: string
-          enum: [venue, song, poem, reading, speaker, headstone, grave, casket, flowers, jewelry, transport, program, food, other]
+      required:
+        [
+          name,
+          slug,
+          accentColor,
+          logoUploadId,
+          phone,
+          urgentPhone,
+          officeOpensMinute,
+          officeClosesMinute,
+          timezone,
+        ]
+
+    StaffSignature:
+      type: object
+      description: A staff member as a family sees them - a name and a title.
+      properties:
+        displayName:
+          type: string
+          nullable: true
         title:
           type: string
-        details:
+          nullable: true
+      required: [displayName, title]
+
+    # --------------------------------------------------------------- cases --
+
+    Case:
+      type: object
+      properties:
+        id:
+          type: integer
+        decedentFirstName:
           type: string
+        decedentLastName:
+          type: string
+        decedentPreferredName:
+          type: string
+          nullable: true
+        displayName:
+          type: string
+        dateOfBirth:
+          type: string
+          format: date-time
+          nullable: true
+        dateOfDeath:
+          type: string
+          format: date-time
+          nullable: true
+        portraitPhotoId:
+          type: integer
+          nullable: true
+        serviceAt:
+          type: string
+          format: date-time
+          nullable: true
+        serviceLocation:
+          type: string
+          nullable: true
+        serviceNotes:
+          type: string
+          nullable: true
+        leadDirectorId:
+          type: integer
           nullable: true
         status:
           type: string
-          enum: [undecided, chosen, declined, done]
-        estimatedCost:
-          type: integer
+          enum: [intake, active, closed]
+        closedAt:
+          type: string
+          format: date-time
           nullable: true
-        assignedTo:
+        messagesLockAt:
           type: string
-          nullable: true
-        isPinned:
-          type: boolean
-        createdAt:
-          type: string
-      required: [id, category, title, status, createdAt]
-
-    MemorialChoiceInput:
-      type: object
-      properties:
-        category:
-          type: string
-          enum: [venue, song, poem, reading, speaker, headstone, grave, casket, flowers, jewelry, transport, program, food, other]
-        title:
-          type: string
-        details:
-          type: string
-          nullable: true
-        status:
-          type: string
-          enum: [undecided, chosen, declined, done]
-        estimatedCost:
-          type: integer
-          nullable: true
-        assignedTo:
-          type: string
-          nullable: true
-        isPinned:
-          type: boolean
-      required: [category, title]
-
-    Share:
-      type: object
-      properties:
-        id:
-          type: integer
-        kind:
-          type: string
-          enum: [memory]
-        resourceId:
-          type: integer
-        label:
-          type: string
+          format: date-time
           nullable: true
         createdAt:
           type: string
-      required: [id, kind, resourceId, createdAt]
+          format: date-time
+      required:
+        [
+          id,
+          decedentFirstName,
+          decedentLastName,
+          decedentPreferredName,
+          displayName,
+          dateOfBirth,
+          dateOfDeath,
+          portraitPhotoId,
+          serviceAt,
+          serviceLocation,
+          serviceNotes,
+          leadDirectorId,
+          status,
+          closedAt,
+          messagesLockAt,
+          createdAt,
+        ]
 
-    ShareInput:
-      type: object
-      properties:
-        kind:
-          type: string
-          enum: [memory]
-        resourceId:
-          type: integer
-        label:
-          type: string
-          nullable: true
-      required: [kind, resourceId]
-
-    CreatedShare:
+    CaseSummary:
+      description: |
+        A case as it appears in the director's list. The counts are what turn
+        the list into a worklist: they answer "which family is behind" without
+        opening anything.
       allOf:
-        - $ref: "#/components/schemas/Share"
+        - $ref: "#/components/schemas/Case"
         - type: object
           properties:
-            token:
+            photoCount:
+              type: integer
+            unreadFamilyMessages:
+              type: integer
+            outstandingDeadlines:
+              type: integer
+            obituaryStatus:
               type: string
-            url:
+              enum: [family_draft, submitted, approved]
+            nextOfKinName:
               type: string
-          required: [token, url]
+              nullable: true
+          required:
+            [
+              photoCount,
+              unreadFamilyMessages,
+              outstandingDeadlines,
+              obituaryStatus,
+              nextOfKinName,
+            ]
 
-    SharedItem:
+    CaseDetail:
+      allOf:
+        - $ref: "#/components/schemas/CaseSummary"
+        - type: object
+          properties:
+            leadDirector:
+              oneOf:
+                - $ref: "#/components/schemas/StaffSignature"
+                - type: "null"
+            contacts:
+              type: array
+              items:
+                $ref: "#/components/schemas/FamilyContact"
+          required: [leadDirector, contacts]
+
+    CaseInput:
       type: object
       properties:
-        kind:
+        decedentFirstName:
           type: string
-          enum: [memory]
-        title:
+          minLength: 1
+        decedentLastName:
           type: string
-        description:
-          type: string
-          nullable: true
-        dateTaken:
+          minLength: 1
+        decedentPreferredName:
           type: string
           nullable: true
-        imageUrl:
+        dateOfBirth:
+          type: string
+          format: date-time
+          nullable: true
+        dateOfDeath:
+          type: string
+          format: date-time
+          nullable: true
+        serviceAt:
+          type: string
+          format: date-time
+          nullable: true
+        serviceLocation:
           type: string
           nullable: true
-        childName:
-          type: string
+        leadDirectorId:
+          type: integer
           nullable: true
-      required: [kind, title]
+      required: [decedentFirstName, decedentLastName]
 
-    BelongingUpdate:
-      description: >-
-        Every field optional: an update carries only what changed, which is
-        what the server validates against.
+    CaseUpdate:
       type: object
       properties:
-        item:
+        decedentFirstName:
           type: string
+          minLength: 1
+        decedentLastName:
+          type: string
+          minLength: 1
+        decedentPreferredName:
+          type: string
+          nullable: true
+        dateOfBirth:
+          type: string
+          format: date-time
+          nullable: true
+        dateOfDeath:
+          type: string
+          format: date-time
+          nullable: true
+        portraitPhotoId:
+          type: integer
+          nullable: true
+        serviceAt:
+          type: string
+          format: date-time
+          nullable: true
+        serviceLocation:
+          type: string
+          nullable: true
+        serviceNotes:
+          type: string
+          nullable: true
+        leadDirectorId:
+          type: integer
+          nullable: true
         status:
           type: string
-          enum: [kept, promised, given, requested]
-        person:
+          enum: [intake, active, closed]
+        messagesLockAt:
           type: string
-          nullable: true
-        relationship:
-          type: string
-          nullable: true
-        givenDate:
-          type: string
-          nullable: true
-        notes:
-          type: string
+          format: date-time
           nullable: true
 
-    GiftUpdate:
-      description: >-
-        Every field optional: an update carries only what changed, which is
-        what the server validates against.
-      type: object
-      properties:
-        fromName:
-          type: string
-        kind:
-          type: string
-          enum: [flowers, food, money, card, donation, gift, help, other]
-        description:
-          type: string
-          nullable: true
-        receivedDate:
-          type: string
-          nullable: true
-        thanked:
-          type: boolean
-        address:
-          type: string
-          nullable: true
-        notes:
-          type: string
-          nullable: true
+    # ------------------------------------------------------------ contacts --
 
-    ContactUpdate:
-      description: >-
-        Every field optional: an update carries only what changed, which is
-        what the server validates against.
+    FamilyContact:
       type: object
       properties:
+        id:
+          type: integer
+        caseId:
+          type: integer
         name:
           type: string
-        category:
-          type: string
-          enum: [family, friend, school, work, medical, official, other]
         relationship:
           type: string
           nullable: true
@@ -3122,533 +1559,779 @@ components:
         email:
           type: string
           nullable: true
-        told:
+        role:
+          type: string
+          enum: [next_of_kin, contributor]
+        canInvite:
           type: boolean
-        toldDate:
+        expiresAt:
+          type: string
+          format: date-time
+        revokedAt:
+          type: string
+          format: date-time
+          nullable: true
+        firstSeenAt:
+          type: string
+          format: date-time
+          nullable: true
+        lastSeenAt:
+          type: string
+          format: date-time
+          nullable: true
+        createdAt:
+          type: string
+          format: date-time
+      required:
+        [
+          id,
+          caseId,
+          name,
+          relationship,
+          phone,
+          email,
+          role,
+          canInvite,
+          expiresAt,
+          revokedAt,
+          firstSeenAt,
+          lastSeenAt,
+          createdAt,
+        ]
+
+    FamilyContactWithLink:
+      description: |
+        Returned only at the moment a link is minted. `link` is the working
+        URL to paste into a text message and is never retrievable again -
+        only its digest is stored.
+      allOf:
+        - $ref: "#/components/schemas/FamilyContact"
+        - type: object
+          properties:
+            link:
+              type: string
+          required: [link]
+
+    FamilyContactInput:
+      type: object
+      properties:
+        name:
+          type: string
+          minLength: 1
+        relationship:
           type: string
           nullable: true
-        toldBy:
+        phone:
           type: string
           nullable: true
-        notes:
+        email:
+          type: string
+          nullable: true
+        role:
+          type: string
+          enum: [next_of_kin, contributor]
+        canInvite:
+          type: boolean
+      required: [name]
+
+    FamilyContactUpdate:
+      type: object
+      properties:
+        name:
+          type: string
+          minLength: 1
+        relationship:
+          type: string
+          nullable: true
+        phone:
+          type: string
+          nullable: true
+        email:
+          type: string
+          nullable: true
+        role:
+          type: string
+          enum: [next_of_kin, contributor]
+        canInvite:
+          type: boolean
+
+    # -------------------------------------------------------------- photos --
+
+    CasePhoto:
+      type: object
+      properties:
+        id:
+          type: integer
+        caseId:
+          type: integer
+        uploadId:
+          type: integer
+        uploadedByContactId:
+          type: integer
+          nullable: true
+        uploadedByName:
+          type: string
+          nullable: true
+          description: Who sent it, resolved for display. Null when staff added it.
+        caption:
+          type: string
+          nullable: true
+        cropX:
+          type: number
+          nullable: true
+        cropY:
+          type: number
+          nullable: true
+        cropWidth:
+          type: number
+          nullable: true
+        cropHeight:
+          type: number
+          nullable: true
+        position:
+          type: integer
+        status:
+          type: string
+          enum: [visible, hidden]
+        isPortrait:
+          type: boolean
+        createdAt:
+          type: string
+          format: date-time
+      required:
+        [
+          id,
+          caseId,
+          uploadId,
+          uploadedByContactId,
+          uploadedByName,
+          caption,
+          cropX,
+          cropY,
+          cropWidth,
+          cropHeight,
+          position,
+          status,
+          isPortrait,
+          createdAt,
+        ]
+
+    PhotoUpdate:
+      type: object
+      properties:
+        caption:
+          type: string
+          nullable: true
+        status:
+          type: string
+          enum: [visible, hidden]
+        cropX:
+          type: number
+          minimum: 0
+          maximum: 1
+        cropY:
+          type: number
+          minimum: 0
+          maximum: 1
+        cropWidth:
+          type: number
+          minimum: 0
+          maximum: 1
+        cropHeight:
+          type: number
+          minimum: 0
+          maximum: 1
+
+    FamilyPhotoUpdate:
+      type: object
+      properties:
+        caption:
+          type: string
+          nullable: true
+        cropX:
+          type: number
+          minimum: 0
+          maximum: 1
+        cropY:
+          type: number
+          minimum: 0
+          maximum: 1
+        cropWidth:
+          type: number
+          minimum: 0
+          maximum: 1
+        cropHeight:
+          type: number
+          minimum: 0
+          maximum: 1
+
+    PhotoOrderInput:
+      type: object
+      properties:
+        photoIds:
+          type: array
+          items:
+            type: integer
+      required: [photoIds]
+
+    PortraitInput:
+      type: object
+      properties:
+        photoId:
+          type: integer
+        cropX:
+          type: number
+          minimum: 0
+          maximum: 1
+        cropY:
+          type: number
+          minimum: 0
+          maximum: 1
+        cropWidth:
+          type: number
+          minimum: 0
+          maximum: 1
+        cropHeight:
+          type: number
+          minimum: 0
+          maximum: 1
+      required: [photoId]
+
+    UploadInput:
+      type: object
+      properties:
+        file:
+          type: string
+          format: binary
+      required: [file]
+
+    FamilyPhotoUploadInput:
+      type: object
+      properties:
+        file:
+          type: string
+          format: binary
+        caption:
+          type: string
+      required: [file]
+
+    UploadSummary:
+      type: object
+      properties:
+        id:
+          type: integer
+        filename:
+          type: string
+        mimeType:
+          type: string
+        sizeBytes:
+          type: integer
+        createdAt:
+          type: string
+          format: date-time
+      required: [id, filename, mimeType, sizeBytes, createdAt]
+
+    # ------------------------------------------------------------ obituary --
+
+    ObituaryDraft:
+      type: object
+      properties:
+        id:
+          type: integer
+        caseId:
+          type: integer
+        fullName:
+          type: string
+          nullable: true
+        bornOn:
+          type: string
+          nullable: true
+        birthPlace:
+          type: string
+          nullable: true
+        diedOn:
+          type: string
+          nullable: true
+        deathPlace:
+          type: string
+          nullable: true
+        survivedBy:
+          type: string
+          nullable: true
+        precededBy:
+          type: string
+          nullable: true
+        biography:
+          type: string
+          nullable: true
+        inLieuOfFlowers:
+          type: string
+          nullable: true
+        specialThanks:
+          type: string
+          nullable: true
+        draftText:
+          type: string
+          nullable: true
+        draftEditedByStaff:
+          type: string
+          format: date-time
+          nullable: true
+        status:
+          type: string
+          enum: [family_draft, submitted, approved]
+        submittedAt:
+          type: string
+          format: date-time
+          nullable: true
+        approvedAt:
+          type: string
+          format: date-time
+          nullable: true
+        updatedAt:
+          type: string
+          format: date-time
+      required:
+        [
+          id,
+          caseId,
+          fullName,
+          bornOn,
+          birthPlace,
+          diedOn,
+          deathPlace,
+          survivedBy,
+          precededBy,
+          biography,
+          inLieuOfFlowers,
+          specialThanks,
+          draftText,
+          draftEditedByStaff,
+          status,
+          submittedAt,
+          approvedAt,
+          updatedAt,
+        ]
+
+    ObituaryFieldsInput:
+      type: object
+      properties:
+        fullName:
+          type: string
+          nullable: true
+        bornOn:
+          type: string
+          nullable: true
+        birthPlace:
+          type: string
+          nullable: true
+        diedOn:
+          type: string
+          nullable: true
+        deathPlace:
+          type: string
+          nullable: true
+        survivedBy:
+          type: string
+          nullable: true
+        precededBy:
+          type: string
+          nullable: true
+        biography:
+          type: string
+          nullable: true
+        inLieuOfFlowers:
+          type: string
+          nullable: true
+        specialThanks:
           type: string
           nullable: true
 
     ObituaryUpdate:
-      description: >-
-        Every field optional: an update carries only what changed, which is
-        what the server validates against.
-      type: object
-      properties:
-        label:
-          type: string
-        fullName:
-          type: string
-          nullable: true
-        nickname:
-          type: string
-          nullable: true
-        bornDate:
-          type: string
-          nullable: true
-        diedDate:
-          type: string
-          nullable: true
-        bornPlace:
-          type: string
-          nullable: true
-        diedPlace:
-          type: string
-          nullable: true
-        causeOfDeath:
-          type: string
-          nullable: true
-        survivedBy:
-          type: string
-          nullable: true
-        precededBy:
-          type: string
-          nullable: true
-        lifeDetails:
-          type: string
-          nullable: true
-        personality:
-          type: string
-          nullable: true
-        hobbies:
-          type: string
-          nullable: true
-        serviceDetails:
-          type: string
-          nullable: true
-        donations:
-          type: string
-          nullable: true
-        additional:
-          type: string
-          nullable: true
-        finalText:
-          type: string
-          nullable: true
+      allOf:
+        - $ref: "#/components/schemas/ObituaryFieldsInput"
+        - type: object
+          properties:
+            draftText:
+              type: string
+              nullable: true
 
-    MemorialChoiceUpdate:
-      description: >-
-        Every field optional: an update carries only what changed, which is
-        what the server validates against.
+    ComposeObituaryInput:
       type: object
       properties:
-        category:
-          type: string
-          enum: [venue, song, poem, reading, speaker, headstone, grave, casket, flowers, jewelry, transport, program, food, other]
-        title:
-          type: string
-        details:
-          type: string
-          nullable: true
-        status:
-          type: string
-          enum: [undecided, chosen, declined, done]
-        estimatedCost:
-          type: integer
-          nullable: true
-        assignedTo:
-          type: string
-          nullable: true
-        isPinned:
+        force:
           type: boolean
+          description: Recompose even though staff have hand-edited the text.
 
-    CommunityPost:
+    # ---------------------------------------------------------- selections --
+
+    ServiceSelection:
       type: object
       properties:
         id:
           type: integer
-        screenName:
-          type: string
+        caseId:
+          type: integer
         kind:
           type: string
-          enum: [signs, story, advice]
-        title:
+          enum: [hymn, reading, music, pallbearer, eulogist, other]
+        value:
           type: string
-        body:
+        notes:
           type: string
-        commentCount:
+          nullable: true
+        attribution:
+          type: string
+          nullable: true
+        position:
           type: integer
-        isMine:
-          type: boolean
-          description: Whether the signed-in reader wrote it, so they can remove it.
+        confirmedAt:
+          type: string
+          format: date-time
+          nullable: true
         createdAt:
           type: string
-      required: [id, screenName, kind, title, body, commentCount, isMine, createdAt]
+          format: date-time
+      required:
+        [id, caseId, kind, value, notes, attribution, position, confirmedAt, createdAt]
 
-    CommunityPostInput:
+    SelectionInput:
       type: object
       properties:
         kind:
           type: string
-          enum: [signs, story, advice]
-        title:
+          enum: [hymn, reading, music, pallbearer, eulogist, other]
+        value:
           type: string
-        body:
-          type: string
-        screenName:
+          minLength: 1
+        notes:
           type: string
           nullable: true
-          description: >-
-            Leave blank and one is assigned. Only used the first time; after
-            that the account keeps the name it already has.
-      required: [kind, title, body]
+        attribution:
+          type: string
+          nullable: true
+      required: [kind, value]
 
-    CreatedCommunityPost:
-      allOf:
-        - $ref: "#/components/schemas/CommunityPost"
-        - type: object
-          properties:
-            crisisPrompt:
-              type: boolean
-              description: >-
-                True when the post reads like the author may be in danger. The
-                post is published either way; this asks the client to put the
-                crisis numbers in front of them.
-          required: [crisisPrompt]
+    SelectionUpdate:
+      type: object
+      properties:
+        kind:
+          type: string
+          enum: [hymn, reading, music, pallbearer, eulogist, other]
+        value:
+          type: string
+          minLength: 1
+        notes:
+          type: string
+          nullable: true
+        attribution:
+          type: string
+          nullable: true
+        position:
+          type: integer
+        confirmed:
+          type: boolean
 
-    CommunityComment:
+    # ------------------------------------------------------------ messages --
+
+    CaseMessage:
       type: object
       properties:
         id:
           type: integer
-        screenName:
-          type: string
+        caseId:
+          type: integer
         body:
           type: string
-        isMine:
+        authorSide:
+          type: string
+          enum: [home, family]
+          description: |
+            Which side wrote it, derived on the server from which author
+            column is set rather than stored, so the two cannot disagree.
+        authorName:
+          type: string
+          nullable: true
+        authorTitle:
+          type: string
+          nullable: true
+        sentOutsideOfficeHours:
           type: boolean
+        readAt:
+          type: string
+          format: date-time
+          nullable: true
         createdAt:
           type: string
-      required: [id, screenName, body, isMine, createdAt]
+          format: date-time
+      required:
+        [
+          id,
+          caseId,
+          body,
+          authorSide,
+          authorName,
+          authorTitle,
+          sentOutsideOfficeHours,
+          readAt,
+          createdAt,
+        ]
 
-    CreatedCommunityComment:
-      allOf:
-        - $ref: "#/components/schemas/CommunityComment"
-        - type: object
-          properties:
-            crisisPrompt:
-              type: boolean
-          required: [crisisPrompt]
+    MessageThread:
+      type: object
+      description: |
+        The thread plus the state the UI needs to say something honest about
+        it: whether it is locked, and whether a message written now would land
+        outside office hours.
+      properties:
+        messages:
+          type: array
+          items:
+            $ref: "#/components/schemas/CaseMessage"
+        locked:
+          type: boolean
+        lockedAt:
+          type: string
+          format: date-time
+          nullable: true
+        withinOfficeHours:
+          type: boolean
+        officeOpensMinute:
+          type: integer
+        officeClosesMinute:
+          type: integer
+        timezone:
+          type: string
+        urgentPhone:
+          type: string
+          nullable: true
+      required:
+        [
+          messages,
+          locked,
+          lockedAt,
+          withinOfficeHours,
+          officeOpensMinute,
+          officeClosesMinute,
+          timezone,
+          urgentPhone,
+        ]
 
-    CommunityCommentInput:
+    MessageInput:
       type: object
       properties:
         body:
           type: string
+          minLength: 1
       required: [body]
 
-    CommunityPostDetail:
-      allOf:
-        - $ref: "#/components/schemas/CommunityPost"
-        - type: object
-          properties:
-            comments:
-              type: array
-              items:
-                $ref: "#/components/schemas/CommunityComment"
-          required: [comments]
+    # ----------------------------------------------------------- deadlines --
 
-    CommunityReportInput:
-      type: object
-      properties:
-        targetType:
-          type: string
-          enum: [post, comment]
-        targetId:
-          type: integer
-        reason:
-          type: string
-          enum: [cruel, spam, selling, graphic, personal_information, worried_about_them, other]
-        note:
-          type: string
-          nullable: true
-      required: [targetType, targetId, reason]
-
-    CommunityReportEntry:
+    CaseDeadline:
       type: object
       properties:
         id:
           type: integer
-        targetType:
-          type: string
-        targetId:
-          type: integer
-        reason:
-          type: string
-        note:
-          type: string
-          nullable: true
-        createdAt:
-          type: string
-        targetBody:
-          type: string
-          nullable: true
-        targetScreenName:
-          type: string
-          nullable: true
-        targetHidden:
-          type: boolean
-        reportCount:
-          type: integer
-          description: How many separate people have reported this same thing.
-      required: [id, targetType, targetId, reason, createdAt, targetHidden, reportCount]
-
-    HideInput:
-      type: object
-      properties:
-        targetType:
-          type: string
-          enum: [post, comment]
-        targetId:
-          type: integer
-        hidden:
-          type: boolean
-        reason:
-          type: string
-          nullable: true
-      required: [targetType, targetId, hidden]
-
-    ScreenName:
-      type: object
-      properties:
-        screenName:
-          type: string
-      required: [screenName]
-
-    ScreenNameInput:
-      type: object
-      properties:
-        screenName:
-          type: string
-          nullable: true
-          description: Blank asks the server to assign one.
-      required: []
-
-    Album:
-      type: object
-      properties:
-        id:
+        caseId:
           type: integer
         title:
           type: string
         description:
           type: string
           nullable: true
+        dueAt:
+          type: string
+          format: date-time
+        isEvent:
+          type: boolean
+        completedAt:
+          type: string
+          format: date-time
+          nullable: true
+        completedByName:
+          type: string
+          nullable: true
+        position:
+          type: integer
+      required:
+        [id, caseId, title, description, dueAt, isEvent, completedAt, completedByName, position]
+
+    DeadlineInput:
+      type: object
+      properties:
+        title:
+          type: string
+          minLength: 1
+        description:
+          type: string
+          nullable: true
+        dueAt:
+          type: string
+          format: date-time
+        isEvent:
+          type: boolean
+      required: [title, dueAt]
+
+    DeadlineUpdate:
+      type: object
+      properties:
+        title:
+          type: string
+          minLength: 1
+        description:
+          type: string
+          nullable: true
+        dueAt:
+          type: string
+          format: date-time
+        isEvent:
+          type: boolean
+        completed:
+          type: boolean
+        position:
+          type: integer
+
+    CompleteDeadlineInput:
+      type: object
+      properties:
+        completed:
+          type: boolean
+      required: [completed]
+
+    # ----------------------------------------------------------- aftercare --
+
+    AftercareEnrollment:
+      type: object
+      properties:
+        id:
+          type: integer
+        caseId:
+          type: integer
+        contactId:
+          type: integer
+        contactName:
+          type: string
+          nullable: true
+        email:
+          type: string
+          nullable: true
+        phone:
+          type: string
+          nullable: true
+        brandedAs:
+          type: string
+        status:
+          type: string
+          enum: [pending, active, done]
+        startsAt:
+          type: string
+          format: date-time
+        consentedAt:
+          type: string
+          format: date-time
+          nullable: true
+        unsubscribedAt:
+          type: string
+          format: date-time
+          nullable: true
+        deliveries:
+          type: array
+          items:
+            $ref: "#/components/schemas/AftercareDelivery"
+      required:
+        [
+          id,
+          caseId,
+          contactId,
+          contactName,
+          email,
+          phone,
+          brandedAs,
+          status,
+          startsAt,
+          consentedAt,
+          unsubscribedAt,
+          deliveries,
+        ]
+
+    AftercareDelivery:
+      type: object
+      properties:
+        id:
+          type: integer
+        dayOffset:
+          type: integer
+        dueAt:
+          type: string
+          format: date-time
+        sentAt:
+          type: string
+          format: date-time
+          nullable: true
+        failedAt:
+          type: string
+          format: date-time
+          nullable: true
+      required: [id, dayOffset, dueAt, sentAt, failedAt]
+
+    AftercareConsentInput:
+      type: object
+      properties:
+        consent:
+          type: boolean
+        email:
+          type: string
+          nullable: true
+      required: [consent]
+
+    # -------------------------------------------------------------- family --
+
+    FamilySession:
+      type: object
+      description: |
+        Everything the family portal needs on first load, in one call - the
+        portal is opened on a phone, on mobile data, at a kitchen table, and
+        four round trips before anything renders is four chances to look
+        broken.
+      properties:
+        contact:
+          $ref: "#/components/schemas/FamilyContact"
+        home:
+          $ref: "#/components/schemas/PublicFuneralHome"
+        case:
+          $ref: "#/components/schemas/Case"
+        leadDirector:
+          oneOf:
+            - $ref: "#/components/schemas/StaffSignature"
+            - type: "null"
         photoCount:
           type: integer
-        coverImageUrl:
-          type: string
-          nullable: true
-        musicUrl:
-          type: string
-          nullable: true
-        musicFilename:
-          type: string
-          nullable: true
-        createdAt:
-          type: string
-        updatedAt:
-          type: string
-      required: [id, title, description, photoCount, coverImageUrl, musicUrl, musicFilename, createdAt, updatedAt]
-
-    AlbumDetail:
-      type: object
-      properties:
-        id:
+        photoLimit:
           type: integer
-        title:
+        obituaryStatus:
           type: string
-        description:
-          type: string
-          nullable: true
-        musicUrl:
-          type: string
-          nullable: true
-        musicFilename:
-          type: string
-          nullable: true
-        createdAt:
-          type: string
-        updatedAt:
-          type: string
-        photos:
-          type: array
-          items:
-            $ref: "#/components/schemas/AlbumPhoto"
-      required: [id, title, description, musicUrl, musicFilename, createdAt, updatedAt, photos]
-
-    AlbumPhoto:
-      type: object
-      properties:
-        memoryId:
+          enum: [family_draft, submitted, approved]
+        outstandingDeadlines:
           type: integer
-        title:
-          type: string
-        description:
-          type: string
-          nullable: true
-        imageUrl:
-          type: string
-          nullable: true
-        dateTaken:
-          type: string
-          nullable: true
-      required: [memoryId, title, description, imageUrl, dateTaken]
-
-    AlbumInput:
-      type: object
-      properties:
-        title:
-          type: string
-        description:
-          type: string
-          nullable: true
-      required: [title]
-
-    AlbumUpdate:
-      type: object
-      properties:
-        title:
-          type: string
-        description:
-          type: string
-          nullable: true
-        musicUploadId:
+        unreadMessages:
           type: integer
-          nullable: true
-
-    AlbumItemsInput:
-      type: object
-      properties:
-        memoryIds:
-          type: array
-          items:
-            type: integer
-      required: [memoryIds]
-
-    Keepsake:
-      type: object
-      properties:
-        id:
-          type: integer
-        promptId:
-          type: string
-        question:
-          type: string
-        answer:
-          type: string
-        createdAt:
-          type: string
-      required: [id, promptId, question, answer, createdAt]
-
-    KeepsakeInput:
-      type: object
-      properties:
-        promptId:
-          type: string
-        question:
-          type: string
-        answer:
-          type: string
-      required: [promptId, question, answer]
-
-    KeepsakeUpdate:
-      type: object
-      properties:
-        answer:
-          type: string
-      required: [answer]
-
-    Resurfaced:
-      type: object
-      properties:
-        found:
+        messagesLocked:
           type: boolean
-        kind:
-          type: string
-          enum: [memory, quote, keepsake, story, detail]
-          nullable: true
-        label:
-          type: string
-          nullable: true
-          description: What this was, e.g. "A memory you saved".
-        title:
-          type: string
-          nullable: true
-        body:
-          type: string
-          nullable: true
-        imageUrl:
-          type: string
-          nullable: true
-        sourceId:
-          type: integer
-          nullable: true
-        writtenAt:
-          type: string
-          nullable: true
-      required: [found]
-
-    TreasureInput:
-      type: object
-      properties:
-        kind:
-          type: string
-          enum: [memory, quote]
-        id:
-          type: integer
-        starred:
-          type: boolean
-      required: [kind, id, starred]
-
-    GuideSearchInput:
-      type: object
-      properties:
-        query:
-          type: string
-      required: [query]
-
-    GuideSearchResult:
-      type: object
-      properties:
-        crisis:
-          type: boolean
-          description: >-
-            True when the question itself sounds like danger. The client shows
-            the crisis numbers and does not run a search.
-        usedModel:
-          type: boolean
-          description: Whether the ranking came from the model or from keywords.
-        chapterIds:
-          type: array
-          items:
-            type: string
-      required: [crisis, usedModel, chapterIds]
-
-    ProfileUpdate:
-      description: >-
-        Every field optional: an update carries only what changed, which is
-        what the server validates against.
-      type: object
-      properties:
-        relationships:
-          type: array
-          nullable: true
-          items:
-            type: string
-            enum: [child, partner, parent, sibling, friend, other]
-        childName:
-          type: string
-        childBirthDate:
-          type: string
-          nullable: true
-        childPassingDate:
-          type: string
-          nullable: true
-        childAge:
-          type: string
-          nullable: true
-        parentName:
-          type: string
-          nullable: true
-        causeOfDeath:
-          type: string
-          nullable: true
-        favoriteColor:
-          type: string
-          nullable: true
-        favoriteFood:
-          type: string
-          nullable: true
-        favoriteAnimal:
-          type: string
-          nullable: true
-        hobbies:
-          type: string
-          nullable: true
-        personality:
-          type: string
-          nullable: true
-        howTheySmelled:
-          type: string
-          nullable: true
-        whatDroveYouCrazy:
-          type: string
-          nullable: true
-        lastHugDate:
-          type: string
-          nullable: true
-        lastWords:
-          type: string
-          nullable: true
-        lastFight:
-          type: string
-          nullable: true
-        photoUrl:
-          type: string
-          nullable: true
+        aftercare:
+          oneOf:
+            - $ref: "#/components/schemas/AftercareEnrollment"
+            - type: "null"
+      required:
+        [
+          contact,
+          home,
+          case,
+          leadDirector,
+          photoCount,
+          photoLimit,
+          obituaryStatus,
+          outstandingDeadlines,
+          unreadMessages,
+          messagesLocked,
+          aftercare,
+        ]

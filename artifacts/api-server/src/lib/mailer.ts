@@ -126,8 +126,8 @@ export async function sendPasswordResetEmail(options: {
     "",
     `The link works once, and expires in ${expiresInMinutes} minutes.`,
     "",
-    "If this wasn't you, you can ignore this email. Nothing has changed, and",
-    "everything you've written is exactly where you left it.",
+    "If this wasn't you, you can ignore this email — nothing has changed, and",
+    "no one has been able to sign in.",
     "",
     "— Holding Today",
   ].join("\n");
@@ -137,11 +137,11 @@ export async function sendPasswordResetEmail(options: {
             max-width:520px;margin:0 auto;padding:32px 24px;color:#1f2937;
             line-height:1.6;font-size:15px">
   <p style="margin:0 0 20px">
-    Someone asked to reset the password for your Memory&nbsp;Haven account.
+    Someone asked to reset the password for your Holding&nbsp;Today account.
   </p>
   <p style="margin:0 0 28px">
     <a href="${resetUrl}"
-       style="display:inline-block;background:#0ea5e9;color:#ffffff;
+       style="display:inline-block;background:#1f4e46;color:#ffffff;
               text-decoration:none;padding:12px 26px;border-radius:999px;
               font-weight:600">Choose a new password</a>
   </p>
@@ -151,8 +151,8 @@ export async function sendPasswordResetEmail(options: {
     <span style="word-break:break-all">${resetUrl}</span>
   </p>
   <p style="margin:0 0 8px;color:#6b7280;font-size:13px">
-    If this wasn't you, you can ignore this email. Nothing has changed, and
-    everything you've written is exactly where you left it.
+    If this wasn't you, you can ignore this email — nothing has changed, and
+    no one has been able to sign in.
   </p>
   <p style="margin:24px 0 0;color:#9ca3af;font-size:12px">— Holding Today</p>
 </div>`.trim();

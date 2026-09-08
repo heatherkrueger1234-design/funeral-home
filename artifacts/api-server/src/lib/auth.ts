@@ -31,7 +31,7 @@ const SALT_LENGTH = 16;
 /** Long enough to act on after finding the email; short enough to matter. */
 export const PASSWORD_RESET_TTL_MS = 60 * 60 * 1000; // 1 hour
 
-export const SESSION_COOKIE = "mh_session";
+export const SESSION_COOKIE = "fh_session";
 export const SESSION_TTL_MS = 30 * 24 * 60 * 60 * 1000; // 30 days
 
 /** Minimum that still lets people use a passphrase they will actually recall. */

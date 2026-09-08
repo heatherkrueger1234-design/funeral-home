@@ -57,9 +57,15 @@ export default defineConfig({
       prettier: true,
       override: {
         zod: {
+          // `useDates` below types date-time fields as `z.date()`. Bodies
+          // arrive as JSON, where a date is an ISO string, so without
+          // coercion every request carrying a service date is rejected as
+          // malformed. Coercing lets the server keep real `Date` objects,
+          // which is what Drizzle wants to insert anyway.
           coerce: {
-            query: ['boolean', 'number', 'string'],
-            param: ['boolean', 'number', 'string'],
+            query: ['boolean', 'number', 'string', 'date'],
+            param: ['boolean', 'number', 'string', 'date'],
+            body: ['date'],
           },
         },
         useDates: true,
