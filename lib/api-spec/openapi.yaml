@@ -1,0 +1,3654 @@
+openapi: 3.1.0
+info:
+  title: Api
+  version: 0.1.0
+  description: Holding Today - a private place for bereaved parents
+servers:
+  - url: /api
+    description: Base API path
+tags:
+  - name: health
+    description: Health operations
+  - name: memories
+    description: Photo memories and memory wall
+  - name: journal
+    description: Journal entries
+  - name: letters
+    description: Letters to and from child
+  - name: creative
+    description: Creative works - poems, songs, art
+  - name: documents
+    description: Important documents and records
+  - name: quotes
+    description: Favorite quotes and songs
+  - name: tribute
+    description: Obituary, speeches, memorials
+  - name: todos
+    description: To-do lists
+  - name: affirmations
+    description: Daily affirmations
+  - name: milestones
+    description: Timeline milestones and memories
+  - name: stories
+    description: Shared community stories and memories
+  - name: profile
+    description: Child profile and details
+  - name: signs
+    description: Signs and visits
+  - name: belongings
+    description: Who has what of theirs
+  - name: gifts
+    description: What arrived, and the thank-you cards
+  - name: contacts
+    description: People who need to be told
+  - name: obituaries
+    description: Obituary drafts
+  - name: memorial
+    description: Memorial planning choices
+  - name: keepsakes
+    description: Answers to the small questions
+  - name: guides
+    description: Searching the written guides
+  - name: community
+    description: The one shared room
+  - name: shares
+    description: Read-only public links
+  - name: auth
+    description: Accounts, sessions and personal-data controls
+paths:
+  /healthz:
+    get:
+      operationId: healthCheck
+      tags: [health]
+      summary: Health check
+      responses:
+        "200":
+          description: Healthy
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HealthStatus"
+
+  /profile:
+    get:
+      operationId: getProfile
+      tags: [profile]
+      summary: Get child profile
+      responses:
+        "200":
+          description: Profile
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Profile"
+    put:
+      operationId: updateProfile
+      tags: [profile]
+      summary: Update child profile
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ProfileUpdate"
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Profile"
+
+  /memories:
+    get:
+      operationId: getMemories
+      tags: [memories]
+      summary: Get all memories
+      parameters:
+        - name: category
+          in: query
+          schema:
+            type: string
+      responses:
+        "200":
+          description: List of memories
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Memory"
+    post:
+      operationId: createMemory
+      tags: [memories]
+      summary: Create a memory
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/MemoryInput"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Memory"
+
+  /memories/{id}:
+    put:
+      operationId: updateMemory
+      tags: [memories]
+      summary: Update a memory
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/MemoryInput"
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Memory"
+    delete:
+      operationId: deleteMemory
+      tags: [memories]
+      summary: Delete a memory
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: Deleted
+
+  /journal:
+    get:
+      operationId: getJournalEntries
+      tags: [journal]
+      summary: Get all journal entries
+      responses:
+        "200":
+          description: List of entries
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/JournalEntry"
+    post:
+      operationId: createJournalEntry
+      tags: [journal]
+      summary: Create journal entry
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/JournalEntryInput"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/JournalEntry"
+
+  /journal/{id}:
+    put:
+      operationId: updateJournalEntry
+      tags: [journal]
+      summary: Update journal entry
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/JournalEntryInput"
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/JournalEntry"
+    delete:
+      operationId: deleteJournalEntry
+      tags: [journal]
+      summary: Delete journal entry
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: Deleted
+
+  /letters:
+    get:
+      operationId: getLetters
+      tags: [letters]
+      summary: Get all letters
+      parameters:
+        - name: direction
+          in: query
+          schema:
+            type: string
+            enum: [to_child, from_child, received]
+      responses:
+        "200":
+          description: List of letters
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Letter"
+    post:
+      operationId: createLetter
+      tags: [letters]
+      summary: Create a letter
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/LetterInput"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Letter"
+
+  /letters/{id}:
+    put:
+      operationId: updateLetter
+      tags: [letters]
+      summary: Update a letter
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/LetterInput"
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Letter"
+    delete:
+      operationId: deleteLetter
+      tags: [letters]
+      summary: Delete a letter
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: Deleted
+
+  /creative:
+    get:
+      operationId: getCreativeWorks
+      tags: [creative]
+      summary: Get all creative works
+      parameters:
+        - name: type
+          in: query
+          schema:
+            type: string
+            enum: [poem, song, art, other]
+      responses:
+        "200":
+          description: List of creative works
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/CreativeWork"
+    post:
+      operationId: createCreativeWork
+      tags: [creative]
+      summary: Create creative work
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreativeWorkInput"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CreativeWork"
+
+  /creative/{id}:
+    put:
+      operationId: updateCreativeWork
+      tags: [creative]
+      summary: Update creative work
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreativeWorkInput"
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CreativeWork"
+    delete:
+      operationId: deleteCreativeWork
+      tags: [creative]
+      summary: Delete creative work
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: Deleted
+
+  /documents:
+    get:
+      operationId: getDocuments
+      tags: [documents]
+      summary: Get all documents
+      parameters:
+        - name: category
+          in: query
+          schema:
+            type: string
+            enum: [medical, legal, financial, funeral, passwords, autopsy, other]
+      responses:
+        "200":
+          description: List of documents
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Document"
+    post:
+      operationId: createDocument
+      tags: [documents]
+      summary: Create a document record
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/DocumentInput"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Document"
+
+  /documents/{id}:
+    get:
+      operationId: getDocument
+      tags: [documents]
+      summary: Read one document, including content hidden from the list
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Document
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Document"
+    put:
+      operationId: updateDocument
+      tags: [documents]
+      summary: Update a document
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/DocumentInput"
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Document"
+    delete:
+      operationId: deleteDocument
+      tags: [documents]
+      summary: Delete a document
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: Deleted
+
+  /quotes:
+    get:
+      operationId: getQuotes
+      tags: [quotes]
+      summary: Get quotes and songs
+      parameters:
+        - name: type
+          in: query
+          schema:
+            type: string
+            enum: [quote, song, both]
+      responses:
+        "200":
+          description: List of quotes and songs
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/QuoteSong"
+    post:
+      operationId: createQuote
+      tags: [quotes]
+      summary: Add a quote or song
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/QuoteSongInput"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/QuoteSong"
+
+  /quotes/{id}:
+    delete:
+      operationId: deleteQuote
+      tags: [quotes]
+      summary: Delete a quote or song
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: Deleted
+
+  /tribute:
+    get:
+      operationId: getTribute
+      tags: [tribute]
+      summary: Get tribute information
+      responses:
+        "200":
+          description: Tribute info
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Tribute"
+    put:
+      operationId: updateTribute
+      tags: [tribute]
+      summary: Update tribute information
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/TributeInput"
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Tribute"
+
+  /todos:
+    get:
+      operationId: getTodos
+      tags: [todos]
+      summary: Get all todos
+      responses:
+        "200":
+          description: List of todos
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Todo"
+    post:
+      operationId: createTodo
+      tags: [todos]
+      summary: Create a todo
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/TodoInput"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Todo"
+
+  /todos/{id}:
+    put:
+      operationId: updateTodo
+      tags: [todos]
+      summary: Update a todo
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/TodoInput"
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Todo"
+    delete:
+      operationId: deleteTodo
+      tags: [todos]
+      summary: Delete a todo
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: Deleted
+
+  /affirmations:
+    get:
+      operationId: getAffirmations
+      tags: [affirmations]
+      summary: Get all affirmations
+      responses:
+        "200":
+          description: List of affirmations
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Affirmation"
+    post:
+      operationId: createAffirmation
+      tags: [affirmations]
+      summary: Create an affirmation
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AffirmationInput"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Affirmation"
+
+  /affirmations/{id}:
+    delete:
+      operationId: deleteAffirmation
+      tags: [affirmations]
+      summary: Delete an affirmation
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: Deleted
+
+  /milestones:
+    get:
+      operationId: getMilestones
+      tags: [milestones]
+      summary: Get timeline milestones
+      responses:
+        "200":
+          description: List of milestones
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Milestone"
+    post:
+      operationId: createMilestone
+      tags: [milestones]
+      summary: Create a milestone
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/MilestoneInput"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Milestone"
+
+  /milestones/{id}:
+    put:
+      operationId: updateMilestone
+      tags: [milestones]
+      summary: Update a milestone
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/MilestoneInput"
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Milestone"
+    delete:
+      operationId: deleteMilestone
+      tags: [milestones]
+      summary: Delete a milestone
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: Deleted
+
+  /stories:
+    get:
+      operationId: getStories
+      tags: [stories]
+      summary: Get all shared stories
+      responses:
+        "200":
+          description: List of stories
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Story"
+    post:
+      operationId: createStory
+      tags: [stories]
+      summary: Share a story
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/StoryInput"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Story"
+
+  /stories/{id}:
+    delete:
+      operationId: deleteStory
+      tags: [stories]
+      summary: Delete a story
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: Deleted
+
+  /auth/register:
+    post:
+      operationId: register
+      tags: [auth]
+      summary: Create an account and start a session
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RegisterInput"
+      responses:
+        "201":
+          description: Account created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthUser"
+
+  /auth/login:
+    post:
+      operationId: login
+      tags: [auth]
+      summary: Start a session
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/LoginInput"
+      responses:
+        "200":
+          description: Signed in
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthUser"
+
+  /auth/logout:
+    post:
+      operationId: logout
+      tags: [auth]
+      summary: End the current session
+      responses:
+        "204":
+          description: Signed out
+
+  /auth/me:
+    get:
+      operationId: getCurrentUser
+      tags: [auth]
+      summary: The signed-in account, if any
+      responses:
+        "200":
+          description: Current account
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthUser"
+        "401":
+          description: Not signed in
+
+  /auth/password:
+    put:
+      operationId: changePassword
+      tags: [auth]
+      summary: Change password and sign out every other device
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ChangePasswordInput"
+      responses:
+        "204":
+          description: Password changed
+
+  /auth/methods:
+    get:
+      operationId: getAuthMethods
+      tags: [auth]
+      summary: Which ways of signing in this deployment offers
+      responses:
+        "200":
+          description: Available sign-in methods
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthMethods"
+
+  /auth/forgot-password:
+    post:
+      operationId: forgotPassword
+      tags: [auth]
+      summary: Send a password reset link
+      description: >-
+        Always succeeds, whether or not an account exists for that address.
+        Answering differently would turn this into a way to discover who has
+        an account here, which for this application means discovering who has
+        lost a child.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ForgotPasswordInput"
+      responses:
+        "204":
+          description: Accepted
+
+  /auth/reset-password:
+    post:
+      operationId: resetPassword
+      tags: [auth]
+      summary: Set a new password using a emailed token
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ResetPasswordInput"
+      responses:
+        "204":
+          description: Password set
+
+  /auth/export:
+    get:
+      operationId: exportMyData
+      tags: [auth]
+      summary: Download everything this account has written
+      responses:
+        "200":
+          description: Export bundle
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+
+  /auth/account:
+    delete:
+      operationId: deleteAccount
+      tags: [auth]
+      summary: Permanently delete this account and all of its data
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/DeleteAccountInput"
+      responses:
+        "204":
+          description: Deleted
+
+
+  /signs:
+    get:
+      operationId: getSigns
+      tags: [signs]
+      summary: List signs
+      responses:
+        "200":
+          description: Signs
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Sign"
+    post:
+      operationId: createSign
+      tags: [signs]
+      summary: Record a sign
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SignInput"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Sign"
+
+  /signs/{id}:
+    put:
+      operationId: updateSign
+      tags: [signs]
+      summary: Update a sign
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SignInput"
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Sign"
+    delete:
+      operationId: deleteSign
+      tags: [signs]
+      summary: Remove a sign
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: Removed
+
+  /belongings:
+    get:
+      operationId: getBelongings
+      tags: [belongings]
+      summary: List their belongings
+      responses:
+        "200":
+          description: List
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Belonging"
+    post:
+      operationId: createBelonging
+      tags: [belongings]
+      summary: Add one
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/BelongingInput"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Belonging"
+
+  /belongings/{id}:
+    put:
+      operationId: updateBelonging
+      tags: [belongings]
+      summary: Update one
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/BelongingUpdate"
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Belonging"
+    delete:
+      operationId: deleteBelonging
+      tags: [belongings]
+      summary: Remove one
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: Removed
+
+  /gifts:
+    get:
+      operationId: getGifts
+      tags: [gifts]
+      summary: List gifts received
+      responses:
+        "200":
+          description: List
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Gift"
+    post:
+      operationId: createGift
+      tags: [gifts]
+      summary: Add one
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/GiftInput"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Gift"
+
+  /gifts/{id}:
+    put:
+      operationId: updateGift
+      tags: [gifts]
+      summary: Update one
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/GiftUpdate"
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Gift"
+    delete:
+      operationId: deleteGift
+      tags: [gifts]
+      summary: Remove one
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: Removed
+
+  /contacts:
+    get:
+      operationId: getContacts
+      tags: [contacts]
+      summary: List people to notify
+      responses:
+        "200":
+          description: List
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Contact"
+    post:
+      operationId: createContact
+      tags: [contacts]
+      summary: Add one
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ContactInput"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Contact"
+
+  /contacts/{id}:
+    put:
+      operationId: updateContact
+      tags: [contacts]
+      summary: Update one
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ContactUpdate"
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Contact"
+    delete:
+      operationId: deleteContact
+      tags: [contacts]
+      summary: Remove one
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: Removed
+
+  /obituaries:
+    get:
+      operationId: getObituarys
+      tags: [obituaries]
+      summary: List obituary drafts
+      responses:
+        "200":
+          description: List
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Obituary"
+    post:
+      operationId: createObituary
+      tags: [obituaries]
+      summary: Add one
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ObituaryInput"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Obituary"
+
+  /obituaries/{id}:
+    put:
+      operationId: updateObituary
+      tags: [obituaries]
+      summary: Update one
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ObituaryUpdate"
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Obituary"
+    delete:
+      operationId: deleteObituary
+      tags: [obituaries]
+      summary: Remove one
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: Removed
+
+  /memorial-choices:
+    get:
+      operationId: getMemorialChoices
+      tags: [memorial]
+      summary: List memorial choices
+      responses:
+        "200":
+          description: List
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/MemorialChoice"
+    post:
+      operationId: createMemorialChoice
+      tags: [memorial]
+      summary: Add one
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/MemorialChoiceInput"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MemorialChoice"
+
+  /memorial-choices/{id}:
+    put:
+      operationId: updateMemorialChoice
+      tags: [memorial]
+      summary: Update one
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/MemorialChoiceUpdate"
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MemorialChoice"
+    delete:
+      operationId: deleteMemorialChoice
+      tags: [memorial]
+      summary: Remove one
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: Removed
+
+  /shares:
+    get:
+      operationId: getShares
+      tags: [shares]
+      summary: List active share links
+      responses:
+        "200":
+          description: List
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Share"
+    post:
+      operationId: createShare
+      tags: [shares]
+      summary: Create a read-only link to one thing
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ShareInput"
+      responses:
+        "201":
+          description: >-
+            Created. The token is returned here and nowhere else, ever again.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CreatedShare"
+
+  /shares/{id}:
+    delete:
+      operationId: deleteShare
+      tags: [shares]
+      summary: Revoke a link
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: Revoked
+
+  /shared/{token}:
+    get:
+      operationId: getSharedItem
+      tags: [shares]
+      summary: Read a shared item. Public - no session required.
+      parameters:
+        - name: token
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: The shared item
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SharedItem"
+        "404":
+          description: No such link, or it was revoked
+
+  /community/posts:
+    get:
+      operationId: getCommunityPosts
+      tags: [community]
+      summary: Recent posts in the shared room
+      parameters:
+        - name: kind
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [signs, story, advice]
+      responses:
+        "200":
+          description: Posts
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/CommunityPost"
+    post:
+      operationId: createCommunityPost
+      tags: [community]
+      summary: Share something with the room
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CommunityPostInput"
+      responses:
+        "201":
+          description: Posted
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CreatedCommunityPost"
+
+  /community/posts/{id}:
+    get:
+      operationId: getCommunityPost
+      tags: [community]
+      summary: One post and its replies
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: The post
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CommunityPostDetail"
+        "404":
+          description: No such post, or it has been removed
+    delete:
+      operationId: deleteCommunityPost
+      tags: [community]
+      summary: Take your own post down
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: Removed
+
+  /community/posts/{id}/comments:
+    post:
+      operationId: createCommunityComment
+      tags: [community]
+      summary: Reply to a post
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CommunityCommentInput"
+      responses:
+        "201":
+          description: Posted
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CreatedCommunityComment"
+
+  /community/comments/{id}:
+    delete:
+      operationId: deleteCommunityComment
+      tags: [community]
+      summary: Take your own reply down
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: Removed
+
+  /community/reports:
+    post:
+      operationId: reportCommunityContent
+      tags: [community]
+      summary: Report a post or a reply
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CommunityReportInput"
+      responses:
+        "201":
+          description: Reported
+
+  /community/screen-name:
+    put:
+      operationId: setScreenName
+      tags: [community]
+      summary: Choose the name you appear under in the shared room
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ScreenNameInput"
+      responses:
+        "200":
+          description: Set
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ScreenName"
+
+  /community/moderation/reports:
+    get:
+      operationId: getCommunityReports
+      tags: [community]
+      summary: Open reports. Moderators only.
+      responses:
+        "200":
+          description: Reports
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/CommunityReportEntry"
+        "403":
+          description: Not a moderator
+
+  /community/moderation/hide:
+    post:
+      operationId: hideCommunityContent
+      tags: [community]
+      summary: Hide or restore a post or reply. Moderators only.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/HideInput"
+      responses:
+        "204":
+          description: Done
+        "403":
+          description: Not a moderator
+
+  /albums:
+    get:
+      operationId: getAlbums
+      tags: [albums]
+      summary: Every album, newest first
+      responses:
+        "200":
+          description: List
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Album"
+    post:
+      operationId: createAlbum
+      tags: [albums]
+      summary: Start an album
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AlbumInput"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Album"
+
+  /albums/{id}:
+    get:
+      operationId: getAlbum
+      tags: [albums]
+      summary: One album with its photographs in order
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: The album
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AlbumDetail"
+    put:
+      operationId: updateAlbum
+      tags: [albums]
+      summary: Rename an album
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AlbumUpdate"
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Album"
+    delete:
+      operationId: deleteAlbum
+      tags: [albums]
+      summary: Delete the album, never the photographs
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: Deleted
+
+  /albums/{id}/items:
+    put:
+      operationId: setAlbumItems
+      tags: [albums]
+      summary: Set which photographs are in the album, and their order
+      description: >-
+        The whole list, in the order it should be shown. Sent as one call
+        rather than as add, remove and move, so the order on the screen and
+        the order in the database can never disagree.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AlbumItemsInput"
+      responses:
+        "200":
+          description: The album as it now stands
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AlbumDetail"
+
+  /keepsakes:
+    get:
+      operationId: getKeepsakes
+      tags: [keepsakes]
+      summary: Every small question answered so far
+      responses:
+        "200":
+          description: List
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Keepsake"
+    post:
+      operationId: createKeepsake
+      tags: [keepsakes]
+      summary: Answer one
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/KeepsakeInput"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Keepsake"
+
+  /keepsakes/{id}:
+    put:
+      operationId: updateKeepsake
+      tags: [keepsakes]
+      summary: Change an answer
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/KeepsakeUpdate"
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Keepsake"
+    delete:
+      operationId: deleteKeepsake
+      tags: [keepsakes]
+      summary: Remove an answer
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: Removed
+
+  /resurface:
+    get:
+      operationId: getResurfaced
+      tags: [keepsakes]
+      summary: >-
+        One thing the person wrote, drawn only from safe places. Never returned
+        unless asked for - this endpoint is the door, and opening it is the ask.
+      responses:
+        "200":
+          description: Something they wrote, or nothing yet
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Resurfaced"
+
+  /treasures:
+    post:
+      operationId: setTreasure
+      tags: [keepsakes]
+      summary: Mark or unmark something as one to see again
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/TreasureInput"
+      responses:
+        "204":
+          description: Set
+
+  /guides/search:
+    post:
+      operationId: searchGuides
+      tags: [guides]
+      summary: >-
+        Find the chapters that answer a question. Returns chapter ids only,
+        never generated prose.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/GuideSearchInput"
+      responses:
+        "200":
+          description: Matching chapters
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GuideSearchResult"
+
+components:
+  schemas:
+    HealthStatus:
+      type: object
+      properties:
+        status:
+          type: string
+      required: [status]
+
+    Profile:
+      type: object
+      properties:
+        relationships:
+          type: array
+          nullable: true
+          items:
+            type: string
+        id:
+          type: integer
+        childName:
+          type: string
+        childBirthDate:
+          type: string
+          nullable: true
+        childPassingDate:
+          type: string
+          nullable: true
+        childAge:
+          type: string
+          nullable: true
+        parentName:
+          type: string
+          nullable: true
+        causeOfDeath:
+          type: string
+          nullable: true
+        favoriteColor:
+          type: string
+          nullable: true
+        favoriteFood:
+          type: string
+          nullable: true
+        favoriteAnimal:
+          type: string
+          nullable: true
+        hobbies:
+          type: string
+          nullable: true
+        personality:
+          type: string
+          nullable: true
+        howTheySmelled:
+          type: string
+          nullable: true
+        whatDroveYouCrazy:
+          type: string
+          nullable: true
+        lastHugDate:
+          type: string
+          nullable: true
+        lastWords:
+          type: string
+          nullable: true
+        lastFight:
+          type: string
+          nullable: true
+        photoUrl:
+          type: string
+          nullable: true
+        createdAt:
+          type: string
+        updatedAt:
+          type: string
+      required: [id, childName, createdAt, updatedAt]
+
+    ProfileInput:
+      type: object
+      properties:
+        relationships:
+          type: array
+          nullable: true
+          items:
+            type: string
+            enum: [child, partner, parent, sibling, friend, other]
+        childName:
+          type: string
+        childBirthDate:
+          type: string
+          nullable: true
+        childPassingDate:
+          type: string
+          nullable: true
+        childAge:
+          type: string
+          nullable: true
+        parentName:
+          type: string
+          nullable: true
+        causeOfDeath:
+          type: string
+          nullable: true
+        favoriteColor:
+          type: string
+          nullable: true
+        favoriteFood:
+          type: string
+          nullable: true
+        favoriteAnimal:
+          type: string
+          nullable: true
+        hobbies:
+          type: string
+          nullable: true
+        personality:
+          type: string
+          nullable: true
+        howTheySmelled:
+          type: string
+          nullable: true
+        whatDroveYouCrazy:
+          type: string
+          nullable: true
+        lastHugDate:
+          type: string
+          nullable: true
+        lastWords:
+          type: string
+          nullable: true
+        lastFight:
+          type: string
+          nullable: true
+        photoUrl:
+          type: string
+          nullable: true
+      required: [childName]
+
+    Memory:
+      type: object
+      properties:
+        isStarred:
+          type: boolean
+        id:
+          type: integer
+        title:
+          type: string
+        description:
+          type: string
+          nullable: true
+        imageUrl:
+          type: string
+          nullable: true
+        category:
+          type: string
+          nullable: true
+        dateTaken:
+          type: string
+          nullable: true
+        tags:
+          type: string
+          nullable: true
+        isAiGenerated:
+          type: boolean
+        createdAt:
+          type: string
+      required: [id, title, isAiGenerated, createdAt]
+
+    MemoryInput:
+      type: object
+      properties:
+        title:
+          type: string
+        description:
+          type: string
+          nullable: true
+        imageUrl:
+          type: string
+          nullable: true
+        category:
+          type: string
+          nullable: true
+        dateTaken:
+          type: string
+          nullable: true
+        tags:
+          type: string
+          nullable: true
+        isAiGenerated:
+          type: boolean
+      required: [title]
+
+    JournalEntry:
+      type: object
+      properties:
+        id:
+          type: integer
+        title:
+          type: string
+        content:
+          type: string
+        mood:
+          type: string
+          nullable: true
+        entryDate:
+          type: string
+        createdAt:
+          type: string
+        updatedAt:
+          type: string
+      required: [id, title, content, entryDate, createdAt, updatedAt]
+
+    JournalEntryInput:
+      type: object
+      properties:
+        title:
+          type: string
+        content:
+          type: string
+        mood:
+          type: string
+          nullable: true
+        entryDate:
+          type: string
+      required: [title, content, entryDate]
+
+    Letter:
+      type: object
+      properties:
+        id:
+          type: integer
+        title:
+          type: string
+        content:
+          type: string
+        direction:
+          type: string
+          enum: [to_child, from_child, received]
+        author:
+          type: string
+          nullable: true
+        letterDate:
+          type: string
+          nullable: true
+        createdAt:
+          type: string
+        updatedAt:
+          type: string
+      required: [id, title, content, direction, createdAt, updatedAt]
+
+    LetterInput:
+      type: object
+      properties:
+        title:
+          type: string
+        content:
+          type: string
+        direction:
+          type: string
+          enum: [to_child, from_child, received]
+        author:
+          type: string
+          nullable: true
+        letterDate:
+          type: string
+          nullable: true
+      required: [title, content, direction]
+
+    CreativeWork:
+      type: object
+      properties:
+        id:
+          type: integer
+        title:
+          type: string
+        content:
+          type: string
+        type:
+          type: string
+          enum: [poem, song, art, other]
+        mediaUrl:
+          type: string
+          nullable: true
+        createdAt:
+          type: string
+        updatedAt:
+          type: string
+      required: [id, title, content, type, createdAt, updatedAt]
+
+    CreativeWorkInput:
+      type: object
+      properties:
+        title:
+          type: string
+        content:
+          type: string
+        type:
+          type: string
+          enum: [poem, song, art, other]
+        mediaUrl:
+          type: string
+          nullable: true
+      required: [title, content, type]
+
+    Document:
+      type: object
+      properties:
+        id:
+          type: integer
+        title:
+          type: string
+        content:
+          type: string
+          nullable: true
+        category:
+          type: string
+          enum: [medical, legal, financial, funeral, passwords, autopsy, other]
+        fileUrl:
+          type: string
+          nullable: true
+        notes:
+          type: string
+          nullable: true
+        documentDate:
+          type: string
+          nullable: true
+        isPrivate:
+          type: boolean
+        contentHidden:
+          type: boolean
+          description: >-
+            True when this document is marked private and its content and
+            notes were withheld from a list response. Fetch the document by
+            id to read them.
+        contentUnreadable:
+          type: boolean
+          description: >-
+            True when this document's stored content could not be decrypted.
+            The record is shown rather than hidden, so the loss is visible
+            instead of silent.
+        createdAt:
+          type: string
+        updatedAt:
+          type: string
+      required: [id, title, category, isPrivate, createdAt, updatedAt]
+
+    DocumentInput:
+      type: object
+      properties:
+        title:
+          type: string
+        content:
+          type: string
+          nullable: true
+        category:
+          type: string
+          enum: [medical, legal, financial, funeral, passwords, autopsy, other]
+        fileUrl:
+          type: string
+          nullable: true
+        notes:
+          type: string
+          nullable: true
+        documentDate:
+          type: string
+          nullable: true
+        isPrivate:
+          type: boolean
+      required: [title, category]
+
+    QuoteSong:
+      type: object
+      properties:
+        isStarred:
+          type: boolean
+        id:
+          type: integer
+        text:
+          type: string
+        author:
+          type: string
+          nullable: true
+        type:
+          type: string
+          enum: [quote, song]
+        source:
+          type: string
+          nullable: true
+        isFavoriteOfChild:
+          type: boolean
+        createdAt:
+          type: string
+      required: [id, text, type, isFavoriteOfChild, createdAt]
+
+    QuoteSongInput:
+      type: object
+      properties:
+        text:
+          type: string
+        author:
+          type: string
+          nullable: true
+        type:
+          type: string
+          enum: [quote, song]
+        source:
+          type: string
+          nullable: true
+        isFavoriteOfChild:
+          type: boolean
+      required: [text, type]
+
+    Tribute:
+      type: object
+      properties:
+        id:
+          type: integer
+        obituary:
+          type: string
+          nullable: true
+        eulogy:
+          type: string
+          nullable: true
+        funeralDetails:
+          type: string
+          nullable: true
+        memorialDetails:
+          type: string
+          nullable: true
+        speechNotes:
+          type: string
+          nullable: true
+        burialLocation:
+          type: string
+          nullable: true
+        funeralHome:
+          type: string
+          nullable: true
+        funeralDate:
+          type: string
+          nullable: true
+        funeralCost:
+          type: string
+          nullable: true
+        createdAt:
+          type: string
+        updatedAt:
+          type: string
+      required: [id, createdAt, updatedAt]
+
+    TributeInput:
+      type: object
+      properties:
+        obituary:
+          type: string
+          nullable: true
+        eulogy:
+          type: string
+          nullable: true
+        funeralDetails:
+          type: string
+          nullable: true
+        memorialDetails:
+          type: string
+          nullable: true
+        speechNotes:
+          type: string
+          nullable: true
+        burialLocation:
+          type: string
+          nullable: true
+        funeralHome:
+          type: string
+          nullable: true
+        funeralDate:
+          type: string
+          nullable: true
+        funeralCost:
+          type: string
+          nullable: true
+
+    Todo:
+      type: object
+      properties:
+        id:
+          type: integer
+        text:
+          type: string
+        completed:
+          type: boolean
+        category:
+          type: string
+          nullable: true
+        dueDate:
+          type: string
+          nullable: true
+        createdAt:
+          type: string
+      required: [id, text, completed, createdAt]
+
+    TodoInput:
+      type: object
+      properties:
+        text:
+          type: string
+        completed:
+          type: boolean
+        category:
+          type: string
+          nullable: true
+        dueDate:
+          type: string
+          nullable: true
+      required: [text]
+
+    Affirmation:
+      type: object
+      properties:
+        id:
+          type: integer
+        text:
+          type: string
+        author:
+          type: string
+          nullable: true
+        isFavorite:
+          type: boolean
+        createdAt:
+          type: string
+      required: [id, text, isFavorite, createdAt]
+
+    AffirmationInput:
+      type: object
+      properties:
+        text:
+          type: string
+        author:
+          type: string
+          nullable: true
+        isFavorite:
+          type: boolean
+      required: [text]
+
+    Milestone:
+      type: object
+      properties:
+        id:
+          type: integer
+        title:
+          type: string
+        description:
+          type: string
+          nullable: true
+        milestoneDate:
+          type: string
+        type:
+          type: string
+          enum: [birthday, deathday, anniversary, holiday, graduation, sibling, achievement, memory, healing, other]
+        isChildMilestone:
+          type: boolean
+        recurring:
+          type: boolean
+        noticeDays:
+          type: integer
+          nullable: true
+        createdAt:
+          type: string
+      required: [id, title, milestoneDate, type, isChildMilestone, recurring, createdAt]
+
+    MilestoneInput:
+      type: object
+      properties:
+        title:
+          type: string
+        description:
+          type: string
+          nullable: true
+        milestoneDate:
+          type: string
+        type:
+          type: string
+          enum: [birthday, deathday, anniversary, holiday, graduation, sibling, achievement, memory, healing, other]
+        isChildMilestone:
+          type: boolean
+        recurring:
+          type: boolean
+        noticeDays:
+          type: integer
+          nullable: true
+      required: [title, milestoneDate, type]
+
+    Story:
+      type: object
+      properties:
+        id:
+          type: integer
+        authorName:
+          type: string
+        relationship:
+          type: string
+          nullable: true
+        content:
+          type: string
+        title:
+          type: string
+          nullable: true
+        imageUrl:
+          type: string
+          nullable: true
+        createdAt:
+          type: string
+      required: [id, authorName, content, createdAt]
+
+    StoryInput:
+      type: object
+      properties:
+        authorName:
+          type: string
+        relationship:
+          type: string
+          nullable: true
+        content:
+          type: string
+        title:
+          type: string
+          nullable: true
+        imageUrl:
+          type: string
+          nullable: true
+      required: [authorName, content]
+
+    AuthUser:
+      type: object
+      properties:
+        id:
+          type: integer
+        email:
+          type: string
+        displayName:
+          type: string
+          nullable: true
+        emailVerified:
+          type: boolean
+        hasPassword:
+          type: boolean
+          description: >-
+            False for an account that only signs in with Google. The account
+            page offers to set a password rather than to change one.
+        hasGoogle:
+          type: boolean
+        screenName:
+          type: string
+          nullable: true
+          description: >-
+            How this account appears in the shared room, and nowhere else.
+            Null until they first post, when one is assigned.
+        isModerator:
+          type: boolean
+        resurfacingEnabled:
+          type: boolean
+        createdAt:
+          type: string
+      required: [id, email, emailVerified, hasPassword, hasGoogle, isModerator, resurfacingEnabled, createdAt]
+
+    RegisterInput:
+      type: object
+      properties:
+        email:
+          type: string
+          format: email
+        password:
+          type: string
+          minLength: 10
+        displayName:
+          type: string
+          nullable: true
+      required: [email, password]
+
+    LoginInput:
+      type: object
+      properties:
+        email:
+          type: string
+          format: email
+        password:
+          type: string
+      required: [email, password]
+
+    ChangePasswordInput:
+      type: object
+      properties:
+        currentPassword:
+          type: string
+          description: >-
+            Required when the account already has a password. Omitted when a
+            Google account is setting one for the first time.
+        newPassword:
+          type: string
+          minLength: 10
+      required: [newPassword]
+
+    DeleteAccountInput:
+      type: object
+      properties:
+        password:
+          type: string
+          description: Required when the account has a password.
+        confirmEmail:
+          type: string
+          description: >-
+            For an account with no password, the account's own email address,
+            typed out. Deleting is irreversible, so it always takes a
+            deliberate act rather than a single click.
+      required: []
+
+    AuthMethods:
+      type: object
+      properties:
+        google:
+          type: boolean
+          description: True when Google sign-in is configured on the server.
+        passwordReset:
+          type: boolean
+          description: >-
+            True when email is configured, so a reset link can actually be
+            delivered. When false the app says so rather than pretending to
+            send one.
+      required: [google, passwordReset]
+
+    ForgotPasswordInput:
+      type: object
+      properties:
+        email:
+          type: string
+          format: email
+      required: [email]
+
+    ResetPasswordInput:
+      type: object
+      properties:
+        token:
+          type: string
+        newPassword:
+          type: string
+          minLength: 10
+      required: [token, newPassword]
+
+    Sign:
+      type: object
+      properties:
+        id:
+          type: integer
+        what:
+          type: string
+        story:
+          type: string
+          nullable: true
+        kind:
+          type: string
+          enum: [cardinal, feather, number, song, dream, butterfly, scent, other]
+        signDate:
+          type: string
+          nullable: true
+        location:
+          type: string
+          nullable: true
+        isSignificant:
+          type: boolean
+        createdAt:
+          type: string
+      required: [id, what, kind, isSignificant, createdAt]
+
+    SignInput:
+      type: object
+      properties:
+        what:
+          type: string
+        story:
+          type: string
+          nullable: true
+        kind:
+          type: string
+          enum: [cardinal, feather, number, song, dream, butterfly, scent, other]
+        signDate:
+          type: string
+          nullable: true
+        location:
+          type: string
+          nullable: true
+        isSignificant:
+          type: boolean
+      required: [what]
+
+    Belonging:
+      type: object
+      properties:
+        id:
+          type: integer
+        item:
+          type: string
+        status:
+          type: string
+          enum: [kept, promised, given, requested]
+        person:
+          type: string
+          nullable: true
+        relationship:
+          type: string
+          nullable: true
+        givenDate:
+          type: string
+          nullable: true
+        notes:
+          type: string
+          nullable: true
+        createdAt:
+          type: string
+      required: [id, item, status, createdAt]
+
+    BelongingInput:
+      type: object
+      properties:
+        item:
+          type: string
+        status:
+          type: string
+          enum: [kept, promised, given, requested]
+        person:
+          type: string
+          nullable: true
+        relationship:
+          type: string
+          nullable: true
+        givenDate:
+          type: string
+          nullable: true
+        notes:
+          type: string
+          nullable: true
+      required: [item]
+
+    Gift:
+      type: object
+      properties:
+        id:
+          type: integer
+        fromName:
+          type: string
+        kind:
+          type: string
+          enum: [flowers, food, money, card, donation, gift, help, other]
+        description:
+          type: string
+          nullable: true
+        receivedDate:
+          type: string
+          nullable: true
+        thanked:
+          type: boolean
+        address:
+          type: string
+          nullable: true
+        notes:
+          type: string
+          nullable: true
+        createdAt:
+          type: string
+      required: [id, fromName, kind, thanked, createdAt]
+
+    GiftInput:
+      type: object
+      properties:
+        fromName:
+          type: string
+        kind:
+          type: string
+          enum: [flowers, food, money, card, donation, gift, help, other]
+        description:
+          type: string
+          nullable: true
+        receivedDate:
+          type: string
+          nullable: true
+        thanked:
+          type: boolean
+        address:
+          type: string
+          nullable: true
+        notes:
+          type: string
+          nullable: true
+      required: [fromName]
+
+    Contact:
+      type: object
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        category:
+          type: string
+          enum: [family, friend, school, work, medical, official, other]
+        relationship:
+          type: string
+          nullable: true
+        phone:
+          type: string
+          nullable: true
+        email:
+          type: string
+          nullable: true
+        told:
+          type: boolean
+        toldDate:
+          type: string
+          nullable: true
+        toldBy:
+          type: string
+          nullable: true
+        notes:
+          type: string
+          nullable: true
+        createdAt:
+          type: string
+      required: [id, name, category, told, createdAt]
+
+    ContactInput:
+      type: object
+      properties:
+        name:
+          type: string
+        category:
+          type: string
+          enum: [family, friend, school, work, medical, official, other]
+        relationship:
+          type: string
+          nullable: true
+        phone:
+          type: string
+          nullable: true
+        email:
+          type: string
+          nullable: true
+        told:
+          type: boolean
+        toldDate:
+          type: string
+          nullable: true
+        toldBy:
+          type: string
+          nullable: true
+        notes:
+          type: string
+          nullable: true
+      required: [name]
+
+    Obituary:
+      type: object
+      properties:
+        id:
+          type: integer
+        label:
+          type: string
+        fullName:
+          type: string
+          nullable: true
+        nickname:
+          type: string
+          nullable: true
+        bornDate:
+          type: string
+          nullable: true
+        diedDate:
+          type: string
+          nullable: true
+        bornPlace:
+          type: string
+          nullable: true
+        diedPlace:
+          type: string
+          nullable: true
+        causeOfDeath:
+          type: string
+          nullable: true
+        survivedBy:
+          type: string
+          nullable: true
+        precededBy:
+          type: string
+          nullable: true
+        lifeDetails:
+          type: string
+          nullable: true
+        personality:
+          type: string
+          nullable: true
+        hobbies:
+          type: string
+          nullable: true
+        serviceDetails:
+          type: string
+          nullable: true
+        donations:
+          type: string
+          nullable: true
+        additional:
+          type: string
+          nullable: true
+        finalText:
+          type: string
+          nullable: true
+        createdAt:
+          type: string
+      required: [id, label, createdAt]
+
+    ObituaryInput:
+      type: object
+      properties:
+        label:
+          type: string
+        fullName:
+          type: string
+          nullable: true
+        nickname:
+          type: string
+          nullable: true
+        bornDate:
+          type: string
+          nullable: true
+        diedDate:
+          type: string
+          nullable: true
+        bornPlace:
+          type: string
+          nullable: true
+        diedPlace:
+          type: string
+          nullable: true
+        causeOfDeath:
+          type: string
+          nullable: true
+        survivedBy:
+          type: string
+          nullable: true
+        precededBy:
+          type: string
+          nullable: true
+        lifeDetails:
+          type: string
+          nullable: true
+        personality:
+          type: string
+          nullable: true
+        hobbies:
+          type: string
+          nullable: true
+        serviceDetails:
+          type: string
+          nullable: true
+        donations:
+          type: string
+          nullable: true
+        additional:
+          type: string
+          nullable: true
+        finalText:
+          type: string
+          nullable: true
+      required: [label]
+
+    MemorialChoice:
+      type: object
+      properties:
+        id:
+          type: integer
+        category:
+          type: string
+          enum: [venue, song, poem, reading, speaker, headstone, grave, casket, flowers, jewelry, transport, program, food, other]
+        title:
+          type: string
+        details:
+          type: string
+          nullable: true
+        status:
+          type: string
+          enum: [undecided, chosen, declined, done]
+        estimatedCost:
+          type: integer
+          nullable: true
+        assignedTo:
+          type: string
+          nullable: true
+        isPinned:
+          type: boolean
+        createdAt:
+          type: string
+      required: [id, category, title, status, createdAt]
+
+    MemorialChoiceInput:
+      type: object
+      properties:
+        category:
+          type: string
+          enum: [venue, song, poem, reading, speaker, headstone, grave, casket, flowers, jewelry, transport, program, food, other]
+        title:
+          type: string
+        details:
+          type: string
+          nullable: true
+        status:
+          type: string
+          enum: [undecided, chosen, declined, done]
+        estimatedCost:
+          type: integer
+          nullable: true
+        assignedTo:
+          type: string
+          nullable: true
+        isPinned:
+          type: boolean
+      required: [category, title]
+
+    Share:
+      type: object
+      properties:
+        id:
+          type: integer
+        kind:
+          type: string
+          enum: [memory]
+        resourceId:
+          type: integer
+        label:
+          type: string
+          nullable: true
+        createdAt:
+          type: string
+      required: [id, kind, resourceId, createdAt]
+
+    ShareInput:
+      type: object
+      properties:
+        kind:
+          type: string
+          enum: [memory]
+        resourceId:
+          type: integer
+        label:
+          type: string
+          nullable: true
+      required: [kind, resourceId]
+
+    CreatedShare:
+      allOf:
+        - $ref: "#/components/schemas/Share"
+        - type: object
+          properties:
+            token:
+              type: string
+            url:
+              type: string
+          required: [token, url]
+
+    SharedItem:
+      type: object
+      properties:
+        kind:
+          type: string
+          enum: [memory]
+        title:
+          type: string
+        description:
+          type: string
+          nullable: true
+        dateTaken:
+          type: string
+          nullable: true
+        imageUrl:
+          type: string
+          nullable: true
+        childName:
+          type: string
+          nullable: true
+      required: [kind, title]
+
+    BelongingUpdate:
+      description: >-
+        Every field optional: an update carries only what changed, which is
+        what the server validates against.
+      type: object
+      properties:
+        item:
+          type: string
+        status:
+          type: string
+          enum: [kept, promised, given, requested]
+        person:
+          type: string
+          nullable: true
+        relationship:
+          type: string
+          nullable: true
+        givenDate:
+          type: string
+          nullable: true
+        notes:
+          type: string
+          nullable: true
+
+    GiftUpdate:
+      description: >-
+        Every field optional: an update carries only what changed, which is
+        what the server validates against.
+      type: object
+      properties:
+        fromName:
+          type: string
+        kind:
+          type: string
+          enum: [flowers, food, money, card, donation, gift, help, other]
+        description:
+          type: string
+          nullable: true
+        receivedDate:
+          type: string
+          nullable: true
+        thanked:
+          type: boolean
+        address:
+          type: string
+          nullable: true
+        notes:
+          type: string
+          nullable: true
+
+    ContactUpdate:
+      description: >-
+        Every field optional: an update carries only what changed, which is
+        what the server validates against.
+      type: object
+      properties:
+        name:
+          type: string
+        category:
+          type: string
+          enum: [family, friend, school, work, medical, official, other]
+        relationship:
+          type: string
+          nullable: true
+        phone:
+          type: string
+          nullable: true
+        email:
+          type: string
+          nullable: true
+        told:
+          type: boolean
+        toldDate:
+          type: string
+          nullable: true
+        toldBy:
+          type: string
+          nullable: true
+        notes:
+          type: string
+          nullable: true
+
+    ObituaryUpdate:
+      description: >-
+        Every field optional: an update carries only what changed, which is
+        what the server validates against.
+      type: object
+      properties:
+        label:
+          type: string
+        fullName:
+          type: string
+          nullable: true
+        nickname:
+          type: string
+          nullable: true
+        bornDate:
+          type: string
+          nullable: true
+        diedDate:
+          type: string
+          nullable: true
+        bornPlace:
+          type: string
+          nullable: true
+        diedPlace:
+          type: string
+          nullable: true
+        causeOfDeath:
+          type: string
+          nullable: true
+        survivedBy:
+          type: string
+          nullable: true
+        precededBy:
+          type: string
+          nullable: true
+        lifeDetails:
+          type: string
+          nullable: true
+        personality:
+          type: string
+          nullable: true
+        hobbies:
+          type: string
+          nullable: true
+        serviceDetails:
+          type: string
+          nullable: true
+        donations:
+          type: string
+          nullable: true
+        additional:
+          type: string
+          nullable: true
+        finalText:
+          type: string
+          nullable: true
+
+    MemorialChoiceUpdate:
+      description: >-
+        Every field optional: an update carries only what changed, which is
+        what the server validates against.
+      type: object
+      properties:
+        category:
+          type: string
+          enum: [venue, song, poem, reading, speaker, headstone, grave, casket, flowers, jewelry, transport, program, food, other]
+        title:
+          type: string
+        details:
+          type: string
+          nullable: true
+        status:
+          type: string
+          enum: [undecided, chosen, declined, done]
+        estimatedCost:
+          type: integer
+          nullable: true
+        assignedTo:
+          type: string
+          nullable: true
+        isPinned:
+          type: boolean
+
+    CommunityPost:
+      type: object
+      properties:
+        id:
+          type: integer
+        screenName:
+          type: string
+        kind:
+          type: string
+          enum: [signs, story, advice]
+        title:
+          type: string
+        body:
+          type: string
+        commentCount:
+          type: integer
+        isMine:
+          type: boolean
+          description: Whether the signed-in reader wrote it, so they can remove it.
+        createdAt:
+          type: string
+      required: [id, screenName, kind, title, body, commentCount, isMine, createdAt]
+
+    CommunityPostInput:
+      type: object
+      properties:
+        kind:
+          type: string
+          enum: [signs, story, advice]
+        title:
+          type: string
+        body:
+          type: string
+        screenName:
+          type: string
+          nullable: true
+          description: >-
+            Leave blank and one is assigned. Only used the first time; after
+            that the account keeps the name it already has.
+      required: [kind, title, body]
+
+    CreatedCommunityPost:
+      allOf:
+        - $ref: "#/components/schemas/CommunityPost"
+        - type: object
+          properties:
+            crisisPrompt:
+              type: boolean
+              description: >-
+                True when the post reads like the author may be in danger. The
+                post is published either way; this asks the client to put the
+                crisis numbers in front of them.
+          required: [crisisPrompt]
+
+    CommunityComment:
+      type: object
+      properties:
+        id:
+          type: integer
+        screenName:
+          type: string
+        body:
+          type: string
+        isMine:
+          type: boolean
+        createdAt:
+          type: string
+      required: [id, screenName, body, isMine, createdAt]
+
+    CreatedCommunityComment:
+      allOf:
+        - $ref: "#/components/schemas/CommunityComment"
+        - type: object
+          properties:
+            crisisPrompt:
+              type: boolean
+          required: [crisisPrompt]
+
+    CommunityCommentInput:
+      type: object
+      properties:
+        body:
+          type: string
+      required: [body]
+
+    CommunityPostDetail:
+      allOf:
+        - $ref: "#/components/schemas/CommunityPost"
+        - type: object
+          properties:
+            comments:
+              type: array
+              items:
+                $ref: "#/components/schemas/CommunityComment"
+          required: [comments]
+
+    CommunityReportInput:
+      type: object
+      properties:
+        targetType:
+          type: string
+          enum: [post, comment]
+        targetId:
+          type: integer
+        reason:
+          type: string
+          enum: [cruel, spam, selling, graphic, personal_information, worried_about_them, other]
+        note:
+          type: string
+          nullable: true
+      required: [targetType, targetId, reason]
+
+    CommunityReportEntry:
+      type: object
+      properties:
+        id:
+          type: integer
+        targetType:
+          type: string
+        targetId:
+          type: integer
+        reason:
+          type: string
+        note:
+          type: string
+          nullable: true
+        createdAt:
+          type: string
+        targetBody:
+          type: string
+          nullable: true
+        targetScreenName:
+          type: string
+          nullable: true
+        targetHidden:
+          type: boolean
+        reportCount:
+          type: integer
+          description: How many separate people have reported this same thing.
+      required: [id, targetType, targetId, reason, createdAt, targetHidden, reportCount]
+
+    HideInput:
+      type: object
+      properties:
+        targetType:
+          type: string
+          enum: [post, comment]
+        targetId:
+          type: integer
+        hidden:
+          type: boolean
+        reason:
+          type: string
+          nullable: true
+      required: [targetType, targetId, hidden]
+
+    ScreenName:
+      type: object
+      properties:
+        screenName:
+          type: string
+      required: [screenName]
+
+    ScreenNameInput:
+      type: object
+      properties:
+        screenName:
+          type: string
+          nullable: true
+          description: Blank asks the server to assign one.
+      required: []
+
+    Album:
+      type: object
+      properties:
+        id:
+          type: integer
+        title:
+          type: string
+        description:
+          type: string
+          nullable: true
+        photoCount:
+          type: integer
+        coverImageUrl:
+          type: string
+          nullable: true
+        musicUrl:
+          type: string
+          nullable: true
+        musicFilename:
+          type: string
+          nullable: true
+        createdAt:
+          type: string
+        updatedAt:
+          type: string
+      required: [id, title, description, photoCount, coverImageUrl, musicUrl, musicFilename, createdAt, updatedAt]
+
+    AlbumDetail:
+      type: object
+      properties:
+        id:
+          type: integer
+        title:
+          type: string
+        description:
+          type: string
+          nullable: true
+        musicUrl:
+          type: string
+          nullable: true
+        musicFilename:
+          type: string
+          nullable: true
+        createdAt:
+          type: string
+        updatedAt:
+          type: string
+        photos:
+          type: array
+          items:
+            $ref: "#/components/schemas/AlbumPhoto"
+      required: [id, title, description, musicUrl, musicFilename, createdAt, updatedAt, photos]
+
+    AlbumPhoto:
+      type: object
+      properties:
+        memoryId:
+          type: integer
+        title:
+          type: string
+        description:
+          type: string
+          nullable: true
+        imageUrl:
+          type: string
+          nullable: true
+        dateTaken:
+          type: string
+          nullable: true
+      required: [memoryId, title, description, imageUrl, dateTaken]
+
+    AlbumInput:
+      type: object
+      properties:
+        title:
+          type: string
+        description:
+          type: string
+          nullable: true
+      required: [title]
+
+    AlbumUpdate:
+      type: object
+      properties:
+        title:
+          type: string
+        description:
+          type: string
+          nullable: true
+        musicUploadId:
+          type: integer
+          nullable: true
+
+    AlbumItemsInput:
+      type: object
+      properties:
+        memoryIds:
+          type: array
+          items:
+            type: integer
+      required: [memoryIds]
+
+    Keepsake:
+      type: object
+      properties:
+        id:
+          type: integer
+        promptId:
+          type: string
+        question:
+          type: string
+        answer:
+          type: string
+        createdAt:
+          type: string
+      required: [id, promptId, question, answer, createdAt]
+
+    KeepsakeInput:
+      type: object
+      properties:
+        promptId:
+          type: string
+        question:
+          type: string
+        answer:
+          type: string
+      required: [promptId, question, answer]
+
+    KeepsakeUpdate:
+      type: object
+      properties:
+        answer:
+          type: string
+      required: [answer]
+
+    Resurfaced:
+      type: object
+      properties:
+        found:
+          type: boolean
+        kind:
+          type: string
+          enum: [memory, quote, keepsake, story, detail]
+          nullable: true
+        label:
+          type: string
+          nullable: true
+          description: What this was, e.g. "A memory you saved".
+        title:
+          type: string
+          nullable: true
+        body:
+          type: string
+          nullable: true
+        imageUrl:
+          type: string
+          nullable: true
+        sourceId:
+          type: integer
+          nullable: true
+        writtenAt:
+          type: string
+          nullable: true
+      required: [found]
+
+    TreasureInput:
+      type: object
+      properties:
+        kind:
+          type: string
+          enum: [memory, quote]
+        id:
+          type: integer
+        starred:
+          type: boolean
+      required: [kind, id, starred]
+
+    GuideSearchInput:
+      type: object
+      properties:
+        query:
+          type: string
+      required: [query]
+
+    GuideSearchResult:
+      type: object
+      properties:
+        crisis:
+          type: boolean
+          description: >-
+            True when the question itself sounds like danger. The client shows
+            the crisis numbers and does not run a search.
+        usedModel:
+          type: boolean
+          description: Whether the ranking came from the model or from keywords.
+        chapterIds:
+          type: array
+          items:
+            type: string
+      required: [crisis, usedModel, chapterIds]
+
+    ProfileUpdate:
+      description: >-
+        Every field optional: an update carries only what changed, which is
+        what the server validates against.
+      type: object
+      properties:
+        relationships:
+          type: array
+          nullable: true
+          items:
+            type: string
+            enum: [child, partner, parent, sibling, friend, other]
+        childName:
+          type: string
+        childBirthDate:
+          type: string
+          nullable: true
+        childPassingDate:
+          type: string
+          nullable: true
+        childAge:
+          type: string
+          nullable: true
+        parentName:
+          type: string
+          nullable: true
+        causeOfDeath:
+          type: string
+          nullable: true
+        favoriteColor:
+          type: string
+          nullable: true
+        favoriteFood:
+          type: string
+          nullable: true
+        favoriteAnimal:
+          type: string
+          nullable: true
+        hobbies:
+          type: string
+          nullable: true
+        personality:
+          type: string
+          nullable: true
+        howTheySmelled:
+          type: string
+          nullable: true
+        whatDroveYouCrazy:
+          type: string
+          nullable: true
+        lastHugDate:
+          type: string
+          nullable: true
+        lastWords:
+          type: string
+          nullable: true
+        lastFight:
+          type: string
+          nullable: true
+        photoUrl:
+          type: string
+          nullable: true
