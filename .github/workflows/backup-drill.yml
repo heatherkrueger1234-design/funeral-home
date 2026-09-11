@@ -1,0 +1,80 @@
+# Prove the backup restores, weekly, against a real Postgres.
+#
+# An untested backup is a belief, and the belief is only corrected on the day
+# it matters. This runs the whole thing end to end — seed, dump, destroy,
+# restore, compare — so a change that quietly breaks the dump is caught here
+# rather than by a funeral home that has just lost a database of other
+# people's photographs.
+name: Backup drill
+
+on:
+  schedule:
+    - cron: "0 6 * * 1"
+  workflow_dispatch:
+  # Also on changes to the scripts themselves, since that is when it breaks.
+  push:
+    paths:
+      - "scripts/src/backup-database.ts"
+      - "scripts/src/restore-database.ts"
+      - "scripts/src/verify-backup.ts"
+      - "lib/db/**"
+
+jobs:
+  drill:
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: drill
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    env:
+      DATABASE_URL: postgresql://postgres:postgres@localhost:5432/drill
+      VERIFY_DATABASE_URL: postgresql://postgres:postgres@localhost:5432/drill_verify
+      BACKUP_DIR: ./backups
+      # Fixed test key. This is not, and must never become, a deployed secret.
+      ENCRYPTION_KEY: BwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwc=
+
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Install postgres client
+        # The runner image has psql, but pin the major so pg_dump and the
+        # server agree — a newer server than client refuses to dump.
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y --no-install-recommends postgresql-client-16
+          psql --version
+
+      - name: Create the schema and the scratch database
+        run: |
+          pnpm --filter @workspace/db run push-force
+          psql "$DATABASE_URL" -c 'create database drill_verify' \
+            || psql "${DATABASE_URL%/drill}/postgres" -c 'create database drill_verify'
+
+      - name: Seed something worth losing
+        run: pnpm --filter @workspace/scripts run seed-demo -- --quiet
+
+      - name: Back up
+        run: pnpm --filter @workspace/scripts run backup-database
+
+      - name: Verify the backup restores
+        run: pnpm --filter @workspace/scripts run verify-backup
