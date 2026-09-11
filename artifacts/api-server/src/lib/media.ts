@@ -11,6 +11,7 @@ import {
 } from "@workspace/db";
 import { encryptBuffer, decryptBuffer } from "@workspace/db/crypto";
 import { detectFileType } from "./file-type";
+import { normaliseImage, renameForType } from "./images";
 import { badRequest, HttpError, notFound } from "./http";
 
 /**
@@ -27,8 +28,16 @@ import { badRequest, HttpError, notFound } from "./http";
  *    that a third-party host backs up.
  */
 
-/** Generous enough for a phone photograph, small enough to bound the table. */
-export const MAX_PHOTO_BYTES = 15 * 1024 * 1024;
+/**
+ * The limit on what may arrive, not on what is stored.
+ *
+ * A 48-megapixel phone photograph or a flatbed scan of a wedding portrait
+ * can be well over 15 MB before it is downscaled, and refusing those at the
+ * door would be refusing exactly the pictures families most want to send.
+ * `normaliseImage` brings anything oversized down to a few hundred kilobytes
+ * immediately afterwards.
+ */
+export const MAX_PHOTO_BYTES = 50 * 1024 * 1024;
 
 export const photoUpload = multer({
   storage: multer.memoryStorage(),
@@ -72,6 +81,17 @@ export async function storeUpload(options: {
     throw badRequest("Please upload a photograph.");
   }
 
+  /*
+   * Normalised before storage, not on the way out. An iPhone's HEIC is
+   * transcoded to JPEG and anything enormous is downscaled once, here, rather
+   * than on every request that serves it — and what lands in the database is
+   * a format the browser, the slideshow pack and the printer all understand.
+   */
+  const normalised =
+    detected.kind === "image"
+      ? await normaliseImage(file.buffer, detected.mimeType)
+      : { data: file.buffer, mimeType: detected.mimeType, converted: false };
+
   const [row] = await (options.tx ?? db)
     .insert(uploadsTable)
     .values({
@@ -81,10 +101,13 @@ export async function storeUpload(options: {
       uploadedByContactId: options.uploadedByContactId ?? null,
       // The browser's filename is used for display only, and is stripped of
       // any path so a crafted name cannot look like a directory later.
-      filename: (file.originalname ?? "photo").split(/[\\/]/).pop()!.slice(0, 200),
-      mimeType: detected.mimeType,
-      sizeBytes: file.buffer.length,
-      data: encryptBuffer(file.buffer),
+      filename: renameForType(
+        (file.originalname ?? "photo").split(/[\\/]/).pop()!.slice(0, 200),
+        normalised.mimeType,
+      ),
+      mimeType: normalised.mimeType,
+      sizeBytes: normalised.data.length,
+      data: encryptBuffer(normalised.data),
     })
     .returning();
 

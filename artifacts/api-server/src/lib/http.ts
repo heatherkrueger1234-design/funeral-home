@@ -105,7 +105,7 @@ function asHttpError(err: unknown): HttpError | null {
   const code = (err as { code?: unknown } | null)?.code;
 
   if (code === "LIMIT_FILE_SIZE") {
-    return new HttpError(413, "That file is too large. The limit is 15 MB.");
+    return new HttpError(413, "That file is too large. The limit is 50 MB.");
   }
 
   if (code === "LIMIT_FILE_COUNT" || code === "LIMIT_UNEXPECTED_FILE") {

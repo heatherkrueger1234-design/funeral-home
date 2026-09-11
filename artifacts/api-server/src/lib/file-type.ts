@@ -7,8 +7,13 @@
  * `image/png` and get it rendered as a document on this origin. So the type
  * is determined from the bytes and the client's claim is discarded.
  *
+ * HEIC and AVIF are recognised here but never stored as-is. An iPhone shoots
+ * HEIC by default, so refusing it means a family's photographs of their
+ * mother fail at the door — and storing it means Chrome and Firefox render a
+ * broken image. Both are transcoded to JPEG on the way in; see `images.ts`.
+ *
  * Deliberately excluded: SVG, which is a script-bearing document rather than
- * an image, and HEIC, which browsers cannot render anyway.
+ * an image.
  *
  * Audio is here so that a slideshow can have their song under it. Only
  * formats every current browser can actually play — an uploaded file that
@@ -54,6 +59,32 @@ const SIGNATURES: readonly Signature[] = [
       b.length >= 12 &&
       b.subarray(0, 4).toString("latin1") === "RIFF" &&
       b.subarray(8, 12).toString("latin1") === "WEBP",
+  },
+  {
+    /*
+     * ISO base media: `....ftyp<brand>` at offset 4. The brand list is what
+     * separates a photograph from an MP4 — an iPhone HEIC is `heic` or
+     * `mif1`, a burst or live photo can be `msf1`, and newer devices and
+     * Android emit `avif`.
+     */
+    mimeType: "image/heic",
+    kind: "image",
+    extensions: ["heic", "heif"],
+    matches: (b) =>
+      b.length >= 12 &&
+      b.subarray(4, 8).toString("latin1") === "ftyp" &&
+      ["heic", "heix", "heim", "heis", "hevc", "hevm", "hevs", "mif1", "msf1"].includes(
+        b.subarray(8, 12).toString("latin1"),
+      ),
+  },
+  {
+    mimeType: "image/avif",
+    kind: "image",
+    extensions: ["avif"],
+    matches: (b) =>
+      b.length >= 12 &&
+      b.subarray(4, 8).toString("latin1") === "ftyp" &&
+      ["avif", "avis"].includes(b.subarray(8, 12).toString("latin1")),
   },
   {
     mimeType: "application/pdf",

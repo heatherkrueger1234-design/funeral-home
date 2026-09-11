@@ -19,13 +19,23 @@ export type UploadedFile = {
 };
 
 /** Kept in step with the server's own limit and sniffer. */
-export const MAX_UPLOAD_BYTES = 15 * 1024 * 1024;
+export const MAX_UPLOAD_BYTES = 50 * 1024 * 1024;
 
+/**
+ * What the file picker offers.
+ *
+ * HEIC is listed explicitly because iPhones shoot it by default and some
+ * browsers will otherwise grey out exactly the photographs a family is trying
+ * to send. The server transcodes it to JPEG on arrival.
+ */
 export const ACCEPTED_UPLOAD_TYPES = [
   "image/jpeg",
   "image/png",
   "image/gif",
   "image/webp",
+  "image/heic",
+  "image/heif",
+  "image/avif",
 ] as const;
 
 /** Staff upload: the home's logo, or a photograph posted to the office. */
