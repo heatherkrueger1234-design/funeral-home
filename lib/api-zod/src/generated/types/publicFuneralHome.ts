@@ -28,6 +28,15 @@ export interface PublicFuneralHome {
   logoUploadId: number | null;
   phone: string | null;
   urgentPhone: string | null;
+  addressLine1: string | null;
+  addressLine2: string | null;
+  city: string | null;
+  region: string | null;
+  postalCode: string | null;
+  /** False means this home would rather the first contact were a phone
+call. Show the number instead of the request form.
+ */
+  intakeEnabled: boolean;
   officeOpensMinute: number;
   officeClosesMinute: number;
   timezone: string;

@@ -17,23 +17,16 @@ Two audiences, two authentication schemes, and the split is load-bearing:
 
  * OpenAPI spec version: 0.1.0
  */
-import type { CaseInputKind } from "./caseInputKind";
 
-export interface CaseInput {
-  /** Defaults to `at_need`. `pre_need` opens a file for someone who is
-still alive and arranging their own funeral; the same
-collaboration, so that on the day they die the home changes this
-one field and nothing has to be re-typed.
+/**
+ * `pre_need` means the person this file is about is still alive and
+arranging their own funeral. Every label, every date and every
+line of condolence has to read this first.
+
  */
-  kind?: CaseInputKind;
-  /** @minLength 1 */
-  decedentFirstName: string;
-  /** @minLength 1 */
-  decedentLastName: string;
-  decedentPreferredName?: string | null;
-  dateOfBirth?: Date | null;
-  dateOfDeath?: Date | null;
-  serviceAt?: Date | null;
-  serviceLocation?: string | null;
-  leadDirectorId?: number | null;
-}
+export type CaseKind = (typeof CaseKind)[keyof typeof CaseKind];
+
+export const CaseKind = {
+  at_need: "at_need",
+  pre_need: "pre_need",
+} as const;

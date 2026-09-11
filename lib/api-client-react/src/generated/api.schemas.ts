@@ -273,6 +273,15 @@ export interface PublicFuneralHome {
   logoUploadId: number | null;
   phone: string | null;
   urgentPhone: string | null;
+  addressLine1: string | null;
+  addressLine2: string | null;
+  city: string | null;
+  region: string | null;
+  postalCode: string | null;
+  /** False means this home would rather the first contact were a phone
+call. Show the number instead of the request form.
+ */
+  intakeEnabled: boolean;
   officeOpensMinute: number;
   officeClosesMinute: number;
   timezone: string;
@@ -286,6 +295,93 @@ export interface StaffSignature {
   title: string | null;
 }
 
+export type IntakeRequestInputKind =
+  (typeof IntakeRequestInputKind)[keyof typeof IntakeRequestInputKind];
+
+export const IntakeRequestInputKind = {
+  at_need: "at_need",
+  pre_need: "pre_need",
+} as const;
+
+/**
+ * A request from someone nobody has sent a link to. `kind` decides
+everything downstream: `at_need` is a family whose person has died,
+`pre_need` is a living person arranging their own funeral, where the
+requester and the subject are the same and `dateOfDeath` must be
+absent.
+
+ */
+export interface IntakeRequestInput {
+  /**
+   * Which home is being asked. From the public page's URL.
+   * @minLength 1
+   * @maxLength 120
+   */
+  homeSlug: string;
+  kind: IntakeRequestInputKind;
+  /**
+   * @minLength 1
+   * @maxLength 120
+   */
+  requesterName: string;
+  /** @maxLength 200 */
+  requesterEmail?: string | null;
+  /** @maxLength 40 */
+  requesterPhone?: string | null;
+  /**
+   * How they are related. Omitted for a pre-need request.
+   * @maxLength 80
+   */
+  relationship?: string | null;
+  /**
+   * @minLength 1
+   * @maxLength 120
+   */
+  subjectFirstName: string;
+  /**
+   * @minLength 1
+   * @maxLength 120
+   */
+  subjectLastName: string;
+  dateOfDeath?: string | null;
+  /** @maxLength 4000 */
+  note?: string | null;
+}
+
+export type IntakeReceiptKind =
+  (typeof IntakeReceiptKind)[keyof typeof IntakeReceiptKind];
+
+export const IntakeReceiptKind = {
+  at_need: "at_need",
+  pre_need: "pre_need",
+} as const;
+
+/**
+ * Deliberately thin. It confirms the request arrived and repeats what
+the person should do if it cannot wait, and says nothing about the
+home's queue or whether this person is already known to them.
+
+ */
+export interface IntakeReceipt {
+  received: boolean;
+  kind: IntakeReceiptKind;
+  homeName: string;
+  urgentPhone: string | null;
+}
+
+/**
+ * `pre_need` means the person this file is about is still alive and
+arranging their own funeral. Every label, every date and every
+line of condolence has to read this first.
+
+ */
+export type CaseKind = (typeof CaseKind)[keyof typeof CaseKind];
+
+export const CaseKind = {
+  at_need: "at_need",
+  pre_need: "pre_need",
+} as const;
+
 export type CaseStatus = (typeof CaseStatus)[keyof typeof CaseStatus];
 
 export const CaseStatus = {
@@ -296,6 +392,11 @@ export const CaseStatus = {
 
 export interface Case {
   id: number;
+  /** `pre_need` means the person this file is about is still alive and
+arranging their own funeral. Every label, every date and every
+line of condolence has to read this first.
+ */
+  kind: CaseKind;
   decedentFirstName: string;
   decedentLastName: string;
   decedentPreferredName: string | null;
@@ -313,6 +414,53 @@ export interface Case {
   status: CaseStatus;
   closedAt: string | null;
   messagesLockAt: string | null;
+  createdAt: string;
+}
+
+export type AcceptedIntake = Case & {
+  /** The link to send the person who asked. Returned once and never
+again - the contact row holds only its digest. A director who
+loses it mints a fresh one from the contact, which also stops
+the old one working.
+ */
+  familyLink: string;
+};
+
+export type IntakeRequestKind =
+  (typeof IntakeRequestKind)[keyof typeof IntakeRequestKind];
+
+export const IntakeRequestKind = {
+  at_need: "at_need",
+  pre_need: "pre_need",
+} as const;
+
+export type IntakeRequestStatus =
+  (typeof IntakeRequestStatus)[keyof typeof IntakeRequestStatus];
+
+export const IntakeRequestStatus = {
+  pending: "pending",
+  accepted: "accepted",
+  declined: "declined",
+} as const;
+
+/**
+ * One request, as the director sees it in their queue.
+ */
+export interface IntakeRequest {
+  id: number;
+  kind: IntakeRequestKind;
+  status: IntakeRequestStatus;
+  requesterName: string;
+  requesterEmail: string | null;
+  requesterPhone: string | null;
+  relationship: string | null;
+  subjectFirstName: string;
+  subjectLastName: string;
+  subjectDisplayName: string;
+  dateOfDeath: string | null;
+  note: string | null;
+  caseId: number | null;
+  reviewedAt: string | null;
   createdAt: string;
 }
 
@@ -368,7 +516,27 @@ export type CaseDetail = CaseSummary & {
   contacts: FamilyContact[];
 };
 
+/**
+ * Defaults to `at_need`. `pre_need` opens a file for someone who is
+still alive and arranging their own funeral; the same
+collaboration, so that on the day they die the home changes this
+one field and nothing has to be re-typed.
+
+ */
+export type CaseInputKind = (typeof CaseInputKind)[keyof typeof CaseInputKind];
+
+export const CaseInputKind = {
+  at_need: "at_need",
+  pre_need: "pre_need",
+} as const;
+
 export interface CaseInput {
+  /** Defaults to `at_need`. `pre_need` opens a file for someone who is
+still alive and arranging their own funeral; the same
+collaboration, so that on the day they die the home changes this
+one field and nothing has to be re-typed.
+ */
+  kind?: CaseInputKind;
   /** @minLength 1 */
   decedentFirstName: string;
   /** @minLength 1 */
@@ -1542,6 +1710,19 @@ export interface FamilySession {
   messagesLocked: boolean;
   aftercare: AftercareEnrollment | null;
 }
+
+export type GetIntakeRequestsParams = {
+  status?: GetIntakeRequestsStatus;
+};
+
+export type GetIntakeRequestsStatus =
+  (typeof GetIntakeRequestsStatus)[keyof typeof GetIntakeRequestsStatus];
+
+export const GetIntakeRequestsStatus = {
+  pending: "pending",
+  accepted: "accepted",
+  declined: "declined",
+} as const;
 
 export type GetCasesParams = {
   status?: GetCasesStatus;

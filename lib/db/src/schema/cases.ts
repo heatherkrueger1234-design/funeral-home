@@ -35,6 +35,28 @@ export const casesTable = pgTable(
       .notNull()
       .references(() => funeralHomesTable.id, { onDelete: "cascade" }),
 
+    /**
+     * `at_need` — someone has died. Everything this product was first built
+     * for, and the default.
+     * `pre_need` — someone well is arranging their own funeral in advance.
+     *
+     * The same collaboration, pointed at a person who is still alive: the
+     * photographs they want used, the obituary in their own words, the hymns,
+     * who carries them. Deliberately the *same table* rather than a parallel
+     * one, because the whole value is that on the day they die the home flips
+     * this column and the file is already full. A separate pre-need product
+     * that has to be copied across at the worst possible moment is how every
+     * other system does it, and is why the copying does not happen.
+     *
+     * What is not here, in either kind, is money: no prices, no contract, no
+     * trust account. Pre-need selling is governed by the FTC Funeral Rule and
+     * by state pre-need statutes that differ in every state, and a national
+     * SaaS quietly generating pre-need agreements would be selling homes a
+     * compliance problem. This holds the wishes; the home's own pre-need
+     * paperwork holds the sale.
+     */
+    kind: text("kind").notNull().default("at_need"),
+
     /* --------------------------------------------------------- the person */
 
     decedentFirstName: text("decedent_first_name").notNull(),
@@ -138,6 +160,22 @@ export const casesTable = pgTable(
 export const CASE_STATUSES = ["intake", "active", "closed"] as const;
 export type CaseStatus = (typeof CASE_STATUSES)[number];
 
+export const CASE_KINDS = ["at_need", "pre_need"] as const;
+export type CaseKind = (typeof CASE_KINDS)[number];
+
+/**
+ * Whether the person this file is about is still alive.
+ *
+ * Every screen that says "the deceased", every date labelled "date of death",
+ * every sentence of condolence has to read this first. Getting it wrong sends
+ * a sympathy note to someone who is sitting at home perfectly well, planning
+ * ahead — which is the single worst thing this product could do to a person
+ * who trusted it with their own arrangements.
+ */
+export function isPreNeed(row: Pick<Case, "kind">): boolean {
+  return row.kind === "pre_need";
+}
+
 /** How long after the service the chat stays open. */
 export const MESSAGE_LOCK_DAYS = 14;
 
@@ -151,7 +189,7 @@ export type InsertCase = z.infer<typeof insertCaseSchema>;
 export type Case = typeof casesTable.$inferSelect;
 
 /** The name to print, preferring what they were actually called. */
-export function decedentDisplayName(row: Case): string {
+export function decedentDisplayName(row: Pick<Case, "decedentPreferredName" | "decedentFirstName" | "decedentLastName">): string {
   const first = row.decedentPreferredName?.trim() || row.decedentFirstName;
   return `${first} ${row.decedentLastName}`.trim();
 }

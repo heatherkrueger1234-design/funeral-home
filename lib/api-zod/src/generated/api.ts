@@ -38,6 +38,109 @@ export const GetHealthResponse = zod
   );
 
 /**
+ * Unauthenticated. Enough to recognise the home and to reach it by
+telephone, and nothing about its account. `intakeEnabled` false means
+the home would rather the first contact were a phone call: show the
+number, not a form.
+
+ * @summary The home's public front door
+ */
+export const GetPublicHomeParams = zod.object({
+  slug: zod.coerce.string(),
+});
+
+export const GetPublicHomeResponse = zod
+  .object({
+    name: zod.string(),
+    slug: zod.string(),
+    accentColor: zod.string(),
+    logoUploadId: zod.number().nullable(),
+    phone: zod.string().nullable(),
+    urgentPhone: zod.string().nullable(),
+    addressLine1: zod.string().nullable(),
+    addressLine2: zod.string().nullable(),
+    city: zod.string().nullable(),
+    region: zod.string().nullable(),
+    postalCode: zod.string().nullable(),
+    intakeEnabled: zod
+      .boolean()
+      .describe(
+        "False means this home would rather the first contact were a phone\ncall. Show the number instead of the request form.\n",
+      ),
+    officeOpensMinute: zod.number(),
+    officeClosesMinute: zod.number(),
+    timezone: zod.string(),
+  })
+  .describe("The home as a family may see it - branding and how to reach it.");
+
+/**
+ * Unauthenticated, and deliberately does not create a case. A stranger
+cannot put a row in a director's case list; this lands in a queue the
+director accepts or declines.
+
+The response never contains anything about the home beyond what the
+public page already showed, and never confirms whether a person is
+already known to the home.
+
+ * @summary Ask a home to open a file
+ */
+export const submitIntakeRequestBodyHomeSlugMax = 120;
+
+export const submitIntakeRequestBodyRequesterNameMax = 120;
+
+export const submitIntakeRequestBodyRequesterEmailMax = 200;
+
+export const submitIntakeRequestBodyRequesterPhoneMax = 40;
+
+export const submitIntakeRequestBodyRelationshipMax = 80;
+
+export const submitIntakeRequestBodySubjectFirstNameMax = 120;
+
+export const submitIntakeRequestBodySubjectLastNameMax = 120;
+
+export const submitIntakeRequestBodyNoteMax = 4000;
+
+export const SubmitIntakeRequestBody = zod
+  .object({
+    homeSlug: zod
+      .string()
+      .min(1)
+      .max(submitIntakeRequestBodyHomeSlugMax)
+      .describe("Which home is being asked. From the public page's URL."),
+    kind: zod.enum(["at_need", "pre_need"]),
+    requesterName: zod
+      .string()
+      .min(1)
+      .max(submitIntakeRequestBodyRequesterNameMax),
+    requesterEmail: zod
+      .string()
+      .max(submitIntakeRequestBodyRequesterEmailMax)
+      .nullish(),
+    requesterPhone: zod
+      .string()
+      .max(submitIntakeRequestBodyRequesterPhoneMax)
+      .nullish(),
+    relationship: zod
+      .string()
+      .max(submitIntakeRequestBodyRelationshipMax)
+      .nullish()
+      .describe("How they are related. Omitted for a pre-need request."),
+    subjectFirstName: zod
+      .string()
+      .min(1)
+      .max(submitIntakeRequestBodySubjectFirstNameMax),
+    subjectLastName: zod
+      .string()
+      .min(1)
+      .max(submitIntakeRequestBodySubjectLastNameMax),
+    dateOfDeath: zod.coerce.date().nullish(),
+    note: zod.string().max(submitIntakeRequestBodyNoteMax).nullish(),
+  })
+  .describe(
+    "A request from someone nobody has sent a link to. `kind` decides\neverything downstream: `at_need` is a family whose person has died,\n`pre_need` is a living person arranging their own funeral, where the\nrequester and the subject are the same and `dateOfDeath` must be\nabsent.\n",
+  );
+
+/**
  * @summary Open an account, creating the funeral home and its first owner
  */
 
@@ -450,6 +553,80 @@ export const ApplyTimelineTemplateResponse = zod.array(
 );
 
 /**
+ * @summary Requests waiting for a director
+ */
+export const GetIntakeRequestsQueryParams = zod.object({
+  status: zod.enum(["pending", "accepted", "declined"]).optional(),
+});
+
+export const GetIntakeRequestsResponseItem = zod
+  .object({
+    id: zod.number(),
+    kind: zod.enum(["at_need", "pre_need"]),
+    status: zod.enum(["pending", "accepted", "declined"]),
+    requesterName: zod.string(),
+    requesterEmail: zod.string().nullable(),
+    requesterPhone: zod.string().nullable(),
+    relationship: zod.string().nullable(),
+    subjectFirstName: zod.string(),
+    subjectLastName: zod.string(),
+    subjectDisplayName: zod.string(),
+    dateOfDeath: zod.date().nullable(),
+    note: zod.string().nullable(),
+    caseId: zod.number().nullable(),
+    reviewedAt: zod.date().nullable(),
+    createdAt: zod.date(),
+  })
+  .describe("One request, as the director sees it in their queue.");
+export const GetIntakeRequestsResponse = zod.array(
+  GetIntakeRequestsResponseItem,
+);
+
+/**
+ * Creates the case, carrying the kind across: an at-need request opens
+an ordinary case, a pre-need request opens a file for someone who is
+still alive. The person who asked becomes the first family contact,
+so the link can go straight back to them.
+
+ * @summary Turn a request into a case
+ */
+export const AcceptIntakeRequestParams = zod.object({
+  intakeId: zod.coerce.number(),
+});
+
+/**
+ * For a duplicate, a mistake, or a home that will handle it by
+telephone instead. Nothing is sent to the person who asked - a home
+declining a bereaved family's request by automated email would be
+worse than the dead end this feature replaced.
+
+ * @summary Dismiss a request
+ */
+export const DeclineIntakeRequestParams = zod.object({
+  intakeId: zod.coerce.number(),
+});
+
+export const DeclineIntakeRequestResponse = zod
+  .object({
+    id: zod.number(),
+    kind: zod.enum(["at_need", "pre_need"]),
+    status: zod.enum(["pending", "accepted", "declined"]),
+    requesterName: zod.string(),
+    requesterEmail: zod.string().nullable(),
+    requesterPhone: zod.string().nullable(),
+    relationship: zod.string().nullable(),
+    subjectFirstName: zod.string(),
+    subjectLastName: zod.string(),
+    subjectDisplayName: zod.string(),
+    dateOfDeath: zod.date().nullable(),
+    note: zod.string().nullable(),
+    caseId: zod.number().nullable(),
+    reviewedAt: zod.date().nullable(),
+    createdAt: zod.date(),
+  })
+  .describe("One request, as the director sees it in their queue.");
+
+/**
  * @summary The home's cases, soonest service first
  */
 export const getCasesQueryLimitDefault = 100;
@@ -471,6 +648,11 @@ export const GetCasesQueryParams = zod.object({
 export const GetCasesResponseItem = zod
   .object({
     id: zod.number(),
+    kind: zod
+      .enum(["at_need", "pre_need"])
+      .describe(
+        "`pre_need` means the person this file is about is still alive and\narranging their own funeral. Every label, every date and every\nline of condolence has to read this first.\n",
+      ),
     decedentFirstName: zod.string(),
     decedentLastName: zod.string(),
     decedentPreferredName: zod.string().nullable(),
@@ -511,6 +693,12 @@ export const GetCasesResponse = zod.array(GetCasesResponseItem);
  */
 
 export const CreateCaseBody = zod.object({
+  kind: zod
+    .enum(["at_need", "pre_need"])
+    .optional()
+    .describe(
+      "Defaults to `at_need`. `pre_need` opens a file for someone who is\nstill alive and arranging their own funeral; the same\ncollaboration, so that on the day they die the home changes this\none field and nothing has to be re-typed.\n",
+    ),
   decedentFirstName: zod.string().min(1),
   decedentLastName: zod.string().min(1),
   decedentPreferredName: zod.string().nullish(),
@@ -531,6 +719,11 @@ export const GetCaseParams = zod.object({
 export const GetCaseResponse = zod
   .object({
     id: zod.number(),
+    kind: zod
+      .enum(["at_need", "pre_need"])
+      .describe(
+        "`pre_need` means the person this file is about is still alive and\narranging their own funeral. Every label, every date and every\nline of condolence has to read this first.\n",
+      ),
     decedentFirstName: zod.string(),
     decedentLastName: zod.string(),
     decedentPreferredName: zod.string().nullable(),
@@ -623,6 +816,11 @@ export const UpdateCaseBody = zod.object({
 
 export const UpdateCaseResponse = zod.object({
   id: zod.number(),
+  kind: zod
+    .enum(["at_need", "pre_need"])
+    .describe(
+      "`pre_need` means the person this file is about is still alive and\narranging their own funeral. Every label, every date and every\nline of condolence has to read this first.\n",
+    ),
   decedentFirstName: zod.string(),
   decedentLastName: zod.string(),
   decedentPreferredName: zod.string().nullable(),
@@ -660,6 +858,11 @@ export const CloseCaseParams = zod.object({
 export const CloseCaseResponse = zod
   .object({
     id: zod.number(),
+    kind: zod
+      .enum(["at_need", "pre_need"])
+      .describe(
+        "`pre_need` means the person this file is about is still alive and\narranging their own funeral. Every label, every date and every\nline of condolence has to read this first.\n",
+      ),
     decedentFirstName: zod.string(),
     decedentLastName: zod.string(),
     decedentPreferredName: zod.string().nullable(),
@@ -3011,6 +3214,16 @@ export const GetFamilySessionResponse = zod
         logoUploadId: zod.number().nullable(),
         phone: zod.string().nullable(),
         urgentPhone: zod.string().nullable(),
+        addressLine1: zod.string().nullable(),
+        addressLine2: zod.string().nullable(),
+        city: zod.string().nullable(),
+        region: zod.string().nullable(),
+        postalCode: zod.string().nullable(),
+        intakeEnabled: zod
+          .boolean()
+          .describe(
+            "False means this home would rather the first contact were a phone\ncall. Show the number instead of the request form.\n",
+          ),
         officeOpensMinute: zod.number(),
         officeClosesMinute: zod.number(),
         timezone: zod.string(),
@@ -3020,6 +3233,11 @@ export const GetFamilySessionResponse = zod
       ),
     case: zod.object({
       id: zod.number(),
+      kind: zod
+        .enum(["at_need", "pre_need"])
+        .describe(
+          "`pre_need` means the person this file is about is still alive and\narranging their own funeral. Every label, every date and every\nline of condolence has to read this first.\n",
+        ),
       decedentFirstName: zod.string(),
       decedentLastName: zod.string(),
       decedentPreferredName: zod.string().nullable(),

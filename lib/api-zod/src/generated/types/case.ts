@@ -17,10 +17,16 @@ Two audiences, two authentication schemes, and the split is load-bearing:
 
  * OpenAPI spec version: 0.1.0
  */
+import type { CaseKind } from "./caseKind";
 import type { CaseStatus } from "./caseStatus";
 
 export interface Case {
   id: number;
+  /** `pre_need` means the person this file is about is still alive and
+arranging their own funeral. Every label, every date and every
+line of condolence has to read this first.
+ */
+  kind: CaseKind;
   decedentFirstName: string;
   decedentLastName: string;
   decedentPreferredName: string | null;

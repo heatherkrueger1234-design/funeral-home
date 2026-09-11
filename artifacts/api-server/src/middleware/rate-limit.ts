@@ -105,3 +105,24 @@ export const authRateLimit: RateLimiter = rateLimit({
   windowMs: positiveIntFromEnv("AUTH_RATE_LIMIT_WINDOW_MS", 15 * 60 * 1000),
   max: positiveIntFromEnv("AUTH_RATE_LIMIT_MAX", 20),
 });
+
+/**
+ * The public front door.
+ *
+ * Sized for a person, not a browser: someone loads the home's page, reads it,
+ * fills in one form, and submits it once. Thirty requests a minute leaves room
+ * for a re-read and a mistyped field, and none for a script.
+ *
+ * This is the first of two ceilings. It lives in process memory, so it does
+ * not survive a restart and does not see a second instance; the hourly
+ * ceilings counted in the database (see `routes/public.ts`) are what actually
+ * protect a director's queue. This one is here to keep the cheap flood from
+ * reaching the database at all.
+ */
+export const publicRateLimit: RateLimiter = rateLimit({
+  windowMs: 60_000,
+  max: 30,
+  message:
+    "That was a lot at once. Please wait a moment — and if this cannot wait, " +
+    "telephone the funeral home.",
+});

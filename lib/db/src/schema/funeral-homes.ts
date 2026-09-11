@@ -91,6 +91,27 @@ export const funeralHomesTable = pgTable(
      */
     aftercareSenderName: text("aftercare_sender_name"),
 
+    /* ---------------------------------------------------- the front door */
+
+    /**
+     * Whether the home's public page will take a request from someone nobody
+     * has sent a link to — a family who found the website at 2am, or someone
+     * arranging their own funeral in advance.
+     *
+     * On by default, because a home that has never heard of the feature is
+     * better served by a request sitting in their queue than by a bereaved
+     * family hitting a dead end. Off is a real answer for a home that would
+     * rather every first contact be a phone call, and the public page then
+     * says so and gives the number instead of a form.
+     */
+    intakeEnabled: boolean("intake_enabled").notNull().default(true),
+    /**
+     * Where a request lands. Falls back to the owner's address at send time.
+     * A form that quietly fills a queue nobody opens is worse than no form:
+     * the family believes they have reached someone.
+     */
+    intakeNotifyEmail: text("intake_notify_email"),
+
     /* ---------------------------------------------------- subscription */
 
     /**
@@ -240,6 +261,12 @@ export type PublicFuneralHome = Pick<
   | "logoUploadId"
   | "phone"
   | "urgentPhone"
+  | "addressLine1"
+  | "addressLine2"
+  | "city"
+  | "region"
+  | "postalCode"
+  | "intakeEnabled"
   | "officeOpensMinute"
   | "officeClosesMinute"
   | "timezone"
@@ -253,6 +280,14 @@ export function toPublicFuneralHome(home: FuneralHome): PublicFuneralHome {
     logoUploadId: home.logoUploadId,
     phone: home.phone,
     urgentPhone: home.urgentPhone,
+    // Enough for someone who found this page by searching to be sure it is
+    // the home they mean, before they type anything about a death into it.
+    addressLine1: home.addressLine1,
+    addressLine2: home.addressLine2,
+    city: home.city,
+    region: home.region,
+    postalCode: home.postalCode,
+    intakeEnabled: home.intakeEnabled,
     officeOpensMinute: home.officeOpensMinute,
     officeClosesMinute: home.officeClosesMinute,
     timezone: home.timezone,

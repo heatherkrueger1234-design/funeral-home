@@ -102,6 +102,32 @@ export class MailNotSentError extends Error {
   readonly name = "MailNotSentError";
 }
 
+/**
+ * Escape a value before it goes into the HTML half of an email.
+ *
+ * Every string these templates interpolate came from a person: a home's own
+ * name, a director's display name, an aftercare body a home wrote, and -- once
+ * the public front door exists -- a note typed by a stranger who has never
+ * authenticated with anything. Building HTML by interpolation without this is
+ * how a name containing a tag becomes markup in a director's inbox.
+ *
+ * Mail clients strip most of what could be injected, which is exactly why this
+ * was easy to leave out and why leaving it out is not defensible: "the
+ * recipient's software will probably clean up after us" is not a security
+ * boundary we control.
+ *
+ * Single quotes are escaped too, because these templates use both quoting
+ * styles for attributes.
+ */
+function esc(value: string): string {
+  return value
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+
 async function send(message: {
   to: string;
   subject: string;
@@ -179,7 +205,7 @@ export async function sendPasswordResetEmail(options: {
     Someone asked to reset the password for your Holding&nbsp;Today account.
   </p>
   <p style="margin:0 0 28px">
-    <a href="${resetUrl}"
+    <a href="${esc(resetUrl)}"
        style="display:inline-block;background:#1f4e46;color:#ffffff;
               text-decoration:none;padding:12px 26px;border-radius:999px;
               font-weight:600">Choose a new password</a>
@@ -187,7 +213,7 @@ export async function sendPasswordResetEmail(options: {
   <p style="margin:0 0 20px;color:#6b7280;font-size:13px">
     The link works once, and expires in ${expiresInMinutes} minutes.
     If the button doesn't work, paste this into your browser:<br>
-    <span style="word-break:break-all">${resetUrl}</span>
+    <span style="word-break:break-all">${esc(resetUrl)}</span>
   </p>
   <p style="margin:0 0 8px;color:#6b7280;font-size:13px">
     If this wasn't you, you can ignore this email — nothing has changed, and
@@ -230,10 +256,10 @@ export async function sendStaffInviteEmail(options: {
             max-width:520px;margin:0 auto;padding:32px 24px;color:#1f2937;
             line-height:1.6;font-size:15px">
   <p style="margin:0 0 20px">
-    ${invitedBy} has added you to <strong>${homeName}</strong> on Holding&nbsp;Today.
+    ${esc(invitedBy)} has added you to <strong>${esc(homeName)}</strong> on Holding&nbsp;Today.
   </p>
   <p style="margin:0 0 28px">
-    <a href="${inviteLink}"
+    <a href="${esc(inviteLink)}"
        style="display:inline-block;background:#1f4e46;color:#ffffff;
               text-decoration:none;padding:12px 26px;border-radius:999px;
               font-weight:600">Choose a password</a>
@@ -241,7 +267,7 @@ export async function sendStaffInviteEmail(options: {
   <p style="margin:0 0 20px;color:#6b7280;font-size:13px">
     The link works once and expires in ${expiresInMinutes} minutes. If the
     button doesn't work, paste this into your browser:<br>
-    <span style="word-break:break-all">${inviteLink}</span>
+    <span style="word-break:break-all">${esc(inviteLink)}</span>
   </p>
   <p style="margin:24px 0 0;color:#9ca3af;font-size:12px">— Holding Today</p>
 </div>`.trim();
@@ -269,11 +295,14 @@ export async function sendAftercareEmail(options: {
 
   const text = `${body}\n\n— Provided in care with ${brandedAs}`;
 
+  // Escaped first, then the single line break the home typed is turned into
+  // the one tag this template allows. Doing it the other way round would let
+  // the escaping swallow the <br> it had just produced.
   const paragraphs = body
     .split("\n\n")
     .map(
       (para) =>
-        `<p style="margin:0 0 18px">${para.replace(/\n/g, "<br>")}</p>`,
+        `<p style="margin:0 0 18px">${esc(para).replace(/\n/g, "<br>")}</p>`,
     )
     .join("\n  ");
 
@@ -283,9 +312,112 @@ export async function sendAftercareEmail(options: {
             line-height:1.7;font-size:15px">
   ${paragraphs}
   <p style="margin:28px 0 0;color:#6b7280;font-size:13px">
-    Provided in care with ${brandedAs}
+    Provided in care with ${esc(brandedAs)}
   </p>
 </div>`.trim();
 
   await send({ to, subject, text, html, rethrow: true });
+}
+
+/**
+ * Tell a home that somebody used their public page.
+ *
+ * This exists because the alternative is worse than having no form at all. A
+ * bereaved family who fills one in believes they have reached someone; if it
+ * only lands in a queue nobody has thought to open, the product has taken a
+ * person at the worst moment of their life and given them false comfort.
+ *
+ * So: it sends, it says plainly which of the two kinds it is, and it carries
+ * enough of the request that a director can act from their phone without
+ * signing in. What it does not carry is the note -- a stranger's free text
+ * pushed into an inbox is where an email template gets used against the
+ * person reading it, and everything here goes through `esc` regardless.
+ */
+export async function sendIntakeNotificationEmail(options: {
+  to: string;
+  homeName: string;
+  kind: "at_need" | "pre_need";
+  requesterName: string;
+  requesterPhone: string | null;
+  requesterEmail: string | null;
+  subjectName: string;
+  consoleUrl: string;
+}): Promise<void> {
+  const {
+    to,
+    homeName,
+    kind,
+    requesterName,
+    requesterPhone,
+    requesterEmail,
+    subjectName,
+    consoleUrl,
+  } = options;
+
+  const headline =
+    kind === "at_need"
+      ? `${requesterName} has asked you to open a file for ${subjectName}.`
+      : `${requesterName} has asked to plan their funeral with you in advance.`;
+
+  const reach = [
+    requesterPhone ? `Phone: ${requesterPhone}` : "",
+    requesterEmail ? `Email: ${requesterEmail}` : "",
+  ].filter(Boolean);
+
+  const urgency =
+    kind === "at_need"
+      ? [
+          "They have had a death. Ring them before you do anything else in",
+          "this software -- the form is not a substitute for your phone.",
+        ].join(" ")
+      : "There is no hurry. Nobody has died.";
+
+  const text = [
+    headline,
+    "",
+    urgency,
+    "",
+    ...reach,
+    "",
+    "Accept or decline it here:",
+    consoleUrl,
+    "",
+    `— Holding Today, for ${homeName}`,
+  ]
+    .filter((line, index, all) => !(line === "" && all[index - 1] === ""))
+    .join("\n");
+
+  const html = `
+<div style="font-family:-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;
+            max-width:520px;margin:0 auto;padding:32px 24px;color:#1f2937;
+            line-height:1.6;font-size:15px">
+  <p style="margin:0 0 12px;font-size:17px"><strong>${esc(headline)}</strong></p>
+  <p style="margin:0 0 20px;${
+    kind === "at_need" ? "color:#9a3412" : "color:#6b7280"
+  }">${esc(urgency)}</p>
+  ${
+    reach.length > 0
+      ? `<p style="margin:0 0 24px">${reach.map(esc).join("<br>")}</p>`
+      : ""
+  }
+  <p style="margin:0 0 28px">
+    <a href="${esc(consoleUrl)}"
+       style="display:inline-block;background:#1f4e46;color:#ffffff;
+              text-decoration:none;padding:12px 26px;border-radius:999px;
+              font-weight:600">Open the request</a>
+  </p>
+  <p style="margin:24px 0 0;color:#9ca3af;font-size:12px">
+    — Holding Today, for ${esc(homeName)}
+  </p>
+</div>`.trim();
+
+  await send({
+    to,
+    subject:
+      kind === "at_need"
+        ? `New request: ${subjectName}`
+        : `Pre-need enquiry: ${requesterName}`,
+    text,
+    html,
+  });
 }

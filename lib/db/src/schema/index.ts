@@ -20,6 +20,10 @@ export * from "./uploads";
 export * from "./cases";
 export * from "./family-contacts";
 
+/* The two ways in that do not start with a director: a family who found the
+ * home themselves, and someone arranging their own funeral in advance. */
+export * from "./intake";
+
 /* The asset drop. */
 export * from "./photos";
 export * from "./obituary";

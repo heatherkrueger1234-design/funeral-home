@@ -17,23 +17,13 @@ Two audiences, two authentication schemes, and the split is load-bearing:
 
  * OpenAPI spec version: 0.1.0
  */
-import type { CaseInputKind } from "./caseInputKind";
+import type { Case } from "./case";
 
-export interface CaseInput {
-  /** Defaults to `at_need`. `pre_need` opens a file for someone who is
-still alive and arranging their own funeral; the same
-collaboration, so that on the day they die the home changes this
-one field and nothing has to be re-typed.
+export type AcceptedIntake = Case & {
+  /** The link to send the person who asked. Returned once and never
+again - the contact row holds only its digest. A director who
+loses it mints a fresh one from the contact, which also stops
+the old one working.
  */
-  kind?: CaseInputKind;
-  /** @minLength 1 */
-  decedentFirstName: string;
-  /** @minLength 1 */
-  decedentLastName: string;
-  decedentPreferredName?: string | null;
-  dateOfBirth?: Date | null;
-  dateOfDeath?: Date | null;
-  serviceAt?: Date | null;
-  serviceLocation?: string | null;
-  leadDirectorId?: number | null;
-}
+  familyLink: string;
+};

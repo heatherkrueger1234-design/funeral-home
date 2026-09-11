@@ -139,13 +139,36 @@ router.post("/cases", async (req, res) => {
     await assertStaffBelongsHere(values.leadDirectorId, home.id);
   }
 
+  const created = await openCase(home.id, user.id, values);
+
+  res.status(201).json(toCaseJson(created));
+});
+
+/**
+ * Everything that has to happen for a case to exist properly.
+ *
+ * Extracted because there are now two doors into it — a director opening one
+ * directly, and a director accepting a request that came through the home's
+ * public page — and the second must not be a thinner version of the first.
+ * A case created without its obituary row, or without the standard schedule,
+ * is a case that quietly behaves differently from every other one for the
+ * rest of its life.
+ */
+export async function openCase(
+  funeralHomeId: number,
+  userId: number,
+  values: Partial<typeof casesTable.$inferInsert> & {
+    decedentFirstName: string;
+    decedentLastName: string;
+  },
+): Promise<Case> {
   const created = await db.transaction(async (tx) => {
     const [row] = await tx
       .insert(casesTable)
       .values({
         ...values,
-        funeralHomeId: home.id,
-        createdByUserId: user.id,
+        funeralHomeId,
+        createdByUserId: userId,
       })
       .returning();
 
@@ -153,7 +176,7 @@ router.post("/cases", async (req, res) => {
     // visit, so that "what stage is the obituary at" is answerable for every
     // case without a null check in five different places.
     await tx.insert(obituaryDraftsTable).values({
-      funeralHomeId: home.id,
+      funeralHomeId,
       caseId: row!.id,
       fullName: `${row!.decedentFirstName} ${row!.decedentLastName}`.trim(),
     });
@@ -164,14 +187,18 @@ router.post("/cases", async (req, res) => {
   // A director who already knows the funeral time when they open the case
   // should get the schedule straight away, exactly as they would if they
   // added the date a day later.
-  if (created.serviceAt !== null) {
+  //
+  // Not for a pre-need file: the standard schedule counts backwards from a
+  // service date, and there is no service. Building one would put a list of
+  // overdue funeral tasks in front of somebody who is perfectly well.
+  if (created.serviceAt !== null && created.kind !== "pre_need") {
     await applyTemplateToCase(created);
   }
 
-  void markOnboarding(home.id, "case");
+  void markOnboarding(funeralHomeId, "case");
 
-  res.status(201).json(toCaseJson(created));
-});
+  return created;
+}
 
 /** A lead director has to actually work here. */
 async function assertStaffBelongsHere(userId: number, funeralHomeId: number) {

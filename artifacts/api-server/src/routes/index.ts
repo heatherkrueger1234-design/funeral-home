@@ -1,12 +1,14 @@
 import { Router, type IRouter } from "express";
 import { requireAuth } from "../middleware/require-auth";
 import { requireFamilyLink } from "../middleware/require-family";
-import { familyRateLimit } from "../middleware/rate-limit";
+import { familyRateLimit, publicRateLimit } from "../middleware/rate-limit";
 import healthRouter from "./health";
 import authRouter from "./auth";
 import tasksRouter from "./tasks";
 import billingRouter, { billingWebhookRouter } from "./billing";
 import familyRouter from "./family";
+import publicRouter from "./public";
+import intakeRouter from "./intake";
 import homeRouter from "./home";
 import casesRouter from "./cases";
 import importRouter from "./import";
@@ -28,7 +30,8 @@ const router: IRouter = Router();
 /**
  * Three tiers, and the order they are mounted in is the security model.
  *
- * 1. Public: liveness, and the endpoints used to obtain a staff session.
+ * 1. Public: liveness, the endpoints used to obtain a staff session, and the
+ *    home's own front door.
  * 2. The family surface, gated by a link token.
  * 3. The staff surface, gated by a session cookie.
  *
@@ -41,6 +44,25 @@ const router: IRouter = Router();
 
 router.use(healthRouter);
 router.use(authRouter);
+
+/**
+ * The front door. Reachable with no credential at all, and the only place in
+ * this API that an unauthenticated stranger can write to.
+ *
+ * It is mounted here, above every gate, on purpose and with its own limiter:
+ * the people it exists for are a family whose person died an hour ago and
+ * someone arranging their own funeral in advance, and neither of them has
+ * been sent a link. What it cannot do is reach a case, or create one — a
+ * request lands in a queue a director accepts, which is what stops this being
+ * a way to write into a director's working list.
+ *
+ * Mounted *under a path*, like the family surface and for the same reason:
+ * `router.use(middleware, router)` with no prefix runs that middleware for
+ * every request in the application, not just this router's. This limiter is
+ * sized for one person filling in one form, so leaking it upward throttles
+ * every director in every home.
+ */
+router.use("/public", publicRateLimit, publicRouter);
 
 /**
  * Scheduled work. Above the session gate because a scheduler has no cookie,
@@ -79,6 +101,7 @@ router.use(billingRouter);
 router.use(homeRouter);
 router.use(importRouter);
 router.use(casesRouter);
+router.use(intakeRouter);
 router.use(contactsRouter);
 router.use(photosRouter);
 router.use(obituaryRouter);

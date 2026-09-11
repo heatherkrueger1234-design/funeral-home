@@ -55,6 +55,14 @@ tags:
     description: Serving stored bytes
   - name: family
     description: Everything the family-facing portal calls
+  - name: public
+    description: |
+      The front door, reachable with no credential at all. A home's public
+      page, and the request form for the two people nobody has sent a link
+      to - a family who found the home themselves, and someone arranging
+      their own funeral in advance.
+  - name: intake
+    description: The director's queue of those requests
 
 paths:
   /healthz:
@@ -69,6 +77,65 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/HealthStatus"
+
+  # ---------------------------------------------------------------- public --
+
+  /public/homes/{slug}:
+    get:
+      operationId: getPublicHome
+      tags: [public]
+      summary: The home's public front door
+      description: |
+        Unauthenticated. Enough to recognise the home and to reach it by
+        telephone, and nothing about its account. `intakeEnabled` false means
+        the home would rather the first contact were a phone call: show the
+        number, not a form.
+      parameters:
+        - name: slug
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: The home
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PublicFuneralHome"
+        "404":
+          description: No such home, or it is not taking public requests
+
+  /public/intake:
+    post:
+      operationId: submitIntakeRequest
+      tags: [public]
+      summary: Ask a home to open a file
+      description: |
+        Unauthenticated, and deliberately does not create a case. A stranger
+        cannot put a row in a director's case list; this lands in a queue the
+        director accepts or declines.
+
+        The response never contains anything about the home beyond what the
+        public page already showed, and never confirms whether a person is
+        already known to the home.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/IntakeRequestInput"
+      responses:
+        "202":
+          description: Received, and waiting for a director
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/IntakeReceipt"
+        "404":
+          description: No such home, or it is not taking public requests
+        "429":
+          description: Too many requests
 
   # ------------------------------------------------------------------ auth --
 
@@ -416,6 +483,74 @@ paths:
                 type: array
                 items:
                   $ref: "#/components/schemas/CaseDeadline"
+
+  # ---------------------------------------------------------------- intake --
+
+  /intake-requests:
+    get:
+      operationId: getIntakeRequests
+      tags: [intake]
+      summary: Requests waiting for a director
+      parameters:
+        - name: status
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [pending, accepted, declined]
+      responses:
+        "200":
+          description: The queue, oldest first
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/IntakeRequest"
+
+  /intake-requests/{intakeId}/accept:
+    post:
+      operationId: acceptIntakeRequest
+      tags: [intake]
+      summary: Turn a request into a case
+      description: |
+        Creates the case, carrying the kind across: an at-need request opens
+        an ordinary case, a pre-need request opens a file for someone who is
+        still alive. The person who asked becomes the first family contact,
+        so the link can go straight back to them.
+      parameters:
+        - $ref: "#/components/parameters/IntakeId"
+      responses:
+        "201":
+          description: The case that now exists
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AcceptedIntake"
+        "409":
+          description: Already reviewed
+
+  /intake-requests/{intakeId}/decline:
+    post:
+      operationId: declineIntakeRequest
+      tags: [intake]
+      summary: Dismiss a request
+      description: |
+        For a duplicate, a mistake, or a home that will handle it by
+        telephone instead. Nothing is sent to the person who asked - a home
+        declining a bereaved family's request by automated email would be
+        worse than the dead end this feature replaced.
+      parameters:
+        - $ref: "#/components/parameters/IntakeId"
+      responses:
+        "200":
+          description: The dismissed request
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/IntakeRequest"
+        "409":
+          description: Already reviewed
 
   # ----------------------------------------------------------------- cases --
 
@@ -2164,6 +2299,12 @@ components:
       required: true
       schema:
         type: integer
+    IntakeId:
+      name: intakeId
+      in: path
+      required: true
+      schema:
+        type: integer
     ContactId:
       name: contactId
       in: path
@@ -2635,6 +2776,26 @@ components:
         urgentPhone:
           type: string
           nullable: true
+        addressLine1:
+          type: string
+          nullable: true
+        addressLine2:
+          type: string
+          nullable: true
+        city:
+          type: string
+          nullable: true
+        region:
+          type: string
+          nullable: true
+        postalCode:
+          type: string
+          nullable: true
+        intakeEnabled:
+          type: boolean
+          description: |
+            False means this home would rather the first contact were a phone
+            call. Show the number instead of the request form.
         officeOpensMinute:
           type: integer
         officeClosesMinute:
@@ -2649,6 +2810,12 @@ components:
           logoUploadId,
           phone,
           urgentPhone,
+          addressLine1,
+          addressLine2,
+          city,
+          region,
+          postalCode,
+          intakeEnabled,
           officeOpensMinute,
           officeClosesMinute,
           timezone,
@@ -2666,6 +2833,160 @@ components:
           nullable: true
       required: [displayName, title]
 
+    # -------------------------------------------------------------- intake --
+
+    IntakeRequestInput:
+      type: object
+      description: |
+        A request from someone nobody has sent a link to. `kind` decides
+        everything downstream: `at_need` is a family whose person has died,
+        `pre_need` is a living person arranging their own funeral, where the
+        requester and the subject are the same and `dateOfDeath` must be
+        absent.
+      properties:
+        homeSlug:
+          type: string
+          description: Which home is being asked. From the public page's URL.
+          minLength: 1
+          maxLength: 120
+        kind:
+          type: string
+          enum: [at_need, pre_need]
+        requesterName:
+          type: string
+          minLength: 1
+          maxLength: 120
+        requesterEmail:
+          type: string
+          nullable: true
+          maxLength: 200
+        requesterPhone:
+          type: string
+          nullable: true
+          maxLength: 40
+        relationship:
+          type: string
+          nullable: true
+          maxLength: 80
+          description: How they are related. Omitted for a pre-need request.
+        subjectFirstName:
+          type: string
+          minLength: 1
+          maxLength: 120
+        subjectLastName:
+          type: string
+          minLength: 1
+          maxLength: 120
+        dateOfDeath:
+          type: string
+          format: date-time
+          nullable: true
+        note:
+          type: string
+          nullable: true
+          maxLength: 4000
+      required: [homeSlug, kind, requesterName, subjectFirstName, subjectLastName]
+
+    IntakeReceipt:
+      type: object
+      description: |
+        Deliberately thin. It confirms the request arrived and repeats what
+        the person should do if it cannot wait, and says nothing about the
+        home's queue or whether this person is already known to them.
+      properties:
+        received:
+          type: boolean
+        kind:
+          type: string
+          enum: [at_need, pre_need]
+        homeName:
+          type: string
+        urgentPhone:
+          type: string
+          nullable: true
+      required: [received, kind, homeName, urgentPhone]
+
+    AcceptedIntake:
+      allOf:
+        - $ref: "#/components/schemas/Case"
+        - type: object
+          description: |
+            The new case, plus the one thing that exists only at this moment.
+          properties:
+            familyLink:
+              type: string
+              description: |
+                The link to send the person who asked. Returned once and never
+                again - the contact row holds only its digest. A director who
+                loses it mints a fresh one from the contact, which also stops
+                the old one working.
+          required: [familyLink]
+
+    IntakeRequest:
+      type: object
+      description: One request, as the director sees it in their queue.
+      properties:
+        id:
+          type: integer
+        kind:
+          type: string
+          enum: [at_need, pre_need]
+        status:
+          type: string
+          enum: [pending, accepted, declined]
+        requesterName:
+          type: string
+        requesterEmail:
+          type: string
+          nullable: true
+        requesterPhone:
+          type: string
+          nullable: true
+        relationship:
+          type: string
+          nullable: true
+        subjectFirstName:
+          type: string
+        subjectLastName:
+          type: string
+        subjectDisplayName:
+          type: string
+        dateOfDeath:
+          type: string
+          format: date-time
+          nullable: true
+        note:
+          type: string
+          nullable: true
+        caseId:
+          type: integer
+          nullable: true
+        reviewedAt:
+          type: string
+          format: date-time
+          nullable: true
+        createdAt:
+          type: string
+          format: date-time
+      required:
+        [
+          id,
+          kind,
+          status,
+          requesterName,
+          requesterEmail,
+          requesterPhone,
+          relationship,
+          subjectFirstName,
+          subjectLastName,
+          subjectDisplayName,
+          dateOfDeath,
+          note,
+          caseId,
+          reviewedAt,
+          createdAt,
+        ]
+
     # --------------------------------------------------------------- cases --
 
     Case:
@@ -2673,6 +2994,13 @@ components:
       properties:
         id:
           type: integer
+        kind:
+          type: string
+          enum: [at_need, pre_need]
+          description: |
+            `pre_need` means the person this file is about is still alive and
+            arranging their own funeral. Every label, every date and every
+            line of condolence has to read this first.
         decedentFirstName:
           type: string
         decedentLastName:
@@ -2730,6 +3058,7 @@ components:
       required:
         [
           id,
+          kind,
           decedentFirstName,
           decedentLastName,
           decedentPreferredName,
@@ -2797,6 +3126,14 @@ components:
     CaseInput:
       type: object
       properties:
+        kind:
+          type: string
+          enum: [at_need, pre_need]
+          description: |
+            Defaults to `at_need`. `pre_need` opens a file for someone who is
+            still alive and arranging their own funeral; the same
+            collaboration, so that on the day they die the home changes this
+            one field and nothing has to be re-typed.
         decedentFirstName:
           type: string
           minLength: 1

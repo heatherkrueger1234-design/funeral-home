@@ -17,23 +17,26 @@ Two audiences, two authentication schemes, and the split is load-bearing:
 
  * OpenAPI spec version: 0.1.0
  */
-import type { CaseInputKind } from "./caseInputKind";
+import type { IntakeRequestKind } from "./intakeRequestKind";
+import type { IntakeRequestStatus } from "./intakeRequestStatus";
 
-export interface CaseInput {
-  /** Defaults to `at_need`. `pre_need` opens a file for someone who is
-still alive and arranging their own funeral; the same
-collaboration, so that on the day they die the home changes this
-one field and nothing has to be re-typed.
+/**
+ * One request, as the director sees it in their queue.
  */
-  kind?: CaseInputKind;
-  /** @minLength 1 */
-  decedentFirstName: string;
-  /** @minLength 1 */
-  decedentLastName: string;
-  decedentPreferredName?: string | null;
-  dateOfBirth?: Date | null;
-  dateOfDeath?: Date | null;
-  serviceAt?: Date | null;
-  serviceLocation?: string | null;
-  leadDirectorId?: number | null;
+export interface IntakeRequest {
+  id: number;
+  kind: IntakeRequestKind;
+  status: IntakeRequestStatus;
+  requesterName: string;
+  requesterEmail: string | null;
+  requesterPhone: string | null;
+  relationship: string | null;
+  subjectFirstName: string;
+  subjectLastName: string;
+  subjectDisplayName: string;
+  dateOfDeath: Date | null;
+  note: string | null;
+  caseId: number | null;
+  reviewedAt: Date | null;
+  createdAt: Date;
 }

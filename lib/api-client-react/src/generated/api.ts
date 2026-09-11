@@ -29,6 +29,7 @@ import type {
 } from "@tanstack/react-query";
 
 import type {
+  AcceptedIntake,
   AftercareConsentInput,
   AftercareEnrollment,
   AuthUser,
@@ -65,11 +66,15 @@ import type {
   FuneralHomeUpdate,
   GetCasesParams,
   GetFamilyVendorsParams,
+  GetIntakeRequestsParams,
   GetSnippetsParams,
   GetVendorsParams,
   HealthStatus,
   ImportPreview,
   ImportResult,
+  IntakeReceipt,
+  IntakeRequest,
+  IntakeRequestInput,
   LoginInput,
   LookupPlacesParams,
   MessageInput,
@@ -92,6 +97,7 @@ import type {
   PrintItemInput,
   PrintItemUpdate,
   PrintTemplate,
+  PublicFuneralHome,
   QuoteRequestInput,
   QuoteUpdate,
   RegisterInput,
@@ -195,6 +201,192 @@ export function useGetHealth<
 
   return { ...query, queryKey: queryOptions.queryKey };
 }
+
+/**
+ * Unauthenticated. Enough to recognise the home and to reach it by
+telephone, and nothing about its account. `intakeEnabled` false means
+the home would rather the first contact were a phone call: show the
+number, not a form.
+
+ * @summary The home's public front door
+ */
+export const getGetPublicHomeUrl = (slug: string) => {
+  return `/api/public/homes/${slug}`;
+};
+
+export const getPublicHome = async (
+  slug: string,
+  options?: RequestInit,
+): Promise<PublicFuneralHome> => {
+  return customFetch<PublicFuneralHome>(getGetPublicHomeUrl(slug), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getGetPublicHomeQueryKey = (slug: string) => {
+  return [`/api/public/homes/${slug}`] as const;
+};
+
+export const getGetPublicHomeQueryOptions = <
+  TData = Awaited<ReturnType<typeof getPublicHome>>,
+  TError = ErrorType<void>,
+>(
+  slug: string,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getPublicHome>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getGetPublicHomeQueryKey(slug);
+
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof getPublicHome>>> = ({
+    signal,
+  }) => getPublicHome(slug, { signal, ...requestOptions });
+
+  return {
+    queryKey,
+    queryFn,
+    enabled: !!slug,
+    ...queryOptions,
+  } as UseQueryOptions<
+    Awaited<ReturnType<typeof getPublicHome>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type GetPublicHomeQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getPublicHome>>
+>;
+export type GetPublicHomeQueryError = ErrorType<void>;
+
+/**
+ * @summary The home's public front door
+ */
+
+export function useGetPublicHome<
+  TData = Awaited<ReturnType<typeof getPublicHome>>,
+  TError = ErrorType<void>,
+>(
+  slug: string,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getPublicHome>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getGetPublicHomeQueryOptions(slug, options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * Unauthenticated, and deliberately does not create a case. A stranger
+cannot put a row in a director's case list; this lands in a queue the
+director accepts or declines.
+
+The response never contains anything about the home beyond what the
+public page already showed, and never confirms whether a person is
+already known to the home.
+
+ * @summary Ask a home to open a file
+ */
+export const getSubmitIntakeRequestUrl = () => {
+  return `/api/public/intake`;
+};
+
+export const submitIntakeRequest = async (
+  intakeRequestInput: IntakeRequestInput,
+  options?: RequestInit,
+): Promise<IntakeReceipt> => {
+  return customFetch<IntakeReceipt>(getSubmitIntakeRequestUrl(), {
+    ...options,
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(intakeRequestInput),
+  });
+};
+
+export const getSubmitIntakeRequestMutationOptions = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof submitIntakeRequest>>,
+    TError,
+    { data: BodyType<IntakeRequestInput> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof submitIntakeRequest>>,
+  TError,
+  { data: BodyType<IntakeRequestInput> },
+  TContext
+> => {
+  const mutationKey = ["submitIntakeRequest"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof submitIntakeRequest>>,
+    { data: BodyType<IntakeRequestInput> }
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return submitIntakeRequest(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type SubmitIntakeRequestMutationResult = NonNullable<
+  Awaited<ReturnType<typeof submitIntakeRequest>>
+>;
+export type SubmitIntakeRequestMutationBody = BodyType<IntakeRequestInput>;
+export type SubmitIntakeRequestMutationError = ErrorType<void>;
+
+/**
+ * @summary Ask a home to open a file
+ */
+export const useSubmitIntakeRequest = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof submitIntakeRequest>>,
+    TError,
+    { data: BodyType<IntakeRequestInput> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof submitIntakeRequest>>,
+  TError,
+  { data: BodyType<IntakeRequestInput> },
+  TContext
+> => {
+  return useMutation(getSubmitIntakeRequestMutationOptions(options));
+};
 
 /**
  * @summary Open an account, creating the funeral home and its first owner
@@ -1844,6 +2036,281 @@ export const useApplyTimelineTemplate = <
   TContext
 > => {
   return useMutation(getApplyTimelineTemplateMutationOptions(options));
+};
+
+/**
+ * @summary Requests waiting for a director
+ */
+export const getGetIntakeRequestsUrl = (params?: GetIntakeRequestsParams) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? "null" : value.toString());
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0
+    ? `/api/intake-requests?${stringifiedParams}`
+    : `/api/intake-requests`;
+};
+
+export const getIntakeRequests = async (
+  params?: GetIntakeRequestsParams,
+  options?: RequestInit,
+): Promise<IntakeRequest[]> => {
+  return customFetch<IntakeRequest[]>(getGetIntakeRequestsUrl(params), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getGetIntakeRequestsQueryKey = (
+  params?: GetIntakeRequestsParams,
+) => {
+  return [`/api/intake-requests`, ...(params ? [params] : [])] as const;
+};
+
+export const getGetIntakeRequestsQueryOptions = <
+  TData = Awaited<ReturnType<typeof getIntakeRequests>>,
+  TError = ErrorType<unknown>,
+>(
+  params?: GetIntakeRequestsParams,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getIntakeRequests>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey =
+    queryOptions?.queryKey ?? getGetIntakeRequestsQueryKey(params);
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof getIntakeRequests>>
+  > = ({ signal }) => getIntakeRequests(params, { signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof getIntakeRequests>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type GetIntakeRequestsQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getIntakeRequests>>
+>;
+export type GetIntakeRequestsQueryError = ErrorType<unknown>;
+
+/**
+ * @summary Requests waiting for a director
+ */
+
+export function useGetIntakeRequests<
+  TData = Awaited<ReturnType<typeof getIntakeRequests>>,
+  TError = ErrorType<unknown>,
+>(
+  params?: GetIntakeRequestsParams,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getIntakeRequests>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getGetIntakeRequestsQueryOptions(params, options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * Creates the case, carrying the kind across: an at-need request opens
+an ordinary case, a pre-need request opens a file for someone who is
+still alive. The person who asked becomes the first family contact,
+so the link can go straight back to them.
+
+ * @summary Turn a request into a case
+ */
+export const getAcceptIntakeRequestUrl = (intakeId: number) => {
+  return `/api/intake-requests/${intakeId}/accept`;
+};
+
+export const acceptIntakeRequest = async (
+  intakeId: number,
+  options?: RequestInit,
+): Promise<AcceptedIntake> => {
+  return customFetch<AcceptedIntake>(getAcceptIntakeRequestUrl(intakeId), {
+    ...options,
+    method: "POST",
+  });
+};
+
+export const getAcceptIntakeRequestMutationOptions = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof acceptIntakeRequest>>,
+    TError,
+    { intakeId: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof acceptIntakeRequest>>,
+  TError,
+  { intakeId: number },
+  TContext
+> => {
+  const mutationKey = ["acceptIntakeRequest"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof acceptIntakeRequest>>,
+    { intakeId: number }
+  > = (props) => {
+    const { intakeId } = props ?? {};
+
+    return acceptIntakeRequest(intakeId, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type AcceptIntakeRequestMutationResult = NonNullable<
+  Awaited<ReturnType<typeof acceptIntakeRequest>>
+>;
+
+export type AcceptIntakeRequestMutationError = ErrorType<void>;
+
+/**
+ * @summary Turn a request into a case
+ */
+export const useAcceptIntakeRequest = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof acceptIntakeRequest>>,
+    TError,
+    { intakeId: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof acceptIntakeRequest>>,
+  TError,
+  { intakeId: number },
+  TContext
+> => {
+  return useMutation(getAcceptIntakeRequestMutationOptions(options));
+};
+
+/**
+ * For a duplicate, a mistake, or a home that will handle it by
+telephone instead. Nothing is sent to the person who asked - a home
+declining a bereaved family's request by automated email would be
+worse than the dead end this feature replaced.
+
+ * @summary Dismiss a request
+ */
+export const getDeclineIntakeRequestUrl = (intakeId: number) => {
+  return `/api/intake-requests/${intakeId}/decline`;
+};
+
+export const declineIntakeRequest = async (
+  intakeId: number,
+  options?: RequestInit,
+): Promise<IntakeRequest> => {
+  return customFetch<IntakeRequest>(getDeclineIntakeRequestUrl(intakeId), {
+    ...options,
+    method: "POST",
+  });
+};
+
+export const getDeclineIntakeRequestMutationOptions = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof declineIntakeRequest>>,
+    TError,
+    { intakeId: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof declineIntakeRequest>>,
+  TError,
+  { intakeId: number },
+  TContext
+> => {
+  const mutationKey = ["declineIntakeRequest"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof declineIntakeRequest>>,
+    { intakeId: number }
+  > = (props) => {
+    const { intakeId } = props ?? {};
+
+    return declineIntakeRequest(intakeId, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type DeclineIntakeRequestMutationResult = NonNullable<
+  Awaited<ReturnType<typeof declineIntakeRequest>>
+>;
+
+export type DeclineIntakeRequestMutationError = ErrorType<void>;
+
+/**
+ * @summary Dismiss a request
+ */
+export const useDeclineIntakeRequest = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof declineIntakeRequest>>,
+    TError,
+    { intakeId: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof declineIntakeRequest>>,
+  TError,
+  { intakeId: number },
+  TContext
+> => {
+  return useMutation(getDeclineIntakeRequestMutationOptions(options));
 };
 
 /**
