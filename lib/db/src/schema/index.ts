@@ -48,3 +48,6 @@ export * from "./vendors";
 
 /* After everyone goes home. */
 export * from "./aftercare";
+
+/* And what is left when a home erases a case on request. */
+export * from "./deletions";

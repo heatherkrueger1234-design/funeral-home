@@ -21,10 +21,22 @@ import type { Writable } from "node:stream";
  * Entries are written one at a time and flushed, so peak memory is one file
  * (capped at 15 MB by the upload route) rather than the whole archive.
  *
- * Deliberately not implemented: ZIP64. A case is capped at 50 photographs of
- * 15 MB each, so 750 MB is the ceiling and the 32-bit offset and size fields
- * have room to spare. `addFile` throws rather than silently writing a corrupt
- * archive if that ever changes.
+ * Deliberately not implemented: ZIP64, which means a hard 4 GB ceiling on the
+ * whole archive and on any offset within it.
+ *
+ * That ceiling used to be comfortable: a case was capped at 50 photographs of
+ * 15 MB, so 750 MB with room to spare. The cap is now 1000 photographs,
+ * because families genuinely have a thousand pictures of their mother and
+ * being told to pick fifty before uploading is the thing this product exists
+ * to stop. A thousand at 15 MB is 15 GB, four times past what these fields can
+ * describe.
+ *
+ * `addFile` refuses rather than writing an archive that unzips to garbage. But
+ * a refusal part-way through a streaming download is itself a bad failure: the
+ * client has already had a 200 and half the bytes, and what it sees is a
+ * truncated file rather than an error. So callers building an archive that
+ * could plausibly get near the ceiling should ask `wouldOverflow` first and
+ * answer with a real HTTP error before writing anything. See the case export.
  */
 
 const LOCAL_HEADER_SIG = 0x04034b50;
@@ -101,9 +113,24 @@ export class ZipWriter {
     );
   }
 
+  /**
+   * Whether adding this many more bytes would pass what the format can
+   * describe. Ask before starting to stream, not half way through.
+   *
+   * The central directory is written after the entries and is itself counted
+   * by a 32-bit offset, so the check leaves room for it: roughly 46 bytes plus
+   * a filename per entry, rounded up generously to 4 KB per file because
+   * getting this wrong produces an archive that appears to download fine and
+   * will not open.
+   */
+  wouldOverflow(additionalBytes: number, additionalFiles = 1): boolean {
+    const directory = (this.entries.length + additionalFiles) * 4096;
+    return this.offset + additionalBytes + directory > ZIP_MAX;
+  }
+
   async addFile(name: string, contents: Buffer, modified = new Date()): Promise<void> {
     if (this.finished) throw new Error("Archive is already finished.");
-    if (this.offset + contents.length > ZIP_MAX) {
+    if (this.wouldOverflow(contents.length)) {
       throw new Error("Archive is too large for a non-ZIP64 archive.");
     }
 

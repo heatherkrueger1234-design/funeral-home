@@ -84,7 +84,9 @@ click revokes it.
 ## Running it
 
 Needs Postgres and an encryption key. For putting it on an actual host —
-containers, TLS, backups, scheduled work — see [DEPLOY.md](./DEPLOY.md).
+containers, TLS, backups, scheduled work — see [DEPLOY.md](./DEPLOY.md). For
+what is kept, for how long, and how to get rid of it, see
+[RETENTION.md](./RETENTION.md).
 
 ```sh
 pnpm install

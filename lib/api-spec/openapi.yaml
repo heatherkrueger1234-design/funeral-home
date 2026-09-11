@@ -486,6 +486,34 @@ paths:
 
   # ---------------------------------------------------------------- intake --
 
+  /cases/{caseId}/export:
+    get:
+      operationId: exportCase
+      tags: [cases]
+      summary: Everything on this case, as a folder the home keeps
+      description: |
+        A zip the home can walk away with: the photographs at full size, the
+        obituary as written, the selections, the belongings, the vital
+        statistics, the message thread, and a readable summary of the case
+        itself. Nothing in it needs this software to open.
+
+        The answer to "what happens to our families' files if we stop paying
+        you" is this endpoint, and it keeps working when the subscription has
+        lapsed - a home that has cancelled must still be able to take its
+        data out, or the product is holding it hostage.
+      parameters:
+        - $ref: "#/components/parameters/CaseId"
+      responses:
+        "200":
+          description: The archive
+          content:
+            application/zip:
+              schema:
+                type: string
+                format: binary
+        "413":
+          description: Too large for one archive
+
   /cases/{caseId}/at-need:
     post:
       operationId: convertCaseToAtNeed
@@ -522,6 +550,38 @@ paths:
                 $ref: "#/components/schemas/Case"
         "409":
           description: Already an at-need case
+
+  /cases/{caseId}/delete:
+    post:
+      operationId: deleteCase
+      tags: [cases]
+      summary: Erase a case and everything on it, permanently
+      description: |
+        Not an archive and not a soft delete. The row goes, and every
+        photograph, message, obituary draft, belonging and encrypted social
+        security number cascades with it. The bytes are gone from the database
+        the moment this returns; the only remaining copies are in whatever
+        backups the home's deployment keeps, which is why the written
+        retention position says so plainly.
+
+        Guarded by typing the name, because a mis-click here destroys the only
+        copy of a family's photographs of their mother that exists anywhere.
+
+        What survives is a tombstone: which case, who erased it, when, and
+        nothing about who it was for.
+      parameters:
+        - $ref: "#/components/parameters/CaseId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/DeleteCaseInput"
+      responses:
+        "204":
+          description: Gone
+        "400":
+          description: The confirmation did not match
 
   /intake-requests:
     get:
@@ -2942,6 +3002,23 @@ components:
           type: string
           nullable: true
       required: [received, kind, homeName, urgentPhone]
+
+    DeleteCaseInput:
+      type: object
+      properties:
+        confirmName:
+          type: string
+          description: |
+            The deceased's name exactly as the case shows it. Compared
+            case-insensitively and with surrounding space ignored, because
+            this is a confirmation and not a spelling test - but it must be
+            typed, not clicked.
+        reason:
+          type: string
+          nullable: true
+          maxLength: 500
+          description: Recorded on the tombstone. For the home's own records.
+      required: [confirmName]
 
     ConvertToAtNeedInput:
       type: object

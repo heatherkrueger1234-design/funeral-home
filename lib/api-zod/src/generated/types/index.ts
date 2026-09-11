@@ -60,6 +60,7 @@ export * from "./convertToAtNeedInput";
 export * from "./csvUploadInput";
 export * from "./deadlineInput";
 export * from "./deadlineUpdate";
+export * from "./deleteCaseInput";
 export * from "./familyBelongingUpdate";
 export * from "./familyBelongingUpdateDisposition";
 export * from "./familyBelongingUpdateKind";

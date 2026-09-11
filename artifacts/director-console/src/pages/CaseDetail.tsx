@@ -32,6 +32,7 @@ import { BelongingsPanel } from "@/components/case/BelongingsPanel";
 import { VitalsPanel } from "@/components/case/VitalsPanel";
 import { PrintPanel } from "@/components/case/PrintPanel";
 import { DetailsPanel } from "@/components/case/DetailsPanel";
+import { CaseData } from "@/components/CaseData";
 
 export default function CaseDetail() {
   const [, params] = useRoute("/cases/:caseId");
@@ -83,9 +84,22 @@ export default function CaseDetail() {
           <h1 className="font-display text-2xl leading-tight">
             {detail.displayName}
           </h1>
+          {/*
+            A director opening this must know before they read anything else
+            whether this person has died. Offering condolences to a pre-need
+            planner is the mistake this label exists to prevent.
+          */}
+          {detail.kind === "pre_need" && (
+            <p className="mt-1 mb-1 inline-block rounded-full border px-2.5 py-0.5
+                          text-xs text-muted-foreground">
+              Planning ahead — {detail.displayName} is living
+            </p>
+          )}
           <p className="text-muted-foreground">
             {closed
-              ? "Closed"
+              ? detail.kind === "pre_need"
+                ? "Plan complete"
+                : "Closed"
               : detail.status === "intake"
                 ? "Intake — the family has not been invited yet"
                 : "Active"}
@@ -147,6 +161,7 @@ export default function CaseDetail() {
           </TabsTrigger>
           <TabsTrigger value="messages">Messages</TabsTrigger>
           <TabsTrigger value="details">Details</TabsTrigger>
+          <TabsTrigger value="data">Data</TabsTrigger>
         </TabsList>
 
         <div className="mt-5">
@@ -183,6 +198,13 @@ export default function CaseDetail() {
           </TabsContent>
           <TabsContent value="details">
             <DetailsPanel caseId={caseId} detail={detail} />
+          </TabsContent>
+          <TabsContent value="data">
+            <CaseData
+              caseId={caseId}
+              displayName={detail.displayName}
+              kind={detail.kind}
+            />
           </TabsContent>
         </div>
       </Tabs>

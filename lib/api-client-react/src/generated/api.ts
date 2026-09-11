@@ -53,6 +53,7 @@ import type {
   CsvUploadInput,
   DeadlineInput,
   DeadlineUpdate,
+  DeleteCaseInput,
   FamilyBelongingUpdate,
   FamilyContact,
   FamilyContactInput,
@@ -2040,6 +2041,103 @@ export const useApplyTimelineTemplate = <
 };
 
 /**
+ * A zip the home can walk away with: the photographs at full size, the
+obituary as written, the selections, the belongings, the vital
+statistics, the message thread, and a readable summary of the case
+itself. Nothing in it needs this software to open.
+
+The answer to "what happens to our families' files if we stop paying
+you" is this endpoint, and it keeps working when the subscription has
+lapsed - a home that has cancelled must still be able to take its
+data out, or the product is holding it hostage.
+
+ * @summary Everything on this case, as a folder the home keeps
+ */
+export const getExportCaseUrl = (caseId: number) => {
+  return `/api/cases/${caseId}/export`;
+};
+
+export const exportCase = async (
+  caseId: number,
+  options?: RequestInit,
+): Promise<Blob> => {
+  return customFetch<Blob>(getExportCaseUrl(caseId), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getExportCaseQueryKey = (caseId: number) => {
+  return [`/api/cases/${caseId}/export`] as const;
+};
+
+export const getExportCaseQueryOptions = <
+  TData = Awaited<ReturnType<typeof exportCase>>,
+  TError = ErrorType<void>,
+>(
+  caseId: number,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof exportCase>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getExportCaseQueryKey(caseId);
+
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof exportCase>>> = ({
+    signal,
+  }) => exportCase(caseId, { signal, ...requestOptions });
+
+  return {
+    queryKey,
+    queryFn,
+    enabled: !!caseId,
+    ...queryOptions,
+  } as UseQueryOptions<
+    Awaited<ReturnType<typeof exportCase>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type ExportCaseQueryResult = NonNullable<
+  Awaited<ReturnType<typeof exportCase>>
+>;
+export type ExportCaseQueryError = ErrorType<void>;
+
+/**
+ * @summary Everything on this case, as a folder the home keeps
+ */
+
+export function useExportCase<
+  TData = Awaited<ReturnType<typeof exportCase>>,
+  TError = ErrorType<void>,
+>(
+  caseId: number,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof exportCase>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getExportCaseQueryOptions(caseId, options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
  * The moment a pre-need file is worth having. Everything they chose
 while well - the photographs, the obituary in their own words, the
 hymns, who carries them - is already here, so nothing is re-typed on
@@ -2138,6 +2236,106 @@ export const useConvertCaseToAtNeed = <
   TContext
 > => {
   return useMutation(getConvertCaseToAtNeedMutationOptions(options));
+};
+
+/**
+ * Not an archive and not a soft delete. The row goes, and every
+photograph, message, obituary draft, belonging and encrypted social
+security number cascades with it. The bytes are gone from the database
+the moment this returns; the only remaining copies are in whatever
+backups the home's deployment keeps, which is why the written
+retention position says so plainly.
+
+Guarded by typing the name, because a mis-click here destroys the only
+copy of a family's photographs of their mother that exists anywhere.
+
+What survives is a tombstone: which case, who erased it, when, and
+nothing about who it was for.
+
+ * @summary Erase a case and everything on it, permanently
+ */
+export const getDeleteCaseUrl = (caseId: number) => {
+  return `/api/cases/${caseId}/delete`;
+};
+
+export const deleteCase = async (
+  caseId: number,
+  deleteCaseInput: DeleteCaseInput,
+  options?: RequestInit,
+): Promise<void> => {
+  return customFetch<void>(getDeleteCaseUrl(caseId), {
+    ...options,
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(deleteCaseInput),
+  });
+};
+
+export const getDeleteCaseMutationOptions = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof deleteCase>>,
+    TError,
+    { caseId: number; data: BodyType<DeleteCaseInput> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof deleteCase>>,
+  TError,
+  { caseId: number; data: BodyType<DeleteCaseInput> },
+  TContext
+> => {
+  const mutationKey = ["deleteCase"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof deleteCase>>,
+    { caseId: number; data: BodyType<DeleteCaseInput> }
+  > = (props) => {
+    const { caseId, data } = props ?? {};
+
+    return deleteCase(caseId, data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type DeleteCaseMutationResult = NonNullable<
+  Awaited<ReturnType<typeof deleteCase>>
+>;
+export type DeleteCaseMutationBody = BodyType<DeleteCaseInput>;
+export type DeleteCaseMutationError = ErrorType<void>;
+
+/**
+ * @summary Erase a case and everything on it, permanently
+ */
+export const useDeleteCase = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof deleteCase>>,
+    TError,
+    { caseId: number; data: BodyType<DeleteCaseInput> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof deleteCase>>,
+  TError,
+  { caseId: number; data: BodyType<DeleteCaseInput> },
+  TContext
+> => {
+  return useMutation(getDeleteCaseMutationOptions(options));
 };
 
 /**

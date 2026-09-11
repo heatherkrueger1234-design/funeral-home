@@ -369,6 +369,20 @@ export interface IntakeReceipt {
   urgentPhone: string | null;
 }
 
+export interface DeleteCaseInput {
+  /** The deceased's name exactly as the case shows it. Compared
+case-insensitively and with surrounding space ignored, because
+this is a confirmation and not a spelling test - but it must be
+typed, not clicked.
+ */
+  confirmName: string;
+  /**
+   * Recorded on the tombstone. For the home's own records.
+   * @maxLength 500
+   */
+  reason?: string | null;
+}
+
 export interface ConvertToAtNeedInput {
   /** Required. Converting without one would leave a file that claims
 somebody died on no particular day, and the schedule counts from

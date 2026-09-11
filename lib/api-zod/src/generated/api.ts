@@ -553,6 +553,23 @@ export const ApplyTimelineTemplateResponse = zod.array(
 );
 
 /**
+ * A zip the home can walk away with: the photographs at full size, the
+obituary as written, the selections, the belongings, the vital
+statistics, the message thread, and a readable summary of the case
+itself. Nothing in it needs this software to open.
+
+The answer to "what happens to our families' files if we stop paying
+you" is this endpoint, and it keeps working when the subscription has
+lapsed - a home that has cancelled must still be able to take its
+data out, or the product is holding it hostage.
+
+ * @summary Everything on this case, as a folder the home keeps
+ */
+export const ExportCaseParams = zod.object({
+  caseId: zod.coerce.number(),
+});
+
+/**
  * The moment a pre-need file is worth having. Everything they chose
 while well - the photographs, the obituary in their own words, the
 hymns, who carries them - is already here, so nothing is re-typed on
@@ -612,6 +629,41 @@ export const ConvertCaseToAtNeedResponse = zod.object({
   closedAt: zod.date().nullable(),
   messagesLockAt: zod.date().nullable(),
   createdAt: zod.date(),
+});
+
+/**
+ * Not an archive and not a soft delete. The row goes, and every
+photograph, message, obituary draft, belonging and encrypted social
+security number cascades with it. The bytes are gone from the database
+the moment this returns; the only remaining copies are in whatever
+backups the home's deployment keeps, which is why the written
+retention position says so plainly.
+
+Guarded by typing the name, because a mis-click here destroys the only
+copy of a family's photographs of their mother that exists anywhere.
+
+What survives is a tombstone: which case, who erased it, when, and
+nothing about who it was for.
+
+ * @summary Erase a case and everything on it, permanently
+ */
+export const DeleteCaseParams = zod.object({
+  caseId: zod.coerce.number(),
+});
+
+export const deleteCaseBodyReasonMax = 500;
+
+export const DeleteCaseBody = zod.object({
+  confirmName: zod
+    .string()
+    .describe(
+      "The deceased's name exactly as the case shows it. Compared\ncase-insensitively and with surrounding space ignored, because\nthis is a confirmation and not a spelling test - but it must be\ntyped, not clicked.\n",
+    ),
+  reason: zod
+    .string()
+    .max(deleteCaseBodyReasonMax)
+    .nullish()
+    .describe("Recorded on the tombstone. For the home's own records."),
 });
 
 /**
