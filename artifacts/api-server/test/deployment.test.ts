@@ -125,3 +125,47 @@ describe("CORS, which is what a wildcard would cost", () => {
     expect(callback).toHaveBeenCalledWith(null, true);
   });
 });
+
+describe("bad input must not look like a server fault", () => {
+  /*
+   * Both of these were 500s. A 500 is a promise that something is broken here,
+   * and using it for a client's malformed payload means nobody reading the
+   * logs can tell a real outage from somebody's stray keystroke.
+   */
+  it("answers malformed JSON with 400, on every endpoint that takes a body", async () => {
+    for (const path of [
+      "/api/auth/login",
+      "/api/auth/register",
+      "/api/public/intake",
+    ]) {
+      const res = await request(app)
+        .post(path)
+        .set("content-type", "application/json")
+        .send("{not json");
+
+      expect(res.status, `${path} should reject a bad body as 400`).toBe(400);
+      expect(res.body.error).toMatch(/not valid JSON/i);
+    }
+  });
+
+  it("answers a null byte with 400 rather than letting Postgres refuse it", async () => {
+    // PostgreSQL text genuinely cannot hold a NUL — there is no escaping that
+    // makes it storable — so this has to be caught as bad input, not a fault.
+    const nul = String.fromCharCode(0);
+
+    const res = await request(app)
+      .post("/api/auth/register")
+      .set("content-type", "application/json")
+      .send(
+        JSON.stringify({
+          homeName: `Null${nul}Home`,
+          email: `nullbyte-${Date.now()}@example.com`,
+          password: "correct-horse-battery",
+          displayName: "Karen Voss",
+        }),
+      );
+
+    expect(res.status).not.toBe(500);
+    expect(res.status).toBe(400);
+  });
+});

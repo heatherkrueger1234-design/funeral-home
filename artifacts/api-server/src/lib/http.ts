@@ -99,10 +99,29 @@ export function requireRow<T>(row: T | undefined, message: string): T {
  * truth is "that photo is too large" — a difference that matters to someone
  * who has just watched an upload fail.
  */
+/**
+ * The driver's error code, wherever it ended up.
+ *
+ * Drizzle wraps anything the driver throws in a `_DrizzleQueryError` carrying
+ * the query it failed on, and puts the original underneath as `cause`. So the
+ * PostgreSQL SQLSTATE is one level down, and a check that only reads
+ * `err.code` silently never matches — which is how a null byte kept coming
+ * back as a 500 after it was supposedly handled.
+ */
+function driverCode(err: unknown): string | undefined {
+  for (let current = err, depth = 0; current && depth < 4; depth++) {
+    const code = (current as { code?: unknown }).code;
+    if (typeof code === "string") return code;
+    current = (current as { cause?: unknown }).cause;
+  }
+
+  return undefined;
+}
+
 function asHttpError(err: unknown): HttpError | null {
   if (err instanceof HttpError) return err;
 
-  const code = (err as { code?: unknown } | null)?.code;
+  const code = driverCode(err);
 
   if (code === "LIMIT_FILE_SIZE") {
     return new HttpError(413, "That file is too large. The limit is 50 MB.");
@@ -110,6 +129,47 @@ function asHttpError(err: unknown): HttpError | null {
 
   if (code === "LIMIT_FILE_COUNT" || code === "LIMIT_UNEXPECTED_FILE") {
     return new HttpError(400, "Please attach a single file.");
+  }
+
+  /*
+   * A body express could not parse.
+   *
+   * This was a 500 on every POST and PUT in the API — a client with a
+   * serialisation hiccup was told the server had failed, and the logs filled
+   * with stack traces that looked like a fault here. It is a bad request, and
+   * the status has to say so, or nobody can tell a real outage from a
+   * malformed payload.
+   *
+   * `express.json` raises a SyntaxError carrying a `body` property and a 400
+   * `status`; `type: "entity.too.large"` is the separate case of a body past
+   * the configured limit.
+   */
+  if (code === "entity.too.large") {
+    return new HttpError(413, "That request was too large.");
+  }
+
+  if (
+    err instanceof SyntaxError &&
+    "body" in (err as object) &&
+    (err as { status?: number }).status === 400
+  ) {
+    return new HttpError(400, "That request body was not valid JSON.");
+  }
+
+  /*
+   * PostgreSQL refuses a null byte anywhere in a text value, and there is no
+   * escaping that makes it acceptable — the type genuinely cannot hold one.
+   * It arrives from a paste out of a binary file or a probe, and it was
+   * reaching the driver and coming back as a 500 from the public front door.
+   *
+   * 22021 is `character_not_in_repertoire`, which is the same answer for any
+   * byte sequence the column's encoding cannot represent.
+   */
+  if (code === "22021") {
+    return new HttpError(
+      400,
+      "That contained a character we cannot store. Please retype it.",
+    );
   }
 
   return null;

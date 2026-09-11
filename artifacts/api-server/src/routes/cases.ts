@@ -334,7 +334,6 @@ async function assertPhotoOnCase(
  * happen.
  */
 router.post("/cases/:caseId/at-need", async (req, res) => {
-  const home = tenant(req);
   const existing = await loadCase(req, req.params.caseId);
 
   if (existing.kind !== "pre_need") {
@@ -367,8 +366,6 @@ router.post("/cases/:caseId/at-need", async (req, res) => {
   if (converted!.serviceAt !== null && !(await hasDeadlines(converted!.id))) {
     await applyTemplateToCase(converted!);
   }
-
-  void home;
 
   res.json(toCaseJson(converted!));
 });
