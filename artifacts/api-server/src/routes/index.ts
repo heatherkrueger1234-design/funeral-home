@@ -8,6 +8,7 @@ import tasksRouter from "./tasks";
 import familyRouter from "./family";
 import homeRouter from "./home";
 import casesRouter from "./cases";
+import importRouter from "./import";
 import contactsRouter from "./contacts";
 import photosRouter from "./photos";
 import obituaryRouter from "./obituary";
@@ -66,6 +67,7 @@ router.use("/family", familyRateLimit, requireFamilyLink, familyRouter);
 router.use(requireAuth);
 
 router.use(homeRouter);
+router.use(importRouter);
 router.use(casesRouter);
 router.use(contactsRouter);
 router.use(photosRouter);

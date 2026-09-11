@@ -2609,6 +2609,75 @@ export const RequestFamilyQuoteBody = zod.object({
 });
 
 /**
+ * Always run before importing. Returns the guessed column mapping, the
+first rows as they would be created, and every problem found — so a
+director sees that the dates parsed and the names landed in the right
+columns before anything is written.
+
+ * @summary Read a CSV and show what would be created
+ */
+export const PreviewCaseImportBody = zod.object({
+  file: zod.instanceof(File),
+});
+
+export const PreviewCaseImportResponse = zod.object({
+  headers: zod.array(zod.string()),
+  mapping: zod
+    .record(zod.string(), zod.string().nullable())
+    .describe("Which incoming column feeds each of our fields."),
+  unmapped: zod
+    .array(zod.string())
+    .describe("Columns we did not recognise. Harmless, but worth seeing."),
+  totalRows: zod.number(),
+  wouldCreate: zod.number(),
+  wouldSkip: zod.number(),
+  rows: zod.array(
+    zod.object({
+      row: zod.number(),
+      decedentName: zod.string(),
+      serviceAt: zod.date().nullable(),
+      contactName: zod.string().nullable(),
+      contactPhone: zod.string().nullable(),
+      duplicate: zod
+        .boolean()
+        .describe("A case is already open for this person."),
+    }),
+  ),
+  issues: zod.array(
+    zod.object({
+      row: zod
+        .number()
+        .describe("Line number in the file, counting the header as line 1."),
+      message: zod.string(),
+    }),
+  ),
+});
+
+/**
+ * Skips rows that would duplicate a case already open for the same
+person, so re-importing a daily export is safe.
+
+ * @summary Create cases from a CSV
+ */
+export const ImportCasesBody = zod.object({
+  file: zod.instanceof(File),
+});
+
+export const ImportCasesResponse = zod.object({
+  created: zod.number(),
+  skipped: zod.number(),
+  issues: zod.array(
+    zod.object({
+      row: zod
+        .number()
+        .describe("Line number in the file, counting the header as line 1."),
+      message: zod.string(),
+    }),
+  ),
+  caseIds: zod.array(zod.number()),
+});
+
+/**
  * @summary Store bytes (the home's logo, or a staff-added photograph)
  */
 export const UploadFileBody = zod.object({

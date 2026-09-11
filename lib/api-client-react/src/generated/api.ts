@@ -45,6 +45,7 @@ import type {
   CaseUpdate,
   CompleteDeadlineInput,
   ComposeObituaryInput,
+  CsvUploadInput,
   DeadlineInput,
   DeadlineUpdate,
   FamilyBelongingUpdate,
@@ -63,6 +64,8 @@ import type {
   GetFamilyVendorsParams,
   GetVendorsParams,
   HealthStatus,
+  ImportPreview,
+  ImportResult,
   LoginInput,
   LookupPlacesParams,
   MessageInput,
@@ -6689,6 +6692,190 @@ export const useRequestFamilyQuote = <
   TContext
 > => {
   return useMutation(getRequestFamilyQuoteMutationOptions(options));
+};
+
+/**
+ * Always run before importing. Returns the guessed column mapping, the
+first rows as they would be created, and every problem found — so a
+director sees that the dates parsed and the names landed in the right
+columns before anything is written.
+
+ * @summary Read a CSV and show what would be created
+ */
+export const getPreviewCaseImportUrl = () => {
+  return `/api/cases/import/preview`;
+};
+
+export const previewCaseImport = async (
+  csvUploadInput: CsvUploadInput,
+  options?: RequestInit,
+): Promise<ImportPreview> => {
+  const formData = new FormData();
+  formData.append(`file`, csvUploadInput.file);
+
+  return customFetch<ImportPreview>(getPreviewCaseImportUrl(), {
+    ...options,
+    method: "POST",
+    body: formData,
+  });
+};
+
+export const getPreviewCaseImportMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof previewCaseImport>>,
+    TError,
+    { data: BodyType<CsvUploadInput> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof previewCaseImport>>,
+  TError,
+  { data: BodyType<CsvUploadInput> },
+  TContext
+> => {
+  const mutationKey = ["previewCaseImport"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof previewCaseImport>>,
+    { data: BodyType<CsvUploadInput> }
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return previewCaseImport(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type PreviewCaseImportMutationResult = NonNullable<
+  Awaited<ReturnType<typeof previewCaseImport>>
+>;
+export type PreviewCaseImportMutationBody = BodyType<CsvUploadInput>;
+export type PreviewCaseImportMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Read a CSV and show what would be created
+ */
+export const usePreviewCaseImport = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof previewCaseImport>>,
+    TError,
+    { data: BodyType<CsvUploadInput> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof previewCaseImport>>,
+  TError,
+  { data: BodyType<CsvUploadInput> },
+  TContext
+> => {
+  return useMutation(getPreviewCaseImportMutationOptions(options));
+};
+
+/**
+ * Skips rows that would duplicate a case already open for the same
+person, so re-importing a daily export is safe.
+
+ * @summary Create cases from a CSV
+ */
+export const getImportCasesUrl = () => {
+  return `/api/cases/import`;
+};
+
+export const importCases = async (
+  csvUploadInput: CsvUploadInput,
+  options?: RequestInit,
+): Promise<ImportResult> => {
+  const formData = new FormData();
+  formData.append(`file`, csvUploadInput.file);
+
+  return customFetch<ImportResult>(getImportCasesUrl(), {
+    ...options,
+    method: "POST",
+    body: formData,
+  });
+};
+
+export const getImportCasesMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof importCases>>,
+    TError,
+    { data: BodyType<CsvUploadInput> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof importCases>>,
+  TError,
+  { data: BodyType<CsvUploadInput> },
+  TContext
+> => {
+  const mutationKey = ["importCases"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof importCases>>,
+    { data: BodyType<CsvUploadInput> }
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return importCases(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type ImportCasesMutationResult = NonNullable<
+  Awaited<ReturnType<typeof importCases>>
+>;
+export type ImportCasesMutationBody = BodyType<CsvUploadInput>;
+export type ImportCasesMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Create cases from a CSV
+ */
+export const useImportCases = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof importCases>>,
+    TError,
+    { data: BodyType<CsvUploadInput> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof importCases>>,
+  TError,
+  { data: BodyType<CsvUploadInput> },
+  TContext
+> => {
+  return useMutation(getImportCasesMutationOptions(options));
 };
 
 /**

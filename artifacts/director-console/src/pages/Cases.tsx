@@ -18,6 +18,7 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import { Images, Loader2, MessageCircle, Plus, Search, TriangleAlert } from "lucide-react";
+import { ImportCases } from "@/components/ImportCases";
 
 /**
  * The worklist.
@@ -154,6 +155,7 @@ export default function Cases() {
           >
             {showClosed ? "Show open" : "Show closed"}
           </Button>
+          <ImportCases />
           <NewCaseDialog />
         </div>
       </div>

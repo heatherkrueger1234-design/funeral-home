@@ -1471,6 +1471,52 @@ paths:
               schema:
                 $ref: "#/components/schemas/VendorQuote"
 
+  /cases/import/preview:
+    post:
+      operationId: previewCaseImport
+      tags: [cases]
+      summary: Read a CSV and show what would be created
+      description: |
+        Always run before importing. Returns the guessed column mapping, the
+        first rows as they would be created, and every problem found — so a
+        director sees that the dates parsed and the names landed in the right
+        columns before anything is written.
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              $ref: "#/components/schemas/CsvUploadInput"
+      responses:
+        "200":
+          description: What would happen
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ImportPreview"
+
+  /cases/import:
+    post:
+      operationId: importCases
+      tags: [cases]
+      summary: Create cases from a CSV
+      description: |
+        Skips rows that would duplicate a case already open for the same
+        person, so re-importing a daily export is safe.
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              $ref: "#/components/schemas/CsvUploadInput"
+      responses:
+        "200":
+          description: What was created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ImportResult"
+
   /uploads:
     post:
       operationId: uploadFile
@@ -2796,6 +2842,98 @@ components:
         caption:
           type: string
       required: [file]
+
+    CsvUploadInput:
+      type: object
+      properties:
+        file:
+          type: string
+          format: binary
+      required: [file]
+
+    ImportRowIssue:
+      type: object
+      properties:
+        row:
+          type: integer
+          description: Line number in the file, counting the header as line 1.
+        message:
+          type: string
+      required: [row, message]
+
+    ImportPreviewRow:
+      type: object
+      properties:
+        row:
+          type: integer
+        decedentName:
+          type: string
+        serviceAt:
+          type: string
+          format: date-time
+          nullable: true
+        contactName:
+          type: string
+          nullable: true
+        contactPhone:
+          type: string
+          nullable: true
+        duplicate:
+          type: boolean
+          description: A case is already open for this person.
+      required: [row, decedentName, serviceAt, contactName, contactPhone, duplicate]
+
+    ImportPreview:
+      type: object
+      properties:
+        headers:
+          type: array
+          items:
+            type: string
+        mapping:
+          type: object
+          additionalProperties:
+            type: string
+            nullable: true
+          description: Which incoming column feeds each of our fields.
+        unmapped:
+          type: array
+          description: Columns we did not recognise. Harmless, but worth seeing.
+          items:
+            type: string
+        totalRows:
+          type: integer
+        wouldCreate:
+          type: integer
+        wouldSkip:
+          type: integer
+        rows:
+          type: array
+          items:
+            $ref: "#/components/schemas/ImportPreviewRow"
+        issues:
+          type: array
+          items:
+            $ref: "#/components/schemas/ImportRowIssue"
+      required:
+        [headers, mapping, unmapped, totalRows, wouldCreate, wouldSkip, rows, issues]
+
+    ImportResult:
+      type: object
+      properties:
+        created:
+          type: integer
+        skipped:
+          type: integer
+        issues:
+          type: array
+          items:
+            $ref: "#/components/schemas/ImportRowIssue"
+        caseIds:
+          type: array
+          items:
+            type: integer
+      required: [created, skipped, issues, caseIds]
 
     UploadSummary:
       type: object

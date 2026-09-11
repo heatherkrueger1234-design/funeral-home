@@ -550,6 +550,51 @@ export interface FamilyPhotoUploadInput {
   caption?: string;
 }
 
+export interface CsvUploadInput {
+  file: Blob;
+}
+
+export interface ImportRowIssue {
+  /** Line number in the file, counting the header as line 1. */
+  row: number;
+  message: string;
+}
+
+export interface ImportPreviewRow {
+  row: number;
+  decedentName: string;
+  serviceAt: string | null;
+  contactName: string | null;
+  contactPhone: string | null;
+  /** A case is already open for this person. */
+  duplicate: boolean;
+}
+
+/**
+ * Which incoming column feeds each of our fields.
+ */
+export type ImportPreviewMapping = { [key: string]: string | null };
+
+export interface ImportPreview {
+  headers: string[];
+  /** Which incoming column feeds each of our fields. */
+  mapping: ImportPreviewMapping;
+  /** Columns we did not recognise. Harmless, but worth seeing. */
+  unmapped: string[];
+  totalRows: number;
+  wouldCreate: number;
+  wouldSkip: number;
+  rows: ImportPreviewRow[];
+  issues: ImportRowIssue[];
+}
+
+export interface ImportResult {
+  created: number;
+  skipped: number;
+  issues: ImportRowIssue[];
+  caseIds: number[];
+}
+
 export interface UploadSummary {
   id: number;
   filename: string;
