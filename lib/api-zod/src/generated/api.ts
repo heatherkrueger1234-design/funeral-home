@@ -187,6 +187,17 @@ export const LoginResponse = zod.object({
     officeClosesMinute: zod.number(),
     timezone: zod.string(),
     aftercareEnabled: zod.boolean(),
+    intakeEnabled: zod
+      .boolean()
+      .describe(
+        "Whether the home's public page will take a request from somebody\nnobody has sent a link to.\n",
+      ),
+    intakeNotifyEmail: zod
+      .string()
+      .nullish()
+      .describe(
+        "Where a request lands. Falls back to the owner's address, because\na form that fills a queue nobody opens is worse than no form -\nthe family believes they have reached someone.\n",
+      ),
     aftercareSenderName: zod.string().nullish(),
     subscriptionStatus: zod.enum(["trial", "active", "past_due", "canceled"]),
     trialEndsAt: zod.date().nullish(),
@@ -222,6 +233,17 @@ export const GetCurrentUserResponse = zod.object({
     officeClosesMinute: zod.number(),
     timezone: zod.string(),
     aftercareEnabled: zod.boolean(),
+    intakeEnabled: zod
+      .boolean()
+      .describe(
+        "Whether the home's public page will take a request from somebody\nnobody has sent a link to.\n",
+      ),
+    intakeNotifyEmail: zod
+      .string()
+      .nullish()
+      .describe(
+        "Where a request lands. Falls back to the owner's address, because\na form that fills a queue nobody opens is worse than no form -\nthe family believes they have reached someone.\n",
+      ),
     aftercareSenderName: zod.string().nullish(),
     subscriptionStatus: zod.enum(["trial", "active", "past_due", "canceled"]),
     trialEndsAt: zod.date().nullish(),
@@ -265,6 +287,17 @@ export const GetHomeResponse = zod.object({
   officeClosesMinute: zod.number(),
   timezone: zod.string(),
   aftercareEnabled: zod.boolean(),
+  intakeEnabled: zod
+    .boolean()
+    .describe(
+      "Whether the home's public page will take a request from somebody\nnobody has sent a link to.\n",
+    ),
+  intakeNotifyEmail: zod
+    .string()
+    .nullish()
+    .describe(
+      "Where a request lands. Falls back to the owner's address, because\na form that fills a queue nobody opens is worse than no form -\nthe family believes they have reached someone.\n",
+    ),
   aftercareSenderName: zod.string().nullish(),
   subscriptionStatus: zod.enum(["trial", "active", "past_due", "canceled"]),
   trialEndsAt: zod.date().nullish(),
@@ -302,6 +335,8 @@ export const UpdateHomeBody = zod.object({
     .optional(),
   timezone: zod.string().optional(),
   aftercareEnabled: zod.boolean().optional(),
+  intakeEnabled: zod.boolean().optional(),
+  intakeNotifyEmail: zod.string().nullish(),
   aftercareSenderName: zod.string().nullish(),
 });
 
@@ -322,6 +357,17 @@ export const UpdateHomeResponse = zod.object({
   officeClosesMinute: zod.number(),
   timezone: zod.string(),
   aftercareEnabled: zod.boolean(),
+  intakeEnabled: zod
+    .boolean()
+    .describe(
+      "Whether the home's public page will take a request from somebody\nnobody has sent a link to.\n",
+    ),
+  intakeNotifyEmail: zod
+    .string()
+    .nullish()
+    .describe(
+      "Where a request lands. Falls back to the owner's address, because\na form that fills a queue nobody opens is worse than no form -\nthe family believes they have reached someone.\n",
+    ),
   aftercareSenderName: zod.string().nullish(),
   subscriptionStatus: zod.enum(["trial", "active", "past_due", "canceled"]),
   trialEndsAt: zod.date().nullish(),

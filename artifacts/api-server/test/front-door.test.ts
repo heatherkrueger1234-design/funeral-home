@@ -303,6 +303,30 @@ describe("a pre-need file does not behave like a bereavement", () => {
   });
 });
 
+describe("a home finding out it has a public page", () => {
+  it("ticks the setup step when somebody actually uses it", async () => {
+    const staff = await signUpHome();
+    const slug = await slugOf(staff.homeId);
+
+    const before = await staff.agent.get("/api/billing").expect(200);
+    const publicStepBefore = before.body.onboarding.find(
+      (step: { key: string }) => step.key === "public",
+    );
+    expect(publicStepBefore?.done).toBe(false);
+
+    await request(app).post("/api/public/intake").send(atNeed(slug)).expect(202);
+
+    // A request arriving is the only thing that proves the page is reachable
+    // from wherever the home put it. Reading the URL in settings proves
+    // nothing, so that is not what ticks this.
+    const after = await staff.agent.get("/api/billing").expect(200);
+    const publicStepAfter = after.body.onboarding.find(
+      (step: { key: string }) => step.key === "public",
+    );
+    expect(publicStepAfter?.done).toBe(true);
+  });
+});
+
 describe("a living person must never be treated as a dead one", () => {
   it("does not enrol a pre-need file in grief aftercare when it closes", async () => {
     const staff = await signUpHome();

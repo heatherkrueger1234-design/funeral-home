@@ -36,6 +36,15 @@ export interface FuneralHome {
   officeClosesMinute: number;
   timezone: string;
   aftercareEnabled: boolean;
+  /** Whether the home's public page will take a request from somebody
+nobody has sent a link to.
+ */
+  intakeEnabled: boolean;
+  /** Where a request lands. Falls back to the owner's address, because
+a form that fills a queue nobody opens is worse than no form -
+the family believes they have reached someone.
+ */
+  intakeNotifyEmail?: string | null;
   aftercareSenderName?: string | null;
   subscriptionStatus: FuneralHomeSubscriptionStatus;
   trialEndsAt?: Date | null;

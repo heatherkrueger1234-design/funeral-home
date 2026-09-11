@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import {
   useGetHome,
@@ -9,6 +10,7 @@ import { useSession } from "@/lib/session";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
+import { Button } from "@/components/ui/button";
 import { Loader2 } from "lucide-react";
 import { StandardSchedule } from "@/components/StandardSchedule";
 import { BillingSection } from "@/components/BillingSection";
@@ -191,6 +193,60 @@ export default function Settings() {
 
       <BillingSection readOnly={readOnly} />
 
+      {/*
+        A public page nobody knows about is a public page that does nothing.
+        This is where a home finds out it has one, and gets the address to put
+        on their own website.
+      */}
+      <section className="space-y-4 rounded-xl border border-border bg-card p-4">
+        <h2 className="font-medium">Your public page</h2>
+        <p className="text-sm text-muted-foreground">
+          Put this on your website, so a family who has just had a death — or
+          someone planning their own funeral in advance — can reach you without
+          waiting for office hours. Your telephone number is at the top of it,
+          above the form.
+        </p>
+
+        <PublicPageLink slug={row.slug} />
+
+        <label className="flex items-start gap-3">
+          <Switch
+            checked={row.intakeEnabled}
+            disabled={readOnly}
+            onCheckedChange={(checked) => save({ intakeEnabled: checked })}
+          />
+          <span className="text-sm">
+            <span className="block font-medium">
+              Take requests through the page
+            </span>
+            <span className="block text-muted-foreground">
+              Turn this off if you would rather every first contact were a phone
+              call. The page still works and still shows your number — it just
+              offers the telephone instead of a form.
+            </span>
+          </span>
+        </label>
+
+        <div className="space-y-1.5">
+          <Label htmlFor="intakeNotifyEmail">Send requests to</Label>
+          <Input
+            id="intakeNotifyEmail"
+            type="email"
+            disabled={readOnly}
+            placeholder="Falls back to the owner's address"
+            defaultValue={row.intakeNotifyEmail ?? ""}
+            onBlur={(event) =>
+              save({ intakeNotifyEmail: event.target.value.trim() || null })
+            }
+          />
+          <p className="text-xs text-muted-foreground">
+            Whoever checks email during the day. A request sitting in a queue
+            nobody opens is worse than no form at all — the family believes they
+            have reached someone.
+          </p>
+        </div>
+      </section>
+
       <section className="space-y-4 rounded-xl border border-border bg-card p-4">
         <h2 className="font-medium">Aftercare</h2>
 
@@ -229,6 +285,53 @@ export default function Settings() {
           </p>
         </div>
       </section>
+    </div>
+  );
+}
+
+/**
+ * The address a home puts on their own website.
+ *
+ * Built from the family portal's origin at runtime rather than stored,
+ * because the console and the portal are different hostnames and only the
+ * deployment knows the second one. `VITE_FAMILY_PORTAL_URL` is read if the
+ * build set it; otherwise this shows the path and says where it goes, which
+ * is honest rather than confidently wrong.
+ */
+function PublicPageLink({ slug }: { slug: string }) {
+  const [copied, setCopied] = useState(false);
+
+  const configured = import.meta.env["VITE_FAMILY_PORTAL_URL"] as
+    | string
+    | undefined;
+  const origin = configured?.replace(/\/+$/, "");
+  const url = `${origin ?? ""}/start/${slug}`;
+
+  return (
+    <div className="space-y-1.5">
+      <div className="flex gap-2">
+        <code className="flex-1 rounded border bg-muted px-3 py-2 text-xs break-all">
+          {url}
+        </code>
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => {
+            void navigator.clipboard?.writeText(url).then(() => {
+              setCopied(true);
+              setTimeout(() => setCopied(false), 2000);
+            });
+          }}
+        >
+          {copied ? "Copied" : "Copy"}
+        </Button>
+      </div>
+      {!origin && (
+        <p className="text-xs text-muted-foreground">
+          Add your family portal&rsquo;s address in front of that path — it is
+          the site your families open their texted links on.
+        </p>
+      )}
     </div>
   );
 }

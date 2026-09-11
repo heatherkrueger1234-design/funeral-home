@@ -13,6 +13,7 @@ import {
 import { SubmitIntakeRequestBody } from "@workspace/api-zod";
 import { sendIntakeNotificationEmail } from "@workspace/mailer";
 import { badRequest, notFound, parseBody, HttpError } from "../lib/http";
+import { markOnboarding } from "../lib/onboarding";
 import { logger } from "../lib/logger";
 
 const router: IRouter = Router();
@@ -169,6 +170,13 @@ router.post("/intake", async (req, res) => {
     .returning();
 
   if (!saved) throw new HttpError(500, "The request could not be saved.");
+
+  /*
+   * The setup step for the public page ticks here rather than when a director
+   * reads the URL, because a request arriving is the only thing that actually
+   * proves the page is reachable from wherever they put it.
+   */
+  void markOnboarding(home.id, "public");
 
   // Best effort, and deliberately after the row is committed: a mail outage
   // must not lose a request that a grieving family believes they have sent.

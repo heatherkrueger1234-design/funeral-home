@@ -195,6 +195,12 @@ export const ONBOARDING_STEPS = [
     title: "Invite your colleagues",
     detail: "They set their own passwords.",
   },
+  {
+    key: "public",
+    title: "Put your page on your website",
+    detail:
+      "So a family who has just had a death can reach you at 2am. This ticks itself the first time somebody uses it.",
+  },
 ] as const;
 
 export type OnboardingStep = (typeof ONBOARDING_STEPS)[number]["key"];

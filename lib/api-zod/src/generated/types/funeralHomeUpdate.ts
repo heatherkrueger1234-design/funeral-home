@@ -41,5 +41,7 @@ export interface FuneralHomeUpdate {
   officeClosesMinute?: number;
   timezone?: string;
   aftercareEnabled?: boolean;
+  intakeEnabled?: boolean;
+  intakeNotifyEmail?: string | null;
   aftercareSenderName?: string | null;
 }
