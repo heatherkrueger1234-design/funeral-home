@@ -6,11 +6,10 @@
  * the right places — an unauthenticated stranger must be able to ask, and
  * must not be able to reach, create, or learn anything.
  */
-import { describe, expect, it, beforeEach } from "vitest";
+import { describe, expect, it } from "vitest";
 import request from "supertest";
 import app from "../src/app";
 import { signUpHome } from "./helpers";
-import { publicRateLimit } from "../src/middleware/rate-limit";
 import { db, funeralHomesTable } from "@workspace/db";
 import { eq } from "drizzle-orm";
 
@@ -47,10 +46,6 @@ function preNeed(slug: string, overrides: Record<string, unknown> = {}) {
     ...overrides,
   };
 }
-
-beforeEach(() => {
-  publicRateLimit.reset();
-});
 
 describe("the home's public page", () => {
   it("gives a stranger enough to know it is the right home, and nothing else", async () => {
@@ -305,6 +300,151 @@ describe("a pre-need file does not behave like a bereavement", () => {
       .expect(201);
 
     expect(res.body.kind).toBe("at_need");
+  });
+});
+
+describe("a living person must never be treated as a dead one", () => {
+  it("does not enrol a pre-need file in grief aftercare when it closes", async () => {
+    const staff = await signUpHome();
+
+    const preNeedCase = await staff.agent
+      .post("/api/cases")
+      .send({
+        kind: "pre_need",
+        decedentFirstName: "Harold",
+        decedentLastName: "Finch",
+      })
+      .expect(201);
+
+    await staff.agent
+      .post(`/api/cases/${preNeedCase.body.id}/contacts`)
+      .send({ name: "Harold Finch", email: "harold@example.com" })
+      .expect(201);
+
+    await staff.agent.post(`/api/cases/${preNeedCase.body.id}/close`).expect(200);
+
+    /*
+     * Aftercare is grief support — "thinking of you, a month on", signed in
+     * the home's name. Sending that to somebody who is alive, about
+     * themselves, is the worst thing this product is capable of doing.
+     */
+    const aftercare = await staff.agent
+      .get(`/api/cases/${preNeedCase.body.id}/aftercare`)
+      .expect(200);
+
+    expect(aftercare.body).toEqual([]);
+  });
+
+  it("still enrols an ordinary case, so the guard has not broken the feature", async () => {
+    const staff = await signUpHome();
+
+    const ordinary = await staff.agent
+      .post("/api/cases")
+      .send({ decedentFirstName: "Margaret", decedentLastName: "Hale" })
+      .expect(201);
+
+    await staff.agent
+      .post(`/api/cases/${ordinary.body.id}/contacts`)
+      .send({ name: "John Hale", email: "john@example.com" })
+      .expect(201);
+
+    await staff.agent.post(`/api/cases/${ordinary.body.id}/close`).expect(200);
+
+    const aftercare = await staff.agent
+      .get(`/api/cases/${ordinary.body.id}/aftercare`)
+      .expect(200);
+
+    expect(aftercare.body.length).toBeGreaterThan(0);
+  });
+});
+
+describe("the day the pre-need planner dies", () => {
+  it("keeps everything they chose, and builds the schedule it never had", async () => {
+    const staff = await signUpHome();
+
+    const plan = await staff.agent
+      .post("/api/cases")
+      .send({
+        kind: "pre_need",
+        decedentFirstName: "Harold",
+        decedentLastName: "Finch",
+        decedentPreferredName: "Hal",
+      })
+      .expect(201);
+
+    // What they wrote while well.
+    await staff.agent
+      .put(`/api/cases/${plan.body.id}`)
+      .send({ serviceNotes: "No black. Play something cheerful." })
+      .expect(200);
+    await staff.agent
+      .put(`/api/cases/${plan.body.id}/obituary`)
+      .send({ bornOn: "1948", survivedBy: "A great many nieces" })
+      .expect(200);
+
+    const serviceAt = new Date(Date.now() + 5 * 86_400_000).toISOString();
+    const converted = await staff.agent
+      .post(`/api/cases/${plan.body.id}/at-need`)
+      .send({ dateOfDeath: new Date().toISOString(), serviceAt })
+      .expect(200);
+
+    expect(converted.body.kind).toBe("at_need");
+    expect(converted.body.dateOfDeath).not.toBeNull();
+    // The whole point: nothing re-typed.
+    expect(converted.body.decedentPreferredName).toBe("Hal");
+    expect(converted.body.serviceNotes).toBe("No black. Play something cheerful.");
+
+    const obituary = await staff.agent
+      .get(`/api/cases/${plan.body.id}/obituary`)
+      .expect(200);
+    expect(obituary.body.survivedBy).toBe("A great many nieces");
+
+    // And the timeline a pre-need file deliberately never had.
+    const deadlines = await staff.agent
+      .get(`/api/cases/${plan.body.id}/deadlines`)
+      .expect(200);
+    expect(deadlines.body.length).toBeGreaterThan(0);
+  });
+
+  it("refuses to convert a case that was never pre-need", async () => {
+    const staff = await signUpHome();
+    const ordinary = await staff.agent
+      .post("/api/cases")
+      .send({ decedentFirstName: "Margaret", decedentLastName: "Hale" })
+      .expect(201);
+
+    await staff.agent
+      .post(`/api/cases/${ordinary.body.id}/at-need`)
+      .send({ dateOfDeath: new Date().toISOString() })
+      .expect(409);
+  });
+
+  it("will not convert without a date of death", async () => {
+    const staff = await signUpHome();
+    const plan = await staff.agent
+      .post("/api/cases")
+      .send({ kind: "pre_need", decedentFirstName: "Harold", decedentLastName: "Finch" })
+      .expect(201);
+
+    await staff.agent
+      .post(`/api/cases/${plan.body.id}/at-need`)
+      .send({})
+      .expect(400);
+  });
+
+  it("cannot be reached across tenants", async () => {
+    const a = await signUpHome("Home A");
+    const b = await signUpHome("Home B");
+
+    const plan = await a.agent
+      .post("/api/cases")
+      .send({ kind: "pre_need", decedentFirstName: "Harold", decedentLastName: "Finch" })
+      .expect(201);
+
+    await b.agent
+      .post(`/api/cases/${plan.body.id}/at-need`)
+      .send({ dateOfDeath: new Date().toISOString() })
+      .expect(404);
   });
 });
 

@@ -49,6 +49,7 @@ import type {
   CaseUpdate,
   CompleteDeadlineInput,
   ComposeObituaryInput,
+  ConvertToAtNeedInput,
   CsvUploadInput,
   DeadlineInput,
   DeadlineUpdate,
@@ -2036,6 +2037,107 @@ export const useApplyTimelineTemplate = <
   TContext
 > => {
   return useMutation(getApplyTimelineTemplateMutationOptions(options));
+};
+
+/**
+ * The moment a pre-need file is worth having. Everything they chose
+while well - the photographs, the obituary in their own words, the
+hymns, who carries them - is already here, so nothing is re-typed on
+the day it is hardest to ask.
+
+Flips the file to `at_need`, records the date of death, and builds the
+standard schedule that a pre-need file deliberately never had. It does
+not invite anybody: who the family is, is a conversation, not a
+field.
+
+Refused on a file that is already at-need. There is no way back - a
+death is not an editing mistake, and if it really was one, the case
+can be deleted.
+
+ * @summary The person this pre-need file was for has died
+ */
+export const getConvertCaseToAtNeedUrl = (caseId: number) => {
+  return `/api/cases/${caseId}/at-need`;
+};
+
+export const convertCaseToAtNeed = async (
+  caseId: number,
+  convertToAtNeedInput: ConvertToAtNeedInput,
+  options?: RequestInit,
+): Promise<Case> => {
+  return customFetch<Case>(getConvertCaseToAtNeedUrl(caseId), {
+    ...options,
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(convertToAtNeedInput),
+  });
+};
+
+export const getConvertCaseToAtNeedMutationOptions = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof convertCaseToAtNeed>>,
+    TError,
+    { caseId: number; data: BodyType<ConvertToAtNeedInput> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof convertCaseToAtNeed>>,
+  TError,
+  { caseId: number; data: BodyType<ConvertToAtNeedInput> },
+  TContext
+> => {
+  const mutationKey = ["convertCaseToAtNeed"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof convertCaseToAtNeed>>,
+    { caseId: number; data: BodyType<ConvertToAtNeedInput> }
+  > = (props) => {
+    const { caseId, data } = props ?? {};
+
+    return convertCaseToAtNeed(caseId, data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type ConvertCaseToAtNeedMutationResult = NonNullable<
+  Awaited<ReturnType<typeof convertCaseToAtNeed>>
+>;
+export type ConvertCaseToAtNeedMutationBody = BodyType<ConvertToAtNeedInput>;
+export type ConvertCaseToAtNeedMutationError = ErrorType<void>;
+
+/**
+ * @summary The person this pre-need file was for has died
+ */
+export const useConvertCaseToAtNeed = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof convertCaseToAtNeed>>,
+    TError,
+    { caseId: number; data: BodyType<ConvertToAtNeedInput> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof convertCaseToAtNeed>>,
+  TError,
+  { caseId: number; data: BodyType<ConvertToAtNeedInput> },
+  TContext
+> => {
+  return useMutation(getConvertCaseToAtNeedMutationOptions(options));
 };
 
 /**

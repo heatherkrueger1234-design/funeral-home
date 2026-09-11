@@ -5,6 +5,7 @@ import {
   getGetFamilySessionQueryKey,
 } from "@workspace/api-client-react";
 import { useLink } from "@/lib/link";
+import { voiceFor } from "@/lib/voice";
 import { Loader2, Phone } from "lucide-react";
 
 /**
@@ -56,13 +57,38 @@ export function PortalShell({ children }: { children: ReactNode }) {
   useBrandColor(session.data?.home.accentColor);
 
   if (token === null) {
+    /*
+     * Almost everyone who lands here has a link and has lost it somewhere in
+     * their messages, so that is answered first and plainly.
+     *
+     * What used to be here was only that first paragraph, which made this a
+     * dead end for the two people it did not describe: a family whose person
+     * has just died and who found this page by searching, and someone
+     * arranging their own funeral in advance. Neither of them has a link,
+     * and neither of them should be told to go and find one.
+     */
     return (
       <FullScreen>
         <h1 className="font-display text-2xl mb-3">This page needs your link</h1>
         <p className="text-muted-foreground">
-          Your funeral home sent you a link by text message. Open it from that
-          message and this page will remember you.
+          Your funeral home sent you a link by text message or email. Open it
+          from that message and this page will remember you — there is nothing
+          to sign in to, and no password to remember.
         </p>
+        <div className="mt-8 pt-6 border-t text-left space-y-4">
+          <p className="text-sm font-medium">If you have not been sent one</p>
+          <p className="text-sm text-muted-foreground">
+            Whether someone has died, or you are planning your own funeral in
+            advance, start from the funeral home's own website — they will have
+            a link on it — or telephone them. This page cannot reach them for
+            you, because it does not know which home you mean.
+          </p>
+          <p className="text-sm text-muted-foreground">
+            If you already have a file with them and cannot find the link,
+            telephone and ask them to send another. Nothing you have added is
+            lost.
+          </p>
+        </div>
       </FullScreen>
     );
   }
@@ -92,8 +118,11 @@ export function PortalShell({ children }: { children: ReactNode }) {
     );
   }
 
-  const { home, case: deceased } = session.data;
+  const { home, case: subject } = session.data;
   const atHub = location === "/" || location.startsWith("/f/");
+  // "For Eleanor Vance" is right for a bereavement and wrong for somebody
+  // reading their own plan.
+  const voice = voiceFor(subject.kind);
 
   return (
     <div className="min-h-dvh flex flex-col">
@@ -112,7 +141,7 @@ export function PortalShell({ children }: { children: ReactNode }) {
                 {home.name}
               </p>
               <p className="text-white/75 text-sm leading-tight truncate">
-                For {deceased.displayName}
+                {voice.strapline(subject.displayName)}
               </p>
             </div>
           </div>

@@ -369,6 +369,16 @@ export interface IntakeReceipt {
   urgentPhone: string | null;
 }
 
+export interface ConvertToAtNeedInput {
+  /** Required. Converting without one would leave a file that claims
+somebody died on no particular day, and the schedule counts from
+it.
+ */
+  dateOfDeath: string;
+  /** If it is already known. The schedule is built from it. */
+  serviceAt?: string | null;
+}
+
 /**
  * `pre_need` means the person this file is about is still alive and
 arranging their own funeral. Every label, every date and every

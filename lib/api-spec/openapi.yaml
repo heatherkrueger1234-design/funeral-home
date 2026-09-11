@@ -486,6 +486,43 @@ paths:
 
   # ---------------------------------------------------------------- intake --
 
+  /cases/{caseId}/at-need:
+    post:
+      operationId: convertCaseToAtNeed
+      tags: [cases]
+      summary: The person this pre-need file was for has died
+      description: |
+        The moment a pre-need file is worth having. Everything they chose
+        while well - the photographs, the obituary in their own words, the
+        hymns, who carries them - is already here, so nothing is re-typed on
+        the day it is hardest to ask.
+
+        Flips the file to `at_need`, records the date of death, and builds the
+        standard schedule that a pre-need file deliberately never had. It does
+        not invite anybody: who the family is, is a conversation, not a
+        field.
+
+        Refused on a file that is already at-need. There is no way back - a
+        death is not an editing mistake, and if it really was one, the case
+        can be deleted.
+      parameters:
+        - $ref: "#/components/parameters/CaseId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ConvertToAtNeedInput"
+      responses:
+        "200":
+          description: The file, now a case
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Case"
+        "409":
+          description: Already an at-need case
+
   /intake-requests:
     get:
       operationId: getIntakeRequests
@@ -2905,6 +2942,23 @@ components:
           type: string
           nullable: true
       required: [received, kind, homeName, urgentPhone]
+
+    ConvertToAtNeedInput:
+      type: object
+      properties:
+        dateOfDeath:
+          type: string
+          format: date-time
+          description: |
+            Required. Converting without one would leave a file that claims
+            somebody died on no particular day, and the schedule counts from
+            it.
+        serviceAt:
+          type: string
+          format: date-time
+          nullable: true
+          description: If it is already known. The schedule is built from it.
+      required: [dateOfDeath]
 
     AcceptedIntake:
       allOf:

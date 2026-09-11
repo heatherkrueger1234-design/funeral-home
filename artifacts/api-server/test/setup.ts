@@ -15,6 +15,16 @@ process.env["NODE_ENV"] ??= "test";
 const { db, pool } = await import("@workspace/db");
 const { sql } = await import("drizzle-orm");
 
+/*
+ * The rate limiters hold their counts in process memory, which no TRUNCATE
+ * touches. A file that registers a dozen homes would otherwise exhaust the
+ * auth ceiling and fail the *next* file's first test, which is the kind of
+ * flake that gets blamed on the database.
+ */
+const { authRateLimit, familyRateLimit, publicRateLimit } = await import(
+  "../src/middleware/rate-limit"
+);
+
 /**
  * Truncate rather than recreate. `RESTART IDENTITY` matters more than it
  * looks: sequences that carried over between tests would let a test pass
@@ -22,6 +32,10 @@ const { sql } = await import("drizzle-orm");
  * because the code scoped its query.
  */
 beforeEach(async () => {
+  authRateLimit.reset();
+  familyRateLimit.reset();
+  publicRateLimit.reset();
+
   await db.execute(
     sql`TRUNCATE TABLE
       aftercare_deliveries,

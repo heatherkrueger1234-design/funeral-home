@@ -1,3 +1,4 @@
+import { voiceFor } from "@/lib/voice";
 import { Link } from "wouter";
 import {
   useGetFamilySession,
@@ -93,6 +94,7 @@ export default function Hub() {
   } = session.data;
 
   const serviceWhen = formatWhen(deceased.serviceAt);
+  const voice = voiceFor(deceased.kind);
 
   // The soonest thing that is actually due. One is useful; a list of five on
   // the front page is a wall a grieving person bounces off.
@@ -105,11 +107,18 @@ export default function Hub() {
   return (
     <div className="space-y-6">
       <section>
-        <h1 className="font-display text-2xl mb-1">{deceased.displayName}</h1>
+        <h1 className="font-display text-2xl mb-1">
+          {voice.heading(deceased.displayName)}
+        </h1>
         {serviceWhen ? (
           <p className="text-muted-foreground">
             {serviceWhen}
             {deceased.serviceLocation ? ` · ${deceased.serviceLocation}` : ""}
+          </p>
+        ) : voice.preNeed ? (
+          <p className="text-muted-foreground">
+            Nothing here is fixed, and nothing is decided today. Add what you
+            know, leave the rest, and come back whenever you like.
           </p>
         ) : (
           <p className="text-muted-foreground">

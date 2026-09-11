@@ -13,7 +13,12 @@ import {
   canOpenCases,
   type Case,
 } from "@workspace/db";
-import { CreateCaseBody, UpdateCaseBody, GetCasesQueryParams } from "@workspace/api-zod";
+import {
+  CreateCaseBody,
+  UpdateCaseBody,
+  GetCasesQueryParams,
+  ConvertCaseToAtNeedBody,
+} from "@workspace/api-zod";
 import {
   assertHasUpdates,
   badRequest,
@@ -317,6 +322,57 @@ async function assertPhotoOnCase(
  * Idempotent: closing an already-closed case returns it unchanged rather
  * than moving the lock date and re-enrolling everyone.
  */
+/**
+ * The person this pre-need file was for has died.
+ *
+ * This is the single moment that justifies pre-need and at-need being one
+ * table rather than two products. Everything they chose while well is already
+ * here — the photographs, the obituary in their own words, the hymns, who
+ * carries them — so on the day it is hardest to ask, nobody is asked. A
+ * separate pre-need system that has to be copied across at exactly this
+ * moment is how everyone else does it, and is why the copying does not
+ * happen.
+ */
+router.post("/cases/:caseId/at-need", async (req, res) => {
+  const home = tenant(req);
+  const existing = await loadCase(req, req.params.caseId);
+
+  if (existing.kind !== "pre_need") {
+    throw new HttpError(
+      409,
+      "This is already an at-need case.",
+    );
+  }
+
+  const body = parseBody(ConvertCaseToAtNeedBody, req.body);
+
+  const [converted] = await db
+    .update(casesTable)
+    .set({
+      kind: "at_need",
+      dateOfDeath: body.dateOfDeath,
+      ...(body.serviceAt === undefined ? {} : { serviceAt: body.serviceAt }),
+      updatedAt: new Date(),
+    })
+    .where(eq(casesTable.id, existing.id))
+    .returning();
+
+  /*
+   * Now build the schedule this file deliberately never had. A pre-need file
+   * gets no timeline because the standard schedule counts backwards from a
+   * service, and putting a list of overdue funeral tasks in front of somebody
+   * who is perfectly well would be grotesque. That objection has just stopped
+   * applying.
+   */
+  if (converted!.serviceAt !== null && !(await hasDeadlines(converted!.id))) {
+    await applyTemplateToCase(converted!);
+  }
+
+  void home;
+
+  res.json(toCaseJson(converted!));
+});
+
 router.post("/cases/:caseId/close", async (req, res) => {
   const home = tenant(req);
   const existing = await loadCase(req, req.params.caseId);
@@ -344,7 +400,18 @@ router.post("/cases/:caseId/close", async (req, res) => {
     .where(eq(casesTable.id, existing.id))
     .returning();
 
-  if (home.aftercareEnabled) {
+  /*
+   * Never for a pre-need file.
+   *
+   * Aftercare is grief support: "thinking of you, a month on", signed in the
+   * home's name. Closing a pre-need file means the person has finished
+   * writing down what they want, and they are alive — sending them a
+   * bereavement check-in about themselves would be the worst thing this
+   * product is capable of doing. The kind check comes first, before the
+   * home's own setting, because no home setting should be able to turn this
+   * on for someone who has not died.
+   */
+  if (closed!.kind !== "pre_need" && home.aftercareEnabled) {
     await enrolCaseInAftercare(closed!, home, now);
   }
 

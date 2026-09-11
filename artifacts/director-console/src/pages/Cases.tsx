@@ -197,11 +197,26 @@ export default function Cases() {
                 className="flex flex-wrap items-center gap-x-4 gap-y-2 rounded-xl border border-border bg-card px-4 py-3.5 hover:border-[var(--accent)] transition-colors"
               >
                 <span className="min-w-0 flex-1">
-                  <span className="block font-medium truncate">
-                    {row.displayName}
+                  <span className="flex items-center gap-2">
+                    <span className="font-medium truncate">
+                      {row.displayName}
+                    </span>
+                    {/*
+                      Unmissable, and on the row rather than only inside the
+                      case. A director scanning this list must never ring a
+                      pre-need planner to offer condolences.
+                    */}
+                    {row.kind === "pre_need" && (
+                      <span className="shrink-0 rounded-full border border-border
+                                       px-2 py-0.5 text-xs text-muted-foreground">
+                        Planning ahead
+                      </span>
+                    )}
                   </span>
                   <span className="block text-sm text-muted-foreground truncate">
-                    {formatService(row.serviceAt)}
+                    {row.kind === "pre_need"
+                      ? "Living — no service date"
+                      : formatService(row.serviceAt)}
                     {row.nextOfKinName ? ` · ${row.nextOfKinName}` : ""}
                   </span>
                 </span>

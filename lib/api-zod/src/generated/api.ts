@@ -553,6 +553,68 @@ export const ApplyTimelineTemplateResponse = zod.array(
 );
 
 /**
+ * The moment a pre-need file is worth having. Everything they chose
+while well - the photographs, the obituary in their own words, the
+hymns, who carries them - is already here, so nothing is re-typed on
+the day it is hardest to ask.
+
+Flips the file to `at_need`, records the date of death, and builds the
+standard schedule that a pre-need file deliberately never had. It does
+not invite anybody: who the family is, is a conversation, not a
+field.
+
+Refused on a file that is already at-need. There is no way back - a
+death is not an editing mistake, and if it really was one, the case
+can be deleted.
+
+ * @summary The person this pre-need file was for has died
+ */
+export const ConvertCaseToAtNeedParams = zod.object({
+  caseId: zod.coerce.number(),
+});
+
+export const ConvertCaseToAtNeedBody = zod.object({
+  dateOfDeath: zod.coerce
+    .date()
+    .describe(
+      "Required. Converting without one would leave a file that claims\nsomebody died on no particular day, and the schedule counts from\nit.\n",
+    ),
+  serviceAt: zod.coerce
+    .date()
+    .nullish()
+    .describe("If it is already known. The schedule is built from it."),
+});
+
+export const ConvertCaseToAtNeedResponse = zod.object({
+  id: zod.number(),
+  kind: zod
+    .enum(["at_need", "pre_need"])
+    .describe(
+      "`pre_need` means the person this file is about is still alive and\narranging their own funeral. Every label, every date and every\nline of condolence has to read this first.\n",
+    ),
+  decedentFirstName: zod.string(),
+  decedentLastName: zod.string(),
+  decedentPreferredName: zod.string().nullable(),
+  displayName: zod.string(),
+  dateOfBirth: zod.date().nullable(),
+  dateOfDeath: zod.date().nullable(),
+  portraitPhotoId: zod.number().nullable(),
+  referencePhotoId: zod.number().nullable(),
+  serviceAt: zod.date().nullable(),
+  serviceLocation: zod.string().nullable(),
+  serviceNotes: zod.string().nullable(),
+  postalCode: zod
+    .string()
+    .nullable()
+    .describe("Where the family is, for finding anything local to them."),
+  leadDirectorId: zod.number().nullable(),
+  status: zod.enum(["intake", "active", "closed"]),
+  closedAt: zod.date().nullable(),
+  messagesLockAt: zod.date().nullable(),
+  createdAt: zod.date(),
+});
+
+/**
  * @summary Requests waiting for a director
  */
 export const GetIntakeRequestsQueryParams = zod.object({

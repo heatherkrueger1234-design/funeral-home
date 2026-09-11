@@ -21,6 +21,7 @@ import Belongings from "@/pages/Belongings";
 import Local from "@/pages/Local";
 import Vitals from "@/pages/Vitals";
 import Proofs from "@/pages/Proofs";
+import Start from "@/pages/Start";
 import NotFound from "@/pages/NotFound";
 
 function describeError(error: unknown): string {
@@ -75,6 +76,15 @@ export default function App() {
     <QueryClientProvider client={queryClient}>
       <TooltipProvider>
         <LinkProvider>
+          {/*
+            The home's public front door sits outside PortalShell entirely.
+            The shell's whole job is to frame a case the reader has a link to;
+            this is read by people who have no link and, in the pre-need case,
+            no bereavement either, so it carries none of that furniture.
+          */}
+          <Switch>
+            <Route path="/start/:slug" component={Start} />
+            <Route>
           <PortalShell>
             <Switch>
               <Route path="/" component={Hub} />
@@ -93,6 +103,8 @@ export default function App() {
               <Route component={NotFound} />
             </Switch>
           </PortalShell>
+            </Route>
+          </Switch>
           <Toaster />
         </LinkProvider>
       </TooltipProvider>
