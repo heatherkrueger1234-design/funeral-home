@@ -5,6 +5,7 @@ import { familyRateLimit } from "../middleware/rate-limit";
 import healthRouter from "./health";
 import authRouter from "./auth";
 import tasksRouter from "./tasks";
+import billingRouter, { billingWebhookRouter } from "./billing";
 import familyRouter from "./family";
 import homeRouter from "./home";
 import casesRouter from "./cases";
@@ -47,6 +48,13 @@ router.use(authRouter);
 router.use(tasksRouter);
 
 /**
+ * Stripe's webhook only. It has no session and needs the raw request body,
+ * so it carries its own signature check and its own body parser. The rest of
+ * billing is a staff surface and is mounted below the gate.
+ */
+router.use(billingWebhookRouter);
+
+/**
  * The family surface, mounted under `/family` so the gate applies to those
  * paths and only those paths — mounting the middleware without a prefix would
  * put it in front of every staff route as well.
@@ -66,6 +74,7 @@ router.use("/family", familyRateLimit, requireFamilyLink, familyRouter);
  */
 router.use(requireAuth);
 
+router.use(billingRouter);
 router.use(homeRouter);
 router.use(importRouter);
 router.use(casesRouter);

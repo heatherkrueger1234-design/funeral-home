@@ -5,6 +5,7 @@ import {
   funeralHomesTable,
   usersTable,
   toPublicUser,
+  TRIAL_DAYS,
   type FuneralHome,
   type User,
 } from "@workspace/db";
@@ -115,7 +116,14 @@ router.post("/auth/register", authRateLimit, async (req, res) => {
   const { user, home } = await db.transaction(async (tx) => {
     const [createdHome] = await tx
       .insert(funeralHomesTable)
-      .values({ name: homeName, slug })
+      .values({
+        name: homeName,
+        slug,
+        // Set at registration rather than left null, so "when does this
+        // end" has an answer from the first minute and the console can say
+        // it plainly instead of implying the trial is indefinite.
+        trialEndsAt: new Date(Date.now() + TRIAL_DAYS * 24 * 60 * 60 * 1000),
+      })
       .returning();
 
     const [createdUser] = await tx

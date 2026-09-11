@@ -10,6 +10,7 @@ import {
   toPublicFamilyContact,
   toStaffSignature,
   MESSAGE_LOCK_DAYS,
+  canOpenCases,
   type Case,
 } from "@workspace/db";
 import { CreateCaseBody, UpdateCaseBody, GetCasesQueryParams } from "@workspace/api-zod";
@@ -25,6 +26,8 @@ import { currentUser, tenant } from "../middleware/require-auth";
 import { countsForCases, toCaseJson } from "../lib/case-view";
 import { enrolCaseInAftercare } from "../lib/aftercare";
 import { applyTemplateToCase, hasDeadlines } from "../lib/timeline";
+import { markOnboarding } from "../lib/onboarding";
+import { HttpError } from "../lib/http";
 
 const router: IRouter = Router();
 
@@ -110,6 +113,26 @@ router.get("/cases", async (req, res) => {
 router.post("/cases", async (req, res) => {
   const home = tenant(req);
   const user = currentUser(req);
+
+  /*
+   * The only place the subscription gates anything.
+   *
+   * Opening a *new* case is refused when a trial has run out or a
+   * subscription was cancelled. Everything else keeps working, on purpose:
+   * a family part-way through uploading photographs of their mother must not
+   * lose access because the home changed billing plans, and a director must
+   * not be locked out of Thursday's funeral because a card expired --
+   * `past_due` still opens cases while Stripe chases the payment.
+   */
+  if (!canOpenCases(home)) {
+    throw new HttpError(
+      402,
+      home.subscriptionStatus === "trial"
+        ? "Your trial has finished. Start a subscription to open new cases — everything already here stays available."
+        : "This subscription has ended. Existing cases stay available; start a subscription to open new ones.",
+    );
+  }
+
   const values = parseBody(CreateCaseBody, req.body);
 
   if (values.leadDirectorId != null) {
@@ -144,6 +167,8 @@ router.post("/cases", async (req, res) => {
   if (created.serviceAt !== null) {
     await applyTemplateToCase(created);
   }
+
+  void markOnboarding(home.id, "case");
 
   res.status(201).json(toCaseJson(created));
 });

@@ -102,11 +102,81 @@ export const funeralHomesTable = pgTable(
     subscriptionStatus: text("subscription_status").notNull().default("trial"),
     trialEndsAt: timestamp("trial_ends_at"),
 
+    /**
+     * Stripe's ids, so the two systems can find each other again.
+     *
+     * Money lives in Stripe. What is kept here is only what the app needs to
+     * answer its own question -- may this home open another case -- plus
+     * enough to send somebody to their billing page. Prices, invoices, cards
+     * and proration are deliberately absent: a second source of truth for
+     * money is always the wrong one.
+     */
+    stripeCustomerId: text("stripe_customer_id"),
+    stripeSubscriptionId: text("stripe_subscription_id"),
+    /** When the paid period ends. Set from Stripe, never calculated here. */
+    currentPeriodEndsAt: timestamp("current_period_ends_at"),
+
+    /**
+     * Which setup steps the home has finished.
+     *
+     * A comma-separated list rather than a column each, because these are a
+     * checklist that will change as the product does, and migrating a boolean
+     * every time somebody adds a step is the sort of friction that stops
+     * anyone adding one.
+     */
+    onboardingDone: text("onboarding_done").notNull().default(""),
+
     createdAt: timestamp("created_at").notNull().defaultNow(),
     updatedAt: timestamp("updated_at").notNull().defaultNow(),
   },
   (table) => [uniqueIndex("funeral_homes_slug_unique").on(table.slug)],
 );
+
+/** How long a home gets to try it with real families. */
+export const TRIAL_DAYS = 30;
+
+/**
+ * The setup steps a home is walked through.
+ *
+ * Ordered by what unblocks the most: a home that has done nothing else should
+ * still be able to open a case and text a family, so branding and hours come
+ * after the first real use rather than before it. Nothing here is enforced --
+ * a director who ignores the list entirely still has a working product.
+ */
+export const ONBOARDING_STEPS = [
+  {
+    key: "case",
+    title: "Open your first case",
+    detail: "Just a name. Everything else can wait until you know it.",
+  },
+  {
+    key: "family",
+    title: "Send a family their link",
+    detail: "This is the part families notice. Text it from the case.",
+  },
+  {
+    key: "branding",
+    title: "Add your name and colour",
+    detail: "So the portal looks like it came from you, not from us.",
+  },
+  {
+    key: "hours",
+    title: "Set your office hours and 24-hour number",
+    detail: "What families are told about when you'll read a message.",
+  },
+  {
+    key: "schedule",
+    title: "Check your standard schedule",
+    detail: "Every case gets it automatically once there's a service date.",
+  },
+  {
+    key: "staff",
+    title: "Invite your colleagues",
+    detail: "They set their own passwords.",
+  },
+] as const;
+
+export type OnboardingStep = (typeof ONBOARDING_STEPS)[number]["key"];
 
 export const SUBSCRIPTION_STATUSES = [
   "trial",
@@ -115,6 +185,42 @@ export const SUBSCRIPTION_STATUSES = [
   "canceled",
 ] as const;
 export type SubscriptionStatus = (typeof SUBSCRIPTION_STATUSES)[number];
+
+/**
+ * Whether this home may still open cases.
+ *
+ * `past_due` deliberately still works. A card that expired is an
+ * administrative problem, and locking a funeral home out of the case they are
+ * working on Thursday because of it would be a disgrace — Stripe will chase
+ * the payment, and `canceled` is the state that actually stops new cases.
+ * Even then, existing cases stay reachable: a family part-way through
+ * uploading photographs of their mother must not lose access because the home
+ * changed billing plans.
+ */
+export function canOpenCases(home: {
+  subscriptionStatus: string;
+  trialEndsAt: Date | null;
+}, now = new Date()): boolean {
+  if (home.subscriptionStatus === "active") return true;
+  if (home.subscriptionStatus === "past_due") return true;
+  if (home.subscriptionStatus === "canceled") return false;
+
+  // On trial: until it runs out.
+  return home.trialEndsAt === null || home.trialEndsAt > now;
+}
+
+/** Days left on a trial, floored at zero. Null when not on one. */
+export function trialDaysLeft(home: {
+  subscriptionStatus: string;
+  trialEndsAt: Date | null;
+}, now = new Date()): number | null {
+  if (home.subscriptionStatus !== "trial" || home.trialEndsAt === null) {
+    return null;
+  }
+
+  const ms = home.trialEndsAt.getTime() - now.getTime();
+  return Math.max(0, Math.ceil(ms / (24 * 60 * 60 * 1000)));
+}
 
 export const insertFuneralHomeSchema = createInsertSchema(
   funeralHomesTable,

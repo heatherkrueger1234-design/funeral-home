@@ -225,6 +225,82 @@ export const UpdateHomeResponse = zod.object({
 });
 
 /**
+ * @summary Where this home stands, and what setup is left
+ */
+export const GetBillingResponse = zod.object({
+  subscriptionStatus: zod.enum(["trial", "active", "past_due", "canceled"]),
+  trialEndsAt: zod.date().nullable(),
+  trialDaysLeft: zod.number().nullable(),
+  currentPeriodEndsAt: zod.date().nullable(),
+  canOpenCases: zod.boolean(),
+  billingConfigured: zod
+    .boolean()
+    .describe("False when this deployment has no Stripe keys."),
+  hasSubscription: zod.boolean(),
+  onboarding: zod.array(
+    zod.object({
+      key: zod.string(),
+      title: zod.string(),
+      detail: zod.string(),
+      done: zod.boolean(),
+    }),
+  ),
+  onboardingComplete: zod.boolean(),
+});
+
+/**
+ * Returns a Stripe Checkout URL for the browser to open.
+ * @summary Begin a subscription
+ */
+export const StartCheckoutBody = zod.object({
+  returnUrl: zod.string().describe("Where Stripe sends them back to."),
+});
+
+export const StartCheckoutResponse = zod.object({
+  url: zod.string(),
+});
+
+/**
+ * @summary Open Stripe's own billing page for cards and invoices
+ */
+export const OpenBillingPortalBody = zod.object({
+  returnUrl: zod.string().describe("Where Stripe sends them back to."),
+});
+
+export const OpenBillingPortalResponse = zod.object({
+  url: zod.string(),
+});
+
+/**
+ * @summary Mark a setup step done, or dismiss it
+ */
+export const CompleteOnboardingStepBody = zod.object({
+  step: zod.string(),
+  done: zod.boolean().optional(),
+});
+
+export const CompleteOnboardingStepResponse = zod.object({
+  subscriptionStatus: zod.enum(["trial", "active", "past_due", "canceled"]),
+  trialEndsAt: zod.date().nullable(),
+  trialDaysLeft: zod.number().nullable(),
+  currentPeriodEndsAt: zod.date().nullable(),
+  canOpenCases: zod.boolean(),
+  billingConfigured: zod
+    .boolean()
+    .describe("False when this deployment has no Stripe keys."),
+  hasSubscription: zod.boolean(),
+  onboarding: zod.array(
+    zod.object({
+      key: zod.string(),
+      title: zod.string(),
+      detail: zod.string(),
+      done: zod.boolean(),
+    }),
+  ),
+  onboardingComplete: zod.boolean(),
+});
+
+/**
  * @summary Everyone who works cases at this home
  */
 export const GetStaffResponseItem = zod.object({

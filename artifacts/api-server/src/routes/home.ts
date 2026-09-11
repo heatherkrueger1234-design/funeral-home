@@ -30,6 +30,7 @@ import {
 } from "../lib/auth";
 import { sendStaffInviteEmail } from "@workspace/mailer";
 import { templateFor, toTemplateJson } from "../lib/timeline";
+import { markOnboarding } from "../lib/onboarding";
 
 const router: IRouter = Router();
 
@@ -68,6 +69,18 @@ router.put("/home", async (req, res) => {
     .set({ ...values, updatedAt: new Date() })
     .where(eq(funeralHomesTable.id, home.id))
     .returning();
+
+  // The checklist follows what was actually done, not what was ticked.
+  if (values.name !== undefined || values.accentColor !== undefined) {
+    void markOnboarding(home.id, "branding");
+  }
+  if (
+    values.officeOpensMinute !== undefined ||
+    values.officeClosesMinute !== undefined ||
+    values.urgentPhone !== undefined
+  ) {
+    void markOnboarding(home.id, "hours");
+  }
 
   res.json(updated);
 });
@@ -149,6 +162,8 @@ router.post("/home/staff", async (req, res) => {
   // Returned once, so the owner can hand it over directly when the email is
   // slow or lands in a spam folder -- which, for a funeral home on a shared
   // mail host, is most of the time.
+  void markOnboarding(home.id, "staff");
+
   res.status(201).json({ ...toPublicUser(created!), inviteLink });
 });
 
@@ -228,6 +243,8 @@ router.post("/home/timeline-template", async (req, res) => {
       position: existing.length,
     })
     .returning();
+
+  void markOnboarding(home.id, "schedule");
 
   res.status(201).json(toTemplateJson(created!));
 });

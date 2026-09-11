@@ -18,6 +18,7 @@ import {
 import { currentUser, tenant } from "../middleware/require-auth";
 import { linkUrl, mintLink } from "../lib/family-link";
 import { sendSms, SmsNotSentError } from "../lib/sms";
+import { markOnboarding } from "../lib/onboarding";
 import { loadCase } from "./cases";
 
 const router: IRouter = Router();
@@ -100,6 +101,8 @@ router.post("/cases/:caseId/contacts", async (req, res) => {
       .set({ status: "active", updatedAt: new Date() })
       .where(eq(casesTable.id, row.id));
   }
+
+  void markOnboarding(home.id, "family");
 
   res
     .status(201)

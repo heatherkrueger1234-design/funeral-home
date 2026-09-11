@@ -11,6 +11,7 @@ import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Loader2 } from "lucide-react";
 import { StandardSchedule } from "@/components/StandardSchedule";
+import { BillingSection } from "@/components/BillingSection";
 
 /** "08:00" for a time input, from minutes since midnight. */
 const toTimeInput = (minute: number) =>
@@ -184,6 +185,8 @@ export default function Settings() {
       </section>
 
       <StandardSchedule readOnly={readOnly} />
+
+      <BillingSection readOnly={readOnly} />
 
       <section className="space-y-4 rounded-xl border border-border bg-card p-4">
         <h2 className="font-medium">Aftercare</h2>

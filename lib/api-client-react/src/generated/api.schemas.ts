@@ -113,6 +113,50 @@ export interface TimelineTemplateUpdate {
   position?: number;
 }
 
+export interface OnboardingItem {
+  key: string;
+  title: string;
+  detail: string;
+  done: boolean;
+}
+
+export type BillingSubscriptionStatus =
+  (typeof BillingSubscriptionStatus)[keyof typeof BillingSubscriptionStatus];
+
+export const BillingSubscriptionStatus = {
+  trial: "trial",
+  active: "active",
+  past_due: "past_due",
+  canceled: "canceled",
+} as const;
+
+export interface Billing {
+  subscriptionStatus: BillingSubscriptionStatus;
+  trialEndsAt: string | null;
+  trialDaysLeft: number | null;
+  currentPeriodEndsAt: string | null;
+  canOpenCases: boolean;
+  /** False when this deployment has no Stripe keys. */
+  billingConfigured: boolean;
+  hasSubscription: boolean;
+  onboarding: OnboardingItem[];
+  onboardingComplete: boolean;
+}
+
+export interface BillingReturnInput {
+  /** Where Stripe sends them back to. */
+  returnUrl: string;
+}
+
+export interface BillingRedirect {
+  url: string;
+}
+
+export interface OnboardingStepInput {
+  step: string;
+  done?: boolean;
+}
+
 export type StaffInviteInputRole =
   (typeof StaffInviteInputRole)[keyof typeof StaffInviteInputRole];
 

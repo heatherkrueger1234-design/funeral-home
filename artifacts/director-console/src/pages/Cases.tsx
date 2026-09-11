@@ -19,6 +19,7 @@ import {
 } from "@/components/ui/dialog";
 import { Images, Loader2, MessageCircle, Plus, Search, TriangleAlert } from "lucide-react";
 import { ImportCases } from "@/components/ImportCases";
+import { SetupChecklist, TrialBanner } from "@/components/SetupChecklist";
 
 /**
  * The worklist.
@@ -143,6 +144,9 @@ export default function Cases() {
 
   return (
     <div className="space-y-6">
+      <TrialBanner />
+      <SetupChecklist />
+
       <div className="flex flex-wrap items-center gap-3">
         <h1 className="font-display text-2xl">
           {showClosed ? "Closed cases" : "Cases"}

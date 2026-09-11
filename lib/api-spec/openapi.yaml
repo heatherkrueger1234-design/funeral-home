@@ -45,6 +45,8 @@ tags:
     description: The home's local network, and quotes passed through it
   - name: vitals
     description: What the death certificate needs
+  - name: billing
+    description: Subscription, trial, and the setup checklist
   - name: aftercare
     description: Branded grief check-ins after the service
   - name: uploads
@@ -189,6 +191,77 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/FuneralHome"
+
+  /billing:
+    get:
+      operationId: getBilling
+      tags: [billing]
+      summary: Where this home stands, and what setup is left
+      responses:
+        "200":
+          description: Status
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Billing"
+
+  /billing/checkout:
+    post:
+      operationId: startCheckout
+      tags: [billing]
+      summary: Begin a subscription
+      description: Returns a Stripe Checkout URL for the browser to open.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/BillingReturnInput"
+      responses:
+        "200":
+          description: Where to send them
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BillingRedirect"
+
+  /billing/portal:
+    post:
+      operationId: openBillingPortal
+      tags: [billing]
+      summary: Open Stripe's own billing page for cards and invoices
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/BillingReturnInput"
+      responses:
+        "200":
+          description: Where to send them
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BillingRedirect"
+
+  /home/onboarding:
+    post:
+      operationId: completeOnboardingStep
+      tags: [billing]
+      summary: Mark a setup step done, or dismiss it
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/OnboardingStepInput"
+      responses:
+        "200":
+          description: The updated checklist
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Billing"
 
   /home/staff:
     get:
@@ -2093,6 +2166,86 @@ components:
           type: boolean
         position:
           type: integer
+
+    OnboardingItem:
+      type: object
+      properties:
+        key:
+          type: string
+        title:
+          type: string
+        detail:
+          type: string
+        done:
+          type: boolean
+      required: [key, title, detail, done]
+
+    Billing:
+      type: object
+      properties:
+        subscriptionStatus:
+          type: string
+          enum: [trial, active, past_due, canceled]
+        trialEndsAt:
+          type: string
+          format: date-time
+          nullable: true
+        trialDaysLeft:
+          type: integer
+          nullable: true
+        currentPeriodEndsAt:
+          type: string
+          format: date-time
+          nullable: true
+        canOpenCases:
+          type: boolean
+        billingConfigured:
+          type: boolean
+          description: False when this deployment has no Stripe keys.
+        hasSubscription:
+          type: boolean
+        onboarding:
+          type: array
+          items:
+            $ref: "#/components/schemas/OnboardingItem"
+        onboardingComplete:
+          type: boolean
+      required:
+        [
+          subscriptionStatus,
+          trialEndsAt,
+          trialDaysLeft,
+          currentPeriodEndsAt,
+          canOpenCases,
+          billingConfigured,
+          hasSubscription,
+          onboarding,
+          onboardingComplete,
+        ]
+
+    BillingReturnInput:
+      type: object
+      properties:
+        returnUrl:
+          type: string
+          description: Where Stripe sends them back to.
+      required: [returnUrl]
+
+    BillingRedirect:
+      type: object
+      properties:
+        url:
+          type: string
+      required: [url]
+
+    OnboardingStepInput:
+      type: object
+      properties:
+        step:
+          type: string
+        done:
+          type: boolean
+      required: [step]
 
     StaffInviteInput:
       type: object

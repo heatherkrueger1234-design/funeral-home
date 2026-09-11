@@ -35,6 +35,9 @@ import type {
   Belonging,
   BelongingInput,
   BelongingUpdate,
+  Billing,
+  BillingRedirect,
+  BillingReturnInput,
   Case,
   CaseDeadline,
   CaseDetail,
@@ -73,6 +76,7 @@ import type {
   ObituaryDraft,
   ObituaryFieldsInput,
   ObituaryUpdate,
+  OnboardingStepInput,
   PhotoIdInput,
   PhotoOrderInput,
   PhotoSelectionInput,
@@ -832,6 +836,338 @@ export const useUpdateHome = <
   TContext
 > => {
   return useMutation(getUpdateHomeMutationOptions(options));
+};
+
+/**
+ * @summary Where this home stands, and what setup is left
+ */
+export const getGetBillingUrl = () => {
+  return `/api/billing`;
+};
+
+export const getBilling = async (options?: RequestInit): Promise<Billing> => {
+  return customFetch<Billing>(getGetBillingUrl(), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getGetBillingQueryKey = () => {
+  return [`/api/billing`] as const;
+};
+
+export const getGetBillingQueryOptions = <
+  TData = Awaited<ReturnType<typeof getBilling>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof getBilling>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getGetBillingQueryKey();
+
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof getBilling>>> = ({
+    signal,
+  }) => getBilling({ signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof getBilling>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type GetBillingQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getBilling>>
+>;
+export type GetBillingQueryError = ErrorType<unknown>;
+
+/**
+ * @summary Where this home stands, and what setup is left
+ */
+
+export function useGetBilling<
+  TData = Awaited<ReturnType<typeof getBilling>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof getBilling>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getGetBillingQueryOptions(options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * Returns a Stripe Checkout URL for the browser to open.
+ * @summary Begin a subscription
+ */
+export const getStartCheckoutUrl = () => {
+  return `/api/billing/checkout`;
+};
+
+export const startCheckout = async (
+  billingReturnInput: BillingReturnInput,
+  options?: RequestInit,
+): Promise<BillingRedirect> => {
+  return customFetch<BillingRedirect>(getStartCheckoutUrl(), {
+    ...options,
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(billingReturnInput),
+  });
+};
+
+export const getStartCheckoutMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof startCheckout>>,
+    TError,
+    { data: BodyType<BillingReturnInput> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof startCheckout>>,
+  TError,
+  { data: BodyType<BillingReturnInput> },
+  TContext
+> => {
+  const mutationKey = ["startCheckout"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof startCheckout>>,
+    { data: BodyType<BillingReturnInput> }
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return startCheckout(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type StartCheckoutMutationResult = NonNullable<
+  Awaited<ReturnType<typeof startCheckout>>
+>;
+export type StartCheckoutMutationBody = BodyType<BillingReturnInput>;
+export type StartCheckoutMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Begin a subscription
+ */
+export const useStartCheckout = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof startCheckout>>,
+    TError,
+    { data: BodyType<BillingReturnInput> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof startCheckout>>,
+  TError,
+  { data: BodyType<BillingReturnInput> },
+  TContext
+> => {
+  return useMutation(getStartCheckoutMutationOptions(options));
+};
+
+/**
+ * @summary Open Stripe's own billing page for cards and invoices
+ */
+export const getOpenBillingPortalUrl = () => {
+  return `/api/billing/portal`;
+};
+
+export const openBillingPortal = async (
+  billingReturnInput: BillingReturnInput,
+  options?: RequestInit,
+): Promise<BillingRedirect> => {
+  return customFetch<BillingRedirect>(getOpenBillingPortalUrl(), {
+    ...options,
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(billingReturnInput),
+  });
+};
+
+export const getOpenBillingPortalMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof openBillingPortal>>,
+    TError,
+    { data: BodyType<BillingReturnInput> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof openBillingPortal>>,
+  TError,
+  { data: BodyType<BillingReturnInput> },
+  TContext
+> => {
+  const mutationKey = ["openBillingPortal"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof openBillingPortal>>,
+    { data: BodyType<BillingReturnInput> }
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return openBillingPortal(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type OpenBillingPortalMutationResult = NonNullable<
+  Awaited<ReturnType<typeof openBillingPortal>>
+>;
+export type OpenBillingPortalMutationBody = BodyType<BillingReturnInput>;
+export type OpenBillingPortalMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Open Stripe's own billing page for cards and invoices
+ */
+export const useOpenBillingPortal = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof openBillingPortal>>,
+    TError,
+    { data: BodyType<BillingReturnInput> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof openBillingPortal>>,
+  TError,
+  { data: BodyType<BillingReturnInput> },
+  TContext
+> => {
+  return useMutation(getOpenBillingPortalMutationOptions(options));
+};
+
+/**
+ * @summary Mark a setup step done, or dismiss it
+ */
+export const getCompleteOnboardingStepUrl = () => {
+  return `/api/home/onboarding`;
+};
+
+export const completeOnboardingStep = async (
+  onboardingStepInput: OnboardingStepInput,
+  options?: RequestInit,
+): Promise<Billing> => {
+  return customFetch<Billing>(getCompleteOnboardingStepUrl(), {
+    ...options,
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(onboardingStepInput),
+  });
+};
+
+export const getCompleteOnboardingStepMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof completeOnboardingStep>>,
+    TError,
+    { data: BodyType<OnboardingStepInput> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof completeOnboardingStep>>,
+  TError,
+  { data: BodyType<OnboardingStepInput> },
+  TContext
+> => {
+  const mutationKey = ["completeOnboardingStep"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof completeOnboardingStep>>,
+    { data: BodyType<OnboardingStepInput> }
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return completeOnboardingStep(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type CompleteOnboardingStepMutationResult = NonNullable<
+  Awaited<ReturnType<typeof completeOnboardingStep>>
+>;
+export type CompleteOnboardingStepMutationBody = BodyType<OnboardingStepInput>;
+export type CompleteOnboardingStepMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Mark a setup step done, or dismiss it
+ */
+export const useCompleteOnboardingStep = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof completeOnboardingStep>>,
+    TError,
+    { data: BodyType<OnboardingStepInput> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof completeOnboardingStep>>,
+  TError,
+  { data: BodyType<OnboardingStepInput> },
+  TContext
+> => {
+  return useMutation(getCompleteOnboardingStepMutationOptions(options));
 };
 
 /**

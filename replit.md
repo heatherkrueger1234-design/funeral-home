@@ -108,6 +108,9 @@ Environment the server reads:
 | `TWILIO_ACCOUNT_SID` / `TWILIO_AUTH_TOKEN` / `TWILIO_FROM_NUMBER` | Optional. Without them a director is handed the link to send themselves rather than being told nothing happened. |
 | `SMS_DEFAULT_COUNTRY_CODE` | Defaults to `+1`. Used only for numbers typed without one. |
 | `TASK_SECRET` | Shared secret for `/api/tasks/*`. Unset means scheduled work is refused, not open. |
+| `STRIPE_SECRET_KEY` / `STRIPE_PRICE_ID` | Optional. Without them the product runs on trial and charges nothing. |
+| `STRIPE_WEBHOOK_SECRET` | Required if Stripe is configured — the webhook refuses anything it cannot verify. |
+| `GOOGLE_PLACES_API_KEY` | Optional. Enables live vendor lookup; without it the directory is hand-entered. |
 
 ### Scheduling the aftercare
 
@@ -148,6 +151,24 @@ overlapping triggers cannot both take the same row — the failure it trades for
 (a crash losing one check-in) is much better than its opposite, which is
 sending a widow the same message twice. Consent is re-checked at send time,
 not when the schedule was written.
+
+## Money, and what it gates
+
+Billing lives in Stripe. What this app keeps is only what it needs to answer
+its own question — may this home open another case — plus the ids to find the
+subscription again. Prices, cards, invoices, tax and dunning stay on Stripe's
+side, because a second source of truth for money is always the wrong one.
+
+The subscription gates exactly one action: **opening a new case**. Everything
+else keeps working in every state, deliberately. A family part-way through
+uploading photographs of their mother must not lose access because the home
+changed plans, and `past_due` still opens cases — a card that expired is an
+administrative problem, and locking a director out of Thursday's funeral over
+it would be a disgrace. Stripe chases the payment; `canceled` is the state
+that actually stops new cases.
+
+New homes get a 30-day trial, dated from registration so "when does this end"
+has an answer from the first minute.
 
 ## Tests
 
