@@ -1,0 +1,72 @@
+# Either front end, behind nginx.
+#
+#   docker build -f Dockerfile.web --build-arg APP=family-portal   -t fh-family  .
+#   docker build -f Dockerfile.web --build-arg APP=director-console -t fh-console .
+#
+# One Dockerfile for both because they are the same build: a Vite SPA that
+# talks to /api on its own origin. Giving each its own file would mean two
+# places to fix the next time the nginx config is wrong.
+
+ARG APP=family-portal
+
+# ---------------------------------------------------------------------------
+# Build
+# ---------------------------------------------------------------------------
+FROM node:24-bookworm-slim AS build
+ARG APP
+
+ENV PNPM_HOME=/pnpm
+ENV PATH=$PNPM_HOME:$PATH
+RUN corepack enable
+
+WORKDIR /app
+
+COPY pnpm-workspace.yaml pnpm-lock.yaml package.json .npmrc ./
+COPY artifacts/api-server/package.json ./artifacts/api-server/
+COPY artifacts/director-console/package.json ./artifacts/director-console/
+COPY artifacts/family-portal/package.json ./artifacts/family-portal/
+COPY lib/api-client-react/package.json ./lib/api-client-react/
+COPY lib/api-spec/package.json ./lib/api-spec/
+COPY lib/api-zod/package.json ./lib/api-zod/
+COPY lib/db/package.json ./lib/db/
+COPY lib/mailer/package.json ./lib/mailer/
+COPY scripts/package.json ./scripts/
+
+RUN pnpm install --frozen-lockfile
+
+COPY . .
+
+# The workspace libraries are consumed as built declarations, so they have to
+# exist before Vite resolves them.
+RUN pnpm run typecheck:libs
+
+# BASE_PATH defaults to "/" in vite.config.ts, which is right here: each app
+# gets its own hostname rather than a path prefix. PORT is not set because the
+# build does not need one — nginx does the serving.
+ENV NODE_ENV=production
+RUN pnpm --filter "@workspace/${APP}" run build
+
+# Pin the output path for the next stage: COPY --from cannot expand an ARG in
+# the middle of a path on every builder, and a wrong path here silently ships
+# an empty site.
+RUN mkdir -p /site && cp -r "/app/artifacts/${APP}/dist/public/." /site/
+
+# ---------------------------------------------------------------------------
+# Serve
+# ---------------------------------------------------------------------------
+FROM nginx:1.27-alpine AS runtime
+
+# The nginx image expands templates/*.template with envsubst at container
+# start. NGINX_ENVSUBST_FILTER keeps it to NGINX_-prefixed names, so nginx's
+# own $host, $uri and $upstream_api are not eaten by the substitution.
+ENV NGINX_ENVSUBST_FILTER=^NGINX_
+ENV NGINX_RESOLVER=127.0.0.11
+ENV NGINX_API_ORIGIN=http://api:4311
+
+COPY deploy/nginx.conf.template /etc/nginx/templates/default.conf.template
+COPY --from=build /site /usr/share/nginx/html
+
+EXPOSE 80
+
+HEALTHCHECK --interval=30s --timeout=5s --start-period=5s --retries=3 \
+  CMD wget -qO- http://127.0.0.1/healthz >/dev/null || exit 1

@@ -5,7 +5,7 @@ import {
   createHash,
 } from "node:crypto";
 import { promisify } from "node:util";
-import type { CookieOptions, Response } from "express";
+import type { CookieOptions, Request, Response } from "express";
 import { and, eq, gt, isNull, lt } from "drizzle-orm";
 import {
   db,
@@ -14,6 +14,7 @@ import {
   usersTable,
   type User,
 } from "@workspace/db";
+import { logger } from "./logger";
 
 const scrypt = promisify(scryptCallback) as (
   password: string,
@@ -212,7 +213,38 @@ function cookieOptions(): CookieOptions {
   };
 }
 
-export function setSessionCookie(res: Response, token: string): void {
+/**
+ * Say so, loudly, when the cookie we just issued cannot come back.
+ *
+ * In production the session cookie is always marked Secure — this holds
+ * death certificates and social security numbers, and handing out a cookie
+ * that will also travel over plain HTTP is not a trade worth making. But a
+ * Secure cookie issued over plain HTTP is one the browser accepts and then
+ * never sends, so the director signs in, lands back on the sign-in page, and
+ * there is nothing in the log to say why.
+ *
+ * `req.secure` reads X-Forwarded-Proto because app.ts trusts one proxy hop.
+ * So this fires for exactly two mistakes, and names both: no TLS in front of
+ * the deployment, or a reverse proxy that is not forwarding the header.
+ */
+function warnIfCookieCannotReturn(req: Request, res: Response): void {
+  if (!cookieOptions().secure || req.secure) return;
+
+  logger.warn(
+    {
+      forwardedProto: req.get("x-forwarded-proto") ?? null,
+      host: req.get("host") ?? null,
+    },
+    "Issued a Secure session cookie over a connection this server sees as " +
+      "plain HTTP, so the browser will accept it and never send it back — " +
+      "sign-in will appear to silently fail. Terminate TLS in front of this " +
+      "server, and make sure the reverse proxy sets X-Forwarded-Proto.",
+  );
+}
+
+export function setSessionCookie(req: Request, res: Response, token: string): void {
+  warnIfCookieCannotReturn(req, res);
+
   res.cookie(SESSION_COOKIE, token, {
     ...cookieOptions(),
     maxAge: SESSION_TTL_MS,

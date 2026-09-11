@@ -13,7 +13,8 @@ the part nobody has built.
 ## What it does
 
 **1. The asset drop.** One mobile link, texted to the next of kin. Photographs
-(capped at 50, with a portrait crop stored as instructions so the original
+(a bin holding up to 1000, from which the family pulls out the ~50 that run in
+the slideshow, with a portrait crop stored as instructions so the original
 bytes survive), the obituary as named fields rather than a blank box, and the
 hymns, readings and pallbearers as short lists. This replaces a director's
 inbox holding forty attachments from six addresses.
@@ -82,7 +83,8 @@ click revokes it.
 
 ## Running it
 
-Needs Postgres and an encryption key.
+Needs Postgres and an encryption key. For putting it on an actual host —
+containers, TLS, backups, scheduled work — see [DEPLOY.md](./DEPLOY.md).
 
 ```sh
 pnpm install

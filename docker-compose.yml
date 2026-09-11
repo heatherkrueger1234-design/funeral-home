@@ -1,0 +1,129 @@
+# A whole installation on one host: Postgres, the API, both front ends, and a
+# toolbox container for migrations and backups.
+#
+#   cp .env.example .env    # then fill it in — it will not start without it
+#   docker compose run --rm tools pnpm --filter @workspace/db run push
+#   docker compose run --rm tools pnpm --filter @workspace/scripts run load-postal-codes
+#   docker compose up -d
+#
+# Good enough for a pilot with a handful of homes on it. What it is not is a
+# highly-available anything: one Postgres, one API, and the backups land on
+# this host's disk until you copy them off it.
+
+name: funeral-home
+
+services:
+  db:
+    image: postgres:16-bookworm
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-funeral}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}
+      POSTGRES_DB: ${POSTGRES_DB:-funeral_home}
+    volumes:
+      - db-data:/var/lib/postgresql/data
+    # Not published. Nothing outside this network has any business reaching
+    # the database directly; reach it with `docker compose exec db psql`.
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-funeral} -d ${POSTGRES_DB:-funeral_home}"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: runtime
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      PORT: 4311
+      DATABASE_URL: postgres://${POSTGRES_USER:-funeral}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB:-funeral_home}
+      # Refuses to start without this. Generate with:
+      #   pnpm --filter @workspace/scripts run generate-encryption-key
+      ENCRYPTION_KEY: ${ENCRYPTION_KEY:?set ENCRYPTION_KEY in .env}
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+      # The two apps are same-origin with their own API through nginx, so no
+      # cross-origin request needs allowing. Left settable for a separate dev
+      # server pointed at this stack.
+      CORS_ORIGINS: ${CORS_ORIGINS:-}
+      FAMILY_PORTAL_URL: ${FAMILY_PORTAL_URL:?set FAMILY_PORTAL_URL in .env}
+      CONSOLE_URL: ${CONSOLE_URL:?set CONSOLE_URL in .env}
+      SMTP_HOST: ${SMTP_HOST:-}
+      SMTP_PORT: ${SMTP_PORT:-}
+      SMTP_USER: ${SMTP_USER:-}
+      SMTP_PASS: ${SMTP_PASS:-}
+      SMTP_FROM: ${SMTP_FROM:-}
+      TWILIO_ACCOUNT_SID: ${TWILIO_ACCOUNT_SID:-}
+      TWILIO_AUTH_TOKEN: ${TWILIO_AUTH_TOKEN:-}
+      TWILIO_FROM_NUMBER: ${TWILIO_FROM_NUMBER:-}
+      SMS_DEFAULT_COUNTRY_CODE: ${SMS_DEFAULT_COUNTRY_CODE:-+1}
+      STRIPE_SECRET_KEY: ${STRIPE_SECRET_KEY:-}
+      STRIPE_PRICE_ID: ${STRIPE_PRICE_ID:-}
+      STRIPE_WEBHOOK_SECRET: ${STRIPE_WEBHOOK_SECRET:-}
+      GOOGLE_PLACES_API_KEY: ${GOOGLE_PLACES_API_KEY:-}
+      TASK_SECRET: ${TASK_SECRET:-}
+    # Not published either: the only way in is through one of the two nginx
+    # containers, which is what makes the cookie same-origin.
+
+  family-portal:
+    build:
+      context: .
+      dockerfile: Dockerfile.web
+      args:
+        APP: family-portal
+    restart: unless-stopped
+    depends_on:
+      - api
+    ports:
+      - "${FAMILY_PORTAL_PORT:-8080}:80"
+
+  director-console:
+    build:
+      context: .
+      dockerfile: Dockerfile.web
+      args:
+        APP: director-console
+    restart: unless-stopped
+    depends_on:
+      - api
+    ports:
+      - "${CONSOLE_PORT:-8081}:80"
+
+  # Not a server. `docker compose run --rm tools <command>` — migrations,
+  # backups, restores, the ZIP centroid load, the aftercare send. It carries
+  # the full workspace because drizzle-kit reads the schema as TypeScript and
+  # every script runs through tsx.
+  tools:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: tools
+    profiles: ["tools"]
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgres://${POSTGRES_USER:-funeral}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB:-funeral_home}
+      ENCRYPTION_KEY: ${ENCRYPTION_KEY}
+      BACKUP_DIR: /backups
+      BACKUP_RETAIN_DAYS: ${BACKUP_RETAIN_DAYS:-30}
+      SMTP_HOST: ${SMTP_HOST:-}
+      SMTP_PORT: ${SMTP_PORT:-}
+      SMTP_USER: ${SMTP_USER:-}
+      SMTP_PASS: ${SMTP_PASS:-}
+      SMTP_FROM: ${SMTP_FROM:-}
+      FAMILY_PORTAL_URL: ${FAMILY_PORTAL_URL:-}
+      CONSOLE_URL: ${CONSOLE_URL:-}
+    volumes:
+      # A named volume so backups survive `docker compose down`. It is still
+      # on this host's disk, which is not a backup — copy it somewhere else.
+      - backups:/backups
+
+volumes:
+  db-data:
+  backups:

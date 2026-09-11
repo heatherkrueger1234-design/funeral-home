@@ -1,0 +1,106 @@
+# Serves one SPA and proxies its API.
+#
+# The point of putting nginx in front rather than pointing the browser at the
+# API host directly: the staff session lives in an httpOnly cookie and the
+# family link in an Authorization header, and same-origin means no CORS, no
+# SameSite=None, and no third-party-cookie blocking to argue with. The apps
+# call "/api/..." relative, and this is what makes that true.
+#
+# This is a template, expanded at container start by the nginx image's own
+# envsubst step. NGINX_ENVSUBST_FILTER (set in Dockerfile.web) restricts it to
+# NGINX_-prefixed names, so $host, $uri and friends survive untouched.
+
+server {
+    listen 80;
+    server_name _;
+
+    root /usr/share/nginx/html;
+    index index.html;
+
+    # Uploads: a family sending 900 photographs sends them one at a time, but a
+    # single modern phone photo past nginx's 1m default is a 413 that the
+    # family reads as "this website is broken".
+    client_max_body_size 50m;
+
+    gzip on;
+    gzip_types text/css application/javascript application/json image/svg+xml;
+    gzip_min_length 1024;
+    # Off for proxied responses on purpose: those are already-compressed JPEG
+    # bytes and zip archives, where gzip costs CPU and returns nothing.
+    gzip_proxied off;
+
+    # Belt and braces. The API sets its own headers via helmet; these apply to
+    # the static documents nginx serves without ever reaching the API.
+    add_header X-Content-Type-Options nosniff always;
+    add_header X-Frame-Options DENY always;
+    add_header Referrer-Policy strict-origin-when-cross-origin always;
+
+    # nginx's own liveness. Deliberately not proxied to the API: this answers
+    # "is the web container serving files", which is a different question from
+    # "is the API up", and conflating them takes both out at once.
+    location = /healthz {
+        access_log off;
+        add_header Content-Type text/plain;
+        return 200 "ok\n";
+    }
+
+    location /api/ {
+        # Resolved per request through a variable rather than pinned at
+        # startup, so an API container that comes back on a new address does
+        # not leave nginx serving 502 until nginx is itself restarted. The
+        # default resolver is Docker's embedded DNS; on Kubernetes set
+        # NGINX_RESOLVER to the cluster DNS service address.
+        resolver ${NGINX_RESOLVER} ipv6=off valid=10s;
+        set $upstream_api ${NGINX_API_ORIGIN};
+        # No URI part after the variable, so the original request path is
+        # passed through unchanged — the API mounts its routes under /api.
+        proxy_pass $upstream_api;
+
+        proxy_http_version 1.1;
+        proxy_set_header Host              $host;
+        proxy_set_header X-Real-IP         $remote_addr;
+        proxy_set_header X-Forwarded-For   $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Host  $host;
+        # Express trusts this to decide whether the session cookie is marked
+        # Secure. Without it, a login over HTTPS hands out a cookie that will
+        # also travel over plain HTTP.
+        proxy_set_header X-Forwarded-Proto $scheme;
+
+        # Long, because the two slow paths are real work and not a hang: the
+        # photo pack zips hundreds of decrypted images, and a phone on a bad
+        # connection uploads a 40MB HEIC slowly.
+        proxy_connect_timeout 10s;
+        proxy_send_timeout   600s;
+        proxy_read_timeout   600s;
+
+        # Stream the zip and the uploads through instead of spooling them to
+        # disk first.
+        proxy_buffering off;
+        proxy_request_buffering off;
+    }
+
+    # Vite fingerprints everything under /assets/, so the bytes at a given URL
+    # never change. A year is safe, and means a returning family re-downloads
+    # nothing.
+    location /assets/ {
+        access_log off;
+        # One header, not `expires 1y` plus an add_header: those emit two
+        # Cache-Control lines, and an intermediary that reads the first and
+        # stops gets a different answer than the browser does.
+        add_header Cache-Control "public, max-age=31536000, immutable" always;
+        try_files $uri =404;
+    }
+
+    # index.html is the one file that must never be cached: it points at the
+    # fingerprinted bundles, and a stale copy pins a browser to a deployment
+    # that no longer exists.
+    location = /index.html {
+        add_header Cache-Control "no-store, must-revalidate" always;
+    }
+
+    # Client-side routing: a family opening a texted link lands deep in the app
+    # on a path nginx has no file for.
+    location / {
+        try_files $uri $uri/ /index.html;
+    }
+}

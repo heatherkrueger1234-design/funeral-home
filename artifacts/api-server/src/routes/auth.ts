@@ -145,7 +145,7 @@ router.post("/auth/register", authRateLimit, async (req, res) => {
     return { user: createdUser!, home: createdHome! };
   });
 
-  setSessionCookie(res, await createSession(user.id));
+  setSessionCookie(req, res, await createSession(user.id));
   res.status(201).json(authPayload(user, home));
 });
 
@@ -182,7 +182,7 @@ router.post("/auth/login", authRateLimit, async (req, res) => {
 
   if (!home) throw new HttpError(401, "That email address and password do not match.");
 
-  setSessionCookie(res, await createSession(user.id));
+  setSessionCookie(req, res, await createSession(user.id));
   res.json(authPayload(user, home));
 });
 
