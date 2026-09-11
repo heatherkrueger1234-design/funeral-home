@@ -22,6 +22,17 @@ async function buildAll() {
     outdir: distDir,
     outExtension: { ".js": ".mjs" },
     logLevel: "info",
+    /*
+     * Anything listed here must also be a dependency of *this* package, even
+     * when the import comes from a workspace library. esbuild inlines the
+     * library's source into this bundle, so the bare import is resolved from
+     * `artifacts/api-server/node_modules` at runtime — and pnpm's strict
+     * layout means a dependency of `@workspace/mailer` is not there.
+     *
+     * That is how `nodemailer` broke the built server while every test
+     * passed: the tests run the TypeScript sources, where resolution happens
+     * from the library that actually declares it.
+     */
     // Some packages may not be bundleable, so we externalize them, we can add more here as needed.
     // Some of the packages below may not be imported or installed, but we're adding them in case they are in the future.
     // Examples of unbundleable packages:
