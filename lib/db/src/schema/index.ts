@@ -28,6 +28,9 @@ export * from "./selections";
 /* What the family brings in, and how they should look. */
 export * from "./belongings";
 
+/* The paperwork that holds everything else up. */
+export * from "./vital-statistics";
+
 /* Working the case together. */
 export * from "./timeline-templates";
 export * from "./messages";

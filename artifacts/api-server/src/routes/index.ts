@@ -16,6 +16,7 @@ import messagesRouter from "./messages";
 import deadlinesRouter from "./deadlines";
 import belongingsRouter from "./belongings";
 import vendorsRouter from "./vendors";
+import vitalsRouter from "./vitals";
 import aftercareRouter from "./aftercare";
 import uploadsRouter from "./uploads";
 
@@ -74,6 +75,7 @@ router.use(messagesRouter);
 router.use(deadlinesRouter);
 router.use(belongingsRouter);
 router.use(vendorsRouter);
+router.use(vitalsRouter);
 router.use(aftercareRouter);
 router.use(uploadsRouter);
 

@@ -8,6 +8,7 @@ import {
   casePreparationTable,
   vendorsTable,
   vendorQuotesTable,
+  vitalStatisticsTable,
   normalisePostalCode,
   caseDeadlinesTable,
   caseMessagesTable,
@@ -40,6 +41,7 @@ import {
   SetFamilyPostalCodeBody,
   RequestFamilyQuoteBody,
   GetFamilyVendorsQueryParams,
+  UpdateFamilyVitalsBody,
 } from "@workspace/api-zod";
 import {
   assertHasUpdates,
@@ -67,6 +69,12 @@ import { buildThread, isThreadLocked, markRead } from "../lib/thread";
 import { isWithinOfficeHours } from "../lib/office-hours";
 import { aftercareForCase } from "../lib/aftercare";
 import { findVendors, locate, toVendorJson } from "../lib/vendors";
+import {
+  encryptSsn,
+  pickWritable,
+  toVitalsJson,
+  vitalsForCase,
+} from "../lib/vitals";
 import { quotesForCase } from "./vendors";
 import {
   belongingsForCase,
@@ -824,6 +832,91 @@ router.post("/quotes", async (req, res) => {
 
   const all = await quotesForCase(row.id, row.funeralHomeId);
   res.status(201).json(all.find((quote) => quote.id === created!.id));
+});
+
+/* -------------------------------------------------------------- vitals --- */
+
+/**
+ * What the death certificate needs.
+ *
+ * The most deadline-driven paperwork in the process, and almost none of it is
+ * known to the funeral director — it is known to a daughter who has to ring
+ * an aunt about a maiden name and find a discharge certificate in a drawer.
+ * That is research, not a conversation, which is why it goes badly across a
+ * desk and fine at home over two evenings.
+ *
+ * Saved field by field with nothing required, so somebody can answer the
+ * three things they know at eleven at night and come back.
+ */
+router.get("/vitals", async (req, res) => {
+  const row = familyCase(req);
+  res.json(await toVitalsJson(await vitalsForCase(row.id, row.funeralHomeId)));
+});
+
+router.put("/vitals", async (req, res) => {
+  const row = familyCase(req);
+  const existing = await vitalsForCase(row.id, row.funeralHomeId);
+
+  // Once staff have checked it against documents, a later edit would mean
+  // the verified record and the family's answers disagree silently.
+  if (existing.status === "verified") {
+    throw new HttpError(
+      409,
+      "The funeral home has already checked these details. Send them a message if something needs correcting.",
+    );
+  }
+
+  const body = assertHasUpdates(parseBody(UpdateFamilyVitalsBody, req.body));
+  const values = pickWritable(body as Record<string, unknown>);
+
+  const touchedSsn = Object.prototype.hasOwnProperty.call(
+    body,
+    "socialSecurityNumber",
+  );
+
+  if (touchedSsn) {
+    const digits = (body.socialSecurityNumber ?? "").replace(/\D/g, "");
+    if (digits.length > 0 && digits.length !== 9) {
+      throw badRequest("A social security number has nine digits.");
+    }
+  }
+
+  const [updated] = await db
+    .update(vitalStatisticsTable)
+    .set({
+      ...values,
+      ...(touchedSsn
+        ? { socialSecurityNumber: encryptSsn(body.socialSecurityNumber) }
+        : {}),
+      updatedAt: new Date(),
+    })
+    .where(eq(vitalStatisticsTable.id, existing.id))
+    .returning();
+
+  res.json(await toVitalsJson(updated!));
+});
+
+/**
+ * Not a lock. A family who presses this and then finds the discharge papers
+ * can still add them — the status tells the director it is worth reading,
+ * rather than closing a door on people who are not thinking clearly.
+ */
+router.post("/vitals/submit", async (req, res) => {
+  const row = familyCase(req);
+  const existing = await vitalsForCase(row.id, row.funeralHomeId);
+
+  if (existing.status === "verified") {
+    res.json(await toVitalsJson(existing));
+    return;
+  }
+
+  const [updated] = await db
+    .update(vitalStatisticsTable)
+    .set({ status: "submitted", submittedAt: new Date(), updatedAt: new Date() })
+    .where(eq(vitalStatisticsTable.id, existing.id))
+    .returning();
+
+  res.json(await toVitalsJson(updated!));
 });
 
 /* ------------------------------------------------------------ messages --- */

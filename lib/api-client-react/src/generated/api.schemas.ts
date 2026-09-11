@@ -929,6 +929,126 @@ export type PreparationUpdate = FamilyPreparationUpdate & {
   reviewed?: boolean;
 };
 
+export type VitalStatisticsStatus =
+  (typeof VitalStatisticsStatus)[keyof typeof VitalStatisticsStatus];
+
+export const VitalStatisticsStatus = {
+  collecting: "collecting",
+  submitted: "submitted",
+  verified: "verified",
+} as const;
+
+/**
+ * Everything the death certificate asks for. Free text throughout,
+because the fields vary across more than fifty registration
+jurisdictions and a dropdown missing the true answer produces a
+confident wrong one.
+
+ */
+export interface VitalStatistics {
+  caseId: number;
+  legalFirstName?: string | null;
+  legalMiddleName?: string | null;
+  legalLastName?: string | null;
+  nameAtBirth?: string | null;
+  suffix?: string | null;
+  dateOfBirth?: string | null;
+  birthCity?: string | null;
+  birthState?: string | null;
+  birthCountry?: string | null;
+  sex?: string | null;
+  maritalStatus?: string | null;
+  spouseName?: string | null;
+  spouseNameAtBirth?: string | null;
+  fatherFirstName?: string | null;
+  fatherMiddleName?: string | null;
+  fatherLastName?: string | null;
+  motherFirstName?: string | null;
+  motherMiddleName?: string | null;
+  motherMaidenName?: string | null;
+  occupation?: string | null;
+  industry?: string | null;
+  educationLevel?: string | null;
+  raceEthnicity?: string | null;
+  hispanicOrigin?: string | null;
+  residenceLine1?: string | null;
+  residenceCity?: string | null;
+  residenceCounty?: string | null;
+  residenceState?: string | null;
+  residencePostalCode?: string | null;
+  veteranBranch?: string | null;
+  veteranServiceDates?: string | null;
+  veteranDischargeDocument?: string | null;
+  dispositionType?: string | null;
+  dispositionPlace?: string | null;
+  informantName?: string | null;
+  informantRelationship?: string | null;
+  informantPhone?: string | null;
+  residenceInsideCityLimits?: boolean | null;
+  veteran?: boolean | null;
+  /** Last four digits only. The number itself is encrypted at rest and
+is never returned by the API, to either side.
+ */
+  socialSecurityNumberMasked: string | null;
+  hasSocialSecurityNumber: boolean;
+  status: VitalStatisticsStatus;
+  submittedAt: string | null;
+  verifiedAt: string | null;
+  verifiedByName: string | null;
+  staffNotes: string | null;
+  /** Fields still needed before a certificate can be filed. */
+  missingForFiling: string[];
+}
+
+export interface VitalsFamilyUpdate {
+  legalFirstName?: string | null;
+  legalMiddleName?: string | null;
+  legalLastName?: string | null;
+  nameAtBirth?: string | null;
+  suffix?: string | null;
+  dateOfBirth?: string | null;
+  birthCity?: string | null;
+  birthState?: string | null;
+  birthCountry?: string | null;
+  sex?: string | null;
+  maritalStatus?: string | null;
+  spouseName?: string | null;
+  spouseNameAtBirth?: string | null;
+  fatherFirstName?: string | null;
+  fatherMiddleName?: string | null;
+  fatherLastName?: string | null;
+  motherFirstName?: string | null;
+  motherMiddleName?: string | null;
+  motherMaidenName?: string | null;
+  occupation?: string | null;
+  industry?: string | null;
+  educationLevel?: string | null;
+  raceEthnicity?: string | null;
+  hispanicOrigin?: string | null;
+  residenceLine1?: string | null;
+  residenceCity?: string | null;
+  residenceCounty?: string | null;
+  residenceState?: string | null;
+  residencePostalCode?: string | null;
+  veteranBranch?: string | null;
+  veteranServiceDates?: string | null;
+  veteranDischargeDocument?: string | null;
+  dispositionType?: string | null;
+  dispositionPlace?: string | null;
+  informantName?: string | null;
+  informantRelationship?: string | null;
+  informantPhone?: string | null;
+  residenceInsideCityLimits?: boolean | null;
+  veteran?: boolean | null;
+  /** Nine digits. Stored encrypted and never read back. */
+  socialSecurityNumber?: string | null;
+}
+
+export type VitalsStaffUpdate = VitalsFamilyUpdate & {
+  staffNotes?: string | null;
+  verified?: boolean;
+};
+
 export type ObituaryDraftStatus =
   (typeof ObituaryDraftStatus)[keyof typeof ObituaryDraftStatus];
 

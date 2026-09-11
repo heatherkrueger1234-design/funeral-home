@@ -29,6 +29,7 @@ import { ServicePanel } from "@/components/case/ServicePanel";
 import { TimelinePanel } from "@/components/case/TimelinePanel";
 import { MessagesPanel } from "@/components/case/MessagesPanel";
 import { BelongingsPanel } from "@/components/case/BelongingsPanel";
+import { VitalsPanel } from "@/components/case/VitalsPanel";
 import { DetailsPanel } from "@/components/case/DetailsPanel";
 
 export default function CaseDetail() {
@@ -130,6 +131,7 @@ export default function CaseDetail() {
             )}
           </TabsTrigger>
           <TabsTrigger value="photos">Photographs ({detail.photoCount})</TabsTrigger>
+          <TabsTrigger value="vitals">Certificate</TabsTrigger>
           <TabsTrigger value="belongings">Belongings</TabsTrigger>
           <TabsTrigger value="obituary">Obituary</TabsTrigger>
           <TabsTrigger value="service">Service</TabsTrigger>
@@ -155,6 +157,9 @@ export default function CaseDetail() {
               portraitPhotoId={detail.portraitPhotoId}
               referencePhotoId={detail.referencePhotoId}
             />
+          </TabsContent>
+          <TabsContent value="vitals">
+            <VitalsPanel caseId={caseId} />
           </TabsContent>
           <TabsContent value="belongings">
             <BelongingsPanel caseId={caseId} />

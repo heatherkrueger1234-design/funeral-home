@@ -43,6 +43,8 @@ tags:
     description: Clothing, jewellery, and how they should look
   - name: vendors
     description: The home's local network, and quotes passed through it
+  - name: vitals
+    description: What the death certificate needs
   - name: aftercare
     description: Branded grief check-ins after the service
   - name: uploads
@@ -893,6 +895,83 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Preparation"
+
+  /cases/{caseId}/vitals:
+    get:
+      operationId: getVitals
+      tags: [vitals]
+      summary: The death certificate details collected so far
+      parameters:
+        - $ref: "#/components/parameters/CaseId"
+      responses:
+        "200":
+          description: The record
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/VitalStatistics"
+    put:
+      operationId: updateVitals
+      tags: [vitals]
+      summary: Correct or complete the details, and verify them
+      parameters:
+        - $ref: "#/components/parameters/CaseId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/VitalsStaffUpdate"
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/VitalStatistics"
+
+  /family/vitals:
+    get:
+      operationId: getFamilyVitals
+      tags: [family]
+      summary: The details the funeral home still needs
+      responses:
+        "200":
+          description: The record
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/VitalStatistics"
+    put:
+      operationId: updateFamilyVitals
+      tags: [family]
+      summary: Fill in what you know, a bit at a time
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/VitalsFamilyUpdate"
+      responses:
+        "200":
+          description: Saved
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/VitalStatistics"
+
+  /family/vitals/submit:
+    post:
+      operationId: submitFamilyVitals
+      tags: [family]
+      summary: Tell the funeral home you have finished
+      responses:
+        "200":
+          description: Submitted
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/VitalStatistics"
 
   /cases/{caseId}/obituary:
     get:
@@ -3232,6 +3311,304 @@ components:
             reviewed:
               type: boolean
               description: Mark the sheet as read before it goes to the room.
+
+    # -------------------------------------------------------------- vitals --
+
+    VitalStatistics:
+      type: object
+      description: |
+        Everything the death certificate asks for. Free text throughout,
+        because the fields vary across more than fifty registration
+        jurisdictions and a dropdown missing the true answer produces a
+        confident wrong one.
+      properties:
+        caseId:
+          type: integer
+        legalFirstName:
+          type: string
+          nullable: true
+        legalMiddleName:
+          type: string
+          nullable: true
+        legalLastName:
+          type: string
+          nullable: true
+        nameAtBirth:
+          type: string
+          nullable: true
+        suffix:
+          type: string
+          nullable: true
+        dateOfBirth:
+          type: string
+          nullable: true
+        birthCity:
+          type: string
+          nullable: true
+        birthState:
+          type: string
+          nullable: true
+        birthCountry:
+          type: string
+          nullable: true
+        sex:
+          type: string
+          nullable: true
+        maritalStatus:
+          type: string
+          nullable: true
+        spouseName:
+          type: string
+          nullable: true
+        spouseNameAtBirth:
+          type: string
+          nullable: true
+        fatherFirstName:
+          type: string
+          nullable: true
+        fatherMiddleName:
+          type: string
+          nullable: true
+        fatherLastName:
+          type: string
+          nullable: true
+        motherFirstName:
+          type: string
+          nullable: true
+        motherMiddleName:
+          type: string
+          nullable: true
+        motherMaidenName:
+          type: string
+          nullable: true
+        occupation:
+          type: string
+          nullable: true
+        industry:
+          type: string
+          nullable: true
+        educationLevel:
+          type: string
+          nullable: true
+        raceEthnicity:
+          type: string
+          nullable: true
+        hispanicOrigin:
+          type: string
+          nullable: true
+        residenceLine1:
+          type: string
+          nullable: true
+        residenceCity:
+          type: string
+          nullable: true
+        residenceCounty:
+          type: string
+          nullable: true
+        residenceState:
+          type: string
+          nullable: true
+        residencePostalCode:
+          type: string
+          nullable: true
+        veteranBranch:
+          type: string
+          nullable: true
+        veteranServiceDates:
+          type: string
+          nullable: true
+        veteranDischargeDocument:
+          type: string
+          nullable: true
+        dispositionType:
+          type: string
+          nullable: true
+        dispositionPlace:
+          type: string
+          nullable: true
+        informantName:
+          type: string
+          nullable: true
+        informantRelationship:
+          type: string
+          nullable: true
+        informantPhone:
+          type: string
+          nullable: true
+        residenceInsideCityLimits:
+          type: boolean
+          nullable: true
+        veteran:
+          type: boolean
+          nullable: true
+        socialSecurityNumberMasked:
+          type: string
+          nullable: true
+          description: |
+            Last four digits only. The number itself is encrypted at rest and
+            is never returned by the API, to either side.
+        hasSocialSecurityNumber:
+          type: boolean
+        status:
+          type: string
+          enum: [collecting, submitted, verified]
+        submittedAt:
+          type: string
+          format: date-time
+          nullable: true
+        verifiedAt:
+          type: string
+          format: date-time
+          nullable: true
+        verifiedByName:
+          type: string
+          nullable: true
+        staffNotes:
+          type: string
+          nullable: true
+        missingForFiling:
+          type: array
+          description: Fields still needed before a certificate can be filed.
+          items:
+            type: string
+      required:
+        [caseId, socialSecurityNumberMasked, hasSocialSecurityNumber, status, submittedAt, verifiedAt, verifiedByName, staffNotes, missingForFiling]
+
+    VitalsFamilyUpdate:
+      type: object
+      properties:
+        legalFirstName:
+          type: string
+          nullable: true
+        legalMiddleName:
+          type: string
+          nullable: true
+        legalLastName:
+          type: string
+          nullable: true
+        nameAtBirth:
+          type: string
+          nullable: true
+        suffix:
+          type: string
+          nullable: true
+        dateOfBirth:
+          type: string
+          nullable: true
+        birthCity:
+          type: string
+          nullable: true
+        birthState:
+          type: string
+          nullable: true
+        birthCountry:
+          type: string
+          nullable: true
+        sex:
+          type: string
+          nullable: true
+        maritalStatus:
+          type: string
+          nullable: true
+        spouseName:
+          type: string
+          nullable: true
+        spouseNameAtBirth:
+          type: string
+          nullable: true
+        fatherFirstName:
+          type: string
+          nullable: true
+        fatherMiddleName:
+          type: string
+          nullable: true
+        fatherLastName:
+          type: string
+          nullable: true
+        motherFirstName:
+          type: string
+          nullable: true
+        motherMiddleName:
+          type: string
+          nullable: true
+        motherMaidenName:
+          type: string
+          nullable: true
+        occupation:
+          type: string
+          nullable: true
+        industry:
+          type: string
+          nullable: true
+        educationLevel:
+          type: string
+          nullable: true
+        raceEthnicity:
+          type: string
+          nullable: true
+        hispanicOrigin:
+          type: string
+          nullable: true
+        residenceLine1:
+          type: string
+          nullable: true
+        residenceCity:
+          type: string
+          nullable: true
+        residenceCounty:
+          type: string
+          nullable: true
+        residenceState:
+          type: string
+          nullable: true
+        residencePostalCode:
+          type: string
+          nullable: true
+        veteranBranch:
+          type: string
+          nullable: true
+        veteranServiceDates:
+          type: string
+          nullable: true
+        veteranDischargeDocument:
+          type: string
+          nullable: true
+        dispositionType:
+          type: string
+          nullable: true
+        dispositionPlace:
+          type: string
+          nullable: true
+        informantName:
+          type: string
+          nullable: true
+        informantRelationship:
+          type: string
+          nullable: true
+        informantPhone:
+          type: string
+          nullable: true
+        residenceInsideCityLimits:
+          type: boolean
+          nullable: true
+        veteran:
+          type: boolean
+          nullable: true
+        socialSecurityNumber:
+          type: string
+          nullable: true
+          description: Nine digits. Stored encrypted and never read back.
+
+    VitalsStaffUpdate:
+      allOf:
+        - $ref: "#/components/schemas/VitalsFamilyUpdate"
+        - type: object
+          properties:
+            staffNotes:
+              type: string
+              nullable: true
+            verified:
+              type: boolean
 
     # ------------------------------------------------------------ obituary --
 

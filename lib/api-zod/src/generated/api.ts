@@ -1387,6 +1387,438 @@ export const UpdateFamilyPreparationResponse = zod.object({
 });
 
 /**
+ * @summary The death certificate details collected so far
+ */
+export const GetVitalsParams = zod.object({
+  caseId: zod.coerce.number(),
+});
+
+export const GetVitalsResponse = zod
+  .object({
+    caseId: zod.number(),
+    legalFirstName: zod.string().nullish(),
+    legalMiddleName: zod.string().nullish(),
+    legalLastName: zod.string().nullish(),
+    nameAtBirth: zod.string().nullish(),
+    suffix: zod.string().nullish(),
+    dateOfBirth: zod.string().nullish(),
+    birthCity: zod.string().nullish(),
+    birthState: zod.string().nullish(),
+    birthCountry: zod.string().nullish(),
+    sex: zod.string().nullish(),
+    maritalStatus: zod.string().nullish(),
+    spouseName: zod.string().nullish(),
+    spouseNameAtBirth: zod.string().nullish(),
+    fatherFirstName: zod.string().nullish(),
+    fatherMiddleName: zod.string().nullish(),
+    fatherLastName: zod.string().nullish(),
+    motherFirstName: zod.string().nullish(),
+    motherMiddleName: zod.string().nullish(),
+    motherMaidenName: zod.string().nullish(),
+    occupation: zod.string().nullish(),
+    industry: zod.string().nullish(),
+    educationLevel: zod.string().nullish(),
+    raceEthnicity: zod.string().nullish(),
+    hispanicOrigin: zod.string().nullish(),
+    residenceLine1: zod.string().nullish(),
+    residenceCity: zod.string().nullish(),
+    residenceCounty: zod.string().nullish(),
+    residenceState: zod.string().nullish(),
+    residencePostalCode: zod.string().nullish(),
+    veteranBranch: zod.string().nullish(),
+    veteranServiceDates: zod.string().nullish(),
+    veteranDischargeDocument: zod.string().nullish(),
+    dispositionType: zod.string().nullish(),
+    dispositionPlace: zod.string().nullish(),
+    informantName: zod.string().nullish(),
+    informantRelationship: zod.string().nullish(),
+    informantPhone: zod.string().nullish(),
+    residenceInsideCityLimits: zod.boolean().nullish(),
+    veteran: zod.boolean().nullish(),
+    socialSecurityNumberMasked: zod
+      .string()
+      .nullable()
+      .describe(
+        "Last four digits only. The number itself is encrypted at rest and\nis never returned by the API, to either side.\n",
+      ),
+    hasSocialSecurityNumber: zod.boolean(),
+    status: zod.enum(["collecting", "submitted", "verified"]),
+    submittedAt: zod.date().nullable(),
+    verifiedAt: zod.date().nullable(),
+    verifiedByName: zod.string().nullable(),
+    staffNotes: zod.string().nullable(),
+    missingForFiling: zod
+      .array(zod.string())
+      .describe("Fields still needed before a certificate can be filed."),
+  })
+  .describe(
+    "Everything the death certificate asks for. Free text throughout,\nbecause the fields vary across more than fifty registration\njurisdictions and a dropdown missing the true answer produces a\nconfident wrong one.\n",
+  );
+
+/**
+ * @summary Correct or complete the details, and verify them
+ */
+export const UpdateVitalsParams = zod.object({
+  caseId: zod.coerce.number(),
+});
+
+export const UpdateVitalsBody = zod
+  .object({
+    legalFirstName: zod.string().nullish(),
+    legalMiddleName: zod.string().nullish(),
+    legalLastName: zod.string().nullish(),
+    nameAtBirth: zod.string().nullish(),
+    suffix: zod.string().nullish(),
+    dateOfBirth: zod.string().nullish(),
+    birthCity: zod.string().nullish(),
+    birthState: zod.string().nullish(),
+    birthCountry: zod.string().nullish(),
+    sex: zod.string().nullish(),
+    maritalStatus: zod.string().nullish(),
+    spouseName: zod.string().nullish(),
+    spouseNameAtBirth: zod.string().nullish(),
+    fatherFirstName: zod.string().nullish(),
+    fatherMiddleName: zod.string().nullish(),
+    fatherLastName: zod.string().nullish(),
+    motherFirstName: zod.string().nullish(),
+    motherMiddleName: zod.string().nullish(),
+    motherMaidenName: zod.string().nullish(),
+    occupation: zod.string().nullish(),
+    industry: zod.string().nullish(),
+    educationLevel: zod.string().nullish(),
+    raceEthnicity: zod.string().nullish(),
+    hispanicOrigin: zod.string().nullish(),
+    residenceLine1: zod.string().nullish(),
+    residenceCity: zod.string().nullish(),
+    residenceCounty: zod.string().nullish(),
+    residenceState: zod.string().nullish(),
+    residencePostalCode: zod.string().nullish(),
+    veteranBranch: zod.string().nullish(),
+    veteranServiceDates: zod.string().nullish(),
+    veteranDischargeDocument: zod.string().nullish(),
+    dispositionType: zod.string().nullish(),
+    dispositionPlace: zod.string().nullish(),
+    informantName: zod.string().nullish(),
+    informantRelationship: zod.string().nullish(),
+    informantPhone: zod.string().nullish(),
+    residenceInsideCityLimits: zod.boolean().nullish(),
+    veteran: zod.boolean().nullish(),
+    socialSecurityNumber: zod
+      .string()
+      .nullish()
+      .describe("Nine digits. Stored encrypted and never read back."),
+  })
+  .and(
+    zod.object({
+      staffNotes: zod.string().nullish(),
+      verified: zod.boolean().optional(),
+    }),
+  );
+
+export const UpdateVitalsResponse = zod
+  .object({
+    caseId: zod.number(),
+    legalFirstName: zod.string().nullish(),
+    legalMiddleName: zod.string().nullish(),
+    legalLastName: zod.string().nullish(),
+    nameAtBirth: zod.string().nullish(),
+    suffix: zod.string().nullish(),
+    dateOfBirth: zod.string().nullish(),
+    birthCity: zod.string().nullish(),
+    birthState: zod.string().nullish(),
+    birthCountry: zod.string().nullish(),
+    sex: zod.string().nullish(),
+    maritalStatus: zod.string().nullish(),
+    spouseName: zod.string().nullish(),
+    spouseNameAtBirth: zod.string().nullish(),
+    fatherFirstName: zod.string().nullish(),
+    fatherMiddleName: zod.string().nullish(),
+    fatherLastName: zod.string().nullish(),
+    motherFirstName: zod.string().nullish(),
+    motherMiddleName: zod.string().nullish(),
+    motherMaidenName: zod.string().nullish(),
+    occupation: zod.string().nullish(),
+    industry: zod.string().nullish(),
+    educationLevel: zod.string().nullish(),
+    raceEthnicity: zod.string().nullish(),
+    hispanicOrigin: zod.string().nullish(),
+    residenceLine1: zod.string().nullish(),
+    residenceCity: zod.string().nullish(),
+    residenceCounty: zod.string().nullish(),
+    residenceState: zod.string().nullish(),
+    residencePostalCode: zod.string().nullish(),
+    veteranBranch: zod.string().nullish(),
+    veteranServiceDates: zod.string().nullish(),
+    veteranDischargeDocument: zod.string().nullish(),
+    dispositionType: zod.string().nullish(),
+    dispositionPlace: zod.string().nullish(),
+    informantName: zod.string().nullish(),
+    informantRelationship: zod.string().nullish(),
+    informantPhone: zod.string().nullish(),
+    residenceInsideCityLimits: zod.boolean().nullish(),
+    veteran: zod.boolean().nullish(),
+    socialSecurityNumberMasked: zod
+      .string()
+      .nullable()
+      .describe(
+        "Last four digits only. The number itself is encrypted at rest and\nis never returned by the API, to either side.\n",
+      ),
+    hasSocialSecurityNumber: zod.boolean(),
+    status: zod.enum(["collecting", "submitted", "verified"]),
+    submittedAt: zod.date().nullable(),
+    verifiedAt: zod.date().nullable(),
+    verifiedByName: zod.string().nullable(),
+    staffNotes: zod.string().nullable(),
+    missingForFiling: zod
+      .array(zod.string())
+      .describe("Fields still needed before a certificate can be filed."),
+  })
+  .describe(
+    "Everything the death certificate asks for. Free text throughout,\nbecause the fields vary across more than fifty registration\njurisdictions and a dropdown missing the true answer produces a\nconfident wrong one.\n",
+  );
+
+/**
+ * @summary The details the funeral home still needs
+ */
+export const GetFamilyVitalsResponse = zod
+  .object({
+    caseId: zod.number(),
+    legalFirstName: zod.string().nullish(),
+    legalMiddleName: zod.string().nullish(),
+    legalLastName: zod.string().nullish(),
+    nameAtBirth: zod.string().nullish(),
+    suffix: zod.string().nullish(),
+    dateOfBirth: zod.string().nullish(),
+    birthCity: zod.string().nullish(),
+    birthState: zod.string().nullish(),
+    birthCountry: zod.string().nullish(),
+    sex: zod.string().nullish(),
+    maritalStatus: zod.string().nullish(),
+    spouseName: zod.string().nullish(),
+    spouseNameAtBirth: zod.string().nullish(),
+    fatherFirstName: zod.string().nullish(),
+    fatherMiddleName: zod.string().nullish(),
+    fatherLastName: zod.string().nullish(),
+    motherFirstName: zod.string().nullish(),
+    motherMiddleName: zod.string().nullish(),
+    motherMaidenName: zod.string().nullish(),
+    occupation: zod.string().nullish(),
+    industry: zod.string().nullish(),
+    educationLevel: zod.string().nullish(),
+    raceEthnicity: zod.string().nullish(),
+    hispanicOrigin: zod.string().nullish(),
+    residenceLine1: zod.string().nullish(),
+    residenceCity: zod.string().nullish(),
+    residenceCounty: zod.string().nullish(),
+    residenceState: zod.string().nullish(),
+    residencePostalCode: zod.string().nullish(),
+    veteranBranch: zod.string().nullish(),
+    veteranServiceDates: zod.string().nullish(),
+    veteranDischargeDocument: zod.string().nullish(),
+    dispositionType: zod.string().nullish(),
+    dispositionPlace: zod.string().nullish(),
+    informantName: zod.string().nullish(),
+    informantRelationship: zod.string().nullish(),
+    informantPhone: zod.string().nullish(),
+    residenceInsideCityLimits: zod.boolean().nullish(),
+    veteran: zod.boolean().nullish(),
+    socialSecurityNumberMasked: zod
+      .string()
+      .nullable()
+      .describe(
+        "Last four digits only. The number itself is encrypted at rest and\nis never returned by the API, to either side.\n",
+      ),
+    hasSocialSecurityNumber: zod.boolean(),
+    status: zod.enum(["collecting", "submitted", "verified"]),
+    submittedAt: zod.date().nullable(),
+    verifiedAt: zod.date().nullable(),
+    verifiedByName: zod.string().nullable(),
+    staffNotes: zod.string().nullable(),
+    missingForFiling: zod
+      .array(zod.string())
+      .describe("Fields still needed before a certificate can be filed."),
+  })
+  .describe(
+    "Everything the death certificate asks for. Free text throughout,\nbecause the fields vary across more than fifty registration\njurisdictions and a dropdown missing the true answer produces a\nconfident wrong one.\n",
+  );
+
+/**
+ * @summary Fill in what you know, a bit at a time
+ */
+export const UpdateFamilyVitalsBody = zod.object({
+  legalFirstName: zod.string().nullish(),
+  legalMiddleName: zod.string().nullish(),
+  legalLastName: zod.string().nullish(),
+  nameAtBirth: zod.string().nullish(),
+  suffix: zod.string().nullish(),
+  dateOfBirth: zod.string().nullish(),
+  birthCity: zod.string().nullish(),
+  birthState: zod.string().nullish(),
+  birthCountry: zod.string().nullish(),
+  sex: zod.string().nullish(),
+  maritalStatus: zod.string().nullish(),
+  spouseName: zod.string().nullish(),
+  spouseNameAtBirth: zod.string().nullish(),
+  fatherFirstName: zod.string().nullish(),
+  fatherMiddleName: zod.string().nullish(),
+  fatherLastName: zod.string().nullish(),
+  motherFirstName: zod.string().nullish(),
+  motherMiddleName: zod.string().nullish(),
+  motherMaidenName: zod.string().nullish(),
+  occupation: zod.string().nullish(),
+  industry: zod.string().nullish(),
+  educationLevel: zod.string().nullish(),
+  raceEthnicity: zod.string().nullish(),
+  hispanicOrigin: zod.string().nullish(),
+  residenceLine1: zod.string().nullish(),
+  residenceCity: zod.string().nullish(),
+  residenceCounty: zod.string().nullish(),
+  residenceState: zod.string().nullish(),
+  residencePostalCode: zod.string().nullish(),
+  veteranBranch: zod.string().nullish(),
+  veteranServiceDates: zod.string().nullish(),
+  veteranDischargeDocument: zod.string().nullish(),
+  dispositionType: zod.string().nullish(),
+  dispositionPlace: zod.string().nullish(),
+  informantName: zod.string().nullish(),
+  informantRelationship: zod.string().nullish(),
+  informantPhone: zod.string().nullish(),
+  residenceInsideCityLimits: zod.boolean().nullish(),
+  veteran: zod.boolean().nullish(),
+  socialSecurityNumber: zod
+    .string()
+    .nullish()
+    .describe("Nine digits. Stored encrypted and never read back."),
+});
+
+export const UpdateFamilyVitalsResponse = zod
+  .object({
+    caseId: zod.number(),
+    legalFirstName: zod.string().nullish(),
+    legalMiddleName: zod.string().nullish(),
+    legalLastName: zod.string().nullish(),
+    nameAtBirth: zod.string().nullish(),
+    suffix: zod.string().nullish(),
+    dateOfBirth: zod.string().nullish(),
+    birthCity: zod.string().nullish(),
+    birthState: zod.string().nullish(),
+    birthCountry: zod.string().nullish(),
+    sex: zod.string().nullish(),
+    maritalStatus: zod.string().nullish(),
+    spouseName: zod.string().nullish(),
+    spouseNameAtBirth: zod.string().nullish(),
+    fatherFirstName: zod.string().nullish(),
+    fatherMiddleName: zod.string().nullish(),
+    fatherLastName: zod.string().nullish(),
+    motherFirstName: zod.string().nullish(),
+    motherMiddleName: zod.string().nullish(),
+    motherMaidenName: zod.string().nullish(),
+    occupation: zod.string().nullish(),
+    industry: zod.string().nullish(),
+    educationLevel: zod.string().nullish(),
+    raceEthnicity: zod.string().nullish(),
+    hispanicOrigin: zod.string().nullish(),
+    residenceLine1: zod.string().nullish(),
+    residenceCity: zod.string().nullish(),
+    residenceCounty: zod.string().nullish(),
+    residenceState: zod.string().nullish(),
+    residencePostalCode: zod.string().nullish(),
+    veteranBranch: zod.string().nullish(),
+    veteranServiceDates: zod.string().nullish(),
+    veteranDischargeDocument: zod.string().nullish(),
+    dispositionType: zod.string().nullish(),
+    dispositionPlace: zod.string().nullish(),
+    informantName: zod.string().nullish(),
+    informantRelationship: zod.string().nullish(),
+    informantPhone: zod.string().nullish(),
+    residenceInsideCityLimits: zod.boolean().nullish(),
+    veteran: zod.boolean().nullish(),
+    socialSecurityNumberMasked: zod
+      .string()
+      .nullable()
+      .describe(
+        "Last four digits only. The number itself is encrypted at rest and\nis never returned by the API, to either side.\n",
+      ),
+    hasSocialSecurityNumber: zod.boolean(),
+    status: zod.enum(["collecting", "submitted", "verified"]),
+    submittedAt: zod.date().nullable(),
+    verifiedAt: zod.date().nullable(),
+    verifiedByName: zod.string().nullable(),
+    staffNotes: zod.string().nullable(),
+    missingForFiling: zod
+      .array(zod.string())
+      .describe("Fields still needed before a certificate can be filed."),
+  })
+  .describe(
+    "Everything the death certificate asks for. Free text throughout,\nbecause the fields vary across more than fifty registration\njurisdictions and a dropdown missing the true answer produces a\nconfident wrong one.\n",
+  );
+
+/**
+ * @summary Tell the funeral home you have finished
+ */
+export const SubmitFamilyVitalsResponse = zod
+  .object({
+    caseId: zod.number(),
+    legalFirstName: zod.string().nullish(),
+    legalMiddleName: zod.string().nullish(),
+    legalLastName: zod.string().nullish(),
+    nameAtBirth: zod.string().nullish(),
+    suffix: zod.string().nullish(),
+    dateOfBirth: zod.string().nullish(),
+    birthCity: zod.string().nullish(),
+    birthState: zod.string().nullish(),
+    birthCountry: zod.string().nullish(),
+    sex: zod.string().nullish(),
+    maritalStatus: zod.string().nullish(),
+    spouseName: zod.string().nullish(),
+    spouseNameAtBirth: zod.string().nullish(),
+    fatherFirstName: zod.string().nullish(),
+    fatherMiddleName: zod.string().nullish(),
+    fatherLastName: zod.string().nullish(),
+    motherFirstName: zod.string().nullish(),
+    motherMiddleName: zod.string().nullish(),
+    motherMaidenName: zod.string().nullish(),
+    occupation: zod.string().nullish(),
+    industry: zod.string().nullish(),
+    educationLevel: zod.string().nullish(),
+    raceEthnicity: zod.string().nullish(),
+    hispanicOrigin: zod.string().nullish(),
+    residenceLine1: zod.string().nullish(),
+    residenceCity: zod.string().nullish(),
+    residenceCounty: zod.string().nullish(),
+    residenceState: zod.string().nullish(),
+    residencePostalCode: zod.string().nullish(),
+    veteranBranch: zod.string().nullish(),
+    veteranServiceDates: zod.string().nullish(),
+    veteranDischargeDocument: zod.string().nullish(),
+    dispositionType: zod.string().nullish(),
+    dispositionPlace: zod.string().nullish(),
+    informantName: zod.string().nullish(),
+    informantRelationship: zod.string().nullish(),
+    informantPhone: zod.string().nullish(),
+    residenceInsideCityLimits: zod.boolean().nullish(),
+    veteran: zod.boolean().nullish(),
+    socialSecurityNumberMasked: zod
+      .string()
+      .nullable()
+      .describe(
+        "Last four digits only. The number itself is encrypted at rest and\nis never returned by the API, to either side.\n",
+      ),
+    hasSocialSecurityNumber: zod.boolean(),
+    status: zod.enum(["collecting", "submitted", "verified"]),
+    submittedAt: zod.date().nullable(),
+    verifiedAt: zod.date().nullable(),
+    verifiedByName: zod.string().nullable(),
+    staffNotes: zod.string().nullable(),
+    missingForFiling: zod
+      .array(zod.string())
+      .describe("Fields still needed before a certificate can be filed."),
+  })
+  .describe(
+    "Everything the death certificate asks for. Free text throughout,\nbecause the fields vary across more than fifty registration\njurisdictions and a dropdown missing the true answer produces a\nconfident wrong one.\n",
+  );
+
+/**
  * @summary The obituary draft and its fields
  */
 export const GetObituaryParams = zod.object({

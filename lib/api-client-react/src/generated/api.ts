@@ -101,6 +101,9 @@ import type {
   VendorInput,
   VendorQuote,
   VendorUpdate,
+  VitalStatistics,
+  VitalsFamilyUpdate,
+  VitalsStaffUpdate,
 } from "./api.schemas";
 
 import { customFetch } from "../custom-fetch";
@@ -4004,6 +4007,420 @@ export const useUpdateFamilyPreparation = <
   TContext
 > => {
   return useMutation(getUpdateFamilyPreparationMutationOptions(options));
+};
+
+/**
+ * @summary The death certificate details collected so far
+ */
+export const getGetVitalsUrl = (caseId: number) => {
+  return `/api/cases/${caseId}/vitals`;
+};
+
+export const getVitals = async (
+  caseId: number,
+  options?: RequestInit,
+): Promise<VitalStatistics> => {
+  return customFetch<VitalStatistics>(getGetVitalsUrl(caseId), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getGetVitalsQueryKey = (caseId: number) => {
+  return [`/api/cases/${caseId}/vitals`] as const;
+};
+
+export const getGetVitalsQueryOptions = <
+  TData = Awaited<ReturnType<typeof getVitals>>,
+  TError = ErrorType<unknown>,
+>(
+  caseId: number,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getVitals>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getGetVitalsQueryKey(caseId);
+
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof getVitals>>> = ({
+    signal,
+  }) => getVitals(caseId, { signal, ...requestOptions });
+
+  return {
+    queryKey,
+    queryFn,
+    enabled: !!caseId,
+    ...queryOptions,
+  } as UseQueryOptions<Awaited<ReturnType<typeof getVitals>>, TError, TData> & {
+    queryKey: QueryKey;
+  };
+};
+
+export type GetVitalsQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getVitals>>
+>;
+export type GetVitalsQueryError = ErrorType<unknown>;
+
+/**
+ * @summary The death certificate details collected so far
+ */
+
+export function useGetVitals<
+  TData = Awaited<ReturnType<typeof getVitals>>,
+  TError = ErrorType<unknown>,
+>(
+  caseId: number,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getVitals>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getGetVitalsQueryOptions(caseId, options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary Correct or complete the details, and verify them
+ */
+export const getUpdateVitalsUrl = (caseId: number) => {
+  return `/api/cases/${caseId}/vitals`;
+};
+
+export const updateVitals = async (
+  caseId: number,
+  vitalsStaffUpdate: VitalsStaffUpdate,
+  options?: RequestInit,
+): Promise<VitalStatistics> => {
+  return customFetch<VitalStatistics>(getUpdateVitalsUrl(caseId), {
+    ...options,
+    method: "PUT",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(vitalsStaffUpdate),
+  });
+};
+
+export const getUpdateVitalsMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof updateVitals>>,
+    TError,
+    { caseId: number; data: BodyType<VitalsStaffUpdate> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof updateVitals>>,
+  TError,
+  { caseId: number; data: BodyType<VitalsStaffUpdate> },
+  TContext
+> => {
+  const mutationKey = ["updateVitals"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof updateVitals>>,
+    { caseId: number; data: BodyType<VitalsStaffUpdate> }
+  > = (props) => {
+    const { caseId, data } = props ?? {};
+
+    return updateVitals(caseId, data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type UpdateVitalsMutationResult = NonNullable<
+  Awaited<ReturnType<typeof updateVitals>>
+>;
+export type UpdateVitalsMutationBody = BodyType<VitalsStaffUpdate>;
+export type UpdateVitalsMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Correct or complete the details, and verify them
+ */
+export const useUpdateVitals = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof updateVitals>>,
+    TError,
+    { caseId: number; data: BodyType<VitalsStaffUpdate> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof updateVitals>>,
+  TError,
+  { caseId: number; data: BodyType<VitalsStaffUpdate> },
+  TContext
+> => {
+  return useMutation(getUpdateVitalsMutationOptions(options));
+};
+
+/**
+ * @summary The details the funeral home still needs
+ */
+export const getGetFamilyVitalsUrl = () => {
+  return `/api/family/vitals`;
+};
+
+export const getFamilyVitals = async (
+  options?: RequestInit,
+): Promise<VitalStatistics> => {
+  return customFetch<VitalStatistics>(getGetFamilyVitalsUrl(), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getGetFamilyVitalsQueryKey = () => {
+  return [`/api/family/vitals`] as const;
+};
+
+export const getGetFamilyVitalsQueryOptions = <
+  TData = Awaited<ReturnType<typeof getFamilyVitals>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof getFamilyVitals>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getGetFamilyVitalsQueryKey();
+
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof getFamilyVitals>>> = ({
+    signal,
+  }) => getFamilyVitals({ signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof getFamilyVitals>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type GetFamilyVitalsQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getFamilyVitals>>
+>;
+export type GetFamilyVitalsQueryError = ErrorType<unknown>;
+
+/**
+ * @summary The details the funeral home still needs
+ */
+
+export function useGetFamilyVitals<
+  TData = Awaited<ReturnType<typeof getFamilyVitals>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof getFamilyVitals>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getGetFamilyVitalsQueryOptions(options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary Fill in what you know, a bit at a time
+ */
+export const getUpdateFamilyVitalsUrl = () => {
+  return `/api/family/vitals`;
+};
+
+export const updateFamilyVitals = async (
+  vitalsFamilyUpdate: VitalsFamilyUpdate,
+  options?: RequestInit,
+): Promise<VitalStatistics> => {
+  return customFetch<VitalStatistics>(getUpdateFamilyVitalsUrl(), {
+    ...options,
+    method: "PUT",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(vitalsFamilyUpdate),
+  });
+};
+
+export const getUpdateFamilyVitalsMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof updateFamilyVitals>>,
+    TError,
+    { data: BodyType<VitalsFamilyUpdate> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof updateFamilyVitals>>,
+  TError,
+  { data: BodyType<VitalsFamilyUpdate> },
+  TContext
+> => {
+  const mutationKey = ["updateFamilyVitals"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof updateFamilyVitals>>,
+    { data: BodyType<VitalsFamilyUpdate> }
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return updateFamilyVitals(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type UpdateFamilyVitalsMutationResult = NonNullable<
+  Awaited<ReturnType<typeof updateFamilyVitals>>
+>;
+export type UpdateFamilyVitalsMutationBody = BodyType<VitalsFamilyUpdate>;
+export type UpdateFamilyVitalsMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Fill in what you know, a bit at a time
+ */
+export const useUpdateFamilyVitals = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof updateFamilyVitals>>,
+    TError,
+    { data: BodyType<VitalsFamilyUpdate> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof updateFamilyVitals>>,
+  TError,
+  { data: BodyType<VitalsFamilyUpdate> },
+  TContext
+> => {
+  return useMutation(getUpdateFamilyVitalsMutationOptions(options));
+};
+
+/**
+ * @summary Tell the funeral home you have finished
+ */
+export const getSubmitFamilyVitalsUrl = () => {
+  return `/api/family/vitals/submit`;
+};
+
+export const submitFamilyVitals = async (
+  options?: RequestInit,
+): Promise<VitalStatistics> => {
+  return customFetch<VitalStatistics>(getSubmitFamilyVitalsUrl(), {
+    ...options,
+    method: "POST",
+  });
+};
+
+export const getSubmitFamilyVitalsMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof submitFamilyVitals>>,
+    TError,
+    void,
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof submitFamilyVitals>>,
+  TError,
+  void,
+  TContext
+> => {
+  const mutationKey = ["submitFamilyVitals"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof submitFamilyVitals>>,
+    void
+  > = () => {
+    return submitFamilyVitals(requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type SubmitFamilyVitalsMutationResult = NonNullable<
+  Awaited<ReturnType<typeof submitFamilyVitals>>
+>;
+
+export type SubmitFamilyVitalsMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Tell the funeral home you have finished
+ */
+export const useSubmitFamilyVitals = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof submitFamilyVitals>>,
+    TError,
+    void,
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof submitFamilyVitals>>,
+  TError,
+  void,
+  TContext
+> => {
+  return useMutation(getSubmitFamilyVitalsMutationOptions(options));
 };
 
 /**

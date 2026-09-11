@@ -8,6 +8,7 @@ import {
   FileText,
   ListMusic,
   Shirt,
+  ClipboardList,
   MapPin,
   CalendarClock,
   MessageCircle,
@@ -170,6 +171,12 @@ export default function Hub() {
                 ? "With the funeral home"
                 : "Tell us about them"
           }
+        />
+        <Card
+          href="/certificate"
+          icon={ClipboardList}
+          title="Details for the certificate"
+          detail="What the state needs before it can be issued"
         />
         <Card
           href="/belongings"
