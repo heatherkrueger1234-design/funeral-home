@@ -4,6 +4,7 @@ import { requireFamilyLink } from "../middleware/require-family";
 import { familyRateLimit } from "../middleware/rate-limit";
 import healthRouter from "./health";
 import authRouter from "./auth";
+import tasksRouter from "./tasks";
 import familyRouter from "./family";
 import homeRouter from "./home";
 import casesRouter from "./cases";
@@ -36,6 +37,12 @@ const router: IRouter = Router();
 
 router.use(healthRouter);
 router.use(authRouter);
+
+/**
+ * Scheduled work. Above the session gate because a scheduler has no cookie,
+ * and guarded by its own shared secret instead — see `tasks.ts`.
+ */
+router.use(tasksRouter);
 
 /**
  * The family surface, mounted under `/family` so the gate applies to those

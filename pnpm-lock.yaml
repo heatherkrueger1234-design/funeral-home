@@ -681,6 +681,12 @@ importers:
 
   lib/mailer:
     dependencies:
+      '@workspace/db':
+        specifier: workspace:*
+        version: link:../db
+      drizzle-orm:
+        specifier: 'catalog:'
+        version: 0.45.1(@types/pg@8.18.0)(pg@8.20.0)
       nodemailer:
         specifier: ^9.0.5
         version: 9.0.5

@@ -1,0 +1,65 @@
+# The aftercare check-ins, on a schedule.
+#
+# The product's recurring value is that closing a case starts the grief
+# check-ins and the home spends no staff hours on them. That only works if
+# something actually fires, and for most of this product's life nothing did.
+#
+# This is the zero-infrastructure option: GitHub runs it, it makes one
+# authenticated request, and the server does the work. A home on a platform
+# with its own scheduler should use that instead — see docs in replit.md.
+name: Aftercare
+
+on:
+  schedule:
+    # 14:00 UTC daily. Chosen so check-ins land mid-morning across the US
+    # rather than at 3am, which is a bad time to receive a message about
+    # somebody who died.
+    - cron: "0 14 * * *"
+  workflow_dispatch:
+    inputs:
+      dryRun:
+        description: "Report what is due without sending anything"
+        type: boolean
+        default: false
+
+concurrency:
+  # The run is idempotent, but overlapping runs just waste a worker.
+  group: aftercare
+  cancel-in-progress: false
+
+jobs:
+  send:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Trigger the send
+        env:
+          API_URL: ${{ secrets.API_URL }}
+          TASK_SECRET: ${{ secrets.TASK_SECRET }}
+          DRY_RUN: ${{ inputs.dryRun && '1' || '0' }}
+        run: |
+          if [ -z "$API_URL" ] || [ -z "$TASK_SECRET" ]; then
+            echo "API_URL and TASK_SECRET must be set as repository secrets." >&2
+            exit 1
+          fi
+
+          # --fail-with-body so a 4xx/5xx fails the job *and* prints why,
+          # rather than failing silently on a schedule nobody is watching.
+          curl --fail-with-body --silent --show-error \
+            --max-time 600 \
+            -X POST "${API_URL%/}/api/tasks/aftercare?dryRun=${DRY_RUN}" \
+            -H "Authorization: Bearer ${TASK_SECRET}" \
+            | tee result.json
+
+          echo
+
+          # A run that sends nothing is normal; a run that fails everything
+          # it tried is not, and should page somebody rather than go green.
+          python3 - <<'PY'
+          import json, sys
+          with open("result.json") as f:
+              result = json.load(f)
+          print(f"due={result['due']} sent={result['sent']} "
+                f"failed={result['failed']} skipped={result['skipped']}")
+          if result["failed"] > 0 and result["sent"] == 0 and result["due"] > 0:
+              sys.exit("Every check-in that was due failed to send.")
+          PY

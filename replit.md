@@ -107,17 +107,47 @@ Environment the server reads:
 | `SMTP_*` | Optional. Without it, mail is logged rather than sent, which keeps local development and the tests working. |
 | `TWILIO_ACCOUNT_SID` / `TWILIO_AUTH_TOKEN` / `TWILIO_FROM_NUMBER` | Optional. Without them a director is handed the link to send themselves rather than being told nothing happened. |
 | `SMS_DEFAULT_COUNTRY_CODE` | Defaults to `+1`. Used only for numbers typed without one. |
+| `TASK_SECRET` | Shared secret for `/api/tasks/*`. Unset means scheduled work is refused, not open. |
 
-The aftercare sender is a cron job, not a server loop:
+### Scheduling the aftercare
+
+This is the part that earns the subscription, and it does nothing unless
+something triggers it. Pick one:
 
 ```sh
+# 1. Anything that can make an HTTP request, once a day. This is the one to
+#    use — it works on an autoscale deployment that sleeps when idle.
+curl -X POST "$API_URL/api/tasks/aftercare" -H "Authorization: Bearer $TASK_SECRET"
+
+# 2. From a machine with the repo checked out.
 pnpm --filter @workspace/scripts run send-aftercare -- --dry-run
+
+# 3. A plain cron line.
+0 14 * * * curl -fsS -X POST "$API_URL/api/tasks/aftercare" \
+             -H "Authorization: Bearer $TASK_SECRET"
 ```
 
-It claims each delivery with a conditional update before sending, so two
-overlapping runs cannot both take the same row — the failure it trades for
+`.github/workflows/aftercare.yml` already does (1) daily at 14:00 UTC —
+mid-morning across the US, because 3am is a bad time to receive a message
+about somebody who died. It needs two repository secrets, `API_URL` and
+`TASK_SECRET`, and `TASK_SECRET` must match the server's. **Without
+`TASK_SECRET` set on the server the endpoint refuses every request**, which
+is deliberate: an unauthenticated endpoint that sends email is not something
+to leave open by default.
+
+Add `?dryRun=1` to see what is due without sending or marking anything —
+that is how to check a new deployment is wired up without writing to a
+bereaved family.
+
+Deliberately *not* an in-process timer. This deploys to an autoscale target
+that sleeps when idle and runs several instances when it is not, so a
+`setInterval` there fires unpredictably or four times at once.
+
+The run claims each delivery with a conditional update before sending, so two
+overlapping triggers cannot both take the same row — the failure it trades for
 (a crash losing one check-in) is much better than its opposite, which is
-sending a widow the same message twice.
+sending a widow the same message twice. Consent is re-checked at send time,
+not when the schedule was written.
 
 ## Tests
 
