@@ -76,6 +76,7 @@ import {
   vitalsForCase,
 } from "../lib/vitals";
 import { quotesForCase } from "./vendors";
+import { printItemsForCase } from "./print";
 import {
   belongingsForCase,
   ensureBelongingPrompts,
@@ -917,6 +918,23 @@ router.post("/vitals/submit", async (req, res) => {
     .returning();
 
   res.json(await toVitalsJson(updated!));
+});
+
+/* --------------------------------------------------------------- print --- */
+
+/**
+ * Proofs the home has shared.
+ *
+ * The single most common reprint is a misspelled name, and the only person
+ * who reliably catches that is the family — so a card can be shown to them
+ * before two hundred are run off. Only what the home has deliberately
+ * shared: a draft a director is still moving around is not something to put
+ * in front of a grieving family.
+ */
+router.get("/print", async (req, res) => {
+  const row = familyCase(req);
+  const all = await printItemsForCase(row, row.funeralHomeId);
+  res.json(all.filter((item) => item.sharedWithFamily));
 });
 
 /* ------------------------------------------------------------ messages --- */

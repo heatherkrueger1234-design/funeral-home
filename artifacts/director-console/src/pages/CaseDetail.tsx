@@ -30,6 +30,7 @@ import { TimelinePanel } from "@/components/case/TimelinePanel";
 import { MessagesPanel } from "@/components/case/MessagesPanel";
 import { BelongingsPanel } from "@/components/case/BelongingsPanel";
 import { VitalsPanel } from "@/components/case/VitalsPanel";
+import { PrintPanel } from "@/components/case/PrintPanel";
 import { DetailsPanel } from "@/components/case/DetailsPanel";
 
 export default function CaseDetail() {
@@ -135,6 +136,7 @@ export default function CaseDetail() {
           <TabsTrigger value="belongings">Belongings</TabsTrigger>
           <TabsTrigger value="obituary">Obituary</TabsTrigger>
           <TabsTrigger value="service">Service</TabsTrigger>
+          <TabsTrigger value="print">Print</TabsTrigger>
           <TabsTrigger value="timeline">
             Timeline
             {detail.outstandingDeadlines > 0 && (
@@ -169,6 +171,9 @@ export default function CaseDetail() {
           </TabsContent>
           <TabsContent value="service">
             <ServicePanel caseId={caseId} />
+          </TabsContent>
+          <TabsContent value="print">
+            <PrintPanel caseId={caseId} />
           </TabsContent>
           <TabsContent value="timeline">
             <TimelinePanel caseId={caseId} serviceAt={detail.serviceAt} />

@@ -12,6 +12,7 @@ import { Switch } from "@/components/ui/switch";
 import { Loader2 } from "lucide-react";
 import { StandardSchedule } from "@/components/StandardSchedule";
 import { BillingSection } from "@/components/BillingSection";
+import { SnippetLibrary } from "@/components/SnippetLibrary";
 
 /** "08:00" for a time input, from minutes since midnight. */
 const toTimeInput = (minute: number) =>
@@ -185,6 +186,8 @@ export default function Settings() {
       </section>
 
       <StandardSchedule readOnly={readOnly} />
+
+      <SnippetLibrary readOnly={readOnly} />
 
       <BillingSection readOnly={readOnly} />
 

@@ -20,6 +20,7 @@ import Aftercare from "@/pages/Aftercare";
 import Belongings from "@/pages/Belongings";
 import Local from "@/pages/Local";
 import Vitals from "@/pages/Vitals";
+import Proofs from "@/pages/Proofs";
 import NotFound from "@/pages/NotFound";
 
 function describeError(error: unknown): string {
@@ -88,6 +89,7 @@ export default function App() {
               <Route path="/belongings" component={Belongings} />
               <Route path="/local" component={Local} />
               <Route path="/certificate" component={Vitals} />
+              <Route path="/proofs" component={Proofs} />
               <Route component={NotFound} />
             </Switch>
           </PortalShell>

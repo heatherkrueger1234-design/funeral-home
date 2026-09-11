@@ -47,6 +47,8 @@ tags:
     description: What the death certificate needs
   - name: billing
     description: Subscription, trial, and the setup checklist
+  - name: print
+    description: Cards, programs and everything else that gets printed
   - name: aftercare
     description: Branded grief check-ins after the service
   - name: uploads
@@ -1590,6 +1592,186 @@ paths:
               schema:
                 $ref: "#/components/schemas/ImportResult"
 
+  /print/templates:
+    get:
+      operationId: getPrintTemplates
+      tags: [print]
+      summary: The ready-made layouts
+      responses:
+        "200":
+          description: List
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/PrintTemplate"
+
+  /snippets:
+    get:
+      operationId: getSnippets
+      tags: [print]
+      summary: The home's own verses, prayers and closing lines
+      parameters:
+        - name: kind
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [verse, prayer, poem, reading, closing, hymn]
+      responses:
+        "200":
+          description: List
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Snippet"
+    post:
+      operationId: createSnippet
+      tags: [print]
+      summary: Add one
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SnippetInput"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Snippet"
+
+  /snippets/{snippetId}:
+    put:
+      operationId: updateSnippet
+      tags: [print]
+      summary: Edit one
+      parameters:
+        - $ref: "#/components/parameters/SnippetId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SnippetInput"
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Snippet"
+    delete:
+      operationId: archiveSnippet
+      tags: [print]
+      summary: Remove one
+      parameters:
+        - $ref: "#/components/parameters/SnippetId"
+      responses:
+        "204":
+          description: Removed
+
+  /cases/{caseId}/print:
+    get:
+      operationId: getPrintItems
+      tags: [print]
+      summary: What is being printed for this case
+      parameters:
+        - $ref: "#/components/parameters/CaseId"
+      responses:
+        "200":
+          description: List
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/PrintItem"
+    post:
+      operationId: createPrintItem
+      tags: [print]
+      summary: Start a card or program from a template
+      parameters:
+        - $ref: "#/components/parameters/CaseId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PrintItemInput"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PrintItem"
+
+  /print/{printItemId}:
+    put:
+      operationId: updatePrintItem
+      tags: [print]
+      summary: Change what goes in the slots, or sign it off
+      parameters:
+        - $ref: "#/components/parameters/PrintItemId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PrintItemUpdate"
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PrintItem"
+    delete:
+      operationId: deletePrintItem
+      tags: [print]
+      summary: Throw one away
+      parameters:
+        - $ref: "#/components/parameters/PrintItemId"
+      responses:
+        "204":
+          description: Deleted
+
+  /print/{printItemId}/render:
+    get:
+      operationId: renderPrintItem
+      tags: [print]
+      summary: Print-ready HTML, sized in inches with bleed
+      parameters:
+        - $ref: "#/components/parameters/PrintItemId"
+      responses:
+        "200":
+          description: The document
+          content:
+            text/html:
+              schema:
+                type: string
+
+  /family/print:
+    get:
+      operationId: getFamilyPrintItems
+      tags: [family]
+      summary: Proofs the funeral home has shared for checking
+      responses:
+        "200":
+          description: List
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/PrintItem"
+
   /uploads:
     post:
       operationId: uploadFile
@@ -2002,6 +2184,18 @@ components:
         type: integer
     DeadlineId:
       name: deadlineId
+      in: path
+      required: true
+      schema:
+        type: integer
+    SnippetId:
+      name: snippetId
+      in: path
+      required: true
+      schema:
+        type: integer
+    PrintItemId:
+      name: printItemId
       in: path
       required: true
       schema:
@@ -3103,6 +3297,187 @@ components:
           type: string
           format: date-time
       required: [id, filename, mimeType, sizeBytes, createdAt]
+
+    # --------------------------------------------------------------- print --
+
+    TemplateSlot:
+      type: object
+      properties:
+        key:
+          type: string
+        label:
+          type: string
+        kind:
+          type: string
+          enum: [text, longText, photo, date]
+        hint:
+          type: string
+          nullable: true
+        from:
+          type: string
+          nullable: true
+          description: Which case detail fills this slot when left blank.
+        maxLength:
+          type: integer
+          nullable: true
+      required: [key, label, kind, hint, from, maxLength]
+
+    PrintTemplate:
+      type: object
+      properties:
+        key:
+          type: string
+        name:
+          type: string
+        description:
+          type: string
+        width:
+          type: number
+        height:
+          type: number
+        panels:
+          type: integer
+        perSheet:
+          type: integer
+        slots:
+          type: array
+          items:
+            $ref: "#/components/schemas/TemplateSlot"
+      required: [key, name, description, width, height, panels, perSheet, slots]
+
+    Snippet:
+      type: object
+      properties:
+        id:
+          type: integer
+        kind:
+          type: string
+          enum: [verse, prayer, poem, reading, closing, hymn]
+        title:
+          type: string
+        body:
+          type: string
+        attribution:
+          type: string
+          nullable: true
+        clearedForPrint:
+          type: boolean
+        position:
+          type: integer
+      required: [id, kind, title, body, attribution, clearedForPrint, position]
+
+    SnippetInput:
+      type: object
+      properties:
+        kind:
+          type: string
+          enum: [verse, prayer, poem, reading, closing, hymn]
+        title:
+          type: string
+          minLength: 1
+        body:
+          type: string
+          minLength: 1
+        attribution:
+          type: string
+          nullable: true
+        clearedForPrint:
+          type: boolean
+      required: [title, body]
+
+    PrintItem:
+      type: object
+      properties:
+        id:
+          type: integer
+        caseId:
+          type: integer
+        templateKey:
+          type: string
+        templateName:
+          type: string
+        title:
+          type: string
+          nullable: true
+        photoId:
+          type: integer
+          nullable: true
+        photoUploadId:
+          type: integer
+          nullable: true
+        values:
+          type: object
+          additionalProperties:
+            type: string
+        resolved:
+          type: object
+          additionalProperties:
+            type: string
+          description: Slots with the case's own details filled in.
+        quantity:
+          type: integer
+          nullable: true
+        status:
+          type: string
+          enum: [draft, proof, approved]
+        sharedWithFamily:
+          type: boolean
+        approvedAt:
+          type: string
+          format: date-time
+          nullable: true
+        updatedAt:
+          type: string
+          format: date-time
+      required:
+        [
+          id,
+          caseId,
+          templateKey,
+          templateName,
+          title,
+          photoId,
+          photoUploadId,
+          values,
+          resolved,
+          quantity,
+          status,
+          sharedWithFamily,
+          approvedAt,
+          updatedAt,
+        ]
+
+    PrintItemInput:
+      type: object
+      properties:
+        templateKey:
+          type: string
+        title:
+          type: string
+          nullable: true
+      required: [templateKey]
+
+    PrintItemUpdate:
+      type: object
+      properties:
+        title:
+          type: string
+          nullable: true
+        photoId:
+          type: integer
+          nullable: true
+        values:
+          type: object
+          additionalProperties:
+            type: string
+        quantity:
+          type: integer
+          nullable: true
+        status:
+          type: string
+          enum: [draft, proof, approved]
+        sharedWithFamily:
+          type: boolean
 
     # ------------------------------------------------------------- vendors --
 

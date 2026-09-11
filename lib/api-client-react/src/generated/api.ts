@@ -65,6 +65,7 @@ import type {
   FuneralHomeUpdate,
   GetCasesParams,
   GetFamilyVendorsParams,
+  GetSnippetsParams,
   GetVendorsParams,
   HealthStatus,
   ImportPreview,
@@ -87,6 +88,10 @@ import type {
   PostalCodeResult,
   Preparation,
   PreparationUpdate,
+  PrintItem,
+  PrintItemInput,
+  PrintItemUpdate,
+  PrintTemplate,
   QuoteRequestInput,
   QuoteUpdate,
   RegisterInput,
@@ -95,6 +100,8 @@ import type {
   SelectionUpdate,
   SentLink,
   ServiceSelection,
+  Snippet,
+  SnippetInput,
   StaffInviteInput,
   StaffMember,
   StaffMemberWithInvite,
@@ -7213,6 +7220,940 @@ export const useImportCases = <
 > => {
   return useMutation(getImportCasesMutationOptions(options));
 };
+
+/**
+ * @summary The ready-made layouts
+ */
+export const getGetPrintTemplatesUrl = () => {
+  return `/api/print/templates`;
+};
+
+export const getPrintTemplates = async (
+  options?: RequestInit,
+): Promise<PrintTemplate[]> => {
+  return customFetch<PrintTemplate[]>(getGetPrintTemplatesUrl(), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getGetPrintTemplatesQueryKey = () => {
+  return [`/api/print/templates`] as const;
+};
+
+export const getGetPrintTemplatesQueryOptions = <
+  TData = Awaited<ReturnType<typeof getPrintTemplates>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof getPrintTemplates>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getGetPrintTemplatesQueryKey();
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof getPrintTemplates>>
+  > = ({ signal }) => getPrintTemplates({ signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof getPrintTemplates>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type GetPrintTemplatesQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getPrintTemplates>>
+>;
+export type GetPrintTemplatesQueryError = ErrorType<unknown>;
+
+/**
+ * @summary The ready-made layouts
+ */
+
+export function useGetPrintTemplates<
+  TData = Awaited<ReturnType<typeof getPrintTemplates>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof getPrintTemplates>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getGetPrintTemplatesQueryOptions(options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary The home's own verses, prayers and closing lines
+ */
+export const getGetSnippetsUrl = (params?: GetSnippetsParams) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? "null" : value.toString());
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0
+    ? `/api/snippets?${stringifiedParams}`
+    : `/api/snippets`;
+};
+
+export const getSnippets = async (
+  params?: GetSnippetsParams,
+  options?: RequestInit,
+): Promise<Snippet[]> => {
+  return customFetch<Snippet[]>(getGetSnippetsUrl(params), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getGetSnippetsQueryKey = (params?: GetSnippetsParams) => {
+  return [`/api/snippets`, ...(params ? [params] : [])] as const;
+};
+
+export const getGetSnippetsQueryOptions = <
+  TData = Awaited<ReturnType<typeof getSnippets>>,
+  TError = ErrorType<unknown>,
+>(
+  params?: GetSnippetsParams,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getSnippets>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getGetSnippetsQueryKey(params);
+
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof getSnippets>>> = ({
+    signal,
+  }) => getSnippets(params, { signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof getSnippets>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type GetSnippetsQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getSnippets>>
+>;
+export type GetSnippetsQueryError = ErrorType<unknown>;
+
+/**
+ * @summary The home's own verses, prayers and closing lines
+ */
+
+export function useGetSnippets<
+  TData = Awaited<ReturnType<typeof getSnippets>>,
+  TError = ErrorType<unknown>,
+>(
+  params?: GetSnippetsParams,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getSnippets>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getGetSnippetsQueryOptions(params, options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary Add one
+ */
+export const getCreateSnippetUrl = () => {
+  return `/api/snippets`;
+};
+
+export const createSnippet = async (
+  snippetInput: SnippetInput,
+  options?: RequestInit,
+): Promise<Snippet> => {
+  return customFetch<Snippet>(getCreateSnippetUrl(), {
+    ...options,
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(snippetInput),
+  });
+};
+
+export const getCreateSnippetMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof createSnippet>>,
+    TError,
+    { data: BodyType<SnippetInput> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof createSnippet>>,
+  TError,
+  { data: BodyType<SnippetInput> },
+  TContext
+> => {
+  const mutationKey = ["createSnippet"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof createSnippet>>,
+    { data: BodyType<SnippetInput> }
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return createSnippet(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type CreateSnippetMutationResult = NonNullable<
+  Awaited<ReturnType<typeof createSnippet>>
+>;
+export type CreateSnippetMutationBody = BodyType<SnippetInput>;
+export type CreateSnippetMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Add one
+ */
+export const useCreateSnippet = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof createSnippet>>,
+    TError,
+    { data: BodyType<SnippetInput> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof createSnippet>>,
+  TError,
+  { data: BodyType<SnippetInput> },
+  TContext
+> => {
+  return useMutation(getCreateSnippetMutationOptions(options));
+};
+
+/**
+ * @summary Edit one
+ */
+export const getUpdateSnippetUrl = (snippetId: number) => {
+  return `/api/snippets/${snippetId}`;
+};
+
+export const updateSnippet = async (
+  snippetId: number,
+  snippetInput: SnippetInput,
+  options?: RequestInit,
+): Promise<Snippet> => {
+  return customFetch<Snippet>(getUpdateSnippetUrl(snippetId), {
+    ...options,
+    method: "PUT",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(snippetInput),
+  });
+};
+
+export const getUpdateSnippetMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof updateSnippet>>,
+    TError,
+    { snippetId: number; data: BodyType<SnippetInput> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof updateSnippet>>,
+  TError,
+  { snippetId: number; data: BodyType<SnippetInput> },
+  TContext
+> => {
+  const mutationKey = ["updateSnippet"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof updateSnippet>>,
+    { snippetId: number; data: BodyType<SnippetInput> }
+  > = (props) => {
+    const { snippetId, data } = props ?? {};
+
+    return updateSnippet(snippetId, data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type UpdateSnippetMutationResult = NonNullable<
+  Awaited<ReturnType<typeof updateSnippet>>
+>;
+export type UpdateSnippetMutationBody = BodyType<SnippetInput>;
+export type UpdateSnippetMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Edit one
+ */
+export const useUpdateSnippet = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof updateSnippet>>,
+    TError,
+    { snippetId: number; data: BodyType<SnippetInput> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof updateSnippet>>,
+  TError,
+  { snippetId: number; data: BodyType<SnippetInput> },
+  TContext
+> => {
+  return useMutation(getUpdateSnippetMutationOptions(options));
+};
+
+/**
+ * @summary Remove one
+ */
+export const getArchiveSnippetUrl = (snippetId: number) => {
+  return `/api/snippets/${snippetId}`;
+};
+
+export const archiveSnippet = async (
+  snippetId: number,
+  options?: RequestInit,
+): Promise<void> => {
+  return customFetch<void>(getArchiveSnippetUrl(snippetId), {
+    ...options,
+    method: "DELETE",
+  });
+};
+
+export const getArchiveSnippetMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof archiveSnippet>>,
+    TError,
+    { snippetId: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof archiveSnippet>>,
+  TError,
+  { snippetId: number },
+  TContext
+> => {
+  const mutationKey = ["archiveSnippet"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof archiveSnippet>>,
+    { snippetId: number }
+  > = (props) => {
+    const { snippetId } = props ?? {};
+
+    return archiveSnippet(snippetId, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type ArchiveSnippetMutationResult = NonNullable<
+  Awaited<ReturnType<typeof archiveSnippet>>
+>;
+
+export type ArchiveSnippetMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Remove one
+ */
+export const useArchiveSnippet = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof archiveSnippet>>,
+    TError,
+    { snippetId: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof archiveSnippet>>,
+  TError,
+  { snippetId: number },
+  TContext
+> => {
+  return useMutation(getArchiveSnippetMutationOptions(options));
+};
+
+/**
+ * @summary What is being printed for this case
+ */
+export const getGetPrintItemsUrl = (caseId: number) => {
+  return `/api/cases/${caseId}/print`;
+};
+
+export const getPrintItems = async (
+  caseId: number,
+  options?: RequestInit,
+): Promise<PrintItem[]> => {
+  return customFetch<PrintItem[]>(getGetPrintItemsUrl(caseId), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getGetPrintItemsQueryKey = (caseId: number) => {
+  return [`/api/cases/${caseId}/print`] as const;
+};
+
+export const getGetPrintItemsQueryOptions = <
+  TData = Awaited<ReturnType<typeof getPrintItems>>,
+  TError = ErrorType<unknown>,
+>(
+  caseId: number,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getPrintItems>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getGetPrintItemsQueryKey(caseId);
+
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof getPrintItems>>> = ({
+    signal,
+  }) => getPrintItems(caseId, { signal, ...requestOptions });
+
+  return {
+    queryKey,
+    queryFn,
+    enabled: !!caseId,
+    ...queryOptions,
+  } as UseQueryOptions<
+    Awaited<ReturnType<typeof getPrintItems>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type GetPrintItemsQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getPrintItems>>
+>;
+export type GetPrintItemsQueryError = ErrorType<unknown>;
+
+/**
+ * @summary What is being printed for this case
+ */
+
+export function useGetPrintItems<
+  TData = Awaited<ReturnType<typeof getPrintItems>>,
+  TError = ErrorType<unknown>,
+>(
+  caseId: number,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getPrintItems>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getGetPrintItemsQueryOptions(caseId, options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary Start a card or program from a template
+ */
+export const getCreatePrintItemUrl = (caseId: number) => {
+  return `/api/cases/${caseId}/print`;
+};
+
+export const createPrintItem = async (
+  caseId: number,
+  printItemInput: PrintItemInput,
+  options?: RequestInit,
+): Promise<PrintItem> => {
+  return customFetch<PrintItem>(getCreatePrintItemUrl(caseId), {
+    ...options,
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(printItemInput),
+  });
+};
+
+export const getCreatePrintItemMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof createPrintItem>>,
+    TError,
+    { caseId: number; data: BodyType<PrintItemInput> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof createPrintItem>>,
+  TError,
+  { caseId: number; data: BodyType<PrintItemInput> },
+  TContext
+> => {
+  const mutationKey = ["createPrintItem"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof createPrintItem>>,
+    { caseId: number; data: BodyType<PrintItemInput> }
+  > = (props) => {
+    const { caseId, data } = props ?? {};
+
+    return createPrintItem(caseId, data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type CreatePrintItemMutationResult = NonNullable<
+  Awaited<ReturnType<typeof createPrintItem>>
+>;
+export type CreatePrintItemMutationBody = BodyType<PrintItemInput>;
+export type CreatePrintItemMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Start a card or program from a template
+ */
+export const useCreatePrintItem = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof createPrintItem>>,
+    TError,
+    { caseId: number; data: BodyType<PrintItemInput> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof createPrintItem>>,
+  TError,
+  { caseId: number; data: BodyType<PrintItemInput> },
+  TContext
+> => {
+  return useMutation(getCreatePrintItemMutationOptions(options));
+};
+
+/**
+ * @summary Change what goes in the slots, or sign it off
+ */
+export const getUpdatePrintItemUrl = (printItemId: number) => {
+  return `/api/print/${printItemId}`;
+};
+
+export const updatePrintItem = async (
+  printItemId: number,
+  printItemUpdate: PrintItemUpdate,
+  options?: RequestInit,
+): Promise<PrintItem> => {
+  return customFetch<PrintItem>(getUpdatePrintItemUrl(printItemId), {
+    ...options,
+    method: "PUT",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(printItemUpdate),
+  });
+};
+
+export const getUpdatePrintItemMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof updatePrintItem>>,
+    TError,
+    { printItemId: number; data: BodyType<PrintItemUpdate> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof updatePrintItem>>,
+  TError,
+  { printItemId: number; data: BodyType<PrintItemUpdate> },
+  TContext
+> => {
+  const mutationKey = ["updatePrintItem"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof updatePrintItem>>,
+    { printItemId: number; data: BodyType<PrintItemUpdate> }
+  > = (props) => {
+    const { printItemId, data } = props ?? {};
+
+    return updatePrintItem(printItemId, data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type UpdatePrintItemMutationResult = NonNullable<
+  Awaited<ReturnType<typeof updatePrintItem>>
+>;
+export type UpdatePrintItemMutationBody = BodyType<PrintItemUpdate>;
+export type UpdatePrintItemMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Change what goes in the slots, or sign it off
+ */
+export const useUpdatePrintItem = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof updatePrintItem>>,
+    TError,
+    { printItemId: number; data: BodyType<PrintItemUpdate> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof updatePrintItem>>,
+  TError,
+  { printItemId: number; data: BodyType<PrintItemUpdate> },
+  TContext
+> => {
+  return useMutation(getUpdatePrintItemMutationOptions(options));
+};
+
+/**
+ * @summary Throw one away
+ */
+export const getDeletePrintItemUrl = (printItemId: number) => {
+  return `/api/print/${printItemId}`;
+};
+
+export const deletePrintItem = async (
+  printItemId: number,
+  options?: RequestInit,
+): Promise<void> => {
+  return customFetch<void>(getDeletePrintItemUrl(printItemId), {
+    ...options,
+    method: "DELETE",
+  });
+};
+
+export const getDeletePrintItemMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof deletePrintItem>>,
+    TError,
+    { printItemId: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof deletePrintItem>>,
+  TError,
+  { printItemId: number },
+  TContext
+> => {
+  const mutationKey = ["deletePrintItem"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof deletePrintItem>>,
+    { printItemId: number }
+  > = (props) => {
+    const { printItemId } = props ?? {};
+
+    return deletePrintItem(printItemId, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type DeletePrintItemMutationResult = NonNullable<
+  Awaited<ReturnType<typeof deletePrintItem>>
+>;
+
+export type DeletePrintItemMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Throw one away
+ */
+export const useDeletePrintItem = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof deletePrintItem>>,
+    TError,
+    { printItemId: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof deletePrintItem>>,
+  TError,
+  { printItemId: number },
+  TContext
+> => {
+  return useMutation(getDeletePrintItemMutationOptions(options));
+};
+
+/**
+ * @summary Print-ready HTML, sized in inches with bleed
+ */
+export const getRenderPrintItemUrl = (printItemId: number) => {
+  return `/api/print/${printItemId}/render`;
+};
+
+export const renderPrintItem = async (
+  printItemId: number,
+  options?: RequestInit,
+): Promise<string> => {
+  return customFetch<string>(getRenderPrintItemUrl(printItemId), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getRenderPrintItemQueryKey = (printItemId: number) => {
+  return [`/api/print/${printItemId}/render`] as const;
+};
+
+export const getRenderPrintItemQueryOptions = <
+  TData = Awaited<ReturnType<typeof renderPrintItem>>,
+  TError = ErrorType<unknown>,
+>(
+  printItemId: number,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof renderPrintItem>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey =
+    queryOptions?.queryKey ?? getRenderPrintItemQueryKey(printItemId);
+
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof renderPrintItem>>> = ({
+    signal,
+  }) => renderPrintItem(printItemId, { signal, ...requestOptions });
+
+  return {
+    queryKey,
+    queryFn,
+    enabled: !!printItemId,
+    ...queryOptions,
+  } as UseQueryOptions<
+    Awaited<ReturnType<typeof renderPrintItem>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type RenderPrintItemQueryResult = NonNullable<
+  Awaited<ReturnType<typeof renderPrintItem>>
+>;
+export type RenderPrintItemQueryError = ErrorType<unknown>;
+
+/**
+ * @summary Print-ready HTML, sized in inches with bleed
+ */
+
+export function useRenderPrintItem<
+  TData = Awaited<ReturnType<typeof renderPrintItem>>,
+  TError = ErrorType<unknown>,
+>(
+  printItemId: number,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof renderPrintItem>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getRenderPrintItemQueryOptions(printItemId, options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary Proofs the funeral home has shared for checking
+ */
+export const getGetFamilyPrintItemsUrl = () => {
+  return `/api/family/print`;
+};
+
+export const getFamilyPrintItems = async (
+  options?: RequestInit,
+): Promise<PrintItem[]> => {
+  return customFetch<PrintItem[]>(getGetFamilyPrintItemsUrl(), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getGetFamilyPrintItemsQueryKey = () => {
+  return [`/api/family/print`] as const;
+};
+
+export const getGetFamilyPrintItemsQueryOptions = <
+  TData = Awaited<ReturnType<typeof getFamilyPrintItems>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof getFamilyPrintItems>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getGetFamilyPrintItemsQueryKey();
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof getFamilyPrintItems>>
+  > = ({ signal }) => getFamilyPrintItems({ signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof getFamilyPrintItems>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type GetFamilyPrintItemsQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getFamilyPrintItems>>
+>;
+export type GetFamilyPrintItemsQueryError = ErrorType<unknown>;
+
+/**
+ * @summary Proofs the funeral home has shared for checking
+ */
+
+export function useGetFamilyPrintItems<
+  TData = Awaited<ReturnType<typeof getFamilyPrintItems>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof getFamilyPrintItems>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getGetFamilyPrintItemsQueryOptions(options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
 
 /**
  * @summary Store bytes (the home's logo, or a staff-added photograph)

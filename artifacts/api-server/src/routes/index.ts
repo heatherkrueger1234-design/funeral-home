@@ -19,6 +19,7 @@ import deadlinesRouter from "./deadlines";
 import belongingsRouter from "./belongings";
 import vendorsRouter from "./vendors";
 import vitalsRouter from "./vitals";
+import printRouter from "./print";
 import aftercareRouter from "./aftercare";
 import uploadsRouter from "./uploads";
 
@@ -87,6 +88,7 @@ router.use(deadlinesRouter);
 router.use(belongingsRouter);
 router.use(vendorsRouter);
 router.use(vitalsRouter);
+router.use(printRouter);
 router.use(aftercareRouter);
 router.use(uploadsRouter);
 

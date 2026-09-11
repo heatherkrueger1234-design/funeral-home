@@ -2754,6 +2754,216 @@ export const ImportCasesResponse = zod.object({
 });
 
 /**
+ * @summary The ready-made layouts
+ */
+export const GetPrintTemplatesResponseItem = zod.object({
+  key: zod.string(),
+  name: zod.string(),
+  description: zod.string(),
+  width: zod.number(),
+  height: zod.number(),
+  panels: zod.number(),
+  perSheet: zod.number(),
+  slots: zod.array(
+    zod.object({
+      key: zod.string(),
+      label: zod.string(),
+      kind: zod.enum(["text", "longText", "photo", "date"]),
+      hint: zod.string().nullable(),
+      from: zod
+        .string()
+        .nullable()
+        .describe("Which case detail fills this slot when left blank."),
+      maxLength: zod.number().nullable(),
+    }),
+  ),
+});
+export const GetPrintTemplatesResponse = zod.array(
+  GetPrintTemplatesResponseItem,
+);
+
+/**
+ * @summary The home's own verses, prayers and closing lines
+ */
+export const GetSnippetsQueryParams = zod.object({
+  kind: zod
+    .enum(["verse", "prayer", "poem", "reading", "closing", "hymn"])
+    .optional(),
+});
+
+export const GetSnippetsResponseItem = zod.object({
+  id: zod.number(),
+  kind: zod.enum(["verse", "prayer", "poem", "reading", "closing", "hymn"]),
+  title: zod.string(),
+  body: zod.string(),
+  attribution: zod.string().nullable(),
+  clearedForPrint: zod.boolean(),
+  position: zod.number(),
+});
+export const GetSnippetsResponse = zod.array(GetSnippetsResponseItem);
+
+/**
+ * @summary Add one
+ */
+
+export const CreateSnippetBody = zod.object({
+  kind: zod
+    .enum(["verse", "prayer", "poem", "reading", "closing", "hymn"])
+    .optional(),
+  title: zod.string().min(1),
+  body: zod.string().min(1),
+  attribution: zod.string().nullish(),
+  clearedForPrint: zod.boolean().optional(),
+});
+
+/**
+ * @summary Edit one
+ */
+export const UpdateSnippetParams = zod.object({
+  snippetId: zod.coerce.number(),
+});
+
+export const UpdateSnippetBody = zod.object({
+  kind: zod
+    .enum(["verse", "prayer", "poem", "reading", "closing", "hymn"])
+    .optional(),
+  title: zod.string().min(1),
+  body: zod.string().min(1),
+  attribution: zod.string().nullish(),
+  clearedForPrint: zod.boolean().optional(),
+});
+
+export const UpdateSnippetResponse = zod.object({
+  id: zod.number(),
+  kind: zod.enum(["verse", "prayer", "poem", "reading", "closing", "hymn"]),
+  title: zod.string(),
+  body: zod.string(),
+  attribution: zod.string().nullable(),
+  clearedForPrint: zod.boolean(),
+  position: zod.number(),
+});
+
+/**
+ * @summary Remove one
+ */
+export const ArchiveSnippetParams = zod.object({
+  snippetId: zod.coerce.number(),
+});
+
+/**
+ * @summary What is being printed for this case
+ */
+export const GetPrintItemsParams = zod.object({
+  caseId: zod.coerce.number(),
+});
+
+export const GetPrintItemsResponseItem = zod.object({
+  id: zod.number(),
+  caseId: zod.number(),
+  templateKey: zod.string(),
+  templateName: zod.string(),
+  title: zod.string().nullable(),
+  photoId: zod.number().nullable(),
+  photoUploadId: zod.number().nullable(),
+  values: zod.record(zod.string(), zod.string()),
+  resolved: zod
+    .record(zod.string(), zod.string())
+    .describe("Slots with the case's own details filled in."),
+  quantity: zod.number().nullable(),
+  status: zod.enum(["draft", "proof", "approved"]),
+  sharedWithFamily: zod.boolean(),
+  approvedAt: zod.date().nullable(),
+  updatedAt: zod.date(),
+});
+export const GetPrintItemsResponse = zod.array(GetPrintItemsResponseItem);
+
+/**
+ * @summary Start a card or program from a template
+ */
+export const CreatePrintItemParams = zod.object({
+  caseId: zod.coerce.number(),
+});
+
+export const CreatePrintItemBody = zod.object({
+  templateKey: zod.string(),
+  title: zod.string().nullish(),
+});
+
+/**
+ * @summary Change what goes in the slots, or sign it off
+ */
+export const UpdatePrintItemParams = zod.object({
+  printItemId: zod.coerce.number(),
+});
+
+export const UpdatePrintItemBody = zod.object({
+  title: zod.string().nullish(),
+  photoId: zod.number().nullish(),
+  values: zod.record(zod.string(), zod.string()).optional(),
+  quantity: zod.number().nullish(),
+  status: zod.enum(["draft", "proof", "approved"]).optional(),
+  sharedWithFamily: zod.boolean().optional(),
+});
+
+export const UpdatePrintItemResponse = zod.object({
+  id: zod.number(),
+  caseId: zod.number(),
+  templateKey: zod.string(),
+  templateName: zod.string(),
+  title: zod.string().nullable(),
+  photoId: zod.number().nullable(),
+  photoUploadId: zod.number().nullable(),
+  values: zod.record(zod.string(), zod.string()),
+  resolved: zod
+    .record(zod.string(), zod.string())
+    .describe("Slots with the case's own details filled in."),
+  quantity: zod.number().nullable(),
+  status: zod.enum(["draft", "proof", "approved"]),
+  sharedWithFamily: zod.boolean(),
+  approvedAt: zod.date().nullable(),
+  updatedAt: zod.date(),
+});
+
+/**
+ * @summary Throw one away
+ */
+export const DeletePrintItemParams = zod.object({
+  printItemId: zod.coerce.number(),
+});
+
+/**
+ * @summary Print-ready HTML, sized in inches with bleed
+ */
+export const RenderPrintItemParams = zod.object({
+  printItemId: zod.coerce.number(),
+});
+
+/**
+ * @summary Proofs the funeral home has shared for checking
+ */
+export const GetFamilyPrintItemsResponseItem = zod.object({
+  id: zod.number(),
+  caseId: zod.number(),
+  templateKey: zod.string(),
+  templateName: zod.string(),
+  title: zod.string().nullable(),
+  photoId: zod.number().nullable(),
+  photoUploadId: zod.number().nullable(),
+  values: zod.record(zod.string(), zod.string()),
+  resolved: zod
+    .record(zod.string(), zod.string())
+    .describe("Slots with the case's own details filled in."),
+  quantity: zod.number().nullable(),
+  status: zod.enum(["draft", "proof", "approved"]),
+  sharedWithFamily: zod.boolean(),
+  approvedAt: zod.date().nullable(),
+  updatedAt: zod.date(),
+});
+export const GetFamilyPrintItemsResponse = zod.array(
+  GetFamilyPrintItemsResponseItem,
+);
+
+/**
  * @summary Store bytes (the home's logo, or a staff-added photograph)
  */
 export const UploadFileBody = zod.object({

@@ -647,6 +647,139 @@ export interface UploadSummary {
   createdAt: string;
 }
 
+export type TemplateSlotKind =
+  (typeof TemplateSlotKind)[keyof typeof TemplateSlotKind];
+
+export const TemplateSlotKind = {
+  text: "text",
+  longText: "longText",
+  photo: "photo",
+  date: "date",
+} as const;
+
+export interface TemplateSlot {
+  key: string;
+  label: string;
+  kind: TemplateSlotKind;
+  hint: string | null;
+  /** Which case detail fills this slot when left blank. */
+  from: string | null;
+  maxLength: number | null;
+}
+
+export interface PrintTemplate {
+  key: string;
+  name: string;
+  description: string;
+  width: number;
+  height: number;
+  panels: number;
+  perSheet: number;
+  slots: TemplateSlot[];
+}
+
+export type SnippetKind = (typeof SnippetKind)[keyof typeof SnippetKind];
+
+export const SnippetKind = {
+  verse: "verse",
+  prayer: "prayer",
+  poem: "poem",
+  reading: "reading",
+  closing: "closing",
+  hymn: "hymn",
+} as const;
+
+export interface Snippet {
+  id: number;
+  kind: SnippetKind;
+  title: string;
+  body: string;
+  attribution: string | null;
+  clearedForPrint: boolean;
+  position: number;
+}
+
+export type SnippetInputKind =
+  (typeof SnippetInputKind)[keyof typeof SnippetInputKind];
+
+export const SnippetInputKind = {
+  verse: "verse",
+  prayer: "prayer",
+  poem: "poem",
+  reading: "reading",
+  closing: "closing",
+  hymn: "hymn",
+} as const;
+
+export interface SnippetInput {
+  kind?: SnippetInputKind;
+  /** @minLength 1 */
+  title: string;
+  /** @minLength 1 */
+  body: string;
+  attribution?: string | null;
+  clearedForPrint?: boolean;
+}
+
+export type PrintItemValues = { [key: string]: string };
+
+/**
+ * Slots with the case's own details filled in.
+ */
+export type PrintItemResolved = { [key: string]: string };
+
+export type PrintItemStatus =
+  (typeof PrintItemStatus)[keyof typeof PrintItemStatus];
+
+export const PrintItemStatus = {
+  draft: "draft",
+  proof: "proof",
+  approved: "approved",
+} as const;
+
+export interface PrintItem {
+  id: number;
+  caseId: number;
+  templateKey: string;
+  templateName: string;
+  title: string | null;
+  photoId: number | null;
+  photoUploadId: number | null;
+  values: PrintItemValues;
+  /** Slots with the case's own details filled in. */
+  resolved: PrintItemResolved;
+  quantity: number | null;
+  status: PrintItemStatus;
+  sharedWithFamily: boolean;
+  approvedAt: string | null;
+  updatedAt: string;
+}
+
+export interface PrintItemInput {
+  templateKey: string;
+  title?: string | null;
+}
+
+export type PrintItemUpdateValues = { [key: string]: string };
+
+export type PrintItemUpdateStatus =
+  (typeof PrintItemUpdateStatus)[keyof typeof PrintItemUpdateStatus];
+
+export const PrintItemUpdateStatus = {
+  draft: "draft",
+  proof: "proof",
+  approved: "approved",
+} as const;
+
+export interface PrintItemUpdate {
+  title?: string | null;
+  photoId?: number | null;
+  values?: PrintItemUpdateValues;
+  quantity?: number | null;
+  status?: PrintItemUpdateStatus;
+  sharedWithFamily?: boolean;
+}
+
 export type VendorKind = (typeof VendorKind)[keyof typeof VendorKind];
 
 export const VendorKind = {
@@ -1509,4 +1642,20 @@ export const GetFamilyVendorsKind = {
   caterer: "caterer",
   transport: "transport",
   other: "other",
+} as const;
+
+export type GetSnippetsParams = {
+  kind?: GetSnippetsKind;
+};
+
+export type GetSnippetsKind =
+  (typeof GetSnippetsKind)[keyof typeof GetSnippetsKind];
+
+export const GetSnippetsKind = {
+  verse: "verse",
+  prayer: "prayer",
+  poem: "poem",
+  reading: "reading",
+  closing: "closing",
+  hymn: "hymn",
 } as const;

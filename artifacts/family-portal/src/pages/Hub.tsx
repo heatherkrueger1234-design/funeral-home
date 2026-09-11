@@ -9,6 +9,7 @@ import {
   ListMusic,
   Shirt,
   ClipboardList,
+  FileCheck,
   MapPin,
   CalendarClock,
   MessageCircle,
@@ -189,6 +190,12 @@ export default function Hub() {
           icon={ListMusic}
           title="Hymns and readings"
           detail="Music, readings, and who will carry"
+        />
+        <Card
+          href="/proofs"
+          icon={FileCheck}
+          title="Things to check"
+          detail="Read the spellings before anything is printed"
         />
         <Card
           href="/local"

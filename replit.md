@@ -152,6 +152,34 @@ overlapping triggers cannot both take the same row — the failure it trades for
 sending a widow the same message twice. Consent is re-checked at send time,
 not when the schedule was written.
 
+## The print studio
+
+Six ready-made layouts at real trade sizes — prayer card, bookmark, folded
+and single-sheet orders of service, register page, thank-you card. A director
+picks a template and fills the slots; the case already knows the name, the
+dates, the portrait and the service details, so most of them arrive filled.
+
+Deliberately **not** a drag-and-drop canvas. Templates declare *named slots*,
+never coordinates, because a canvas is how a name ends up 3mm into the fold
+and nobody notices until two hundred are printed. What a director chooses is
+which template and what goes in it.
+
+Output is print-ready HTML with an `@page` rule in inches and standard
+0.125in bleed, rendered self-contained with the photograph inlined. Every
+browser already has a competent PDF writer behind Ctrl-P that handles fonts
+and colour profiles better than a library bolted on here would, a director can
+look at it before committing, and the file can be emailed to the print shop
+as-is. Imposition is left to the shop, because every shop's equipment
+disagrees and guessing wastes two hundred sheets.
+
+Nothing is shipped in the snippet library, and that is on purpose. Most of
+what goes on a prayer card is somebody's copyright and is not ours to
+distribute to two hundred funeral homes — and a home already has this list,
+in a Word file every director copies from, reflecting its own community and
+denominations. This is somewhere to put that file once. Homes mark what they
+have the right to print, because we cannot know and pretending to would be
+worse than asking.
+
 ## Money, and what it gates
 
 Billing lives in Stripe. What this app keeps is only what it needs to answer
