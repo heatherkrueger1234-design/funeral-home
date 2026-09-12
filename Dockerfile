@@ -54,9 +54,50 @@ RUN pnpm --filter @workspace/api-server deploy --prod --legacy /runtime
 # either to copy into a slim image. Build it with `--target tools`.
 FROM build AS tools
 
+# The Postgres client comes from PGDG, NOT from Debian's `postgresql-client`.
+#
+# Bookworm's default is client 15, and `pg_dump` flatly refuses to dump a
+# server newer than itself: against the postgres:16 in docker-compose.yml it
+# exits 1 with "server version: 16.15; pg_dump version: 15.19" and writes
+# nothing. Every backup would have failed, quietly, in exactly the deployment
+# the backup drill exists to protect — and the drill itself runs on the host,
+# where the client happens to match, so it would never have caught this.
+#
+# It must MATCH the server's major version — not exceed it. Newer is not
+# safer here, and the obvious reasoning is wrong in both directions:
+#
+#   client 15 against a 16 server: pg_dump refuses outright, exits 1, writes
+#   nothing. No backup is taken.
+#
+#   client 17 against a 16 server: pg_dump succeeds and produces a dump that
+#   will not restore — it writes `SET transaction_timeout`, a parameter that
+#   only exists from 17, and psql on the 16 server aborts on it. That is the
+#   worse failure of the two, because it looks like a working backup right up
+#   until the morning somebody needs it.
+#
+# Both were observed here, in this order. Keep this in step with the postgres
+# image in docker-compose.yml.
+ARG PG_MAJOR=16
 RUN apt-get update \
-  && apt-get install -y --no-install-recommends postgresql-client ca-certificates \
+  && apt-get install -y --no-install-recommends ca-certificates curl gnupg \
+  && install -d /usr/share/postgresql-common/pgdg \
+  && curl -fsSL https://www.postgresql.org/media/keys/ACCC4CF8.asc \
+       -o /usr/share/postgresql-common/pgdg/apt.postgresql.org.asc \
+  && echo "deb [signed-by=/usr/share/postgresql-common/pgdg/apt.postgresql.org.asc] https://apt.postgresql.org/pub/repos/apt bookworm-pgdg main" \
+       > /etc/apt/sources.list.d/pgdg.list \
+  && apt-get update \
+  && apt-get install -y --no-install-recommends "postgresql-client-${PG_MAJOR}" \
+  && apt-get purge -y --auto-remove gnupg \
   && rm -rf /var/lib/apt/lists/*
+
+# Fail the build rather than ship an image whose backups cannot run.
+#
+# This only proves apt installed the version that was asked for; it cannot
+# know the server's version, which is not reachable at build time. The check
+# that actually matters happens in `backup-database`, which can see both.
+RUN pg_dump --version \
+  && pg_dump --version | grep -qE "PostgreSQL\) ${PG_MAJOR}\." \
+  && psql --version | grep -qE "PostgreSQL\) ${PG_MAJOR}\."
 
 ENV NODE_ENV=production
 

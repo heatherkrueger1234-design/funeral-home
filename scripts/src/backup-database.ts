@@ -35,6 +35,87 @@ function timestamp(): string {
   return new Date().toISOString().replace(/[:.]/g, "-").replace(/Z$/, "");
 }
 
+/** Run a command and hand back what it printed. */
+function capture(command: string, args: string[]): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const child = spawn(command, args, { stdio: ["ignore", "pipe", "pipe"] });
+    let out = "";
+    child.stdout.on("data", (chunk: Buffer) => (out += chunk.toString()));
+    child.stderr.on("data", (chunk: Buffer) => (out += chunk.toString()));
+    child.on("error", (error) => {
+      reject(
+        (error as NodeJS.ErrnoException).code === "ENOENT"
+          ? new Error(`${command} is not installed or not on PATH.`)
+          : error,
+      );
+    });
+    child.on("close", (code) =>
+      code === 0 ? resolve(out) : reject(new Error(`${command} exited with ${code}.`)),
+    );
+  });
+}
+
+function majorOf(text: string): number | null {
+  const match = /PostgreSQL\)?\s+(\d+)\./.exec(text) ?? /^\s*(\d+)\./.exec(text);
+  return match ? Number(match[1]) : null;
+}
+
+/**
+ * Refuse to take a backup with a client that does not match the server.
+ *
+ * This is not pedantry, and the two failure directions are not symmetrical:
+ *
+ *   client older than server — pg_dump refuses outright and exits non-zero.
+ *   Loud, obvious, and already handled.
+ *
+ *   client NEWER than server — pg_dump succeeds and writes a dump that will
+ *   not restore, because it emits settings the older server has never heard
+ *   of (`transaction_timeout`, new in 17, is the one that bit us). psql
+ *   aborts on the first such line. The backup looks perfect until the morning
+ *   somebody needs it, which is the worst possible time to find out.
+ *
+ * Nothing downstream can catch that second case: the file exists, it is the
+ * right size, and it is garbage. So it is caught here, before a file that
+ * cannot be restored is written and counted as a backup.
+ */
+async function assertVersionsMatch(): Promise<void> {
+  const clientText = await capture("pg_dump", ["--version"]);
+  const client = majorOf(clientText);
+
+  let serverText: string;
+  try {
+    serverText = await capture("psql", [
+      "--no-psqlrc",
+      "--tuples-only",
+      "--quiet",
+      "--command",
+      "show server_version",
+      DATABASE_URL!,
+    ]);
+  } catch (error) {
+    // A server we cannot reach is pg_dump's problem to report, with its own
+    // much better error message. Do not pre-empt it with a worse one.
+    void error;
+    return;
+  }
+
+  const server = majorOf(serverText.trim());
+
+  if (client === null || server === null) return;
+
+  if (client !== server) {
+    fail(
+      `pg_dump is version ${client} but the database is version ${server}. ` +
+        (client > server
+          ? "A newer client writes a dump this server cannot restore, which " +
+            "would look like a working backup and not be one. "
+          : "An older client will not dump this server at all. ") +
+        `Install postgresql-client-${server} (in Docker, build the tools ` +
+        `image with --build-arg PG_MAJOR=${server}).`,
+    );
+  }
+}
+
 function runPgDump(target: string): Promise<void> {
   return new Promise((resolve, reject) => {
     // --clean --if-exists so the dump can be replayed over a database that
@@ -81,6 +162,7 @@ async function prune(dir: string): Promise<void> {
 }
 
 async function main(): Promise<void> {
+  await assertVersionsMatch();
   await mkdir(BACKUP_DIR, { recursive: true });
 
   const final = path.join(BACKUP_DIR, `holding-today-${timestamp()}.sql`);

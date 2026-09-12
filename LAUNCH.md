@@ -7,9 +7,10 @@ what is supposed to work. Dated at the last commit on
 ## The one-line answer
 
 **Ready for a supervised pilot with a handful of funeral homes. Not ready to
-sell unattended.** The product works end to end and the data is safe; what is
-missing is operational — no deployment has ever been built, and no real family
-has ever used it.
+sell unattended.** The product works end to end, the data is safe, and the
+whole stack now builds and runs in containers. What is missing is operational:
+it has never run on a real host with real TLS, real mail, or a real payment,
+and no real family has ever used it.
 
 ## What has been proven by running it
 
@@ -32,6 +33,11 @@ production esbuild bundle, through the real nginx config:
   **after the home has cancelled**.
 - A case erases for real: the encrypted photo bytes are gone from `uploads`,
   not merely unreferenced.
+- **All four container images build**, the stack comes up with every container
+  healthy, migrations apply through the `tools` container, a family uploads a
+  real HEIC through nginx into the API container, and a backup taken inside the
+  containers restores and verifies. A full restart leaves the photograph
+  byte-for-byte identical.
 
 163 tests, 4 projects typechecking, 3 apps building.
 
@@ -39,7 +45,7 @@ production esbuild bundle, through the real nginx config:
 
 | Gap | Severity | What it would take |
 | --- | --- | --- |
-| **The container images have never been built or run.** No Docker daemon on the machine they were written on. | **Blocking** | Build them once on a real host. Expect to fix something. |
+| ~~The container images have never been built or run.~~ **Done.** All four build; the stack comes up healthy, migrates, serves, backs up and restores. Two real bugs were found doing it. | Cleared | — |
 | **No production deployment exists.** Nothing is running anywhere. | **Blocking** | A host, a domain, TLS, a Postgres. Half a day. |
 | **No real family has ever used the family portal.** Every test is synthetic. | **High** | One pilot home, one real case, watch what happens. |
 | **Email and SMS are unconfigured.** Password resets, aftercare and intake alerts are written to the log instead of sent. | **High** | SMTP credentials and a Twilio number. |

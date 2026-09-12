@@ -11,7 +11,8 @@ matters at 3am:
 | Run, for real | The production esbuild bundle: registration, a case, a family link, a genuine iPhone HEIC uploaded and served back as JPEG, twelve photos zipped into a slideshow pack — all of it through this exact `nginx.conf`, with `nginx -t` passing on the expanded template. |
 | Run, for real | `pnpm deploy --prod --legacy` produces a tree where `sharp`, `heic-decode` and `nodemailer` resolve and `esbuild`, `vitest` and `supertest` do not. |
 | Run, for real | `backup-database` → `DROP DATABASE` → `restore-database`, with an encrypted photo matching byte-for-byte and an encrypted SSN decrypting afterwards (`pnpm --filter @workspace/scripts run verify-backup`). |
-| **Not run** | `docker build` and `docker compose up`. There was no Docker daemon on the machine these were written on. The Dockerfiles are the one part of this stack nobody has executed — expect to fix something the first time you build them. |
+| Run, for real | `docker build` for all four images, then `docker compose up`: four containers healthy, migrations applied through `tools`, a home registered and a real iPhone HEIC uploaded and served back through nginx, and a backup taken and restored inside the containers. A full `docker compose restart` left the photograph byte-for-byte identical. |
+| **Not run** | Any of it on a host with real TLS, a real domain, real SMTP or a real Stripe key. The stack works; the deployment around it is still untested. |
 
 ## Before anything else
 
@@ -57,7 +58,21 @@ session cookie same-origin.
 `pnpm install` will print `Ignored build scripts: sharp@0.34.5` during the
 build. That is expected and not a problem — sharp 0.34 ships its native code
 as platform-specific packages rather than through an install script, and it
-was confirmed working from the deployed tree.
+was confirmed decoding a real iPhone HEIC inside the built container.
+
+### Keep the Postgres client in step with the server
+
+The `tools` image installs `postgresql-client-16` from PGDG to match the
+`postgres:16` in `docker-compose.yml`. If you move the database to a different
+major version, change **both** — `PG_MAJOR` is a build arg for exactly this.
+
+Getting it wrong fails in two different ways, and the second is the dangerous
+one. A client older than the server refuses to dump at all, which is loud. A
+client *newer* than the server dumps happily and produces a file that will not
+restore, because it writes settings the older server does not recognise — a
+backup that looks fine until the morning you need it. Both were observed while
+building this image; neither was visible from the host, where the versions
+happened to match.
 
 ## You must terminate TLS in front of this
 
