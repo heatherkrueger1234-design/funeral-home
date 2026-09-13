@@ -30,7 +30,7 @@ import {
 import { currentUser, tenant } from "../middleware/require-auth";
 import { countsForCases, toCaseJson } from "../lib/case-view";
 import { enrolCaseInAftercare } from "../lib/aftercare";
-import { applyTemplateToCase, hasDeadlines } from "../lib/timeline";
+import { applyTemplateToCase, hasDeadlines, shiftTimeline } from "../lib/timeline";
 import { markOnboarding } from "../lib/onboarding";
 import { HttpError } from "../lib/http";
 
@@ -276,8 +276,7 @@ router.put("/cases/:caseId", async (req, res) => {
    * anyone remembering to tell them.
    *
    * Only when the case has no timeline yet, so this cannot trample a schedule
-   * somebody has already adjusted by hand. Rebuilding after a date change is
-   * an explicit button.
+   * somebody has already adjusted by hand.
    */
   if (
     updated!.serviceAt !== null &&
@@ -285,6 +284,29 @@ router.put("/cases/:caseId", async (req, res) => {
     !(await hasDeadlines(updated!.id))
   ) {
     await applyTemplateToCase(updated!);
+  } else if (
+    /*
+     * And the moment nobody thought about: the service moves.
+     *
+     * This used to do nothing at all, on the reasoning that rebuilding the
+     * timeline was an explicit button. The reasoning was about the wrong
+     * risk. Not rebuilding left the family's timeline — including the entry
+     * for the service itself — pointing at the old date, while the top of
+     * the same app read the new one off the case. A family can be told the
+     * wrong day for a funeral by a screen that is otherwise correct, and
+     * nothing anywhere says the two have drifted.
+     *
+     * Shifting rather than rebuilding keeps a director's hand-made
+     * adjustments and leaves finished steps alone. See `shiftTimeline`.
+     */
+    existing.serviceAt !== null &&
+    updated!.serviceAt !== null &&
+    updated!.serviceAt.getTime() !== existing.serviceAt.getTime()
+  ) {
+    await shiftTimeline(
+      updated!.id,
+      updated!.serviceAt.getTime() - existing.serviceAt.getTime(),
+    );
   }
 
   res.json(toCaseJson(updated!));

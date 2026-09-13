@@ -51,9 +51,37 @@ function lines(value: string): string {
     .join("\n");
 }
 
-function formatDates(row: Case): string {
+/**
+ * Every date on a printed card is read in the home's own timezone, never the
+ * server's.
+ *
+ * This is not a nicety. These containers run on UTC, so a ten o'clock
+ * Saturday service in Denver was being printed on two hundred orders of
+ * service as four in the afternoon — and nobody proofreading it would think
+ * to check a time the software filled in for them. The year on a prayer card
+ * has the same failure mode more quietly: somebody who died at six in the
+ * evening on New Year's Eve was given the wrong year on their own card.
+ *
+ * A stored timezone is validated when the home saves it and defaults to a
+ * real one, so this should never fall back — but a print run is the wrong
+ * moment to throw, so it degrades to UTC rather than 500ing on a director
+ * who is standing at a printer.
+ */
+function inZone(
+  value: Date,
+  timezone: string,
+  options: Intl.DateTimeFormatOptions,
+): string {
+  try {
+    return value.toLocaleString("en-US", { ...options, timeZone: timezone });
+  } catch {
+    return value.toLocaleString("en-US", { ...options, timeZone: "UTC" });
+  }
+}
+
+function formatDates(row: Case, timezone: string): string {
   const year = (value: Date | null) =>
-    value ? String(value.getFullYear()) : "";
+    value ? inZone(value, timezone, { year: "numeric" }) : "";
 
   const born = year(row.dateOfBirth);
   const died = year(row.dateOfDeath);
@@ -63,10 +91,10 @@ function formatDates(row: Case): string {
   return "";
 }
 
-function formatServiceLine(row: Case): string {
+function formatServiceLine(row: Case, timezone: string): string {
   if (!row.serviceAt) return row.serviceLocation ?? "";
 
-  const when = row.serviceAt.toLocaleString("en-US", {
+  const when = inZone(row.serviceAt, timezone, {
     weekday: "long",
     month: "long",
     day: "numeric",
@@ -83,6 +111,8 @@ export function resolveSlots(input: {
   template: PrintTemplate;
   case: Case;
   values: Record<string, string>;
+  /** The home's timezone. Required: see `inZone`. */
+  timezone: string;
 }): Record<string, string> {
   const resolved: Record<string, string> = {};
 
@@ -99,10 +129,10 @@ export function resolveSlots(input: {
         resolved[slot.key] = decedentDisplayName(input.case);
         break;
       case "dates":
-        resolved[slot.key] = formatDates(input.case);
+        resolved[slot.key] = formatDates(input.case, input.timezone);
         break;
       case "serviceLine":
-        resolved[slot.key] = formatServiceLine(input.case);
+        resolved[slot.key] = formatServiceLine(input.case, input.timezone);
         break;
       default:
         resolved[slot.key] = "";
@@ -220,7 +250,7 @@ function body(input: RenderInput, slots: Record<string, string>): string {
 
 export function renderPrintItem(input: RenderInput): string {
   const { template } = input;
-  const slots = resolveSlots(input);
+  const slots = resolveSlots({ ...input, timezone: input.home.timezone });
 
   const sheetWidth = template.width + BLEED * 2;
   const sheetHeight = template.height + BLEED * 2;

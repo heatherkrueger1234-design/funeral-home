@@ -141,6 +141,56 @@ export async function applyTemplateToCase(
   return result;
 }
 
+/**
+ * Move an existing timeline when the service itself moves.
+ *
+ * A funeral being moved is ordinary — a family flying in, a church with a
+ * wedding on the Saturday, a coroner who is not finished. What is not
+ * ordinary is what used to happen next: the case record said Monday, the
+ * family's timeline still said Friday, and the two screens of the same app
+ * disagreed about when somebody's mother was being buried. Nothing told the
+ * director, because the only thing that rebuilt the timeline was a button
+ * they had no reason to press.
+ *
+ * A shift, not a rebuild from the template, and the difference matters:
+ *
+ *  - A director who pulled "bring clothing" forward a day for this family
+ *    keeps that. Re-applying the template would quietly undo it.
+ *  - A step already ticked off is left exactly where it is. Telling a
+ *    daughter who delivered the clothing on Tuesday that it is now due on
+ *    Thursday would be worse than saying nothing.
+ *  - It works for a case whose timeline was never built from the template at
+ *    all, which a rebuild does not.
+ *
+ * Returns how many rows moved, so the caller can say something true.
+ */
+export async function shiftTimeline(
+  caseId: number,
+  deltaMs: number,
+  now = new Date(),
+): Promise<number> {
+  if (deltaMs === 0) return 0;
+
+  const rows = await db
+    .select()
+    .from(caseDeadlinesTable)
+    .where(eq(caseDeadlinesTable.caseId, caseId));
+
+  let moved = 0;
+
+  for (const entry of rows) {
+    if (entry.completedAt !== null) continue;
+
+    await db
+      .update(caseDeadlinesTable)
+      .set({ dueAt: new Date(entry.dueAt.getTime() + deltaMs), updatedAt: now })
+      .where(eq(caseDeadlinesTable.id, entry.id));
+    moved += 1;
+  }
+
+  return moved;
+}
+
 /** Whether a case has any timeline at all yet. */
 export async function hasDeadlines(caseId: number): Promise<boolean> {
   const [row] = await db

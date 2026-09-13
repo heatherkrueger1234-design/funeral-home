@@ -177,7 +177,7 @@ async function photoUploadFor(
   return { photoId, uploadId: photo?.uploadId ?? null };
 }
 
-async function toPrintItemJson(item: CasePrintItem, row: Case) {
+async function toPrintItemJson(item: CasePrintItem, row: Case, timezone: string) {
   const template = findTemplate(item.templateKey);
   const { photoId, uploadId } = await photoUploadFor(item, row);
   const values = (item.values ?? {}) as Record<string, string>;
@@ -194,7 +194,7 @@ async function toPrintItemJson(item: CasePrintItem, row: Case) {
     // What the card will actually say, with the case's own details filled
     // in — so the preview needs no second round trip.
     resolved: template
-      ? resolveSlots({ template, case: row, values })
+      ? resolveSlots({ template, case: row, values, timezone })
       : values,
     quantity: item.quantity,
     status: item.status,
@@ -204,7 +204,17 @@ async function toPrintItemJson(item: CasePrintItem, row: Case) {
   };
 }
 
-export async function printItemsForCase(row: Case, funeralHomeId: number) {
+/**
+ * `timezone` is the home's, and is not optional: the `resolved` values below
+ * are the words that end up on the card, and a service time resolved in the
+ * server's zone is wrong on the director's preview and on the proof the
+ * family is asked to approve.
+ */
+export async function printItemsForCase(
+  row: Case,
+  funeralHomeId: number,
+  timezone: string,
+) {
   const rows = await db
     .select()
     .from(casePrintItemsTable)
@@ -216,13 +226,13 @@ export async function printItemsForCase(row: Case, funeralHomeId: number) {
     )
     .orderBy(desc(casePrintItemsTable.updatedAt));
 
-  return Promise.all(rows.map((item) => toPrintItemJson(item, row)));
+  return Promise.all(rows.map((item) => toPrintItemJson(item, row, timezone)));
 }
 
 router.get("/cases/:caseId/print", async (req, res) => {
   const home = tenant(req);
   const row = await loadCase(req, req.params.caseId);
-  res.json(await printItemsForCase(row, home.id));
+  res.json(await printItemsForCase(row, home.id, home.timezone));
 });
 
 router.post("/cases/:caseId/print", async (req, res) => {
@@ -244,7 +254,7 @@ router.post("/cases/:caseId/print", async (req, res) => {
     })
     .returning();
 
-  res.status(201).json(await toPrintItemJson(created!, row));
+  res.status(201).json(await toPrintItemJson(created!, row, tenant(req).timezone));
 });
 
 async function loadPrintItem(
@@ -347,7 +357,13 @@ router.put("/print/:printItemId", async (req, res) => {
     .where(eq(casePrintItemsTable.id, existing.id))
     .returning();
 
-  res.json(await toPrintItemJson(updated!, await caseFor(existing.caseId)));
+  res.json(
+    await toPrintItemJson(
+      updated!,
+      await caseFor(existing.caseId),
+      tenant(req).timezone,
+    ),
+  );
 });
 
 router.delete("/print/:printItemId", async (req, res) => {

@@ -28,7 +28,13 @@ function secretKey(): string | null {
 }
 
 export function isBillingConfigured(): boolean {
-  return secretKey() !== null && process.env["STRIPE_PRICE_ID"] !== undefined;
+  // Both read the same way, and empty counts as unset. docker-compose passes
+  // every optional variable through as `${NAME:-}`, so an unconfigured
+  // deployment has these set to the empty string rather than absent — and
+  // `!== undefined` was reporting billing as ready on a deployment with a key
+  // and no price, which fails later as an opaque refusal from Stripe in front
+  // of a director trying to subscribe.
+  return secretKey() !== null && Boolean(process.env["STRIPE_PRICE_ID"]);
 }
 
 async function stripe<T>(
