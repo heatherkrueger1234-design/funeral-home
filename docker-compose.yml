@@ -47,6 +47,11 @@ services:
       #   pnpm --filter @workspace/scripts run generate-encryption-key
       ENCRYPTION_KEY: ${ENCRYPTION_KEY:?set ENCRYPTION_KEY in .env}
       LOG_LEVEL: ${LOG_LEVEL:-info}
+      # Proxies between the internet and this process. 1 is the nginx below on
+      # its own; set 2 when something else terminates TLS in front of it, which
+      # is what sharing a domain with another site looks like. Wrong and every
+      # request appears to come from one address — see app.ts.
+      TRUSTED_PROXY_HOPS: ${TRUSTED_PROXY_HOPS:-1}
       # The two apps are same-origin with their own API through nginx, so no
       # cross-origin request needs allowing. Left settable for a separate dev
       # server pointed at this stack.

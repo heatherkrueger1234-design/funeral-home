@@ -97,10 +97,70 @@ repo already does, for the hop it owns.
 
 ## Behind another proxy
 
-`app.ts` sets `trust proxy` to 1, meaning exactly one hop. Both `req.secure`
-and the rate limiter's idea of a client IP depend on that number being right.
-Two proxies in front and the rate limiter starts counting the inner proxy's
-address, so one family's retries throttle everybody's.
+`app.ts` trusts one hop by default, which is the nginx in this repo. Both
+`req.secure` and the rate limiter's idea of a client IP depend on that number
+being right. Put anything else in front — a load balancer, Caddy, Cloudflare,
+another nginx — and it is two, so set `TRUSTED_PROXY_HOPS=2`.
+
+Getting it wrong is quiet. Express counts hops back from the socket to decide
+which entry in `X-Forwarded-For` is the visitor, so one hop too few makes
+`req.ip` the address of the *proxy* — the same value for every request there
+has ever been. Every rate limiter then has one bucket, and the public front
+door's thirty a minute is shared by the whole internet.
+
+## Two sites on one domain
+
+The question this answers: you have this, and you have another site that is
+not this, and you want them both reachable from one name.
+
+**They are two deployments, not one.** This repo already runs three processes
+and two front ends; a second product with its own database and its own
+accounts is a fourth. Nothing merges. What you put in front of them is one
+reverse proxy that terminates TLS for the domain and routes by *hostname*.
+
+**By hostname, not by path.** `https://example.com/console` will not work
+without changes: both front ends are built to sit at the root of their origin,
+the family portal rewrites `/f/<token>` to `/` on arrival, and the nginx here
+falls back to `/index.html` from `/`. (`BASE_PATH` exists in the Vite config
+and is not enough on its own — the token is read with a hard-coded `^/f/`.)
+Subdomains need none of that, and give each site its own cookie jar for free.
+
+So, with this stack up on 8080 and 8081 and the other site on 3000:
+
+```caddyfile
+family.example.com {
+    reverse_proxy 127.0.0.1:8080
+}
+
+console.example.com {
+    reverse_proxy 127.0.0.1:8081
+}
+
+example.com, www.example.com {
+    reverse_proxy 127.0.0.1:3000
+}
+```
+
+Caddy gets the certificates itself and sets `X-Forwarded-Proto`, which the
+nginx here now passes through rather than overwriting. Three things have to
+agree, and all three are in `.env`:
+
+| | |
+| --- | --- |
+| `TRUSTED_PROXY_HOPS=2` | Caddy and then nginx. Two. |
+| `FAMILY_PORTAL_URL=https://family.example.com` | The links that go out in texts are built from this. |
+| `CONSOLE_URL=https://console.example.com` | Same, for staff email. |
+
+Then publish 8080 and 8081 **on the loopback only** — `127.0.0.1:8080:80` in
+`docker-compose.yml` — or the plain-HTTP ports stay reachable from the
+internet alongside the TLS ones, and a director who bookmarks the wrong one
+signs in over HTTP and never gets a session back.
+
+What does *not* work: pointing two repositories at one build. Two front ends
+share a deployment when they share a database, a session model and a build —
+the family portal and the director console do, which is why they are in this
+repo. A separate product with its own accounts shares a domain and nothing
+else.
 
 ## Scheduled work
 

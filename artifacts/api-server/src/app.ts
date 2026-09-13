@@ -10,9 +10,43 @@ import { corsOptions } from "./lib/cors";
 
 const app: Express = express();
 
-// Replit terminates TLS and proxies to this process, so `req.ip` and the
-// `secure` cookie flag are only correct once the proxy is trusted.
-app.set("trust proxy", 1);
+/**
+ * How many proxies are in front of this process.
+ *
+ * One by default, which is the nginx in this repo — and was the only shape
+ * that existed when this was hard-coded. It stops being right the moment a
+ * second front end shares a domain with this one, because the thing that
+ * terminates TLS for both then sits in front of that nginx and there are two.
+ *
+ * Getting it wrong is quiet and expensive. Express counts hops back from the
+ * socket to decide which entry in `X-Forwarded-For` is the client, so one hop
+ * too few makes `req.ip` the address of the *proxy* — identical for every
+ * request on earth. The rate limiters then bucket the entire internet into one
+ * key, and the public front door's thirty-a-minute ceiling is shared by every
+ * grieving family at once.
+ */
+function trustedProxyHops(): number {
+  const raw = process.env["TRUSTED_PROXY_HOPS"];
+  if (raw === undefined || raw === "") return 1;
+
+  const value = Number(raw);
+
+  if (!Number.isInteger(value) || value < 0) {
+    throw new Error(
+      `TRUSTED_PROXY_HOPS must be a non-negative integer, got "${raw}". ` +
+        "It is the number of proxies between the internet and this process: " +
+        "1 for the nginx in this repo on its own, 2 with a TLS terminator in " +
+        "front of that.",
+    );
+  }
+
+  return value;
+}
+
+// Whatever terminates TLS proxies to this process, so `req.ip` and the
+// `secure` cookie flag are only correct once the right number of hops is
+// trusted.
+app.set("trust proxy", trustedProxyHops());
 
 // Journals, letters and obituaries can be long-form; the 100kb default is
 // tight enough that a single entry could be rejected.

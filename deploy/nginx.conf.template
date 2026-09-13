@@ -10,6 +10,14 @@
 # envsubst step. NGINX_ENVSUBST_FILTER (set in Dockerfile.web) restricts it to
 # NGINX_-prefixed names, so $host, $uri and friends survive untouched.
 
+# Prefer a forwarded scheme from an outer proxy over this server's own.
+# `map` lives at http level, which is what conf.d is; nginx resolves the
+# variable at request time, so the order of the two files does not matter.
+map $http_x_forwarded_proto $forwarded_proto {
+    default $http_x_forwarded_proto;
+    ""      $scheme;
+}
+
 server {
     listen 80;
     server_name _;
@@ -64,7 +72,16 @@ server {
         # Express trusts this to decide whether the session cookie is marked
         # Secure. Without it, a login over HTTPS hands out a cookie that will
         # also travel over plain HTTP.
-        proxy_set_header X-Forwarded-Proto $scheme;
+        #
+        # The incoming header wins when there is one, because the only way
+        # this container sees a header it did not write is that something else
+        # terminated TLS in front of it — which is the normal shape as soon as
+        # two front ends share a domain. Overwriting it with `$scheme` there
+        # reports plain HTTP for a request that arrived over TLS, and the API
+        # then logs the "your sign-in will silently fail" warning on every
+        # request of a deployment where sign-in is working perfectly well.
+        # Set TRUSTED_PROXY_HOPS=2 on the API to match.
+        proxy_set_header X-Forwarded-Proto $forwarded_proto;
 
         # Long, because the two slow paths are real work and not a hang: the
         # photo pack zips hundreds of decrypted images, and a phone on a bad
