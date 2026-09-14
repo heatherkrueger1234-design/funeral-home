@@ -15,6 +15,8 @@ import { Loader2 } from "lucide-react";
 import { StandardSchedule } from "@/components/StandardSchedule";
 import { BillingSection } from "@/components/BillingSection";
 import { SnippetLibrary } from "@/components/SnippetLibrary";
+import { FormLibrary } from "@/components/FormLibrary";
+import { PolicyLibrary } from "@/components/PolicyLibrary";
 
 /** "08:00" for a time input, from minutes since midnight. */
 const toTimeInput = (minute: number) =>
@@ -190,6 +192,10 @@ export default function Settings() {
       <StandardSchedule readOnly={readOnly} />
 
       <SnippetLibrary readOnly={readOnly} />
+
+      <FormLibrary readOnly={readOnly} />
+
+      <PolicyLibrary readOnly={readOnly} />
 
       <BillingSection readOnly={readOnly} />
 

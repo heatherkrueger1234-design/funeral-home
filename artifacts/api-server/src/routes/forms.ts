@@ -1426,10 +1426,10 @@ async function certificateJson(row: DeathCertificateFiling, subject: Case) {
 
   const outstanding = [];
 
-  for (const row2 of forms) {
+  for (const attached of forms) {
     const [fields, answers] = await Promise.all([
-      fieldsFor(row2.form.id),
-      answersFor(subject.id, row2.form.id),
+      fieldsFor(attached.form.id),
+      answersFor(subject.id, attached.form.id),
     ]);
 
     const blocking = blockingFields(
@@ -1439,8 +1439,8 @@ async function certificateJson(row: DeathCertificateFiling, subject: Case) {
 
     if (blocking.length > 0) {
       outstanding.push({
-        caseFormId: row2.caseForm.id,
-        formName: row2.form.name,
+        caseFormId: attached.caseForm.id,
+        formName: attached.form.name,
         fields: blocking.map((field) => ({ key: field.key, label: field.label })),
       });
     }
@@ -1959,28 +1959,22 @@ const FORM_SHEET_CSS = (accent: string) => `
 export const familyFormsRouter: IRouter = Router();
 
 /**
- * The level the home set on the form, checked against the level the home set
- * on the person.
+ * Every family route below starts here, and the two refusals in it are the
+ * whole of this surface's access control.
  *
- * The comparison is `atLeast` from Component 1, not a second permission model
- * — the level required is a property of the form and so cannot be named when
- * the route is mounted, but the question being asked is theirs and so is the
- * answer. Anything that records an authorization carries
- * `requireFamilyAuthorization` as real middleware instead.
+ * The level comparison is `atLeast` from Component 1 rather than a second
+ * permission model: the level required is a property of the form, so it
+ * cannot be named where the route is mounted, but the question being asked is
+ * Component 1's and so is the answer. The one route that records an
+ * authorization carries `requireFamilyAuthorization` as real middleware on
+ * top of this.
+ *
+ * Both refusals are 404 rather than 403, and deliberately. A `viewing` cousin
+ * guessing ids should not be able to learn that this case has a cremation
+ * authorization on it, and a 403 would tell them exactly that. The refusal is
+ * the same whichever reason it was, and it is enforced here rather than in
+ * every handler — the check nobody can forget is the one there is only one of.
  */
-function assertMayComplete(contact: FamilyContact, form: HomeForm): void {
-  if (atLeast(contact, form.requiredLevel as FamilyAccessLevel)) return;
-
-  throw new HttpError(
-    403,
-    form.requiredLevel === "authorizing"
-      ? "Only the person the funeral home has recorded as authorizing this " +
-        "funeral can complete this one, and they will need their password."
-      : "Whoever the funeral home has recorded as arranging the funeral " +
-        "needs to do this part. They can share it with you.",
-  );
-}
-
 async function loadSharedForm(
   req: Parameters<typeof familyCase>[0] & Parameters<typeof familyContact>[0],
   rawId: string | undefined,
@@ -1989,13 +1983,13 @@ async function loadSharedForm(
   const contact = familyContact(req);
   const found = await loadCaseForm(subject.funeralHomeId, subject.id, rawId);
 
-  // An unshared form is not "forbidden", it is not there yet — a director is
-  // still preparing it, and saying so would be telling a family about a
-  // document the home has not decided to give them.
+  // Not shared yet: a director is still preparing it, and it is genuinely not
+  // this family's to see.
   if (!found.caseForm.sharedWithFamily) {
     throw new HttpError(404, "That form could not be found.");
   }
 
+  // Above their level: the home decided who may complete this one.
   if (!atLeast(contact, found.form.requiredLevel as FamilyAccessLevel)) {
     throw new HttpError(404, "That form could not be found.");
   }
@@ -2036,7 +2030,6 @@ familyFormsRouter.put("/forms/:caseFormId/answers", async (req, res) => {
   const contact = familyContact(req);
   const { caseForm, form } = await loadSharedForm(req, req.params.caseFormId);
 
-  assertMayComplete(contact, form);
   await assertNotAlreadySigned(subject.id, caseForm.id);
 
   const body = parseBody(SetFamilyFormAnswersBody, req.body);

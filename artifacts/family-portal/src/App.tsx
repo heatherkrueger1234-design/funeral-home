@@ -21,6 +21,8 @@ import Aftercare from "@/pages/Aftercare";
 import Belongings from "@/pages/Belongings";
 import Local from "@/pages/Local";
 import Vitals from "@/pages/Vitals";
+import Paperwork from "@/pages/Paperwork";
+import PaperworkForm from "@/pages/PaperworkForm";
 import Proofs from "@/pages/Proofs";
 import Start from "@/pages/Start";
 import NotFound from "@/pages/NotFound";
@@ -101,6 +103,8 @@ export default function App() {
               <Route path="/belongings" component={Belongings} />
               <Route path="/local" component={Local} />
               <Route path="/certificate" component={Vitals} />
+              <Route path="/paperwork" component={Paperwork} />
+              <Route path="/paperwork/:id" component={PaperworkForm} />
               <Route path="/proofs" component={Proofs} />
               <Route component={NotFound} />
             </Switch>
