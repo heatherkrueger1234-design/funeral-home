@@ -178,8 +178,13 @@ class H(http.server.BaseHTTPRequestHandler):
         self.wfile.write(token.encode())
     def log_message(self, *a): pass
 socketserver.TCPServer.allow_reuse_address = True
+# serve_forever, not handle_request: two requests are made against this --
+# one through loopback to prove the listener is up, then one through the
+# public address. Serving only the first would leave the second hitting a
+# closed socket, and the check would report "unreachable from outside" on
+# every host in the world.
 with socketserver.TCPServer(("", 80), H) as s:
-    s.handle_request()
+    s.serve_forever()
 PY
       PROBE_PID=$!
       sleep 1
