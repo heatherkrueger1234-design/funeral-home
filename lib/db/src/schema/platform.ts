@@ -75,40 +75,13 @@ export const platformSessionsTable = pgTable(
   (table) => [index("platform_sessions_admin_id_idx").on(table.adminId)],
 );
 
-/**
- * Every time one of us looks at a home's data.
- *
- * A platform admin can, by design, read across tenants — it is the only
- * account in the system that can, and it exists so that somebody can answer
- * "is this customer getting any value" and "why is this home's aftercare not
- * sending". That capability is worth having and worth watching.
- *
- * Append-only. Nothing in the API deletes from this table, and nothing should
- * ever be added that does. A funeral home's insurer is entitled to ask what
- * the vendor can see, and "here is every time we looked, and at what" is a
- * much better answer than an assurance.
+/*
+ * The audit of cross-tenant reads lives in `platform-audit.ts`, which
+ * Component 2 wrote against the console that actually does the reading. It
+ * records the actor's email and the home's name rather than only their ids,
+ * so a line still reads after either is gone — which is the right shape, and
+ * not the one this file originally had.
  */
-export const platformAuditTable = pgTable(
-  "platform_audit",
-  {
-    id: serial("id").primaryKey(),
-    adminId: integer("admin_id")
-      .notNull()
-      .references(() => platformAdminsTable.id, { onDelete: "restrict" }),
-    /** Not a foreign key: the row must outlive the home it refers to. */
-    funeralHomeId: integer("funeral_home_id"),
-    /** A short verb: "list_homes", "read_home", "suspend_home". */
-    action: text("action").notNull(),
-    /** Whatever identifies what was looked at. Never the data itself. */
-    subject: text("subject"),
-    createdAt: timestamp("created_at").notNull().defaultNow(),
-  },
-  (table) => [
-    index("platform_audit_admin_id_idx").on(table.adminId),
-    index("platform_audit_funeral_home_id_idx").on(table.funeralHomeId),
-    index("platform_audit_created_at_idx").on(table.createdAt),
-  ],
-);
 
 export const insertPlatformAdminSchema = createInsertSchema(
   platformAdminsTable,
@@ -116,7 +89,6 @@ export const insertPlatformAdminSchema = createInsertSchema(
 export type InsertPlatformAdmin = z.infer<typeof insertPlatformAdminSchema>;
 export type PlatformAdmin = typeof platformAdminsTable.$inferSelect;
 export type PlatformSession = typeof platformSessionsTable.$inferSelect;
-export type PlatformAuditEntry = typeof platformAuditTable.$inferSelect;
 
 /** The hash never leaves the server. */
 export type PublicPlatformAdmin = Omit<PlatformAdmin, "passwordHash"> & {

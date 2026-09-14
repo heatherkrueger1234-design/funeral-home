@@ -307,6 +307,60 @@ cannot reach another's cases; a link reaches exactly one case; one family
 member cannot delete another's photograph) and `case-lifecycle.test.ts`, which
 walks a case from the call coming in to the family consenting to aftercare.
 
+## The platform admin console
+
+`artifacts/admin-console` is the third front end, and the only one that is not
+for a funeral home. It is where the business looks at its own customers: the
+list of homes, what each one is using, and — the part that earns its keep in
+Colorado this year — where each home stands with DORA.
+
+**How you get in.** A platform admin is a row in `platform_admins` — a
+different account from any funeral home's staff, with its own table, its own
+cookie (`fh_platform`) and its own resolver, signing in at
+`/admin/auth/login`. There is no value of `users.role` that grants
+cross-tenant access and there should never be: `users.funeralHomeId` is
+`NOT NULL` and is the tenant boundary the whole API rests on, so a nullable
+tenant there would weaken the strongest invariant in the codebase in the one
+place nobody would notice until a home saw another home's families.
+
+Sessions last twelve hours rather than a director's thirty days, because this
+account can read every home in the system. `requirePlatformAdmin` attaches
+neither `req.user` nor `req.home`, so nothing under `/admin` can call
+`tenant(req)` and quietly acquire a scope that does not exist there — which is
+also why the router mounts *above* `requireAuth` rather than below it.
+
+**What it may do.** See everything, change almost nothing. Creating a home and
+suspending a home are the complete list of writes that touch a tenant. There
+is no route that edits a case, an obituary, a photograph or a family contact,
+and there is not meant to be — Section 2 of `COLORADO.md` has the reason: we
+are the processor and the home is the controller.
+
+**Cross-tenant reads.** Every one goes through a helper in `routes/admin.ts`
+whose name begins with `platform`, and every one of those writes a row to
+`platform_audit` before returning. `tenant(req)` is never called in that file.
+The log is readable from the console's own Access log page, because a log
+nobody can see is a log nobody checks — and because "here is every time anyone
+at the vendor looked" is an answer a funeral home's insurer accepts.
+
+**Suspension** stops a home opening new cases and does nothing else. Existing
+cases stay reachable and families part-way through keep their access, for the
+same reason a cancelled subscription does not lock a director out of
+Thursday's funeral.
+
+**Colorado licensure** is tracked per home in `home_licensure` and
+`practitioner_licences`: registration number, registered services, appointed
+designee, renewal date, and each practitioner's standing and expiry. The
+1 January 2027 deadline and the thirty-day amended-registration rule surface
+as plain sentences through `licensureReminders`. Nothing there is ever red and
+nothing counts down — see the comment on `Reminders.tsx` for why that is a
+rule rather than a preference.
+
+**Engagement numbers** are counted in `platformEngagementFor`, which is a
+placeholder. Component 6 owns how engagement is computed; when it lands, that
+function's body becomes a call to theirs and its shape stays. Do not add
+cleverness to it in the meantime — two definitions of "engaged" is worse than
+none.
+
 ## Relationship to Memory-Haven
 
 This repository began as a fork of Memory-Haven (`holdingtoday.com`) at
