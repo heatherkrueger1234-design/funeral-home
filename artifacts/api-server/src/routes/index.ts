@@ -17,6 +17,8 @@ import contactsRouter from "./contacts";
 import photosRouter from "./photos";
 import obituaryRouter from "./obituary";
 import selectionsRouter from "./selections";
+import catalogueRouter from "./catalogue";
+import ordersRouter, { familyStorefrontRouter } from "./orders";
 import messagesRouter from "./messages";
 import deadlinesRouter from "./deadlines";
 import belongingsRouter from "./belongings";
@@ -91,6 +93,21 @@ router.use(billingWebhookRouter);
 router.use("/family", familyRateLimit, requireFamilyLink, familyRouter);
 
 /**
+ * The family's storefront, behind the same gate and under the same prefix.
+ *
+ * A second router rather than more handlers in `family.ts`, because the
+ * storefront is one component's work and a thousand-line file that six
+ * people edit is a merge conflict with a queue. The gate is the line above,
+ * and it applies to this exactly as it applies to that.
+ */
+router.use(
+  "/family",
+  familyRateLimit,
+  requireFamilyLink,
+  familyStorefrontRouter,
+);
+
+/**
  * Everything below requires a staff session. Handlers then scope every query
  * with `tenant(req).id`, which is read off the signed-in user's own row.
  * Both halves are required: the gate proves somebody is signed in, the scope
@@ -108,6 +125,8 @@ router.use(contactsRouter);
 router.use(photosRouter);
 router.use(obituaryRouter);
 router.use(selectionsRouter);
+router.use(catalogueRouter);
+router.use(ordersRouter);
 router.use(messagesRouter);
 router.use(deadlinesRouter);
 router.use(belongingsRouter);

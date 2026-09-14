@@ -43,6 +43,11 @@ export * from "./timeline-templates";
 export * from "./messages";
 export * from "./deadlines";
 
+/* What the home sells, what the family chose, and the statement that comes
+ * out of it. */
+export * from "./catalogue";
+export * from "./storefront";
+
 /* The local network a home can point a family at. */
 export * from "./vendors";
 
