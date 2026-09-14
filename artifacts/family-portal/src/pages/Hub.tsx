@@ -2,7 +2,7 @@ import { voiceFor } from "@/lib/voice";
 import { Link } from "wouter";
 import {
   formatPrice,
-  useFamilyStorefront,
+  useGetFamilyStorefront,
   useGetFamilySession,
   useGetFamilyDeadlines,
 } from "@workspace/api-client-react";
@@ -80,7 +80,7 @@ function Card({ href, icon: Icon, title, detail, badge }: CardProps) {
 export default function Hub() {
   const session = useGetFamilySession();
   const deadlines = useGetFamilyDeadlines();
-  const storefront = useFamilyStorefront();
+  const storefront = useGetFamilyStorefront();
 
   if (!session.data) return null;
 

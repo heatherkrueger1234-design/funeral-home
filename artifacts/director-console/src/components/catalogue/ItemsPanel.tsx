@@ -1,14 +1,14 @@
 import { useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import {
-  catalogueQueryKey,
+  getGetCatalogueQueryKey,
   cataloguePhotoUrl,
-  createCategory,
-  createItem,
-  deleteCategory,
-  deleteItem,
+  createCatalogueCategory,
+  createCatalogueItem,
+  deleteCatalogueCategory,
+  deleteCatalogueItem,
   postUploadMultipart,
-  updateItem,
+  updateCatalogueItem,
   SECTION_LABELS,
   type Catalogue,
   type CatalogueCategory,
@@ -87,10 +87,10 @@ function ItemRow({
   const { toast } = useToast();
   const [busy, setBusy] = useState(false);
 
-  async function patch(values: Parameters<typeof updateItem>[1]) {
+  async function patch(values: Parameters<typeof updateCatalogueItem>[1]) {
     setBusy(true);
     try {
-      await updateItem(item.id, values);
+      await updateCatalogueItem(item.id, values);
       onChanged();
     } catch (error) {
       toast({
@@ -108,7 +108,7 @@ function ItemRow({
     setBusy(true);
     try {
       const uploaded = await postUploadMultipart(file);
-      await updateItem(item.id, { photoUploadId: uploaded.id });
+      await updateCatalogueItem(item.id, { photoUploadId: uploaded.id });
       onChanged();
     } catch (error) {
       toast({
@@ -203,7 +203,7 @@ function ItemRow({
           onClick={async () => {
             setBusy(true);
             try {
-              await deleteItem(item.id);
+              await deleteCatalogueItem(item.id);
               onChanged();
             } finally {
               setBusy(false);
@@ -236,7 +236,7 @@ function AddItem({
     if (!ready) return;
     setBusy(true);
     try {
-      await createItem({
+      await createCatalogueItem({
         categoryId: category.id,
         name: name.trim(),
         priceCents: cents,
@@ -304,7 +304,7 @@ function AddCategory({ onChanged }: { onChanged: () => void }) {
     if (name.trim() === "") return;
     setBusy(true);
     try {
-      await createCategory({ name: name.trim(), section });
+      await createCatalogueCategory({ name: name.trim(), section });
       setName("");
       onChanged();
     } catch (error) {
@@ -358,7 +358,7 @@ function AddCategory({ onChanged }: { onChanged: () => void }) {
 export function ItemsPanel({ catalogue }: { catalogue: Catalogue }) {
   const queryClient = useQueryClient();
   const onChanged = () =>
-    void queryClient.invalidateQueries({ queryKey: catalogueQueryKey });
+    void queryClient.invalidateQueries({ queryKey: getGetCatalogueQueryKey() });
 
   return (
     <div className="space-y-6">
@@ -416,7 +416,7 @@ export function ItemsPanel({ catalogue }: { catalogue: Catalogue }) {
                     <AlertDialogCancel>Keep it</AlertDialogCancel>
                     <AlertDialogAction
                       onClick={async () => {
-                        await deleteCategory(category.id);
+                        await deleteCatalogueCategory(category.id);
                         onChanged();
                       }}
                     >

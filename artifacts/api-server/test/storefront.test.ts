@@ -726,6 +726,47 @@ describe("the Statement of Funeral Goods and Services Selected", () => {
     expect(printed.text).toContain("post a check");
   });
 
+  it("stops offering a way to pay once the home's books say it is settled", async () => {
+    const staff = await tradingHome();
+
+    await staff.agent
+      .put("/api/storefront/settings")
+      .send({ paymentPageUrl: "https://pay.horanandmcconaty.com/invoice" })
+      .expect(200);
+
+    const row = await createCase(staff);
+    const { token } = await inviteFamily(staff, row.id);
+    const family = asFamily(token);
+
+    const urn = findItem(await catalogueOf(staff), "Brushed Pewter");
+
+    await family
+      .post("/api/family/storefront/items")
+      .send({ itemId: urn.id })
+      .expect(201);
+
+    await staff.agent
+      .put(`/api/cases/${row.id}/selection`)
+      .send({ confirmed: true })
+      .expect(200);
+
+    expect((await family.get("/api/family/storefront").expect(200)).body.payment)
+      .not.toBeNull();
+
+    await staff.agent
+      .put(`/api/cases/${row.id}/selection`)
+      .send({ settled: true, settledNote: "Paid by check, 14 March." })
+      .expect(200);
+
+    // Asking somebody to pay again for their mother's funeral is the worst
+    // version of this screen there is. The statement stays; the link goes.
+    const after = await family.get("/api/family/storefront").expect(200);
+
+    expect(after.body.payment).toBeNull();
+    expect(JSON.stringify(after.body)).not.toContain("pay.horanandmcconaty.com");
+    expect(after.body.selection.totalCents).toBe(29550);
+  });
+
   it("refuses a payment page that is not https", async () => {
     const staff = await tradingHome();
 

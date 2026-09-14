@@ -1,11 +1,11 @@
 import { useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import {
-  catalogueQueryKey,
+  getGetCatalogueQueryKey,
   priceListUrl,
-  saveStorefrontSettings,
-  storefrontSettingsQueryKey,
-  useStorefrontSettings,
+  updateStorefrontSettings,
+  getGetStorefrontSettingsQueryKey,
+  useGetStorefrontSettings,
   PRICE_LIST_LABELS,
   PRICE_LIST_KINDS,
   type Catalogue,
@@ -41,19 +41,19 @@ function isoDay(value: string | null): string {
 export function PriceListPanel({ catalogue }: { catalogue: Catalogue }) {
   const { toast } = useToast();
   const queryClient = useQueryClient();
-  const settings = useStorefrontSettings();
+  const settings = useGetStorefrontSettings();
 
   const [saving, setSaving] = useState(false);
 
   const refresh = () => {
-    void queryClient.invalidateQueries({ queryKey: storefrontSettingsQueryKey });
-    void queryClient.invalidateQueries({ queryKey: catalogueQueryKey });
+    void queryClient.invalidateQueries({ queryKey: getGetStorefrontSettingsQueryKey() });
+    void queryClient.invalidateQueries({ queryKey: getGetCatalogueQueryKey() });
   };
 
-  async function save(values: Parameters<typeof saveStorefrontSettings>[0]) {
+  async function save(values: Parameters<typeof updateStorefrontSettings>[0]) {
     setSaving(true);
     try {
-      await saveStorefrontSettings(values);
+      await updateStorefrontSettings(values);
       refresh();
     } catch (error) {
       toast({

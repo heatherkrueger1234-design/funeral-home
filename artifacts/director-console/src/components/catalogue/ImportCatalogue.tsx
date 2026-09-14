@@ -1,9 +1,9 @@
 import { useRef, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import {
-  catalogueQueryKey,
-  previewCatalogueImport,
-  runCatalogueImport,
+  getGetCatalogueQueryKey,
+  postCatalogueImportPreviewMultipart,
+  postCatalogueImportMultipart,
   formatPrice,
   SECTION_LABELS,
   type CatalogueImportPreview,
@@ -91,7 +91,7 @@ export function ImportCatalogue() {
     setBusy(true);
 
     try {
-      const result = await previewCatalogueImport(chosen);
+      const result = await postCatalogueImportPreviewMultipart(chosen);
       setPreview(result);
       setSections(
         Object.fromEntries(result.categories.map((row) => [row.name, row.section])),
@@ -113,9 +113,9 @@ export function ImportCatalogue() {
     setBusy(true);
 
     try {
-      const result = await runCatalogueImport(file, sections);
+      const result = await postCatalogueImportMultipart(file, sections);
 
-      void queryClient.invalidateQueries({ queryKey: catalogueQueryKey });
+      void queryClient.invalidateQueries({ queryKey: getGetCatalogueQueryKey() });
 
       toast({
         title:

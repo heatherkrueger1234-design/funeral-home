@@ -1,4 +1,4 @@
-import { useCatalogue } from "@workspace/api-client-react";
+import { useGetCatalogue } from "@workspace/api-client-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Loader2 } from "lucide-react";
 import { ImportCatalogue } from "@/components/catalogue/ImportCatalogue";
@@ -15,7 +15,7 @@ import { PriceListPanel } from "@/components/catalogue/PriceListPanel";
  * be competing with the selection room it was sold to.
  */
 export default function Catalogue() {
-  const catalogue = useCatalogue();
+  const catalogue = useGetCatalogue();
 
   if (catalogue.isPending) {
     return (

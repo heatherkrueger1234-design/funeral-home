@@ -18,13 +18,16 @@ import {
 import { badRequest, parseBody, parseId, requireRow } from "../lib/http";
 import { tenant } from "../middleware/require-auth";
 import {
-  CreateCategoryBody,
-  CreateItemBody,
-  CreatePackageBody,
-  UpdateCategoryBody,
-  UpdateItemBody,
-  UpdatePackageBody,
+  CreateCatalogueCategoryBody,
+  CreateCatalogueItemBody,
+  CreateCataloguePackageBody,
+  UpdateCatalogueCategoryBody,
+  UpdateCatalogueItemBody,
+  UpdateCataloguePackageBody,
   UpdateStorefrontSettingsBody,
+} from "@workspace/api-zod";
+import {
+  blankToNull,
   catalogueFor,
   dataUri,
   ensureSettings,
@@ -212,14 +215,14 @@ async function nextPosition(
 
 router.post("/catalogue/categories", async (req, res) => {
   const home = tenant(req);
-  const values = parseBody(CreateCategoryBody, req.body);
+  const values = parseBody(CreateCatalogueCategoryBody, req.body);
 
   const [created] = await db
     .insert(catalogueCategoriesTable)
     .values({
       funeralHomeId: home.id,
       name: values.name,
-      description: values.description ?? null,
+      description: blankToNull(values.description),
       section: values.section,
       position: await nextPosition(
         catalogueCategoriesTable,
@@ -236,7 +239,7 @@ router.post("/catalogue/categories", async (req, res) => {
 
 router.put("/catalogue/categories/:categoryId", async (req, res) => {
   const existing = await loadCategory(req, req.params.categoryId);
-  const { archived, ...values } = parseBody(UpdateCategoryBody, req.body);
+  const { archived, ...values } = parseBody(UpdateCatalogueCategoryBody, req.body);
 
   const [updated] = await db
     .update(catalogueCategoriesTable)
@@ -301,7 +304,7 @@ router.delete("/catalogue/categories/:categoryId", async (req, res) => {
 
 router.post("/catalogue/items", async (req, res) => {
   const home = tenant(req);
-  const values = parseBody(CreateItemBody, req.body);
+  const values = parseBody(CreateCatalogueItemBody, req.body);
 
   const category = await loadCategory(req, String(values.categoryId));
   await assertOwnUpload(home.id, values.photoUploadId ?? null);
@@ -312,10 +315,10 @@ router.post("/catalogue/items", async (req, res) => {
       funeralHomeId: home.id,
       categoryId: category.id,
       name: values.name,
-      description: values.description ?? null,
-      itemCode: values.itemCode ?? null,
+      description: blankToNull(values.description),
+      itemCode: blankToNull(values.itemCode),
       priceCents: values.priceCents,
-      priceUnit: values.priceUnit ?? null,
+      priceUnit: blankToNull(values.priceUnit),
       photoUploadId: values.photoUploadId ?? null,
       availability: values.availability ?? "available",
       position: await nextPosition(
@@ -332,7 +335,7 @@ router.put("/catalogue/items/:itemId", async (req, res) => {
   const home = tenant(req);
   const existing = await loadItem(req, req.params.itemId);
   const { archived, categoryId, ...values } = parseBody(
-    UpdateItemBody,
+    UpdateCatalogueItemBody,
     req.body,
   );
 
@@ -440,7 +443,7 @@ async function ownItems(
 
 router.post("/catalogue/packages", async (req, res) => {
   const home = tenant(req);
-  const values = parseBody(CreatePackageBody, req.body);
+  const values = parseBody(CreateCataloguePackageBody, req.body);
   const items = await ownItems(home.id, values.itemIds);
 
   const created = await db.transaction(async (tx) => {
@@ -449,7 +452,7 @@ router.post("/catalogue/packages", async (req, res) => {
       .values({
         funeralHomeId: home.id,
         name: values.name,
-        description: values.description ?? null,
+        description: blankToNull(values.description),
         priceCents: values.priceCents,
         position: await nextPosition(
           cataloguePackagesTable,
@@ -477,7 +480,7 @@ router.post("/catalogue/packages", async (req, res) => {
 router.put("/catalogue/packages/:packageId", async (req, res) => {
   const home = tenant(req);
   const existing = await loadPackage(req, req.params.packageId);
-  const { archived, itemIds, ...values } = parseBody(UpdatePackageBody, req.body);
+  const { archived, itemIds, ...values } = parseBody(UpdateCataloguePackageBody, req.body);
 
   const items = itemIds ? await ownItems(home.id, itemIds) : null;
 

@@ -1,20 +1,20 @@
 import { useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import {
-  addFamilyProvided,
-  addFamilySelectionItem,
-  addFamilySelectionPackage,
+  addFamilyProvidedToStorefront,
+  addFamilyStorefrontItem,
+  addFamilyStorefrontPackage,
   fetchFamilyCataloguePhoto,
   familyPriceListUrl,
   familyStatementUrl,
-  familyStorefrontQueryKey,
+  getGetFamilyStorefrontQueryKey,
   formatPrice,
-  removeFamilySelectionLine,
-  useFamilyStorefront,
+  removeFamilyStorefrontLine,
+  useGetFamilyStorefront,
   useGetFamilySession,
   type CatalogueItem,
   type PaymentHandoff,
-  type SelectionLine,
+  type MerchandiseSelectionLine,
 } from "@workspace/api-client-react";
 import { voiceFor } from "@/lib/voice";
 import { FamilyImage } from "@/components/FamilyImage";
@@ -90,13 +90,18 @@ export default function Choices() {
    * price list is what unlocks the caskets, it opens in a new tab, and
    * coming back to find nothing changed would read as the page being broken.
    */
-  const storefront = useFamilyStorefront({ refetchOnWindowFocus: true });
+  const storefront = useGetFamilyStorefront({
+    query: {
+      queryKey: getGetFamilyStorefrontQueryKey(),
+      refetchOnWindowFocus: true,
+    },
+  });
 
   const [busy, setBusy] = useState(false);
   const [broughtIn, setBroughtIn] = useState("");
 
   const refresh = () =>
-    void queryClient.invalidateQueries({ queryKey: familyStorefrontQueryKey });
+    void queryClient.invalidateQueries({ queryKey: getGetFamilyStorefrontQueryKey() });
 
   async function act(work: () => Promise<unknown>) {
     setBusy(true);
@@ -196,7 +201,7 @@ export default function Choices() {
           lines={selection.lines}
           totalCents={selection.totalCents}
           readOnly={confirmed || busy}
-          onRemove={(lineId) => void act(() => removeFamilySelectionLine(lineId))}
+          onRemove={(lineId) => void act(() => removeFamilyStorefrontLine(lineId))}
         />
       )}
 
@@ -258,7 +263,7 @@ export default function Choices() {
                       variant="outline"
                       disabled={busy}
                       onClick={() =>
-                        void act(() => addFamilySelectionPackage(pack.id))
+                        void act(() => addFamilyStorefrontPackage({ packageId: pack.id }))
                       }
                     >
                       Choose this
@@ -320,7 +325,7 @@ export default function Choices() {
                           disabled={busy}
                           onClick={() =>
                             void act(() =>
-                              addFamilySelectionItem({ itemId: item.id }),
+                              addFamilyStorefrontItem({ itemId: item.id }),
                             )
                           }
                         >
@@ -376,7 +381,7 @@ export default function Choices() {
               disabled={busy || broughtIn.trim() === ""}
               onClick={() =>
                 void act(async () => {
-                  await addFamilyProvided({ name: broughtIn.trim() });
+                  await addFamilyProvidedToStorefront({ name: broughtIn.trim() });
                   setBroughtIn("");
                 })
               }
@@ -402,7 +407,7 @@ function Chosen({
   readOnly,
   onRemove,
 }: {
-  lines: SelectionLine[];
+  lines: MerchandiseSelectionLine[];
   totalCents: number;
   readOnly: boolean;
   onRemove: (lineId: number) => void;

@@ -2,19 +2,19 @@ import { useState } from "react";
 import { Link } from "wouter";
 import { useQueryClient } from "@tanstack/react-query";
 import {
-  addCaseFamilyProvided,
-  addCaseSelectionItem,
-  addCaseSelectionPackage,
-  caseSelectionQueryKey,
+  addFamilyProvidedItem,
+  addSelectionItem,
+  addSelectionPackage,
+  getGetCaseStorefrontQueryKey,
   formatPrice,
   recordGplGiven,
-  removeCaseSelectionLine,
+  removeSelectionLine,
   statementUrl,
-  updateCaseSelection,
-  useCaseSelection,
+  updateMerchandiseSelection,
+  useGetCaseStorefront,
   SECTION_LABELS,
   type CatalogueSection,
-  type SelectionLine,
+  type MerchandiseSelectionLine,
 } from "@workspace/api-client-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -53,14 +53,14 @@ export function ArrangementPanel({
 }) {
   const { toast } = useToast();
   const queryClient = useQueryClient();
-  const storefront = useCaseSelection(caseId);
+  const storefront = useGetCaseStorefront(caseId);
 
   const [busy, setBusy] = useState(false);
   const [broughtIn, setBroughtIn] = useState("");
   const [picking, setPicking] = useState<string>("");
 
   const refresh = () =>
-    void queryClient.invalidateQueries({ queryKey: caseSelectionQueryKey(caseId) });
+    void queryClient.invalidateQueries({ queryKey: getGetCaseStorefrontQueryKey(caseId) });
 
   async function act(work: () => Promise<unknown>) {
     setBusy(true);
@@ -109,7 +109,7 @@ export function ArrangementPanel({
     );
   }
 
-  const groups = new Map<string, SelectionLine[]>();
+  const groups = new Map<string, MerchandiseSelectionLine[]>();
   for (const line of selection.lines) {
     const key =
       line.kind === "package_adjustment"
@@ -185,7 +185,7 @@ export function ArrangementPanel({
                           aria-label={`Take ${line.name} off the list`}
                           disabled={busy || line.kind === "package_adjustment"}
                           onClick={() =>
-                            void act(() => removeCaseSelectionLine(caseId, line.id))
+                            void act(() => removeSelectionLine(caseId, line.id))
                           }
                         >
                           <Trash2 className="size-4" />
@@ -217,7 +217,7 @@ export function ArrangementPanel({
               const next = event.target.value;
               if (next === (selection.notes ?? "")) return;
               void act(() =>
-                updateCaseSelection(caseId, { notes: next === "" ? null : next }),
+                updateMerchandiseSelection(caseId, { notes: next === "" ? null : next }),
               );
             }}
           />
@@ -237,7 +237,7 @@ export function ArrangementPanel({
               variant="ghost"
               disabled={busy}
               onClick={() =>
-                void act(() => updateCaseSelection(caseId, { confirmed: false }))
+                void act(() => updateMerchandiseSelection(caseId, { confirmed: false }))
               }
             >
               Reopen it
@@ -246,7 +246,7 @@ export function ArrangementPanel({
             <Button
               disabled={busy || empty}
               onClick={() =>
-                void act(() => updateCaseSelection(caseId, { confirmed: true }))
+                void act(() => updateMerchandiseSelection(caseId, { confirmed: true }))
               }
             >
               <Check className="size-4" />
@@ -274,7 +274,7 @@ export function ArrangementPanel({
                     const next = event.target.value;
                     if (next === (selection.settledNote ?? "")) return;
                     void act(() =>
-                      updateCaseSelection(caseId, {
+                      updateMerchandiseSelection(caseId, {
                         settledNote: next === "" ? null : next,
                       }),
                     );
@@ -286,7 +286,7 @@ export function ArrangementPanel({
                 disabled={busy}
                 onClick={() =>
                   void act(() =>
-                    updateCaseSelection(caseId, { settled: !selection.settledAt }),
+                    updateMerchandiseSelection(caseId, { settled: !selection.settledAt }),
                   )
                 }
               >
@@ -345,10 +345,10 @@ export function ArrangementPanel({
                   const [kind, id] = value.split(":");
                   if (kind === "item") {
                     void act(() =>
-                      addCaseSelectionItem(caseId, { itemId: Number(id) }),
+                      addSelectionItem(caseId, { itemId: Number(id) }),
                     );
                   } else {
-                    void act(() => addCaseSelectionPackage(caseId, Number(id)));
+                    void act(() => addSelectionPackage(caseId, { packageId: Number(id) }));
                   }
                 }}
               >
@@ -390,7 +390,7 @@ export function ArrangementPanel({
                   disabled={busy || broughtIn.trim() === ""}
                   onClick={() =>
                     void act(async () => {
-                      await addCaseFamilyProvided(caseId, { name: broughtIn.trim() });
+                      await addFamilyProvidedItem(caseId, { name: broughtIn.trim() });
                       setBroughtIn("");
                     })
                   }

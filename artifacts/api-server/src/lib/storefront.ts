@@ -1,5 +1,10 @@
 import { and, asc, eq, inArray, isNull, sql } from "drizzle-orm";
-import { z } from "zod";
+import type { z } from "zod";
+import {
+  AddFamilyProvidedItemBody,
+  UpdateMerchandiseSelectionBody,
+  UpdateSelectionLineBody,
+} from "@workspace/api-zod";
 import {
   db,
   uploadsTable,
@@ -11,7 +16,6 @@ import {
   merchandiseSelectionsTable,
   storefrontSettingsTable,
   CATALOGUE_SECTIONS,
-  ITEM_AVAILABILITY,
   GPL_DISCLOSURES,
   SECTIONS_BEHIND_THE_GPL,
   hasGeneralPriceList,
@@ -25,7 +29,7 @@ import {
   type StorefrontSettings,
 } from "@workspace/db";
 import { decryptBuffer } from "@workspace/db/crypto";
-import { badRequest } from "./http";
+import { badRequest, parseBody } from "./http";
 import type { PriceListCategory, PriceListKind } from "./price-list-render";
 
 /**
@@ -38,179 +42,97 @@ import type { PriceListCategory, PriceListKind } from "./price-list-render";
  * total, which is the one bug in this component a family would actually
  * notice.
  *
- * TODO(C1): the request bodies here are hand-written because the OpenAPI
- * spec has not been split into per-domain files yet. When it is, they move
- * to `lib/api-spec/paths/catalogue.yaml` and this file imports the generated
- * validators instead. Nothing else about the shape should change.
+ * The request bodies come from `openapi.yaml` under the `catalogue` and
+ * `orders` tags, like every other surface in this API. Read `assertNoExtraKeys`
+ * below before adding one: the generator drops an unknown key where the spec
+ * says to refuse it, and on this component's no-fee path that difference is
+ * the whole point.
  */
 
 /* --------------------------------------------------------------- bodies -- */
 
-const sectionSchema = z.enum(
-  CATALOGUE_SECTIONS as unknown as [string, ...string[]],
-);
+/**
+ * The request bodies, generated from `openapi.yaml` — with one thing put
+ * back by hand.
+ *
+ * Orval does not carry `additionalProperties: false` through to `.strict()`,
+ * so a generated validator *drops* an unknown key rather than refusing it.
+ * For most bodies that is the behaviour we want and `parseBody` says so. For
+ * the three below it is not, and the one that matters is
+ * `FamilyProvidedInput`: a client attaching a fee to a third-party casket
+ * must be told no, not quietly ignored, because the difference between
+ * "refused" and "silently dropped" is the difference between a rule the
+ * product enforces and a rule it merely happens to obey today.
+ *
+ * So the spec says `additionalProperties: false`, which is the contract, and
+ * this re-applies it, which is the enforcement. If orval ever learns to emit
+ * `.strict()`, delete this and the schemas below become the whole story.
+ */
+function assertNoExtraKeys(
+  body: unknown,
+  allowed: readonly string[],
+  what: string,
+): void {
+  if (!body || typeof body !== "object") return;
 
-const trimmed = (max: number) => z.string().trim().min(1).max(max);
-const optionalText = (max: number) =>
-  z
-    .string()
-    .trim()
-    .max(max)
-    .transform((value) => (value === "" ? null : value))
-    .nullable()
-    .optional();
+  const extra = Object.keys(body).filter((key) => !allowed.includes(key));
+  if (extra.length === 0) return;
+
+  throw badRequest(`${what} does not take ${extra.join(", ")}.`);
+}
 
 /**
- * A price, in whole cents, and nothing clever.
+ * "We are bringing our own", and the only fields it will ever accept.
  *
- * Capped at ten million dollars, which no casket has ever cost and which
- * stops a stray "129500000" in a spreadsheet column from printing a number
- * that makes a home look ridiculous in front of a family.
+ * A funeral provider may not refuse a casket or urn a family bought
+ * elsewhere and may not charge a handling fee for one. The surest way to
+ * keep a fee out of a product is to build nowhere to put one — so there is
+ * no price column reachable from this path, no price in this body, and a
+ * request that invents one is refused rather than trimmed.
  */
-const priceCents = z.number().int().min(0).max(1_000_000_000);
+const FAMILY_PROVIDED_KEYS = ["name", "notes"] as const;
+const SELECTION_LINE_KEYS = ["quantity", "notes"] as const;
+const SELECTION_KEYS = [
+  "notes",
+  "confirmed",
+  "settled",
+  "settledNote",
+] as const;
 
-export const CreateCategoryBody = z.object({
-  name: trimmed(120),
-  description: optionalText(400),
-  section: sectionSchema,
-});
+export function parseFamilyProvided(
+  body: unknown,
+): z.infer<typeof AddFamilyProvidedItemBody> {
+  assertNoExtraKeys(body, FAMILY_PROVIDED_KEYS, "Bringing your own");
+  return parseBody(AddFamilyProvidedItemBody, body);
+}
 
-export const UpdateCategoryBody = z
-  .object({
-    name: trimmed(120).optional(),
-    description: optionalText(400),
-    section: sectionSchema.optional(),
-    position: z.number().int().min(0).optional(),
-    archived: z.boolean().optional(),
-  })
-  .strict();
+export function parseSelectionLineUpdate(
+  body: unknown,
+): z.infer<typeof UpdateSelectionLineBody> {
+  assertNoExtraKeys(body, SELECTION_LINE_KEYS, "That change");
+  return parseBody(UpdateSelectionLineBody, body);
+}
 
-export const CreateItemBody = z.object({
-  categoryId: z.number().int().positive(),
-  name: trimmed(200),
-  description: optionalText(2000),
-  itemCode: optionalText(100),
-  priceCents,
-  priceUnit: optionalText(40),
-  photoUploadId: z.number().int().positive().nullable().optional(),
-  availability: z
-    .enum(ITEM_AVAILABILITY as unknown as [string, ...string[]])
-    .optional(),
-});
-
-export const UpdateItemBody = z
-  .object({
-    categoryId: z.number().int().positive().optional(),
-    name: trimmed(200).optional(),
-    description: optionalText(2000),
-    itemCode: optionalText(100),
-    priceCents: priceCents.optional(),
-    priceUnit: optionalText(40),
-    photoUploadId: z.number().int().positive().nullable().optional(),
-    availability: z
-      .enum(ITEM_AVAILABILITY as unknown as [string, ...string[]])
-      .optional(),
-    position: z.number().int().min(0).optional(),
-    archived: z.boolean().optional(),
-  })
-  .strict();
-
-export const CreatePackageBody = z.object({
-  name: trimmed(160),
-  description: optionalText(1000),
-  priceCents,
-  itemIds: z.array(z.number().int().positive()).min(1).max(60),
-});
-
-export const UpdatePackageBody = z
-  .object({
-    name: trimmed(160).optional(),
-    description: optionalText(1000),
-    priceCents: priceCents.optional(),
-    itemIds: z.array(z.number().int().positive()).min(1).max(60).optional(),
-    archived: z.boolean().optional(),
-  })
-  .strict();
-
-const disclosureKeys = GPL_DISCLOSURES.map((slot) => slot.key);
-
-export const UpdateStorefrontSettingsBody = z
-  .object({
-    /** ISO date. Null withdraws the price list and, with it, the storefront. */
-    gplEffectiveOn: z.coerce.date().nullable().optional(),
-    disclosures: z
-      .record(z.enum(disclosureKeys as unknown as [string, ...string[]]), z.string().max(4000))
-      .optional(),
-    priceListFootnote: optionalText(2000),
-    /**
-     * Must be `https`. A payment link sent to a bereaved family is the exact
-     * shape of a scam, and one that is not even encrypted has no business
-     * being printed under a funeral home's name.
-     */
-    paymentPageUrl: z
-      .string()
-      .trim()
-      .max(500)
-      .refine(
-        (value) => value === "" || /^https:\/\/\S+$/i.test(value),
-        "A payment page address has to start with https://",
-      )
-      .transform((value) => (value === "" ? null : value))
-      .nullable()
-      .optional(),
-    paymentInstructions: optionalText(2000),
-  })
-  .strict();
+export function parseSelectionUpdate(
+  body: unknown,
+): z.infer<typeof UpdateMerchandiseSelectionBody> {
+  assertNoExtraKeys(body, SELECTION_KEYS, "That change");
+  return parseBody(UpdateMerchandiseSelectionBody, body);
+}
 
 /**
- * Adding to a selection.
+ * An empty box is an empty box.
  *
- * There is no price in this body and there never will be. What a thing costs
- * comes from the home's own catalogue row, copied at the moment the line is
- * written — a client that could name a price could name a different one.
+ * A textarea that has been cleared sends `""`, and storing that rather than
+ * null means "is there a footnote" answers yes to nothing at all. The spec
+ * cannot express it, so it is normalised once here rather than at each of
+ * the dozen call sites that would otherwise have to remember.
  */
-export const AddSelectionItemBody = z
-  .object({
-    itemId: z.number().int().positive(),
-    quantity: z.number().int().min(1).max(99).optional(),
-  })
-  .strict();
-
-export const AddPackageToSelectionBody = z
-  .object({ packageId: z.number().int().positive() })
-  .strict();
-
-/**
- * "We are bringing our own."
- *
- * A description, and optionally a note about who is bringing it and when.
- * There is no fee field, no handling charge and no price of any kind, here
- * or in the table this writes to — a funeral provider may not refuse a
- * casket or urn a family bought elsewhere and may not charge for accepting
- * one, and a field that exists is a field somebody eventually fills in.
- */
-export const AddFamilyProvidedBody = z
-  .object({
-    name: trimmed(200),
-    notes: optionalText(500),
-  })
-  .strict();
-
-export const UpdateSelectionItemBody = z
-  .object({
-    quantity: z.number().int().min(1).max(99).optional(),
-    notes: optionalText(500),
-  })
-  .strict();
-
-export const UpdateSelectionBody = z
-  .object({
-    notes: optionalText(4000),
-    confirmed: z.boolean().optional(),
-    settled: z.boolean().optional(),
-    settledNote: optionalText(500),
-  })
-  .strict();
+export function blankToNull(value: string | null | undefined): string | null {
+  if (value === undefined || value === null) return null;
+  const trimmed = value.trim();
+  return trimmed === "" ? null : trimmed;
+}
 
 /* ---------------------------------------------------------- the settings -- */
 

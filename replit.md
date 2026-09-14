@@ -278,6 +278,23 @@ trust; there are two lawful funding methods and neither is a payment link.
 fails if a card field, a balance or a second Stripe surface ever appears in
 it. Everything else in that file would still pass if one did.
 
+One more absence is worth naming, because it is a sentence in the interface
+rather than a rule: once a director ticks a statement off against their own
+books, the family stops being offered a way to pay it. Asking somebody to pay
+again for their mother's funeral is the worst version of that screen there is.
+
+### A note on `additionalProperties: false`
+
+The spec marks the no-fee bodies `additionalProperties: false`, and orval does
+not carry that through to `.strict()` — a generated validator *drops* an
+unknown key where the spec says to refuse it. For most bodies that is what we
+want. For "we are bringing our own" it is not: a client attaching a fee to a
+third-party casket must be told no, because the difference between "refused"
+and "silently ignored" is the difference between a rule the product enforces
+and one it merely happens to obey today. `assertNoExtraKeys` in
+`artifacts/api-server/src/lib/storefront.ts` puts it back. If orval ever
+learns to emit `.strict()`, delete it.
+
 ## Tests
 
 `artifacts/api-server/test` runs against a real Postgres with no mocks, because

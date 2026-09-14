@@ -1,9 +1,9 @@
 import { useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import {
-  catalogueQueryKey,
-  createPackage,
-  deletePackage,
+  getGetCatalogueQueryKey,
+  createCataloguePackage,
+  deleteCataloguePackage,
   formatPrice,
   type Catalogue,
 } from "@workspace/api-client-react";
@@ -47,7 +47,7 @@ export function PackagesPanel({ catalogue }: { catalogue: Catalogue }) {
   const [busy, setBusy] = useState(false);
 
   const refresh = () =>
-    void queryClient.invalidateQueries({ queryKey: catalogueQueryKey });
+    void queryClient.invalidateQueries({ queryKey: getGetCatalogueQueryKey() });
 
   const allItems = catalogue.categories.flatMap((category) =>
     category.items.map((item) => ({ ...item, categoryName: category.name })),
@@ -64,7 +64,7 @@ export function PackagesPanel({ catalogue }: { catalogue: Catalogue }) {
     if (!ready) return;
     setBusy(true);
     try {
-      await createPackage({ name: name.trim(), priceCents: cents, itemIds: chosen });
+      await createCataloguePackage({ name: name.trim(), priceCents: cents, itemIds: chosen });
       setName("");
       setPrice("");
       setChosen([]);
@@ -110,7 +110,7 @@ export function PackagesPanel({ catalogue }: { catalogue: Catalogue }) {
                   size="sm"
                   className="ml-auto text-muted-foreground"
                   onClick={async () => {
-                    await deletePackage(pack.id);
+                    await deleteCataloguePackage(pack.id);
                     refresh();
                   }}
                 >

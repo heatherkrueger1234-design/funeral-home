@@ -21,12 +21,15 @@ import { currentUser, tenant } from "../middleware/require-auth";
 import { familyCase, familyHome } from "../middleware/require-family";
 import { serveUpload } from "../lib/media";
 import {
-  AddFamilyProvidedBody,
-  AddPackageToSelectionBody,
   AddSelectionItemBody,
-  UpdateSelectionBody,
-  UpdateSelectionItemBody,
+  AddSelectionPackageBody,
+} from "@workspace/api-zod";
+import {
   assertMayShowCaskets,
+  blankToNull,
+  parseFamilyProvided,
+  parseSelectionLineUpdate,
+  parseSelectionUpdate,
   browsableSections,
   catalogueFor,
   dataUri,
@@ -67,9 +70,8 @@ import { loadCase } from "./cases";
  * goes down a path with no price on it at all, because a provider may not
  * refuse a third-party casket and may not charge for handling one.
  *
- * TODO(C1): these paths join `lib/api-spec/paths/orders.yaml` once the spec
- * split lands. Until then both front ends call them through the hand-written
- * client in `lib/api-client-react/src/storefront.ts`.
+ * Every path here is in `openapi.yaml` under the `orders` tag, and both front
+ * ends reach them through the hooks orval generates from it.
  */
 
 const router: IRouter = Router();
@@ -313,7 +315,7 @@ async function addFamilyProvided(
     selectionId: selection.id,
     kind: "family_provided",
     name: values.name,
-    notes: values.notes ?? null,
+    notes: blankToNull(values.notes),
     quantity: 1,
     position: await nextLinePosition(selection.id),
   });
@@ -387,7 +389,7 @@ async function updateLine(
     .update(merchandiseSelectionItemsTable)
     .set({
       ...(values.quantity === undefined ? {} : { quantity: values.quantity }),
-      ...(values.notes === undefined ? {} : { notes: values.notes }),
+      ...(values.notes === undefined ? {} : { notes: blankToNull(values.notes) }),
       updatedAt: new Date(),
     })
     .where(eq(merchandiseSelectionItemsTable.id, line.id));
@@ -400,14 +402,17 @@ async function updateLine(
 /**
  * Where a family is told to send the money, which is never to us.
  *
- * Three rules are baked into this one function so that neither front end can
+ * Four rules are baked into this one function so that neither front end can
  * get them wrong. A pre-need plan gets nothing at all — recording a plan is
  * lawful and taking money for it is a licensed activity we do not perform.
  * A draft gets nothing, because a family should not be nudged towards paying
- * for an arrangement the director has not yet agreed. And what comes back is
- * a link and some words, never an amount received or a status: we do not
- * process payments, so we do not know, and saying otherwise would be a lie
- * told to somebody at their most trusting.
+ * for an arrangement the director has not yet agreed. Once the director has
+ * ticked it off against their own books the link goes away, because asking
+ * somebody to pay again for their mother's funeral is the worst version of
+ * this screen there is. And what comes back is a link and some words, never
+ * an amount received or a status: we do not process payments, so we do not
+ * know, and saying otherwise would be a lie told to somebody at their most
+ * trusting.
  */
 async function paymentHandoff(
   funeralHomeId: number,
@@ -417,6 +422,7 @@ async function paymentHandoff(
 ): Promise<Record<string, unknown> | null> {
   if (!mayDiscussPayment(subject)) return null;
   if (selection.status !== "confirmed") return null;
+  if (selection.settledAt !== null) return null;
 
   const settings = await settingsFor(funeralHomeId);
   const url = settings?.paymentPageUrl?.trim() || null;
@@ -560,7 +566,7 @@ router.post("/cases/:caseId/selection/items", async (req, res) => {
 router.post("/cases/:caseId/selection/packages", async (req, res) => {
   const home = tenant(req);
   const row = await loadCase(req, req.params.caseId);
-  const values = parseBody(AddPackageToSelectionBody, req.body);
+  const values = parseBody(AddSelectionPackageBody, req.body);
 
   await addPackage(staffActor(req, row), values.packageId);
 
@@ -573,7 +579,7 @@ router.post("/cases/:caseId/selection/family-provided", async (req, res) => {
 
   await addFamilyProvided(
     staffActor(req, row),
-    parseBody(AddFamilyProvidedBody, req.body),
+    parseFamilyProvided(req.body),
   );
 
   res.status(201).json(toSelectionJson((await selectionFor(row.id, home.id))!));
@@ -586,7 +592,7 @@ router.put("/cases/:caseId/selection/items/:lineId", async (req, res) => {
   await updateLine(
     staffActor(req, row),
     parseId(req.params.lineId),
-    parseBody(UpdateSelectionItemBody, req.body),
+    parseSelectionLineUpdate(req.body),
   );
 
   res.json(toSelectionJson((await selectionFor(row.id, home.id))!));
@@ -614,7 +620,7 @@ router.put("/cases/:caseId/selection", async (req, res) => {
   const home = tenant(req);
   const user = currentUser(req);
   const row = await loadCase(req, req.params.caseId);
-  const values = parseBody(UpdateSelectionBody, req.body);
+  const values = parseSelectionUpdate(req.body);
 
   const entry = await ensureSelection(row.id, home.id);
 
@@ -633,7 +639,7 @@ router.put("/cases/:caseId/selection", async (req, res) => {
   await db
     .update(merchandiseSelectionsTable)
     .set({
-      ...(values.notes === undefined ? {} : { notes: values.notes }),
+      ...(values.notes === undefined ? {} : { notes: blankToNull(values.notes) }),
       ...(values.confirmed === undefined
         ? {}
         : values.confirmed
@@ -652,7 +658,7 @@ router.put("/cases/:caseId/selection", async (req, res) => {
           : { settledAt: null, settledByUserId: null }),
       ...(values.settledNote === undefined
         ? {}
-        : { settledNote: values.settledNote }),
+        : { settledNote: blankToNull(values.settledNote) }),
       updatedAt: new Date(),
     })
     .where(eq(merchandiseSelectionsTable.id, entry.selection.id));
@@ -754,7 +760,7 @@ familyStorefrontRouter.post("/storefront/items", async (req, res) => {
 
 familyStorefrontRouter.post("/storefront/packages", async (req, res) => {
   const actor = familyActor(req);
-  const values = parseBody(AddPackageToSelectionBody, req.body);
+  const values = parseBody(AddSelectionPackageBody, req.body);
 
   await addPackage(actor, values.packageId);
 
@@ -774,7 +780,7 @@ familyStorefrontRouter.post("/storefront/packages", async (req, res) => {
  */
 familyStorefrontRouter.post("/storefront/family-provided", async (req, res) => {
   const actor = familyActor(req);
-  await addFamilyProvided(actor, parseBody(AddFamilyProvidedBody, req.body));
+  await addFamilyProvided(actor, parseFamilyProvided(req.body));
 
   res
     .status(201)
@@ -787,7 +793,7 @@ familyStorefrontRouter.put("/storefront/items/:lineId", async (req, res) => {
   await updateLine(
     actor,
     parseId(req.params.lineId),
-    parseBody(UpdateSelectionItemBody, req.body),
+    parseSelectionLineUpdate(req.body),
   );
 
   res.json(
