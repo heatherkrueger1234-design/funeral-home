@@ -65,6 +65,9 @@
 #   BACKUP_REMOTE, RCLONE_CONFIG  the same two deploy/backup-offsite.sh uses.
 #                   Needed here only to read the remote's newest timestamp;
 #                   nothing is written.
+#   RCLONE_NETWORK  optional, and the same one backup-offsite.sh takes. Set it
+#                   wherever that script needs it, or this check cannot reach
+#                   the remote and reports a backup that is fine as missing.
 #   COMPOSE_FILE    defaults to the docker-compose.yml above this script.
 #
 #   30 * * * *  /srv/funeral-home/deploy/monitor.sh >> /var/log/fh-monitor.log 2>&1
@@ -237,16 +240,37 @@ elif [ -z "${RCLONE_CONFIG:-}" ] || [ ! -f "${RCLONE_CONFIG:-}" ]; then
   problem "BACKUP_REMOTE is set but RCLONE_CONFIG does not point at a readable file — the offsite copy cannot be running"
 else
   MAX_OFFSITE_AGE_H="${MAX_OFFSITE_AGE_H:-30}"
+  # RCLONE_NETWORK, exactly as deploy/backup-offsite.sh takes it. Without it
+  # this listing cannot reach a remote that lives on a docker network -- and
+  # rclone's failure to reach a remote produces an empty listing, which reads
+  # identically to an empty bucket. The result was a nightly page saying the
+  # backup had never worked, on a host where backup-offsite.sh was copying and
+  # verifying it correctly every night, because that script passes the flag
+  # and this check did not. A pager that cries wolf is worse than no pager:
+  # the person learns to dismiss it, and is still dismissing it on the night
+  # it is right.
+  #
   # Modification times as rclone reports them, newest last. `lsl` rather than
   # `lsf` because the timestamp is the whole question.
+  OFFSITE_ERR="$(mktemp)"
   OFFSITE_NEWEST="$(docker run --rm \
+      ${RCLONE_NETWORK:+--network "$RCLONE_NETWORK"} \
       -v "${RCLONE_CONFIG}":/config/rclone/rclone.conf:ro \
       "${RCLONE_IMAGE:-rclone/rclone:1}" \
-      lsl "$BACKUP_REMOTE" --include 'holding-today-*.sql' 2>/dev/null \
+      lsl "$BACKUP_REMOTE" --include 'holding-today-*.sql' 2>"$OFFSITE_ERR" \
     | awk '{print $2" "$3}' | sort | tail -1)"
+  OFFSITE_WHY="$(tr -d '\r' < "$OFFSITE_ERR" | tail -1)"
+  rm -f "$OFFSITE_ERR"
 
   if [ -z "${OFFSITE_NEWEST// /}" ]; then
-    problem "there is no dump at $BACKUP_REMOTE at all — either the copy has never worked or the credential can no longer read the bucket"
+    # Distinguish "I looked and the bucket is empty" from "I could not look".
+    # Both need a human, and they need different humans doing different
+    # things: one is a broken copy job, the other is a broken check.
+    if [ -n "$OFFSITE_WHY" ]; then
+      problem "could not read $BACKUP_REMOTE, so whether an offsite copy exists is unknown: $OFFSITE_WHY"
+    else
+      problem "there is no dump at $BACKUP_REMOTE at all — either the copy has never worked or the credential can no longer read the bucket"
+    fi
   else
     OFFSITE_AGE_H=$(( ( $(date +%s) - $(date -d "$OFFSITE_NEWEST" +%s 2>/dev/null || echo 0) ) / 3600 ))
     if [ "$OFFSITE_AGE_H" -ge "$MAX_OFFSITE_AGE_H" ]; then
