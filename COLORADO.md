@@ -218,8 +218,8 @@ correct architecture and this document is where it gets written down.
 
 ---
 
-# Section 4 — Money
-### For Component 4 (payments and orders)
+# Section 4 — Money, and why almost none of it is ours
+### For Component 4 (the statement, and the handoff to the home)
 
 ## Do not build pre-need prepayment. This is not a close call.
 
@@ -246,18 +246,34 @@ exists.
 If this ever changes it changes because a Colorado insurance attorney said so
 in writing, not because it looked easy.
 
-## At-need payment is ordinary commerce, and is in scope
+## We do not take money, which removes most of this section
 
-Paying for a funeral that has happened, or is happening this week, is not
-preneed. Build that.
+The product processes no payments, holds no funds and stores no card details.
+A family that owes a funeral home money is sent to **the home's own payment
+page**, at the home's own processor, under the home's own merchant account.
 
-- **Stripe Connect, home as merchant of record.** The money is the home's and
-  never sits with us. This keeps us out of money transmission and out of the
-  home's tax and refund problems.
-- The **Statement of Funeral Goods and Services Selected** is the document at
-  the point of sale. Generate it, store it, let both sides print it.
-- Itemised, always. The line items the family agreed to, at the prices shown.
-- Refunds and disputes route to the home. We do not adjudicate.
+That is a deliberate architecture and it is what keeps this section short:
+
+- No funds routed on a home's behalf, so no money-transmission question in any
+  state we sell into.
+- No card data in the system, so no PCI scope.
+- No chargebacks, refunds or disputes to adjudicate — they stay with the home,
+  where the relationship and the bookkeeping already are.
+- No connected-account onboarding, which is the identity-verification wall that
+  would otherwise stand between a home and its first day of use.
+
+The only money in this system is **us charging the home its monthly
+subscription**, in `artifacts/api-server/src/lib/billing.ts`. That surface is
+not extended to families.
+
+What we do produce is the **Statement of Funeral Goods and Services Selected** —
+the itemised document the FTC Funeral Rule requires a provider to give at the
+end of an arrangement — generated from what the family actually selected, and
+printable by both sides.
+
+Nothing in the interface may imply we received or confirmed a payment. We do
+not know. A director marks a statement settled from the home's own books, and
+that mark is a note about their records, never a receipt from us.
 
 ## The Colorado Consumer Protection Act
 

@@ -47,7 +47,7 @@ another component owns, say so rather than editing it.
 | 1 | Identity, roles, levels, passwords | `lib/db/src/schema/{platform,users,family-contacts,sessions}.ts`, `artifacts/api-server/src/middleware/*`, `artifacts/api-server/src/lib/{auth,platform-auth,family-link}.ts`, `artifacts/api-server/src/routes/{auth,index}.ts`, the spec split | — |
 | 2 | Platform admin console | `artifacts/admin-console/**` (new app), `artifacts/api-server/src/routes/admin.ts`, `lib/api-spec/paths/admin.yaml` | 1 |
 | 3 | Storefront and catalogue | `lib/db/src/schema/{catalogue,storefront}.ts`, `artifacts/api-server/src/routes/catalogue.ts`, `lib/api-spec/paths/catalogue.yaml`, storefront pages in both frontends | 1 |
-| 4 | Payments and orders | `lib/db/src/schema/orders.ts`, `artifacts/api-server/src/{lib/payments.ts,routes/orders.ts}`, `lib/api-spec/paths/orders.yaml` | 1, 3 |
+| 4 | The statement, and the handoff to the home | `lib/db/src/schema/orders.ts`, `artifacts/api-server/src/routes/orders.ts`, `lib/api-spec/paths/orders.yaml` | 1, 3 |
 | 5 | Forms, policies and documents | `lib/db/src/schema/{forms,policies}.ts`, `artifacts/api-server/src/routes/forms.ts`, `lib/api-spec/paths/forms.yaml` | 1 |
 | 6 | Engagement, dates and aftercare handoff | `lib/db/src/schema/engagement.ts`, `artifacts/api-server/src/routes/engagement.ts`, `lib/api-spec/paths/engagement.yaml`, existing `aftercare.ts` | 1 |
 
@@ -117,9 +117,11 @@ out again in the briefs; they are here so everyone has seen them.
    rendered is ordinary commerce and is in scope. Pre-need stays "record the
    plan, take no money" until a lawyer in the relevant states says otherwise.
 
-3. Taking a family's money on a home's behalf makes us a payment facilitator.
-   Component 4 uses Stripe Connect with the home as the merchant of record, so
-   the funds are the home's and never ours to hold.
+3. **We take no money from families at all.** No processing, no funds held, no
+   card data, no percentage of what a home sells. A family that owes the home
+   money is linked out to the home's own payment page. The only money in this
+   system is the home's monthly subscription to us. Component 4 produces the
+   itemised statement and the handoff, and nothing else.
 
 ## House style
 
