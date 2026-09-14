@@ -12,7 +12,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
-import { Loader2, Lock, Plus, Trash2 } from "lucide-react";
+import { Empty, Loading, PageHeader, Panel, Divider } from "@/components/page";
+import { Lock, Plus, Tag, Trash2 } from "lucide-react";
 
 /**
  * The home's own prices, on the screen the director already has open.
@@ -61,13 +62,7 @@ export default function PriceList() {
     },
   });
 
-  if (list.isPending) {
-    return (
-      <div className="py-16 grid place-items-center">
-        <Loader2 className="size-6 animate-spin text-muted-foreground" />
-      </div>
-    );
-  }
+  if (list.isPending) return <Loading rows={4} />;
 
   const rows = list.data ?? [];
 
@@ -82,16 +77,13 @@ export default function PriceList() {
 
   return (
     <div className="max-w-2xl space-y-6">
-      <header>
-        <h1 className="font-display text-2xl mb-1">Prices</h1>
-        <p className="text-muted-foreground text-sm">
-          What you charge, so whoever is sitting with a family can answer
-          without ringing the office.
-        </p>
-      </header>
+      <PageHeader title="Prices">
+        What you charge, so whoever is sitting with a family can answer
+        without ringing the office.
+      </PageHeader>
 
-      <p className="flex items-start gap-2.5 rounded-lg border border-border
-                    bg-muted/40 p-4 text-sm">
+      <p className="flex items-start gap-2.5 rounded-xl border border-border
+                    bg-[var(--sunken)] p-5 text-sm">
         <Lock className="size-4 mt-0.5 shrink-0 text-muted-foreground" />
         <span>
           <span className="block font-medium">Only your staff can see this</span>
@@ -106,7 +98,7 @@ export default function PriceList() {
 
       {categories.map((name) => (
         <section key={name} className="space-y-2">
-          <h2 className="font-medium">{name}</h2>
+          <Divider label={name} />
           <ul className="space-y-2">
             {rows
               .filter((row) => row.category === name)
@@ -118,17 +110,14 @@ export default function PriceList() {
       ))}
 
       {rows.length === 0 && (
-        <div className="rounded-lg border border-dashed p-8 text-center">
-          <p className="font-medium mb-1">Nothing on the sheet yet</p>
-          <p className="text-sm text-muted-foreground">
-            Add the handful you get asked about most. It does not have to be
-            everything.
-          </p>
-        </div>
+        <Empty icon={Tag} title="Nothing on the sheet yet">
+          Add the handful you get asked about most. It does not have to be
+          everything.
+        </Empty>
       )}
 
-      <section className="space-y-3 rounded-xl border border-border bg-card p-4">
-        <h2 className="font-medium">Add a line</h2>
+      <Panel className="space-y-3">
+        <h2 className="font-display text-lg">Add a line</h2>
         <div className="grid gap-3 sm:grid-cols-[1fr_1.5fr_auto]">
           <div className="space-y-1.5">
             <Label htmlFor="category">Heading</Label>
@@ -166,7 +155,7 @@ export default function PriceList() {
             />
           </div>
         </div>
-        <p className="text-xs text-muted-foreground">
+        <p className="text-sm leading-snug text-muted-foreground">
           Leave the price blank for anything that genuinely has no number —
           flowers at market, a cemetery&rsquo;s own fee — and say so in the
           note on the line.
@@ -187,7 +176,7 @@ export default function PriceList() {
           <Plus className="size-4" />
           Add
         </Button>
-      </section>
+      </Panel>
     </div>
   );
 }
@@ -198,7 +187,11 @@ function PriceRow({ row, onChanged }: { row: PriceItem; onChanged: () => void })
 
   return (
     <li
-      className={`rounded-lg border p-3 ${row.enabled ? "" : "opacity-60 border-dashed"}`}
+      className={`rounded-xl border p-3 ${
+        row.enabled
+          ? "border-border bg-card"
+          : "border-dashed border-border bg-[var(--sunken)] opacity-70"
+      }`}
     >
       <div className="grid gap-2 sm:grid-cols-[1fr_auto_auto] sm:items-center">
         <Input

@@ -9,12 +9,13 @@ import type {
 } from "@workspace/api-client-react";
 import { Button } from "@/components/ui/button";
 import { SetupChecklist, TrialBanner } from "@/components/SetupChecklist";
+import { Divider, Empty, Loading, PageHeader } from "@/components/page";
+import { cn } from "@/lib/utils";
 import {
-  AlertTriangle,
   CalendarClock,
   CalendarX,
+  CheckCircle2,
   Inbox,
-  Loader2,
   MessageSquare,
   Store,
 } from "lucide-react";
@@ -68,6 +69,12 @@ function relative(value: string | Date): string {
   return days < 0 ? `${-days} days ago` : `in ${days} days`;
 }
 
+/** The row shape every list on this screen uses. */
+const ROW =
+  "flex items-baseline justify-between gap-4 rounded-xl border border-border " +
+  "bg-card px-4 py-3 no-underline shadow-[var(--elevation-1)] " +
+  "transition-colors duration-200 hover:border-[var(--accent)]";
+
 export default function Dashboard() {
   const dashboard = useGetHomeDashboard({
     query: {
@@ -78,14 +85,7 @@ export default function Dashboard() {
     },
   });
 
-  if (dashboard.isPending) {
-    return (
-      <div className="py-16 grid place-items-center">
-        <Loader2 className="size-6 animate-spin text-muted-foreground" />
-      </div>
-    );
-  }
-
+  if (dashboard.isPending) return <Loading rows={4} />;
   if (!dashboard.data) return null;
 
   const data = dashboard.data;
@@ -97,14 +97,11 @@ export default function Dashboard() {
 
   return (
     <div className="space-y-8">
-      <header>
-        <h1 className="font-display text-2xl">{data.homeName}</h1>
-        <p className="text-muted-foreground text-sm mt-1">
-          {data.openCases === 0
-            ? "No open cases."
-            : `${data.openCases} open ${data.openCases === 1 ? "case" : "cases"}.`}
-        </p>
-      </header>
+      <PageHeader title={data.homeName}>
+        {data.openCases === 0
+          ? "No open cases."
+          : `${data.openCases} open ${data.openCases === 1 ? "case" : "cases"}.`}
+      </PageHeader>
 
       {/*
         Both of these decide for themselves whether they belong on screen, and
@@ -121,7 +118,7 @@ export default function Dashboard() {
       */}
       <section className="grid gap-3 sm:grid-cols-3">
         <WaitingTile
-          icon={<MessageSquare className="size-4" />}
+          icon={<MessageSquare className="size-4" strokeWidth={1.75} />}
           count={data.casesWaitingOnReply}
           label={
             data.casesWaitingOnReply === 1
@@ -136,7 +133,7 @@ export default function Dashboard() {
           href="/inbox"
         />
         <WaitingTile
-          icon={<Inbox className="size-4" />}
+          icon={<Inbox className="size-4" strokeWidth={1.75} />}
           count={data.pendingRequests}
           label={
             data.pendingRequests === 1
@@ -146,7 +143,7 @@ export default function Dashboard() {
           href="/requests"
         />
         <WaitingTile
-          icon={<CalendarClock className="size-4" />}
+          icon={<CalendarClock className="size-4" strokeWidth={1.75} />}
           count={data.offersAwaitingChoice}
           label={
             data.offersAwaitingChoice === 1
@@ -159,49 +156,41 @@ export default function Dashboard() {
       </section>
 
       {nothingWaiting && (
-        <p className="rounded-lg border border-dashed p-6 text-center text-sm
-                      text-muted-foreground">
-          Nobody is waiting on you right now.
-        </p>
+        <Empty icon={CheckCircle2} title="Nobody is waiting on you">
+          No unanswered families, no requests, and nothing past due.
+        </Empty>
       )}
 
       {data.overdue.length > 0 && (
         <DeadlineSection
-          title="Past due"
-          tone="urgent"
+          label="Past due"
           description="Nobody has ticked these off, and the date has gone."
           rows={data.overdue}
+          urgent
         />
       )}
 
-      <section>
-        <h2 className="font-medium mb-3">This week</h2>
+      <section className="space-y-3">
+        <Divider label="This week" />
         {data.servicesThisWeek.length === 0 ? (
-          <p className="text-sm text-muted-foreground rounded-lg border
-                        border-dashed p-6 text-center">
-            No services in the next seven days.
-          </p>
+          <Empty title="No services in the next seven days" />
         ) : (
           <ul className="space-y-2">
             {data.servicesThisWeek.map((row: DashboardService) => (
               <li key={row.caseId}>
-                <Link
-                  href={`/cases/${row.caseId}`}
-                  className="flex items-baseline justify-between gap-4 rounded-lg
-                             border p-3 hover:bg-accent/40"
-                >
+                <Link href={`/cases/${row.caseId}`} className={ROW}>
                   <span className="min-w-0">
-                    <span className="block font-medium truncate">
+                    <span className="block truncate font-semibold">
                       {row.decedentName}
                     </span>
                     {row.serviceLocation && (
-                      <span className="block text-sm text-muted-foreground truncate">
+                      <span className="block truncate text-sm text-muted-foreground">
                         {row.serviceLocation}
                       </span>
                     )}
                   </span>
-                  <span className="text-sm whitespace-nowrap text-right">
-                    <span className="block">{whenLabel(row.serviceAt)}</span>
+                  <span className="whitespace-nowrap text-right text-sm">
+                    <span className="tabular block">{whenLabel(row.serviceAt)}</span>
                     <span className="block text-xs text-muted-foreground">
                       {relative(row.serviceAt)}
                     </span>
@@ -214,11 +203,7 @@ export default function Dashboard() {
       </section>
 
       {data.dueSoon.length > 0 && (
-        <DeadlineSection
-          title="Due in the next few days"
-          tone="normal"
-          rows={data.dueSoon}
-        />
+        <DeadlineSection label="Due in the next few days" rows={data.dueSoon} />
       )}
 
       {/*
@@ -230,25 +215,18 @@ export default function Dashboard() {
         report nobody runs.
       */}
       {data.awaitingServiceDate.length > 0 && (
-        <section>
-          <h2 className="font-medium mb-1 flex items-center gap-2">
-            <CalendarX className="size-4 text-muted-foreground" />
-            No date yet
-          </h2>
-          <p className="text-sm text-muted-foreground mb-3">
+        <section className="space-y-3">
+          <Divider label="No date yet" />
+          <p className="max-w-prose text-sm leading-snug text-muted-foreground">
             Nothing is due on these, because nothing can be dated until the
             service is. Offer the family a choice of times from the case.
           </p>
           <ul className="space-y-2">
             {data.awaitingServiceDate.map((row) => (
               <li key={row.caseId}>
-                <Link
-                  href={`/cases/${row.caseId}`}
-                  className="flex items-baseline justify-between gap-4 rounded-lg
-                             border p-3 hover:bg-accent/40"
-                >
+                <Link href={`/cases/${row.caseId}`} className={ROW}>
                   <span className="min-w-0">
-                    <span className="block font-medium truncate">
+                    <span className="block truncate font-semibold">
                       {row.decedentName}
                     </span>
                     {/* Never a word of condolence about somebody alive. */}
@@ -258,7 +236,7 @@ export default function Dashboard() {
                       </span>
                     )}
                   </span>
-                  <span className="text-xs text-muted-foreground whitespace-nowrap">
+                  <span className="whitespace-nowrap text-xs text-muted-foreground">
                     opened {relative(row.openedAt)}
                   </span>
                 </Link>
@@ -268,19 +246,18 @@ export default function Dashboard() {
         </section>
       )}
 
-      <section className="rounded-lg border border-dashed p-4">
-        <h2 className="font-medium mb-1 flex items-center gap-2">
-          <Store className="size-4 text-muted-foreground" />
-          Your own page
-        </h2>
-        <p className="text-sm text-muted-foreground mb-3">
-          What families read before they ring you, and the policies you find
-          yourself repeating at every kitchen table.
-        </p>
-        <Button asChild variant="outline" size="sm">
-          <Link href="/storefront">Edit your page and policies</Link>
-        </Button>
-      </section>
+      <Empty
+        icon={Store}
+        title="Your own page"
+        action={
+          <Button asChild variant="outline" size="sm">
+            <Link href="/storefront">Edit your page and policies</Link>
+          </Button>
+        }
+      >
+        What families read before they ring you, and the policies you find
+        yourself repeating at every kitchen table.
+      </Empty>
     </div>
   );
 }
@@ -303,18 +280,21 @@ function WaitingTile({
   return (
     <Link
       href={href}
-      className={`rounded-lg border p-4 block transition-colors ${
-        quiet ? "opacity-60 hover:opacity-100" : "border-amber-300 bg-amber-50/60"
-      } hover:bg-accent/40`}
+      className={cn(
+        "block rounded-xl border p-4 no-underline shadow-[var(--elevation-1)]",
+        "transition-colors duration-200 ease-[cubic-bezier(0.2,0.6,0.3,1)]",
+        quiet
+          ? "border-border bg-card text-muted-foreground hover:text-foreground"
+          : "border-[var(--accent)] bg-[var(--accent-soft)]",
+      )}
     >
-      <span className="flex items-center gap-2 text-xs uppercase tracking-wide
-                       text-muted-foreground mb-1">
-        {icon}
+      <span className="eyebrow mb-1 flex items-center gap-2">{icon}</span>
+      <span className="tabular block font-display text-2xl leading-none text-foreground">
+        {count}
       </span>
-      <span className="block text-2xl font-display leading-none">{count}</span>
-      <span className="block text-sm mt-1">{label}</span>
+      <span className="mt-1 block text-sm">{label}</span>
       {detail && !quiet && (
-        <span className="block text-xs text-muted-foreground mt-0.5">
+        <span className="mt-0.5 block text-xs text-muted-foreground">
           {detail}
         </span>
       )}
@@ -323,44 +303,38 @@ function WaitingTile({
 }
 
 function DeadlineSection({
-  title,
+  label,
   description,
   rows,
-  tone,
+  urgent = false,
 }: {
-  title: string;
+  label: string;
   description?: string;
   rows: DashboardDeadline[];
-  tone: "urgent" | "normal";
+  urgent?: boolean;
 }) {
   return (
-    <section>
-      <h2 className="font-medium mb-1 flex items-center gap-2">
-        {tone === "urgent" && (
-          <AlertTriangle className="size-4 text-amber-600" />
-        )}
-        {title}
-      </h2>
+    <section className="space-y-3">
+      <Divider label={label} />
       {description && (
-        <p className="text-sm text-muted-foreground mb-3">{description}</p>
+        <p className="max-w-prose text-sm leading-snug text-muted-foreground">
+          {description}
+        </p>
       )}
       <ul className="space-y-2">
         {rows.map((row) => (
           <li key={row.id}>
             <Link
               href={`/cases/${row.caseId}`}
-              className={`flex items-baseline justify-between gap-4 rounded-lg
-                          border p-3 hover:bg-accent/40 ${
-                            tone === "urgent" ? "border-amber-300" : ""
-                          }`}
+              className={cn(ROW, urgent && "border-[var(--notice)]")}
             >
               <span className="min-w-0">
                 <span className="block truncate">{row.title}</span>
-                <span className="block text-sm text-muted-foreground truncate">
+                <span className="block truncate text-sm text-muted-foreground">
                   {row.decedentName}
                 </span>
               </span>
-              <span className="text-xs text-muted-foreground whitespace-nowrap">
+              <span className="whitespace-nowrap text-xs text-muted-foreground">
                 {relative(row.dueAt)}
               </span>
             </Link>

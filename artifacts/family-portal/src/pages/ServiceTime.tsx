@@ -20,7 +20,8 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { CalendarCheck, Loader2, Phone } from "lucide-react";
+import { Empty, Loading, PageHeader } from "@/components/page";
+import { CalendarCheck, CalendarClock, Loader2, Phone } from "lucide-react";
 
 /**
  * The only decision this portal asks a family to make about the week ahead.
@@ -78,13 +79,7 @@ export default function ServiceTime() {
     },
   });
 
-  if (offers.isPending) {
-    return (
-      <div className="py-16 grid place-items-center">
-        <Loader2 className="size-6 animate-spin text-muted-foreground" />
-      </div>
-    );
-  }
+  if (offers.isPending) return <Loading rows={3} />;
 
   if (!offers.data) return null;
 
@@ -95,29 +90,33 @@ export default function ServiceTime() {
   if (settled) {
     return (
       <div className="space-y-6">
-        <header>
-          <h1 className="font-display text-2xl mb-1">The service</h1>
-        </header>
+        <PageHeader title="The service">
+          This is settled. Nothing more is needed from you here.
+        </PageHeader>
 
-        <section className="rounded-xl border border-[var(--accent)]
-                            bg-[var(--accent-soft)] px-4 py-5">
-          <p className="flex items-center gap-2 text-xs uppercase tracking-wide
-                        text-[var(--accent-deep)] mb-2">
-            <CalendarCheck className="size-4" />
+        <section className="relative overflow-hidden rounded-xl border border-border bg-card px-4 py-5 pl-5 shadow-[var(--elevation-1)]">
+          {/* The home's colour down the edge, as everywhere else in the
+              portal that something is confirmed rather than pending. */}
+          <span
+            aria-hidden
+            className="absolute inset-y-0 left-0 w-1 bg-[var(--accent)]"
+          />
+          <p className="eyebrow mb-2 flex items-center gap-1.5">
+            <CalendarCheck className="size-3.5" strokeWidth={1.75} />
             Settled
           </p>
           <p className="font-display text-xl">
             {data.serviceAt ? fullWhen(data.serviceAt) : "Confirmed"}
           </p>
           {data.serviceLocation && (
-            <p className="text-muted-foreground mt-1">{data.serviceLocation}</p>
+            <p className="mt-1 text-muted-foreground">{data.serviceLocation}</p>
           )}
         </section>
 
-        <p className="text-sm text-muted-foreground">
-          Nothing more is needed from you here. If this has to change, please
-          speak to {homeName} rather than waiting — they will have told the
-          church, the printer and the florist.
+        <p className="text-sm leading-snug text-muted-foreground">
+          If this has to change, please speak to {homeName} rather than
+          waiting — they will have told the church, the printer and the
+          florist.
         </p>
 
         {data.homePhone && (
@@ -134,31 +133,30 @@ export default function ServiceTime() {
 
   if (data.offers.length === 0) {
     return (
-      <div className="space-y-4">
-        <h1 className="font-display text-2xl">The service</h1>
-        <p className="rounded-xl border border-dashed px-4 py-10 text-center
-                      text-muted-foreground">
-          {homeName} has not set a time yet. They will be in touch.
-        </p>
+      <div className="space-y-6">
+        <PageHeader title="The service">
+          When it is, and where.
+        </PageHeader>
+        <Empty icon={CalendarClock} title="No time set yet">
+          {homeName} will be in touch. There is nothing for you to do here
+          until then.
+        </Empty>
       </div>
     );
   }
 
   return (
     <div className="space-y-6">
-      <header>
-        <h1 className="font-display text-2xl mb-1">Choosing a time</h1>
-        <p className="text-muted-foreground">
-          {homeName} can do any of these. Choose whichever suits your family —
-          there is no better answer, and nobody is waiting on you tonight.
-        </p>
-      </header>
+      <PageHeader title="Choosing a time">
+        {homeName} can do any of these. Choose whichever suits your family —
+        there is no better answer, and nobody is waiting on you tonight.
+      </PageHeader>
 
       <ul className="space-y-3">
         {data.offers.map((offer: ServiceOffer) => (
           <li
             key={offer.id}
-            className="rounded-xl border border-border bg-card px-4 py-4"
+            className="rounded-xl border border-border bg-card px-4 py-4 shadow-[var(--elevation-1)]"
           >
             <p className="font-display text-lg">
               {dayFormat.format(asDate(offer.startsAt))}
@@ -168,7 +166,9 @@ export default function ServiceTime() {
               {offer.location ? ` · ${offer.location}` : ""}
             </p>
             {offer.note && (
-              <p className="text-sm text-muted-foreground mt-2">{offer.note}</p>
+              <p className="mt-2 text-sm leading-snug text-muted-foreground">
+                {offer.note}
+              </p>
             )}
             <Button
               className="w-full mt-3"
@@ -181,7 +181,7 @@ export default function ServiceTime() {
         ))}
       </ul>
 
-      <p className="text-sm text-muted-foreground">
+      <p className="text-sm leading-snug text-muted-foreground">
         If none of these work, please ring {homeName}
         {data.homePhone ? ` on ${data.homePhone}` : ""} — they would far rather
         hear that than have you pick the least bad one.

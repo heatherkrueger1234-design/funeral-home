@@ -11,10 +11,10 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Button } from "@/components/ui/button";
-import { Loader2 } from "lucide-react";
 import { StandardSchedule } from "@/components/StandardSchedule";
 import { BillingSection } from "@/components/BillingSection";
 import { SnippetLibrary } from "@/components/SnippetLibrary";
+import { Loading, PageHeader } from "@/components/page";
 
 /** "08:00" for a time input, from minutes since midnight. */
 const toTimeInput = (minute: number) =>
@@ -49,13 +49,7 @@ export default function Settings() {
     },
   });
 
-  if (home.isPending) {
-    return (
-      <div className="py-16 text-center">
-        <Loader2 className="size-5 animate-spin mx-auto text-muted-foreground" />
-      </div>
-    );
-  }
+  if (home.isPending) return <Loading rows={4} />;
 
   if (!home.data) return null;
 
@@ -64,18 +58,15 @@ export default function Settings() {
   const save = (data: Record<string, unknown>) => update.mutate({ data: data as never });
 
   return (
-    <div className="max-w-2xl space-y-8">
-      <header>
-        <h1 className="font-display text-2xl mb-1">Settings</h1>
-        <p className="text-muted-foreground">
-          {readOnly
-            ? "Only an owner can change these."
-            : "How families see you, and when you are open."}
-        </p>
-      </header>
+    <div className="max-w-2xl space-y-7">
+      <PageHeader title="Settings">
+        {readOnly
+        ? "Only an owner can change these."
+        : "How families see you, and when you are open."}
+      </PageHeader>
 
-      <section className="space-y-4 rounded-xl border border-border bg-card p-4">
-        <h2 className="font-medium">How families see you</h2>
+      <section className="space-y-4 rounded-xl border border-border bg-card p-5 shadow-[var(--elevation-1)]">
+        <h2 className="font-display text-lg">How families see you</h2>
 
         <div className="space-y-1.5">
           <Label htmlFor="name">Funeral home</Label>
@@ -93,12 +84,14 @@ export default function Settings() {
         <div className="space-y-1.5">
           <Label htmlFor="accentColor">Brand colour</Label>
           <div className="flex items-center gap-3">
+            {/* The swatch is the control. A hex field would be a worse
+                version of the thing every operating system already has. */}
             <Input
               id="accentColor"
               type="color"
               disabled={readOnly}
               defaultValue={row.accentColor}
-              className="h-10 w-16 p-1"
+              className="h-11 w-16 cursor-pointer p-1"
               onBlur={(event) => save({ accentColor: event.target.value })}
             />
             <span className="text-sm text-muted-foreground">
@@ -129,7 +122,7 @@ export default function Settings() {
                 save({ urgentPhone: event.target.value.trim() || null })
               }
             />
-            <p className="text-xs text-muted-foreground">
+            <p className="text-sm leading-snug text-muted-foreground">
               Shown on every screen a family sees, and beside the out-of-hours
               notice.
             </p>
@@ -137,8 +130,8 @@ export default function Settings() {
         </div>
       </section>
 
-      <section className="space-y-4 rounded-xl border border-border bg-card p-4">
-        <h2 className="font-medium">Office hours</h2>
+      <section className="space-y-4 rounded-xl border border-border bg-card p-5 shadow-[var(--elevation-1)]">
+        <h2 className="font-display text-lg">Office hours</h2>
         <p className="text-sm text-muted-foreground">
           These never hold a message back. A family writing at two in the
           morning is told, before they send, that you read messages from the
@@ -200,8 +193,8 @@ export default function Settings() {
         section has changed a sentence; changing the standard schedule above
         is what changes a date.
       */}
-      <section className="space-y-4 rounded-xl border border-border bg-card p-4">
-        <h2 className="font-medium">How you work</h2>
+      <section className="space-y-4 rounded-xl border border-border bg-card p-5 shadow-[var(--elevation-1)]">
+        <h2 className="font-display text-lg">How you work</h2>
 
         <div className="grid gap-4 sm:grid-cols-2">
           <div className="space-y-1.5">
@@ -226,7 +219,7 @@ export default function Settings() {
                 days after the service
               </span>
             </div>
-            <p className="text-xs text-muted-foreground">
+            <p className="text-sm leading-snug text-muted-foreground">
               Applied when you close a case, for both sides. Conversations
               already open keep the window they were closed with — shortening
               this will not shut a door on a family mid-sentence.
@@ -253,7 +246,7 @@ export default function Settings() {
               />
               <span className="text-sm text-muted-foreground">photographs</span>
             </div>
-            <p className="text-xs text-muted-foreground">
+            <p className="text-sm leading-snug text-muted-foreground">
               How long your slideshows actually run. Shown to the family as a
               suggestion and never enforced — someone who wants sixty for
               their mother gets sixty.
@@ -262,9 +255,13 @@ export default function Settings() {
         </div>
       </section>
 
-      <section className="space-y-2 rounded-xl border border-dashed p-4">
-        <h2 className="font-medium">Your public page</h2>
+      <section className="space-y-2 rounded-xl border border-dashed p-5">
+        <h2 className="font-display text-lg">Your public page</h2>
         <p className="text-sm text-muted-foreground">
+          The address to put on your website, what it says, and the policies
+          families read on it now live on their own screen.
+        </p>
+        <p className="text-sm leading-snug text-muted-foreground">
           The address to put on your website, what it says, and the policies
           families read on it now live on their own screen.
         </p>
@@ -273,8 +270,8 @@ export default function Settings() {
         </Button>
       </section>
 
-      <section className="space-y-4 rounded-xl border border-border bg-card p-4">
-        <h2 className="font-medium">Aftercare</h2>
+      <section className="space-y-4 rounded-xl border border-border bg-card p-5 shadow-[var(--elevation-1)]">
+        <h2 className="font-display text-lg">Aftercare</h2>
 
         <label className="flex items-start gap-3">
           <Switch
@@ -305,7 +302,7 @@ export default function Settings() {
               save({ aftercareSenderName: event.target.value.trim() || null })
             }
           />
-          <p className="text-xs text-muted-foreground">
+          <p className="text-sm leading-snug text-muted-foreground">
             "Provided in care with {row.aftercareSenderName?.trim() || row.name}".
             Leave blank to use the home's name.
           </p>

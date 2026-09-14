@@ -6,7 +6,8 @@ import {
   getGetFamilySessionQueryKey,
 } from "@workspace/api-client-react";
 import { Checkbox } from "@/components/ui/checkbox";
-import { CalendarClock, Church, Loader2 } from "lucide-react";
+import { CalendarClock, Church } from "lucide-react";
+import { Empty, Loading, PageHeader } from "@/components/page";
 
 /**
  * What is due, and when.
@@ -18,7 +19,9 @@ import { CalendarClock, Church, Loader2 } from "lucide-react";
  *
  * An event is rendered without a checkbox. Putting a tickbox next to a
  * mother's funeral would be grotesque, and the API refuses it too — this is
- * the presentation half of the same rule.
+ * the presentation half of the same rule. It is set apart visually as well:
+ * the home's colour down the edge, the title in the serif. It is the only
+ * thing on the list that is not a chore.
  */
 
 function formatDue(value: string | Date): string {
@@ -58,8 +61,9 @@ export default function Timeline() {
 
   if (deadlines.isPending) {
     return (
-      <div className="py-12 text-center">
-        <Loader2 className="size-5 animate-spin mx-auto text-muted-foreground" />
+      <div className="space-y-6">
+        <PageHeader title="What's due" />
+        <Loading rows={4} />
       </div>
     );
   }
@@ -67,24 +71,19 @@ export default function Timeline() {
   const rows = deadlines.data ?? [];
 
   return (
-    <div className="space-y-6">
-      <header>
-        <h1 className="font-display text-2xl mb-1">What's due</h1>
-        <p className="text-muted-foreground">
-          The funeral home keeps this up to date. If something here isn't
-          possible, tell them — it can move.
-        </p>
-      </header>
+    <div className="space-y-7">
+      <PageHeader title="What's due">
+        The funeral home keeps this up to date. If something here isn't
+        possible, tell them — it can move.
+      </PageHeader>
 
       {rows.length === 0 ? (
-        <div className="rounded-xl border border-dashed border-border py-12 text-center">
-          <CalendarClock className="size-8 mx-auto mb-3 text-muted-foreground" />
-          <p className="text-muted-foreground">
-            Nothing is waiting on you at the moment.
-          </p>
-        </div>
+        <Empty icon={CalendarClock} title="Nothing is waiting on you">
+          When the funeral home adds something for you to do, it will appear
+          here with the date it is needed by.
+        </Empty>
       ) : (
-        <ul className="space-y-3">
+        <ul className="space-y-2.5">
           {rows.map((row) => {
             const done = row.completedAt !== null;
             const late = !done && !row.isEvent && isOverdue(row.dueAt);
@@ -92,14 +91,35 @@ export default function Timeline() {
             return (
               <li
                 key={row.id}
-                className={`rounded-xl border bg-card p-4 ${
-                  late ? "border-[var(--accent)]" : "border-border"
-                }`}
+                className={[
+                  // The background is chosen once. Naming two of them and
+                  // hoping the later class wins is how the funeral row
+                  // silently lost its wash: which of `bg-card` and
+                  // `bg-[var(--accent-soft)]` applies is decided by the order
+                  // Tailwind emits them in, not the order they are written.
+                  "relative overflow-hidden rounded-xl border p-4 transition-gentle",
+                  "shadow-[var(--elevation-1)]",
+                  row.isEvent
+                    ? "border-[var(--accent)]/30 bg-[var(--accent-soft)] pl-5"
+                    : late
+                      ? "border-[var(--accent)]/40 bg-card pl-5"
+                      : "border-border bg-card",
+                  done && "opacity-70",
+                ]
+                  .filter(Boolean)
+                  .join(" ")}
               >
-                <div className="flex items-start gap-3">
+                {(row.isEvent || late) && (
+                  <span
+                    aria-hidden
+                    className="absolute inset-y-0 left-0 w-1 bg-[var(--accent)]"
+                  />
+                )}
+
+                <div className="flex items-start gap-3.5">
                   {row.isEvent ? (
-                    <span className="grid size-6 shrink-0 place-items-center text-[var(--accent-deep)]">
-                      <Church className="size-5" />
+                    <span className="grid size-7 shrink-0 place-items-center rounded-full bg-white/70 text-[var(--accent-deep)]">
+                      <Church className="size-4" strokeWidth={1.75} />
                     </span>
                   ) : (
                     <Checkbox
@@ -118,21 +138,30 @@ export default function Timeline() {
                   <div className="min-w-0 flex-1">
                     <p
                       className={
-                        done ? "line-through text-muted-foreground" : "font-medium"
+                        done
+                          ? "text-muted-foreground line-through decoration-muted-foreground/50"
+                          : row.isEvent
+                            ? "font-display text-lg leading-snug text-[var(--accent-deep)]"
+                            : "font-semibold"
                       }
                     >
                       {row.title}
                     </p>
-                    <p className="text-sm text-muted-foreground">
+                    <p className="mt-0.5 text-sm text-muted-foreground">
                       {formatDue(row.dueAt)}
+                      {late && (
+                        <span className="ml-2 font-semibold text-[var(--accent-deep)]">
+                          · overdue
+                        </span>
+                      )}
                     </p>
                     {row.description && (
-                      <p className="mt-1 text-sm text-muted-foreground">
+                      <p className="mt-1.5 text-sm leading-relaxed text-muted-foreground">
                         {row.description}
                       </p>
                     )}
                     {done && row.completedByName && (
-                      <p className="mt-1 text-sm text-muted-foreground">
+                      <p className="mt-1.5 text-sm text-muted-foreground">
                         Done by {row.completedByName}
                       </p>
                     )}

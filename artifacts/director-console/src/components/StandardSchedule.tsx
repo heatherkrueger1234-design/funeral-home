@@ -18,7 +18,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Loader2, Plus, X } from "lucide-react";
+import { Plus, X } from "lucide-react";
+import { Loading } from "@/components/page";
 
 /**
  * The home's standard schedule, edited once and applied to every case.
@@ -70,9 +71,9 @@ export function StandardSchedule({ readOnly }: { readOnly: boolean }) {
   const rows = template.data ?? [];
 
   return (
-    <section className="space-y-4 rounded-xl border border-border bg-card p-4">
+    <section className="space-y-4 rounded-xl border border-border bg-card p-5 shadow-[var(--elevation-1)]">
       <div>
-        <h2 className="font-medium">Standard schedule</h2>
+        <h2 className="font-display text-lg">Standard schedule</h2>
         <p className="text-sm text-muted-foreground">
           Every case gets this the moment it has a service date, so nobody has
           to remember to tell a family when their clothing is due. Times are
@@ -81,9 +82,7 @@ export function StandardSchedule({ readOnly }: { readOnly: boolean }) {
       </div>
 
       {template.isPending ? (
-        <div className="py-6 text-center">
-          <Loader2 className="size-5 animate-spin mx-auto text-muted-foreground" />
-        </div>
+        <Loading />
       ) : (
         <ul className="space-y-2">
           {rows.map((row) => (

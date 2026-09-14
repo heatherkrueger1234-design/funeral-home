@@ -177,7 +177,7 @@ export function ImportCases() {
             </p>
 
             {preview.issues.length > 0 && (
-              <ul className="space-y-1 rounded-lg border border-border bg-card p-3 text-sm">
+              <ul className="space-y-1 rounded-lg border border-border bg-card p-3.5 text-sm shadow-[var(--elevation-1)]">
                 {preview.issues.slice(0, 8).map((issue) => (
                   <li
                     key={`${issue.row}-${issue.message}`}
@@ -237,13 +237,13 @@ export function ImportCases() {
             </div>
 
             {preview.unmapped.length > 0 && (
-              <p className="text-xs text-muted-foreground">
+              <p className="text-sm leading-snug text-muted-foreground">
                 Columns we didn't recognise and ignored:{" "}
                 {preview.unmapped.join(", ")}.
               </p>
             )}
 
-            <p className="text-xs text-muted-foreground">
+            <p className="text-sm leading-snug text-muted-foreground">
               Families are not contacted by importing. You send each link when
               you're ready.
             </p>

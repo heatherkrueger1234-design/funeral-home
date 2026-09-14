@@ -58,3 +58,8 @@ export * from "./aftercare";
 
 /* And what is left when a home erases a case on request. */
 export * from "./deletions";
+
+/* The platform's own view of its customers: what Colorado asks of each home,
+ * and the log of every time anyone here looked across a tenant boundary. */
+export * from "./licensure";
+export * from "./platform-audit";

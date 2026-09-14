@@ -126,23 +126,23 @@ export function DateOptions({ caseId }: { caseId: number }) {
   const chosen = rows.find((row: ServiceOffer) => row.chosenAt !== null);
 
   return (
-    <div className="space-y-3 rounded-lg border border-dashed p-3">
+    <div className="space-y-3 rounded-xl border border-dashed border-border bg-[var(--sunken)] p-4">
       <div>
-        <h3 className="text-sm font-medium">Or let the family pick</h3>
-        <p className="text-xs text-muted-foreground mt-0.5">
+        <h3 className="font-semibold">Or let the family pick</h3>
+        <p className="mt-0.5 text-sm leading-snug text-muted-foreground">
           Offer two or three times you can actually do. Whichever they choose
           becomes the service date, and their timeline is built from it.
         </p>
       </div>
 
       {chosen ? (
-        <div className="rounded-lg border border-border bg-card p-3">
-          <p className="flex items-center gap-2 text-sm font-medium">
-            <CheckCircle2 className="size-4 text-emerald-600" />
+        <div className="rounded-xl border border-border bg-card p-3">
+          <p className="flex items-center gap-2 font-semibold">
+            <CheckCircle2 className="size-4 text-[var(--accent-deep)]" strokeWidth={1.75} />
             {dayFormat.format(asDate(chosen.startsAt))} at{" "}
             {timeFormat.format(asDate(chosen.startsAt))}
           </p>
-          <p className="text-xs text-muted-foreground mt-1">
+          <p className="mt-1 text-sm leading-snug text-muted-foreground">
             {chosen.chosenByName
               ? `Chosen by ${chosen.chosenByName}.`
               : "Recorded by the home."}{" "}
@@ -157,7 +157,7 @@ export function DateOptions({ caseId }: { caseId: number }) {
               {rows.map((row: ServiceOffer) => (
                 <li
                   key={row.id}
-                  className="flex items-start gap-3 rounded-lg border
+                  className="flex items-start gap-3 rounded-xl border
                              border-border bg-card px-3 py-2"
                 >
                   <span className="min-w-0 flex-1">
@@ -166,7 +166,7 @@ export function DateOptions({ caseId }: { caseId: number }) {
                       {timeFormat.format(asDate(row.startsAt))}
                     </span>
                     {(row.location || row.note) && (
-                      <span className="block text-xs text-muted-foreground truncate">
+                      <span className="block truncate text-sm text-muted-foreground">
                         {[row.location, row.note].filter(Boolean).join(" — ")}
                       </span>
                     )}
@@ -204,7 +204,7 @@ export function DateOptions({ caseId }: { caseId: number }) {
           )}
 
           {adding ? (
-            <div className="space-y-2 rounded-lg border border-border bg-card p-3">
+            <div className="space-y-2 rounded-xl border border-border bg-card p-3">
               <div className="grid gap-2 sm:grid-cols-2">
                 <div className="space-y-1">
                   <Label htmlFor="offerAt" className="text-xs">
@@ -275,7 +275,7 @@ export function DateOptions({ caseId }: { caseId: number }) {
           )}
 
           {rows.length > 0 && (
-            <p className="text-xs text-muted-foreground">
+            <p className="text-sm leading-snug text-muted-foreground">
               The family sees these the next time they open their link.
             </p>
           )}

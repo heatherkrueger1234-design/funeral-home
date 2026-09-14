@@ -17,7 +17,8 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
-import { Loader2, Plus, Trash2, Eye, EyeOff } from "lucide-react";
+import { Loading, PageHeader, Panel } from "@/components/page";
+import { Plus, Trash2, Eye, EyeOff } from "lucide-react";
 
 /**
  * The home's own page, and the sentences it repeats at every kitchen table.
@@ -49,13 +50,7 @@ export default function Storefront() {
     },
   });
 
-  if (home.isPending || policies.isPending) {
-    return (
-      <div className="py-16 grid place-items-center">
-        <Loader2 className="size-6 animate-spin text-muted-foreground" />
-      </div>
-    );
-  }
+  if (home.isPending || policies.isPending) return <Loading rows={4} />;
 
   if (!home.data) return null;
 
@@ -65,20 +60,17 @@ export default function Storefront() {
 
   return (
     <div className="max-w-2xl space-y-8">
-      <header>
-        <h1 className="font-display text-2xl mb-1">Your page</h1>
-        <p className="text-muted-foreground text-sm">
-          {readOnly
-            ? "Only an owner can change what the home publishes."
-            : "What a family reads before they ring you, and what you find yourself explaining every time."}
-        </p>
-      </header>
+      <PageHeader title="Your page">
+        {readOnly
+          ? "Only an owner can change what the home publishes."
+          : "What a family reads before they ring you, and what you find yourself explaining every time."}
+      </PageHeader>
 
       <PublicPageLink slug={row.slug} />
 
-      <section className="space-y-4 rounded-xl border border-border bg-card p-4">
+      <Panel className="space-y-4">
         <div>
-          <h2 className="font-medium">What it says</h2>
+          <h2 className="font-display text-lg">What it says</h2>
           <p className="text-sm text-muted-foreground mt-1">
             Somebody reaching this page has usually had a death in the last few
             hours. What they need off it is that they have the right place and
@@ -115,16 +107,16 @@ export default function Storefront() {
               save({ storefrontAbout: event.target.value.trim() || null })
             }
           />
-          <p className="text-xs text-muted-foreground">
+          <p className="text-sm leading-snug text-muted-foreground">
             Saved as you leave the box, and live on your page straight away.
           </p>
         </div>
-      </section>
+      </Panel>
 
       <Policies rows={policies.data ?? []} readOnly={readOnly} />
 
-      <section className="space-y-4 rounded-xl border border-border bg-card p-4">
-        <h2 className="font-medium">Taking requests</h2>
+      <Panel className="space-y-4">
+        <h2 className="font-display text-lg">Taking requests</h2>
 
         <label className="flex items-start gap-3">
           <Switch
@@ -156,20 +148,20 @@ export default function Storefront() {
               save({ intakeNotifyEmail: event.target.value.trim() || null })
             }
           />
-          <p className="text-xs text-muted-foreground">
+          <p className="text-sm leading-snug text-muted-foreground">
             Whoever checks email during the day. A request sitting in a queue
             nobody opens is worse than no form at all — the family believes
             they have reached someone.
           </p>
         </div>
-      </section>
+      </Panel>
 
       {/*
         Said here rather than left as a missing field. A director who came to
         this screen expecting to type prices should find out why they are not
         here, from here.
       */}
-      <p className="text-sm text-muted-foreground rounded-lg border border-dashed p-4">
+      <p className="rounded-xl border border-border bg-[var(--sunken)] p-5 text-sm leading-snug text-muted-foreground">
         Your prices are not on this page, and cannot be put on it. The FTC
         Funeral Rule governs how a funeral provider discloses prices, and it
         is not something a text box should be doing on your behalf. Your own
@@ -212,9 +204,9 @@ function Policies({
   const heading = title.trim();
 
   return (
-    <section className="space-y-4 rounded-xl border border-border bg-card p-4">
+    <Panel className="space-y-4">
       <div>
-        <h2 className="font-medium">What you say every time</h2>
+        <h2 className="font-display text-lg">What you say every time</h2>
         <p className="text-sm text-muted-foreground mt-1">
           Deposits, bringing clothing in, whether children come to a viewing.
           Written once, so every family gets the same answer and you can point
@@ -227,8 +219,10 @@ function Policies({
         {rows.map((policy) => (
           <li
             key={policy.id}
-            className={`rounded-lg border p-3 space-y-2 ${
-              policy.published ? "" : "border-dashed bg-muted/30"
+            className={`space-y-2 rounded-xl border p-3 ${
+              policy.published
+                ? "border-border bg-card"
+                : "border-dashed border-border bg-[var(--sunken)]"
             }`}
           >
             <div className="flex items-center gap-2">
@@ -322,7 +316,7 @@ function Policies({
           </Button>
         </div>
       )}
-    </section>
+    </Panel>
   );
 }
 
@@ -343,8 +337,8 @@ function PublicPageLink({ slug }: { slug: string }) {
   const url = `${origin ?? ""}/start/${slug}`;
 
   return (
-    <section className="space-y-2 rounded-xl border border-border bg-card p-4">
-      <h2 className="font-medium">Where it lives</h2>
+    <Panel className="space-y-2">
+      <h2 className="font-display text-lg">Where it lives</h2>
       <p className="text-sm text-muted-foreground">
         Put this on your own website, so a family who has just had a death can
         reach you at two in the morning.
@@ -367,11 +361,11 @@ function PublicPageLink({ slug }: { slug: string }) {
         </Button>
       </div>
       {!origin && (
-        <p className="text-xs text-muted-foreground">
+        <p className="text-sm leading-snug text-muted-foreground">
           Add your family portal&rsquo;s address in front of that path — it is
           the site your families open their texted links on.
         </p>
       )}
-    </section>
+    </Panel>
   );
 }

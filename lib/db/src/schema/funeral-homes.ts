@@ -213,6 +213,25 @@ export const funeralHomesTable = pgTable(
      */
     onboardingDone: text("onboarding_done").notNull().default(""),
 
+    /**
+     * Set when the platform suspends this home. Component 2's doing, and the
+     * only destructive thing the admin console can do.
+     *
+     * A separate column from `subscriptionStatus` rather than another status
+     * value, because they answer different questions and both answers are
+     * needed: Stripe owns whether the bill is paid, and a person at the
+     * platform owns whether this account should be running at all. Collapsing
+     * them would mean a webhook from Stripe could silently un-suspend a home
+     * somebody suspended on purpose.
+     *
+     * Suspension stops new cases. It deliberately does not delete anything,
+     * lock the home out of its own console, or cut a family off part-way
+     * through uploading photographs of their mother.
+     */
+    suspendedAt: timestamp("suspended_at"),
+    /** Why, in the platform's own words. Never shown to the home's families. */
+    suspendedReason: text("suspended_reason"),
+
     createdAt: timestamp("created_at").notNull().defaultNow(),
     updatedAt: timestamp("updated_at").notNull().defaultNow(),
   },
@@ -293,13 +312,44 @@ export type SubscriptionStatus = (typeof SUBSCRIPTION_STATUSES)[number];
 export function canOpenCases(home: {
   subscriptionStatus: string;
   trialEndsAt: Date | null;
+  suspendedAt?: Date | null;
 }, now = new Date()): boolean {
+  // Checked before the subscription, because a suspended home is suspended
+  // whatever Stripe thinks of it.
+  if (home.suspendedAt != null) return false;
+
   if (home.subscriptionStatus === "active") return true;
   if (home.subscriptionStatus === "past_due") return true;
   if (home.subscriptionStatus === "canceled") return false;
 
   // On trial: until it runs out.
   return home.trialEndsAt === null || home.trialEndsAt > now;
+}
+
+/**
+ * What to tell a director whose home cannot open a new case.
+ *
+ * Lives beside `canOpenCases` because the two answers must never disagree,
+ * and because the wrong sentence here is a real cost: a home that has been
+ * suspended by the platform, told to "start a subscription", rings support
+ * about a card that was never the problem. Every branch says what happened,
+ * what still works, and who can undo it.
+ */
+export function cannotOpenCasesReason(home: {
+  subscriptionStatus: string;
+  suspendedAt?: Date | null;
+}): string {
+  if (home.suspendedAt != null) {
+    return (
+      "This account has been suspended. Everything already here stays " +
+      "available to you and to your families; please get in touch and we " +
+      "will sort it out."
+    );
+  }
+
+  return home.subscriptionStatus === "trial"
+    ? "Your trial has finished. Start a subscription to open new cases — everything already here stays available."
+    : "This subscription has ended. Existing cases stay available; start a subscription to open new ones.";
 }
 
 /** Days left on a trial, floored at zero. Null when not on one. */

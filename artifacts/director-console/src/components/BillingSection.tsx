@@ -73,8 +73,8 @@ export function BillingSection({ readOnly }: { readOnly: boolean }) {
   };
 
   return (
-    <section className="space-y-4 rounded-xl border border-border bg-card p-4">
-      <h2 className="font-medium">Subscription</h2>
+    <section className="space-y-4 rounded-xl border border-border bg-card p-5 shadow-[var(--elevation-1)]">
+      <h2 className="font-display text-lg">Subscription</h2>
       <p className="text-sm text-muted-foreground">{describe()}</p>
 
       {!billingConfigured ? (

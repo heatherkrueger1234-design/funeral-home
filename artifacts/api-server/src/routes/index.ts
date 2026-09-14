@@ -29,6 +29,7 @@ import vitalsRouter from "./vitals";
 import printRouter from "./print";
 import aftercareRouter from "./aftercare";
 import uploadsRouter from "./uploads";
+import adminRouter from "./admin";
 
 const router: IRouter = Router();
 
@@ -129,5 +130,17 @@ router.use(vitalsRouter);
 router.use(printRouter);
 router.use(aftercareRouter);
 router.use(uploadsRouter);
+
+/**
+ * The platform admin console, and the only router here that reads across the
+ * tenant boundary.
+ *
+ * Mounted below the session gate rather than beside it, deliberately. A
+ * platform admin is a signed-in staff account that is *also* on the platform
+ * list, so there is one way to authenticate in this application and one
+ * cookie to steal, not two. `admin.ts` applies its own second gate under the
+ * `/admin` prefix and every cross-tenant read inside it is audit-logged.
+ */
+router.use(adminRouter);
 
 export default router;

@@ -8,7 +8,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { Check, Loader2, ShieldCheck, TriangleAlert } from "lucide-react";
+import { Check, ShieldCheck, TriangleAlert } from "lucide-react";
+import { Loading } from "@/components/page";
 
 /**
  * The certificate details, from the home's side.
@@ -103,9 +104,7 @@ export function VitalsPanel({ caseId }: { caseId: number }) {
 
   if (vitals.isPending) {
     return (
-      <div className="py-12 text-center">
-        <Loader2 className="size-5 animate-spin mx-auto text-muted-foreground" />
-      </div>
+      <Loading />
     );
   }
 
@@ -161,7 +160,7 @@ export function VitalsPanel({ caseId }: { caseId: number }) {
         </p>
       )}
 
-      <section className="flex flex-wrap items-end gap-3 rounded-xl border border-border bg-card p-4">
+      <section className="flex flex-wrap items-end gap-3 rounded-xl border border-border bg-card p-5 shadow-[var(--elevation-1)]">
         <ShieldCheck className="mb-2 size-5 text-[var(--accent-deep)]" />
         <div className="space-y-1.5">
           <Label htmlFor="ssn">Social security number</Label>
@@ -188,7 +187,7 @@ export function VitalsPanel({ caseId }: { caseId: number }) {
 
       {GROUPS.map((group) => (
         <section key={group.title} className="space-y-3">
-          <h3 className="font-medium">{group.title}</h3>
+          <h3 className="font-display text-base">{group.title}</h3>
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
             {group.fields.map(([field, label]) => (
               <div key={field} className="space-y-1.5">

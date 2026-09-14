@@ -11,7 +11,9 @@ import {
 import type { InboxEntry } from "@workspace/api-client-react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
-import { Loader2, Moon, Lock, Send } from "lucide-react";
+import { Divider, Empty, Loading, PageHeader } from "@/components/page";
+import { cn } from "@/lib/utils";
+import { Loader2, Moon, Lock, MessageSquare, Send } from "lucide-react";
 
 /**
  * Every family conversation in one list.
@@ -58,13 +60,7 @@ export default function Inbox() {
     query: { queryKey: getGetHomeInboxQueryKey(), refetchInterval: 60_000 },
   });
 
-  if (inbox.isPending) {
-    return (
-      <div className="py-16 grid place-items-center">
-        <Loader2 className="size-6 animate-spin text-muted-foreground" />
-      </div>
-    );
-  }
+  if (inbox.isPending) return <Loading rows={4} />;
 
   const rows = inbox.data ?? [];
   const waiting = rows.filter((row) => row.unreadFromFamily > 0);
@@ -72,20 +68,14 @@ export default function Inbox() {
 
   return (
     <div className="space-y-6">
-      <header>
-        <h1 className="font-display text-2xl">Messages</h1>
-        <p className="text-muted-foreground text-sm mt-1">
-          Every family, in one place. The ones waiting on you are first.
-        </p>
-      </header>
+      <PageHeader title="Messages">
+        Every family, in one place. The ones waiting on you are first.
+      </PageHeader>
 
       {rows.length === 0 ? (
-        <div className="rounded-lg border border-dashed p-10 text-center">
-          <p className="font-medium mb-1">No conversations yet</p>
-          <p className="text-sm text-muted-foreground">
-            A thread starts when you or a family writes on a case.
-          </p>
-        </div>
+        <Empty icon={MessageSquare} title="No conversations yet">
+          A thread starts when you or a family writes on a case.
+        </Empty>
       ) : (
         <>
           {waiting.length > 0 && (
@@ -98,11 +88,7 @@ export default function Inbox() {
 
           {rest.length > 0 && (
             <section className="space-y-3">
-              {waiting.length > 0 && (
-                <h2 className="text-sm font-medium text-muted-foreground pt-2">
-                  Answered
-                </h2>
-              )}
+              {waiting.length > 0 && <Divider label="Answered" />}
               <ul className="space-y-3">
                 {rest.map((row) => (
                   <Conversation key={row.caseId} row={row} />
@@ -144,15 +130,18 @@ function Conversation({ row }: { row: InboxEntry }) {
 
   return (
     <li
-      className={`rounded-lg border p-4 ${
-        waiting ? "border-amber-300 bg-amber-50/50" : ""
-      }`}
+      className={cn(
+        "rounded-xl border p-4 shadow-[var(--elevation-1)]",
+        waiting
+          ? "border-[var(--accent)] bg-[var(--accent-soft)]"
+          : "border-border bg-card",
+      )}
     >
       <div className="flex items-start justify-between gap-4">
         <div className="min-w-0">
           <Link
             href={`/cases/${row.caseId}`}
-            className="font-medium hover:underline"
+            className="font-semibold no-underline hover:underline"
           >
             {row.decedentName}
           </Link>
@@ -178,7 +167,7 @@ function Conversation({ row }: { row: InboxEntry }) {
 
       <div className="mt-3 flex flex-wrap items-center gap-3 text-xs">
         {waiting && (
-          <span className="rounded-full bg-amber-500 px-2 py-0.5 font-medium text-white">
+          <span className="tabular rounded-full bg-[var(--notice)] px-2 py-0.5 font-semibold text-white">
             {row.unreadFromFamily} unread
           </span>
         )}
