@@ -11,6 +11,7 @@ import {
   toStaffSignature,
   MESSAGE_LOCK_DAYS,
   canOpenCases,
+  cannotOpenCasesReason,
   type Case,
 } from "@workspace/db";
 import {
@@ -130,12 +131,7 @@ router.post("/cases", async (req, res) => {
    * `past_due` still opens cases while Stripe chases the payment.
    */
   if (!canOpenCases(home)) {
-    throw new HttpError(
-      402,
-      home.subscriptionStatus === "trial"
-        ? "Your trial has finished. Start a subscription to open new cases — everything already here stays available."
-        : "This subscription has ended. Existing cases stay available; start a subscription to open new ones.",
-    );
+    throw new HttpError(402, cannotOpenCasesReason(home));
   }
 
   const values = parseBody(CreateCaseBody, req.body);

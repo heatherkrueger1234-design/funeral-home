@@ -2,6 +2,7 @@ import { Router, type IRouter } from "express";
 import { and, asc, eq } from "drizzle-orm";
 import {
   canOpenCases,
+  cannotOpenCasesReason,
   casesTable,
   db,
   familyContactsTable,
@@ -110,12 +111,7 @@ router.post("/intake-requests/:intakeId/accept", async (req, res) => {
   const { home, row } = await loadPending(req);
 
   if (!canOpenCases(home)) {
-    throw new HttpError(
-      402,
-      home.subscriptionStatus === "trial"
-        ? "Your trial has finished. Start a subscription to open new cases — everything already here stays available."
-        : "This subscription has ended. Existing cases stay available; start a subscription to open new ones.",
-    );
+    throw new HttpError(402, cannotOpenCasesReason(home));
   }
 
   const created = await openCase(home.id, user.id, {
