@@ -47,17 +47,15 @@ services:
       #   pnpm --filter @workspace/scripts run generate-encryption-key
       ENCRYPTION_KEY: ${ENCRYPTION_KEY:?set ENCRYPTION_KEY in .env}
       LOG_LEVEL: ${LOG_LEVEL:-info}
+      # One proxy in front by default: the nginx in this file. Raised to 2 by
+      # docker-compose.tls.yml, which puts a TLS terminator in front of that
+      # nginx. Both req.secure and the rate limiter's idea of the client
+      # address depend on this matching reality.
+      TRUST_PROXY_HOPS: ${TRUST_PROXY_HOPS:-1}
       # The three apps are same-origin with their own API through nginx, so no
       # cross-origin request needs allowing. Left settable for a separate dev
       # server pointed at this stack.
       CORS_ORIGINS: ${CORS_ORIGINS:-}
-      # Who may reach the platform admin console, as a comma-separated list of
-      # staff email addresses. Unset means nobody, which is the right default:
-      # leaving this blank disables the console rather than opening it.
-      #
-      # TODO(C1): replaced by the `platform_admins` table once Component 1
-      # lands, and this variable goes away with it.
-      PLATFORM_ADMIN_EMAILS: ${PLATFORM_ADMIN_EMAILS:-}
       FAMILY_PORTAL_URL: ${FAMILY_PORTAL_URL:?set FAMILY_PORTAL_URL in .env}
       CONSOLE_URL: ${CONSOLE_URL:?set CONSOLE_URL in .env}
       SMTP_HOST: ${SMTP_HOST:-}
@@ -102,8 +100,9 @@ services:
       - "${CONSOLE_PORT:-8081}:80"
 
   # The platform's own console — our staff, not a customer's. Published on its
-  # own port like the others; it holds nothing a funeral home can reach, and
-  # `PLATFORM_ADMIN_EMAILS` being empty is what keeps it shut.
+  # own port like the others. Nothing here is reachable without a row in
+  # `platform_admins` and the separate session cookie that comes with it, so
+  # a stack with no such row has a console that nobody can sign in to.
   admin-console:
     build:
       context: .

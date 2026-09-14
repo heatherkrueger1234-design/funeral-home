@@ -115,7 +115,6 @@ Environment the server reads:
 | `STRIPE_SECRET_KEY` / `STRIPE_PRICE_ID` | Optional. Without them the product runs on trial and charges nothing. |
 | `STRIPE_WEBHOOK_SECRET` | Required if Stripe is configured — the webhook refuses anything it cannot verify. |
 | `GOOGLE_PLACES_API_KEY` | Optional. Enables live vendor lookup; without it the directory is hand-entered. |
-| `PLATFORM_ADMIN_EMAILS` | Comma-separated staff addresses allowed into the platform admin console. **Unset means nobody**, which is the safe default — leaving it blank disables the console rather than opening it. Temporary: replaced by the `platform_admins` table when Component 1 lands. |
 
 ### Scheduling the aftercare
 
@@ -315,17 +314,20 @@ for a funeral home. It is where the business looks at its own customers: the
 list of homes, what each one is using, and — the part that earns its keep in
 Colorado this year — where each home stands with DORA.
 
-**How you get in.** A platform admin is a signed-in staff account that is also
-named in `PLATFORM_ADMIN_EMAILS`. That is on purpose: one way to authenticate
-in this application means one cookie to protect, not two. Being on the list is
-an *additional* condition and never an alternative one, and an empty list
-means nobody. `routes/admin.ts` applies that check under `/admin`, below the
-ordinary session gate.
+**How you get in.** A platform admin is a row in `platform_admins` — a
+different account from any funeral home's staff, with its own table, its own
+cookie (`fh_platform`) and its own resolver, signing in at
+`/admin/auth/login`. There is no value of `users.role` that grants
+cross-tenant access and there should never be: `users.funeralHomeId` is
+`NOT NULL` and is the tenant boundary the whole API rests on, so a nullable
+tenant there would weaken the strongest invariant in the codebase in the one
+place nobody would notice until a home saw another home's families.
 
-> This is a stand-in. Component 1 owns the `platform_admins` table, its
-> session and the real `requirePlatformAdmin`; the `TODO(C1)` markers in
-> `routes/admin.ts` say exactly what is replaced. Nothing else in the file
-> changes when it lands.
+Sessions last twelve hours rather than a director's thirty days, because this
+account can read every home in the system. `requirePlatformAdmin` attaches
+neither `req.user` nor `req.home`, so nothing under `/admin` can call
+`tenant(req)` and quietly acquire a scope that does not exist there — which is
+also why the router mounts *above* `requireAuth` rather than below it.
 
 **What it may do.** See everything, change almost nothing. Creating a home and
 suspending a home are the complete list of writes that touch a tenant. There

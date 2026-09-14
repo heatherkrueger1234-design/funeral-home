@@ -1,0 +1,76 @@
+# TLS in front of the stack. Use this on any host a director will actually
+# sign in to:
+#
+#   docker compose -f docker-compose.yml -f docker-compose.tls.yml up -d
+#
+# Without it the stack listens on 8080 and 8081 in plain HTTP, and in
+# production the session cookie is Secure -- so a director signs in, the
+# browser accepts a cookie it will never send back, and they land on the
+# sign-in page again with nothing on screen explaining why. That is the single
+# most expensive way this deployment can be wrong, because it looks like a
+# broken app rather than a missing certificate.
+#
+# Requires FAMILY_DOMAIN, CONSOLE_DOMAIN and ACME_EMAIL in .env, and both
+# domains already pointing at this host.
+
+services:
+  caddy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    depends_on:
+      - family-portal
+      - director-console
+    ports:
+      # 80 is not redundant: Let's Encrypt's HTTP-01 challenge arrives there,
+      # and Caddy redirects everything else to 443.
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"
+    environment:
+      FAMILY_DOMAIN: ${FAMILY_DOMAIN:?set FAMILY_DOMAIN in .env}
+      CONSOLE_DOMAIN: ${CONSOLE_DOMAIN:?set CONSOLE_DOMAIN in .env}
+      ACME_EMAIL: ${ACME_EMAIL:?set ACME_EMAIL in .env — Let'"'"'s Encrypt sends expiry warnings there}
+      ACME_CA: ${ACME_CA:-}
+    volumes:
+      - ./deploy/Caddyfile:/etc/caddy/Caddyfile:ro
+      # Named, and the one volume here that matters. It holds the issued
+      # certificates and the ACME account key; losing it means re-issuing
+      # everything, which is rate-limited.
+      - caddy-data:/data
+      - caddy-config:/config
+    healthcheck:
+      test: ["CMD", "caddy", "version"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+
+  api:
+    environment:
+      # Caddy and then nginx: two hops, not one. Express reads the client
+      # address this many entries from the right of X-Forwarded-For, so a 1
+      # here makes the rate limiter count nginx's address as the client and
+      # one family's retries throttle everybody.
+      TRUST_PROXY_HOPS: "2"
+
+  # Both front ends stop being reachable from outside. Caddy talks to them
+  # over the compose network by name; the published port becomes a loopback
+  # one so `curl` on the host still works for debugging without putting plain
+  # HTTP on the public interface.
+  #
+  # `!override` is load-bearing, and its absence is silent. Compose *appends*
+  # list values across files rather than replacing them, so without it the
+  # base file's "8080:80" survives alongside the loopback binding here and the
+  # front ends stay open to the internet on plain HTTP -- with the deployer
+  # believing this file closed them. It shows up as a port conflict if you are
+  # lucky and as an open port if you are not.
+  family-portal:
+    ports: !override
+      - "127.0.0.1:${FAMILY_PORTAL_PORT:-8080}:80"
+
+  director-console:
+    ports: !override
+      - "127.0.0.1:${CONSOLE_PORT:-8081}:80"
+
+volumes:
+  caddy-data:
+  caddy-config:

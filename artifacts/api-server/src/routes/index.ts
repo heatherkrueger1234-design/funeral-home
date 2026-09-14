@@ -6,7 +6,7 @@ import healthRouter from "./health";
 import authRouter from "./auth";
 import platformAuthRouter from "./platform-auth";
 import tasksRouter from "./tasks";
-import billingRouter, { billingWebhookRouter } from "./billing";
+import billingRouter from "./billing";
 import familyRouter from "./family";
 import publicRouter from "./public";
 import intakeRouter from "./intake";
@@ -91,12 +91,26 @@ router.use("/public", publicRateLimit, publicRouter);
  */
 router.use(tasksRouter);
 
-/**
- * Stripe's webhook only. It has no session and needs the raw request body,
- * so it carries its own signature check and its own body parser. The rest of
- * billing is a staff surface and is mounted below the gate.
+/*
+ * Stripe's webhook is NOT mounted here, and must not be.
+ *
+ * It needs the raw request bytes to check Stripe's signature, and by the time
+ * a request reaches this router `app.ts` has already run `express.json()` over
+ * it -- which consumes the stream and leaves `req.body` as a parsed object.
+ * The webhook's own `express.raw()` then finds the body already read and
+ * passes that object straight through, so the signature gets computed over
+ * the string "[object Object]" and no genuine Stripe event can ever verify.
+ *
+ * It fails silently and only where it costs money: subscriptions never
+ * change state, a home that pays stays on `trial` until the trial cuts it
+ * off, a home that cancels keeps working forever, and Stripe retries for
+ * three days and disables the endpoint. The test suite passed throughout,
+ * because every test asserted that a *bad* signature is rejected and none
+ * asserted that a good one is accepted.
+ *
+ * So it is mounted in `app.ts`, ahead of the body parsers. See the comment
+ * there.
  */
-router.use(billingWebhookRouter);
 
 /**
  * The family surface, mounted under `/family` so the gate applies to those
