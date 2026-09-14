@@ -202,6 +202,82 @@ that actually stops new cases.
 New homes get a 30-day trial, dated from registration so "when does this end"
 has an answer from the first minute.
 
+## The storefront, the price lists and the statement
+
+The home's own merchandise, at the home's own prices, and the three price
+lists the FTC Funeral Rule requires a funeral provider to be able to produce.
+
+**It ships empty, and that is the feature.** There is no starter catalogue, no
+suggested pricing, no typical markup and no default urn anywhere in
+`lib/db/src/schema/catalogue.ts` or any migration of it. A home's merchandise
+and what it charges for it are its margin, its livelihood and its own Funeral
+Rule disclosure — and a vendor whose software has an opinion about either is
+competing with the selection room it was sold to. The only thing this system
+knows about a price is which number to print.
+
+Homes load their own with **`/api/catalogue/import`**, which reads the CSV
+they already have. Columns are guessed and previewed before anything is
+written; anything labelled cost or wholesale is deliberately never read as a
+price, because those columns sit right beside the retail one in every
+supplier's export and importing one would publish a home's margin on a sheet
+a family reads.
+
+### What the Funeral Rule shapes
+
+The Rule binds the *home*, not us. Our job is a storefront a home can use
+without breaking it, so these are enforced rather than suggested:
+
+- **Every item carries its own price.** Packages exist in addition, never
+  instead: choosing one writes its members as ordinary itemised lines plus a
+  single adjustment carrying the saving, so declining any one of them removes
+  the item, drops the adjustment and moves the total in front of the family.
+- **The catalogue prints as a General Price List, a Casket Price List and an
+  Outer Burial Container Price List**, from
+  `artifacts/api-server/src/lib/price-list-render.ts` — print-ready HTML on
+  letter paper, sharing its escaping with the print studio next door.
+- **No casket reaches a family before the General Price List does.** The gate
+  is on the server (`mayShowCaskets`), not drawn in the interface and hoped
+  for: casket and outer-burial-container categories are not returned, and
+  adding one to a selection is refused, until the home has dated a price list
+  and this family has been given it — by opening it, or by a director
+  recording that they handed one across the desk.
+- **A family bringing their own casket or urn is charged nothing**, and there
+  is nowhere to put a fee if somebody later wants one. A provider may not
+  refuse a third-party casket or surcharge for handling it, so that path has
+  no price in its request body, no price in the row it writes, and a check
+  constraint on `merchandise_selection_items` that refuses one.
+- The GPL's required disclosures are **slots we name and words the home
+  writes**. The Rule prescribes what each must convey; a national SaaS typing
+  the paragraphs for two hundred homes would be giving legal advice it is not
+  qualified to give.
+
+### The statement, and the handoff
+
+A confirmed selection is the **Statement of Funeral Goods and Services
+Selected**, generated from what the family actually chose and printable by
+both sides. Names, sections and prices are snapshotted onto the line when it
+is added, so a home raising its prices in March cannot rewrite what a family
+agreed in February.
+
+**No money moves through this product.** A confirmed at-need statement ends
+with the home's own payment page, at the home's own processor, with the
+destination host printed underneath — a message about money sent to a
+bereaved family is exactly what a scammer imitates, so ours has to be boring,
+expected and visibly theirs. With no link set, the family is asked to
+telephone, which is an answer rather than an error. The "settled" mark is a
+director reading their own books and the copy says so; nothing here implies
+we received or confirmed a payment, because we cannot know.
+
+**A `pre_need` case has no payment path at all** — not in the interface, not
+in the API, not on the printed sheet, which says plainly that it is a plan
+and not a bill. Selling a preneed contract in Colorado needs a Division of
+Insurance licence, a bond or $100,000 of net worth and 85% of the money in
+trust; there are two lawful funding methods and neither is a payment link.
+
+`storefront.test.ts` carries a test that reads this component's own source and
+fails if a card field, a balance or a second Stripe surface ever appears in
+it. Everything else in that file would still pass if one did.
+
 ## Tests
 
 `artifacts/api-server/test` runs against a real Postgres with no mocks, because

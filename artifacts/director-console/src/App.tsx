@@ -19,6 +19,7 @@ import SignIn from "@/pages/SignIn";
 import Cases from "@/pages/Cases";
 import CaseDetail from "@/pages/CaseDetail";
 import Settings from "@/pages/Settings";
+import Catalogue from "@/pages/Catalogue";
 import Vendors from "@/pages/Vendors";
 import Requests from "@/pages/Requests";
 import NotFound from "@/pages/NotFound";
@@ -72,6 +73,7 @@ function Routes() {
         <Route path="/" component={Cases} />
         <Route path="/cases/:caseId" component={CaseDetail} />
         <Route path="/requests" component={Requests} />
+        <Route path="/catalogue" component={Catalogue} />
         <Route path="/vendors" component={Vendors} />
         <Route path="/settings" component={Settings} />
         <Route component={NotFound} />

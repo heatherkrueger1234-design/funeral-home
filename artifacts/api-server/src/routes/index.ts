@@ -90,20 +90,20 @@ router.use(billingWebhookRouter);
  * there is nothing for a handler to check and nothing for a family member to
  * tamper with.
  */
-router.use("/family", familyRateLimit, requireFamilyLink, familyRouter);
-
-/**
- * The family's storefront, behind the same gate and under the same prefix.
- *
- * A second router rather than more handlers in `family.ts`, because the
- * storefront is one component's work and a thousand-line file that six
- * people edit is a merge conflict with a queue. The gate is the line above,
- * and it applies to this exactly as it applies to that.
+/*
+ * `familyStorefrontRouter` rides the same mount rather than taking one of
+ * its own. It is a separate file because the storefront is one component's
+ * work and a thousand-line `family.ts` that six people edit is a merge
+ * conflict with a queue — but mounting it again under `/family` would run
+ * the limiter and the token lookup twice for every request that fell
+ * through to it, halving a family's budget and writing their "last seen"
+ * twice for one page load.
  */
 router.use(
   "/family",
   familyRateLimit,
   requireFamilyLink,
+  familyRouter,
   familyStorefrontRouter,
 );
 

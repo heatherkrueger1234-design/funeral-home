@@ -31,6 +31,7 @@ import { MessagesPanel } from "@/components/case/MessagesPanel";
 import { BelongingsPanel } from "@/components/case/BelongingsPanel";
 import { VitalsPanel } from "@/components/case/VitalsPanel";
 import { PrintPanel } from "@/components/case/PrintPanel";
+import { ArrangementPanel } from "@/components/case/ArrangementPanel";
 import { DetailsPanel } from "@/components/case/DetailsPanel";
 import { CaseData } from "@/components/CaseData";
 
@@ -150,6 +151,7 @@ export default function CaseDetail() {
           <TabsTrigger value="belongings">Belongings</TabsTrigger>
           <TabsTrigger value="obituary">Obituary</TabsTrigger>
           <TabsTrigger value="service">Service</TabsTrigger>
+          <TabsTrigger value="arrangement">Arrangement</TabsTrigger>
           <TabsTrigger value="print">Print</TabsTrigger>
           <TabsTrigger value="timeline">
             Timeline
@@ -186,6 +188,12 @@ export default function CaseDetail() {
           </TabsContent>
           <TabsContent value="service">
             <ServicePanel caseId={caseId} />
+          </TabsContent>
+          <TabsContent value="arrangement">
+            <ArrangementPanel
+              caseId={caseId}
+              isPreNeed={detail.kind === "pre_need"}
+            />
           </TabsContent>
           <TabsContent value="print">
             <PrintPanel caseId={caseId} />

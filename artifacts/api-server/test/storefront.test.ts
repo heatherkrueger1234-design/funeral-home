@@ -551,6 +551,30 @@ describe("the Statement of Funeral Goods and Services Selected", () => {
     expect(familyCopy.text).toContain("$2,786.00");
   });
 
+  it("carries the legal name, with what they were called beside it", async () => {
+    const staff = await tradingHome();
+    const row = await createCase(staff, {
+      decedentFirstName: "Margaret",
+      decedentLastName: "Hale",
+      decedentPreferredName: "Peggy",
+    });
+
+    const urn = findItem(await catalogueOf(staff), "Brushed Pewter");
+
+    await staff.agent
+      .post(`/api/cases/${row.id}/selection/items`)
+      .send({ itemId: urn.id })
+      .expect(201);
+
+    const printed = await staff.agent
+      .get(`/api/cases/${row.id}/statement/render`)
+      .expect(200);
+
+    // Read beside a death certificate and an insurance claim, so the legal
+    // name leads even though every other screen says "Peggy".
+    expect(printed.text).toContain("Margaret Hale (Peggy)");
+  });
+
   it("stops taking changes once the director has agreed it", async () => {
     const staff = await tradingHome();
     const row = await createCase(staff);

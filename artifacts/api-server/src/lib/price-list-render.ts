@@ -1,6 +1,5 @@
 import {
   GPL_DISCLOSURES,
-  decedentDisplayName,
   formatPrice,
   lineTotalCents,
   selectionTotalCents,
@@ -433,9 +432,28 @@ export function hostOf(rawUrl: string): string {
   }
 }
 
+/**
+ * Whose statement this is, in the name a document should carry.
+ *
+ * The legal name, not the one everyone used. Every other screen in this
+ * product says "Peggy" because that is who she was to her family, and this
+ * one sheet says "Margaret Hale" because it is the itemised record of a
+ * transaction and it will be read beside a death certificate, an insurance
+ * claim and a bank. The preferred name follows in brackets so nobody has to
+ * wonder whether it is the right person.
+ */
+function statementSubject(row: Case): string {
+  const legal = `${row.decedentFirstName} ${row.decedentLastName}`.trim();
+  const preferred = row.decedentPreferredName?.trim();
+
+  return preferred && preferred !== row.decedentFirstName
+    ? `${legal} (${preferred})`
+    : legal;
+}
+
 export function renderStatement(input: StatementInput): string {
   const { home, selection } = input;
-  const subject = decedentDisplayName(input.case);
+  const subject = statementSubject(input.case);
   const total = selectionTotalCents(input.lines);
 
   const dated = formatDay(selection.confirmedAt ?? new Date());
