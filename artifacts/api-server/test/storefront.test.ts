@@ -447,6 +447,52 @@ describe("declining an item changes the total", () => {
     expect(broken.body.lines).toHaveLength(1);
     expect(broken.body.totalCents).toBe(219500);
   });
+
+  it("keeps a withdrawn package's link to what a family already chose", async () => {
+    const staff = await tradingHome();
+    const catalogue = await catalogueOf(staff);
+    const services = findItem(catalogue, "Basic services of funeral director and staff");
+    const transfer = findItem(catalogue, "Transfer of remains to our care");
+
+    const pack = await staff.agent
+      .post("/api/catalogue/packages")
+      .send({
+        name: "Traditional Service",
+        priceCents: 239000,
+        itemIds: [services.id, transfer.id],
+      })
+      .expect(201);
+
+    const row = await createCase(staff);
+    const { token } = await inviteFamily(staff, row.id);
+    const family = asFamily(token);
+
+    const chosen = await family
+      .post("/api/family/storefront/packages")
+      .send({ packageId: pack.body.id })
+      .expect(201);
+
+    // The home stops offering it while this family is still deciding.
+    const withdrawn = await staff.agent
+      .delete(`/api/catalogue/packages/${pack.body.id}`)
+      .expect(200);
+
+    expect(withdrawn.body).toEqual({ archived: true });
+
+    const unchanged = await family.get("/api/family/storefront").expect(200);
+    expect(unchanged.body.packages).toEqual([]);
+    expect(unchanged.body.selection.totalCents).toBe(239000);
+
+    // And breaking the set still takes the package price with it. Hard
+    // deleting the package would have severed that link and left the family
+    // holding a discount for a set they no longer have.
+    const broken = await family
+      .delete(`/api/family/storefront/items/${chosen.body.lines[1].id}`)
+      .expect(200);
+
+    expect(broken.body.lines).toHaveLength(1);
+    expect(broken.body.totalCents).toBe(219500);
+  });
 });
 
 describe("bringing your own", () => {

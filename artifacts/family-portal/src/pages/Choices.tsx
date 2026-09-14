@@ -508,9 +508,19 @@ function Paying({
               >
                 Pay {homeName} online
               </a>
-              <p className="text-sm text-muted-foreground break-all">
-                That link goes to {payment.host}, which is {homeName}'s own
-                payment page. This site never takes payments.
+              {/*
+                The host is the only thing here that may be broken
+                mid-string, and it has to be: a long payment domain would
+                otherwise push the card sideways on a phone. Breaking the
+                sentence around it the same way turns "payment" into "paym
+                ent", which reads like a fault on the one card where a
+                family most needs to feel sure of what they are looking at.
+              */}
+              <p className="text-sm text-muted-foreground">
+                That link goes to{" "}
+                <span className="break-all font-medium">{payment.host}</span>,
+                which is {homeName}'s own payment page. This site never takes
+                payments.
               </p>
             </>
           ) : (

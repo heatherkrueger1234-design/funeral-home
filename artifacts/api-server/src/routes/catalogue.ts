@@ -530,11 +530,42 @@ async function memberIds(packageId: number): Promise<number[]> {
   return rows.map((row) => row.itemId);
 }
 
+/**
+ * Withdrawing a package.
+ *
+ * Deleted while nobody has chosen it; archived once somebody has, and the
+ * distinction is not tidiness. A selection's lines point back at the package
+ * they came from, and that link is what lets declining one of its items take
+ * the package's price adjustment with it. Hard-deleting the row would null
+ * those links and leave a family holding a discount for a set they had
+ * already broken — a total that quietly stopped adding up, on the one screen
+ * where it must.
+ */
 router.delete("/catalogue/packages/:packageId", async (req, res) => {
+  const home = tenant(req);
   const existing = await loadPackage(req, req.params.packageId);
 
-  // Nothing on a statement depends on a package row surviving: choosing one
-  // writes its members as ordinary itemised lines, which is the whole point.
+  const [chosen] = await db
+    .select({ id: merchandiseSelectionItemsTable.id })
+    .from(merchandiseSelectionItemsTable)
+    .where(
+      and(
+        eq(merchandiseSelectionItemsTable.funeralHomeId, home.id),
+        eq(merchandiseSelectionItemsTable.packageId, existing.id),
+      ),
+    )
+    .limit(1);
+
+  if (chosen) {
+    await db
+      .update(cataloguePackagesTable)
+      .set({ archivedAt: new Date(), updatedAt: new Date() })
+      .where(eq(cataloguePackagesTable.id, existing.id));
+
+    res.json({ archived: true });
+    return;
+  }
+
   await db
     .delete(cataloguePackagesTable)
     .where(eq(cataloguePackagesTable.id, existing.id));
