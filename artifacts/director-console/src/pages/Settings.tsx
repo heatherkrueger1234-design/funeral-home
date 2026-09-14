@@ -49,11 +49,7 @@ export default function Settings() {
     },
   });
 
-  if (home.isPending) {
-    return (
-      <Loading />
-    );
-  }
+  if (home.isPending) return <Loading rows={4} />;
 
   if (!home.data) return null;
 
@@ -62,15 +58,15 @@ export default function Settings() {
   const save = (data: Record<string, unknown>) => update.mutate({ data: data as never });
 
   return (
-    <div className="max-w-2xl space-y-8">
+    <div className="max-w-2xl space-y-7">
       <PageHeader title="Settings">
         {readOnly
         ? "Only an owner can change these."
         : "How families see you, and when you are open."}
       </PageHeader>
 
-      <section className="space-y-4 rounded-xl border border-border bg-card p-4">
-        <h2 className="font-medium">How families see you</h2>
+      <section className="space-y-4 rounded-xl border border-border bg-card p-5 shadow-[var(--elevation-1)]">
+        <h2 className="font-display text-lg">How families see you</h2>
 
         <div className="space-y-1.5">
           <Label htmlFor="name">Funeral home</Label>
@@ -88,12 +84,14 @@ export default function Settings() {
         <div className="space-y-1.5">
           <Label htmlFor="accentColor">Brand colour</Label>
           <div className="flex items-center gap-3">
+            {/* The swatch is the control. A hex field would be a worse
+                version of the thing every operating system already has. */}
             <Input
               id="accentColor"
               type="color"
               disabled={readOnly}
               defaultValue={row.accentColor}
-              className="h-10 w-16 p-1"
+              className="h-11 w-16 cursor-pointer p-1"
               onBlur={(event) => save({ accentColor: event.target.value })}
             />
             <span className="text-sm text-muted-foreground">
@@ -124,7 +122,7 @@ export default function Settings() {
                 save({ urgentPhone: event.target.value.trim() || null })
               }
             />
-            <p className="text-xs text-muted-foreground">
+            <p className="text-sm leading-snug text-muted-foreground">
               Shown on every screen a family sees, and beside the out-of-hours
               notice.
             </p>
@@ -132,8 +130,8 @@ export default function Settings() {
         </div>
       </section>
 
-      <section className="space-y-4 rounded-xl border border-border bg-card p-4">
-        <h2 className="font-medium">Office hours</h2>
+      <section className="space-y-4 rounded-xl border border-border bg-card p-5 shadow-[var(--elevation-1)]">
+        <h2 className="font-display text-lg">Office hours</h2>
         <p className="text-sm text-muted-foreground">
           These never hold a message back. A family writing at two in the
           morning is told, before they send, that you read messages from the
@@ -193,8 +191,8 @@ export default function Settings() {
         This is where a home finds out it has one, and gets the address to put
         on their own website.
       */}
-      <section className="space-y-4 rounded-xl border border-border bg-card p-4">
-        <h2 className="font-medium">Your public page</h2>
+      <section className="space-y-4 rounded-xl border border-border bg-card p-5 shadow-[var(--elevation-1)]">
+        <h2 className="font-display text-lg">Your public page</h2>
         <p className="text-sm text-muted-foreground">
           Put this on your website, so a family who has just had a death — or
           someone planning their own funeral in advance — can reach you without
@@ -242,8 +240,8 @@ export default function Settings() {
         </div>
       </section>
 
-      <section className="space-y-4 rounded-xl border border-border bg-card p-4">
-        <h2 className="font-medium">Aftercare</h2>
+      <section className="space-y-4 rounded-xl border border-border bg-card p-5 shadow-[var(--elevation-1)]">
+        <h2 className="font-display text-lg">Aftercare</h2>
 
         <label className="flex items-start gap-3">
           <Switch

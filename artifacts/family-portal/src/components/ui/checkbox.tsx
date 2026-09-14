@@ -11,7 +11,17 @@ const Checkbox = React.forwardRef<
   <CheckboxPrimitive.Root
     ref={ref}
     className={cn(
-      "grid place-content-center peer h-4 w-4 shrink-0 rounded-sm border border-primary shadow focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50 data-[state=checked]:bg-primary data-[state=checked]:text-primary-foreground",
+      // An unchecked box is a well, like every other empty field on the
+      // page; a checked one fills with the home's colour. The scaffold drew
+      // the empty one with an accent-coloured border, which made a list of
+      // ten unticked things look like ten things demanding attention.
+      "peer grid size-5 shrink-0 place-content-center rounded border border-[var(--border-strong)] bg-[var(--card)]",
+      "shadow-[inset_0_1px_2px_rgb(40_34_24/0.05)]",
+      "transition-[background-color,border-color,box-shadow] duration-200 ease-[cubic-bezier(0.2,0.6,0.3,1)]",
+      "hover:border-[var(--accent)]",
+      "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--accent)]",
+      "disabled:cursor-not-allowed disabled:opacity-50 disabled:bg-[var(--muted)]",
+      "data-[state=checked]:border-[var(--accent)] data-[state=checked]:bg-[var(--accent)] data-[state=checked]:text-white data-[state=checked]:shadow-none",
       className
     )}
     {...props}
@@ -19,7 +29,7 @@ const Checkbox = React.forwardRef<
     <CheckboxPrimitive.Indicator
       className={cn("grid place-content-center text-current")}
     >
-      <Check className="h-4 w-4" />
+      <Check className="size-3.5" strokeWidth={3} />
     </CheckboxPrimitive.Indicator>
   </CheckboxPrimitive.Root>
 ))

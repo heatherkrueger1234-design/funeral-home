@@ -71,9 +71,9 @@ export function StandardSchedule({ readOnly }: { readOnly: boolean }) {
   const rows = template.data ?? [];
 
   return (
-    <section className="space-y-4 rounded-xl border border-border bg-card p-4">
+    <section className="space-y-4 rounded-xl border border-border bg-card p-5 shadow-[var(--elevation-1)]">
       <div>
-        <h2 className="font-medium">Standard schedule</h2>
+        <h2 className="font-display text-lg">Standard schedule</h2>
         <p className="text-sm text-muted-foreground">
           Every case gets this the moment it has a service date, so nobody has
           to remember to tell a family when their clothing is due. Times are

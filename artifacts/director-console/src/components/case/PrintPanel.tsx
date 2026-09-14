@@ -339,7 +339,7 @@ export function PrintPanel({ caseId }: { caseId: number }) {
           {items.data!.map((item) => (
             <li
               key={item.id}
-              className="flex flex-wrap items-center gap-3 rounded-xl border border-border bg-card px-4 py-3"
+              className="flex flex-wrap items-center gap-3 rounded-xl border border-border bg-card px-4 py-3.5 shadow-[var(--elevation-1)]"
             >
               <span className="min-w-0 flex-1">
                 <span className="block truncate font-medium">
@@ -383,13 +383,13 @@ export function PrintPanel({ caseId }: { caseId: number }) {
       )}
 
       <section className="space-y-3">
-        <h3 className="font-medium">Start something</h3>
+        <h3 className="font-display text-base">Start something</h3>
         <ul className="grid gap-3 sm:grid-cols-2">
           {templates.data!.map((template) => (
             <li key={template.key}>
               <button
                 type="button"
-                className="w-full rounded-xl border border-border bg-card p-4 text-left transition-colors hover:border-[var(--accent)]"
+                className="w-full lift rounded-xl border border-border bg-card p-5 text-left shadow-[var(--elevation-1)] transition-gentle hover:border-[color-mix(in_oklab,var(--accent)_45%,var(--border))]"
                 onClick={() =>
                   create.mutate({ caseId, data: { templateKey: template.key } })
                 }

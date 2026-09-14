@@ -8,8 +8,8 @@ import {
 } from "@workspace/api-client-react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
-import { Loader2, Moon, Send } from "lucide-react";
-import { Loading } from "@/components/page";
+import { Loader2, MessageSquare, Moon, Send } from "lucide-react";
+import { Empty, Loading } from "@/components/page";
 
 /**
  * The thread, from the home's side.
@@ -51,9 +51,10 @@ export function MessagesPanel({ caseId }: { caseId: number }) {
     <div className="space-y-4">
       <div className="space-y-3">
         {messages.length === 0 && (
-          <p className="rounded-xl border border-dashed border-border px-4 py-10 text-center text-muted-foreground">
-            Nothing yet.
-          </p>
+          <Empty icon={MessageSquare} title="Nothing yet">
+            Anything you write here reaches the family in their portal, not by
+            text message.
+          </Empty>
         )}
 
         {messages.map((message) => {
@@ -90,7 +91,7 @@ export function MessagesPanel({ caseId }: { caseId: number }) {
       </div>
 
       {locked ? (
-        <p className="rounded-xl border border-border bg-card px-4 py-4 text-sm text-muted-foreground">
+        <p className="rounded-xl border border-border bg-[var(--sunken)] px-4 py-4 text-sm leading-relaxed text-muted-foreground">
           This thread closed a fortnight after the service. Neither side can
           post to it.
         </p>

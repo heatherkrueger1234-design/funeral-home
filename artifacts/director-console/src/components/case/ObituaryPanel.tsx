@@ -84,7 +84,7 @@ export function ObituaryPanel({ caseId }: { caseId: number }) {
   return (
     <div className="grid gap-6 lg:grid-cols-2">
       <section className="space-y-3">
-        <h2 className="font-medium">
+        <h2 className="font-display text-lg">
           What the family gave you
           <span className="ml-2 text-sm font-normal text-muted-foreground">
             {draft.status === "submitted"
@@ -95,7 +95,7 @@ export function ObituaryPanel({ caseId }: { caseId: number }) {
           </span>
         </h2>
 
-        <dl className="space-y-3 rounded-xl border border-border bg-card p-4">
+        <dl className="space-y-3 rounded-xl border border-border bg-card p-5 shadow-[var(--elevation-1)]">
           {fields.map(([label, value]) => (
             <div key={label}>
               <dt className="text-xs uppercase tracking-wide text-muted-foreground">
@@ -111,7 +111,7 @@ export function ObituaryPanel({ caseId }: { caseId: number }) {
 
       <section className="space-y-3">
         <div className="flex items-center gap-2">
-          <h2 className="font-medium">The draft</h2>
+          <h2 className="font-display text-lg">The draft</h2>
           <div className="ml-auto flex gap-1">
             <Button
               variant="ghost"

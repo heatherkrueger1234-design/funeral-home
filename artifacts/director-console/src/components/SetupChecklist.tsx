@@ -48,20 +48,25 @@ export function SetupChecklist() {
   const remaining = billing.data.onboarding.filter((step) => !step.done);
 
   return (
-    <section className="rounded-xl border border-[var(--accent)] bg-[var(--accent-soft)] p-4">
-      <div className="mb-3 flex items-center gap-2">
-        <h2 className="font-medium">Getting set up</h2>
-        <span className="text-sm text-muted-foreground">
+    <section className="rounded-xl border border-[var(--accent)]/25 bg-[var(--accent-soft)] p-5">
+      <div className="mb-4 flex flex-wrap items-baseline gap-x-3 gap-y-1">
+        <h2 className="font-display text-lg text-[var(--accent-deep)]">
+          Getting set up
+        </h2>
+        <span className="tabular text-sm text-muted-foreground">
           {billing.data.onboarding.length - remaining.length} of{" "}
           {billing.data.onboarding.length} done
         </span>
       </div>
 
-      <ul className="space-y-2">
+      <ul className="space-y-1">
         {billing.data.onboarding.map((step) => (
-          <li key={step.key} className="flex items-start gap-3">
+          <li
+            key={step.key}
+            className="flex items-start gap-3 rounded-lg px-2 py-2 -mx-2 transition-colors duration-200 hover:bg-white/50"
+          >
             <Checkbox
-              className="mt-0.5 bg-white"
+              className="mt-0.5"
               checked={step.done}
               aria-label={step.title}
               onCheckedChange={(checked) =>
@@ -71,13 +76,15 @@ export function SetupChecklist() {
             <span className="min-w-0 flex-1">
               <span
                 className={
-                  step.done ? "line-through text-muted-foreground" : "font-medium"
+                  step.done
+                    ? "text-muted-foreground line-through decoration-muted-foreground/50"
+                    : "font-semibold"
                 }
               >
                 {step.title}
               </span>
               {!step.done && (
-                <span className="block text-sm text-muted-foreground">
+                <span className="mt-0.5 block text-sm leading-snug text-muted-foreground">
                   {step.detail}
                 </span>
               )}
@@ -131,8 +138,8 @@ export function TrialBanner() {
   if (!ended && !closing) return null;
 
   return (
-    <div className="flex flex-wrap items-center gap-3 rounded-xl border border-border bg-card px-4 py-3">
-      <span className="min-w-0 flex-1 text-sm">
+    <div className="flex flex-wrap items-center gap-3 rounded-xl border border-[var(--notice)]/30 bg-[var(--notice-soft)] px-4 py-3.5">
+      <span className="min-w-0 flex-1 text-sm leading-relaxed">
         {ended ? (
           <>
             <strong>This subscription has ended.</strong> Everything already

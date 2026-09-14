@@ -100,7 +100,7 @@ export function BelongingsPanel({ caseId }: { caseId: number }) {
     <div className="grid gap-6 lg:grid-cols-2">
       <section className="space-y-3">
         <div className="flex items-center gap-2">
-          <h2 className="font-medium">In your care</h2>
+          <h2 className="font-display text-lg">In your care</h2>
           {outstanding > 0 && (
             <span className="rounded-full bg-[var(--accent-soft)] px-2 py-0.5 text-xs text-[var(--accent-deep)]">
               {outstanding} to return
@@ -112,7 +112,7 @@ export function BelongingsPanel({ caseId }: { caseId: number }) {
           {rows.map((item) => (
             <li
               key={item.id}
-              className="space-y-2 rounded-lg border border-border bg-card p-3"
+              className="space-y-2 rounded-lg border border-border bg-card p-3.5 shadow-[var(--elevation-1)]"
             >
               <div className="flex items-start gap-2">
                 <Input
@@ -229,7 +229,7 @@ export function BelongingsPanel({ caseId }: { caseId: number }) {
 
       <section className="space-y-4">
         <div className="flex items-center gap-2">
-          <h2 className="font-medium">Preparation</h2>
+          <h2 className="font-display text-lg">Preparation</h2>
           {prep?.reviewedAt ? (
             <span className="flex items-center gap-1 text-xs text-muted-foreground">
               <Check className="size-3.5" />

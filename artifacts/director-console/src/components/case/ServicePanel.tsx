@@ -6,8 +6,8 @@ import {
   getGetSelectionsQueryKey,
 } from "@workspace/api-client-react";
 import { Button } from "@/components/ui/button";
-import { Check, X } from "lucide-react";
-import { Loading } from "@/components/page";
+import { Check, ListMusic, X } from "lucide-react";
+import { Empty, Loading } from "@/components/page";
 
 const LABELS: Record<string, string> = {
   hymn: "Hymns",
@@ -46,9 +46,10 @@ export function ServicePanel({ caseId }: { caseId: number }) {
 
   if (rows.length === 0) {
     return (
-      <p className="rounded-xl border border-dashed border-border py-12 text-center text-muted-foreground">
-        The family has not chosen anything yet.
-      </p>
+      <Empty icon={ListMusic} title="Nothing chosen yet">
+        Hymns, readings and bearers appear here as the family adds them from
+        their own link.
+      </Empty>
     );
   }
 
@@ -58,7 +59,7 @@ export function ServicePanel({ caseId }: { caseId: number }) {
     <div className="space-y-6">
       {kinds.map((kind) => (
         <section key={kind} className="space-y-2">
-          <h2 className="font-medium">{LABELS[kind] ?? kind}</h2>
+          <h2 className="font-display text-lg">{LABELS[kind] ?? kind}</h2>
           <ul className="space-y-2">
             {rows
               .filter((row) => row.kind === kind)
@@ -68,7 +69,7 @@ export function ServicePanel({ caseId }: { caseId: number }) {
                 return (
                   <li
                     key={row.id}
-                    className="flex items-center gap-3 rounded-lg border border-border bg-card px-4 py-2.5"
+                    className="flex items-center gap-3 rounded-lg border border-border bg-card px-4 py-3 shadow-[var(--elevation-1)]"
                   >
                     <span className="min-w-0 flex-1">
                       <span className="block truncate">{row.value}</span>

@@ -9,8 +9,8 @@ import {
   getGetCaseQueryKey,
 } from "@workspace/api-client-react";
 import { Button } from "@/components/ui/button";
-import { Check, Download, Eye, EyeOff, Scissors, Star, Trash2 } from "lucide-react";
-import { Loading } from "@/components/page";
+import { Check, Download, Eye, EyeOff, Images, Scissors, Star, Trash2 } from "lucide-react";
+import { Empty, Loading } from "@/components/page";
 
 /**
  * The photographs, as the director sees them: including the ones they have
@@ -54,9 +54,10 @@ export function PhotosPanel({
 
   if (rows.length === 0) {
     return (
-      <p className="rounded-xl border border-dashed border-border py-12 text-center text-muted-foreground">
-        Nothing in yet. The family adds these from their link.
-      </p>
+      <Empty icon={Images} title="Nothing in yet">
+        The family adds these from their link — go to the Family tab if they
+        have not been sent one.
+      </Empty>
     );
   }
 

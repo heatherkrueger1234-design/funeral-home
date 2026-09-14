@@ -22,8 +22,8 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
-import { Loader2, MapPin, Plus, Search, Star, Trash2 } from "lucide-react";
-import { Loading, PageHeader } from "@/components/page";
+import { Contact, Loader2, MapPin, Plus, Search, Star, Trash2 } from "lucide-react";
+import { Empty, Loading, LoadingLines, PageHeader } from "@/components/page";
 
 /**
  * The home's local network.
@@ -151,21 +151,21 @@ export default function Vendors() {
       </div>
 
       {lookupOpen && (
-        <section className="rounded-xl border border-border bg-card p-4">
+        <section className="rounded-xl border border-border bg-card p-5 shadow-[var(--elevation-1)]">
           {lookup.isPending ? (
-            <Loader2 className="size-5 animate-spin mx-auto text-muted-foreground" />
+            <LoadingLines lines={3} />
           ) : lookup.data?.configured === false ? (
-            <p className="text-sm text-muted-foreground">
+            <p className="text-sm leading-relaxed text-muted-foreground">
               {lookup.data.message} Nothing is invented here — a made-up name
               and number handed to a grieving family would be worse than an
               empty list.
             </p>
           ) : (
-            <ul className="space-y-2">
+            <ul className="space-y-2.5">
               {(lookup.data?.results ?? []).map((candidate) => (
                 <li
                   key={candidate.sourceRef}
-                  className="flex flex-wrap items-center gap-3 rounded-lg border border-border px-3 py-2"
+                  className="flex flex-wrap items-center gap-3 rounded-lg border border-border bg-[var(--sunken)] px-3.5 py-2.5"
                 >
                   <span className="min-w-0 flex-1">
                     <span className="block truncate font-medium">
@@ -220,15 +220,16 @@ export default function Vendors() {
       {vendors.isPending ? (
         <Loading />
       ) : rows.length === 0 ? (
-        <p className="rounded-xl border border-dashed border-border py-12 text-center text-muted-foreground">
-          Nobody here yet. Add someone you'd actually recommend.
-        </p>
+        <Empty icon={Contact} title="Nobody here yet">
+          Add someone you'd actually recommend. Families see this list, and a
+          name you would not give over the telephone does not belong on it.
+        </Empty>
       ) : (
-        <ul className="space-y-2">
+        <ul className="space-y-2.5">
           {rows.map((vendor) => (
             <li
               key={vendor.id}
-              className="flex flex-wrap items-center gap-3 rounded-xl border border-border bg-card px-4 py-3"
+              className="flex flex-wrap items-center gap-3 rounded-xl border border-border bg-card px-4 py-3.5 shadow-[var(--elevation-1)]"
             >
               <span className="min-w-0 flex-1">
                 <span className="block truncate font-medium">{vendor.name}</span>
@@ -296,7 +297,7 @@ export default function Vendors() {
       )}
 
       <form
-        className="flex flex-wrap items-end gap-2 rounded-xl border border-border bg-card p-4"
+        className="flex flex-wrap items-end gap-2 rounded-xl border border-border bg-card p-5 shadow-[var(--elevation-1)]"
         onSubmit={(event) => {
           event.preventDefault();
           create.mutate({

@@ -17,10 +17,19 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
-import { Images, Loader2, MessageCircle, Plus, Search, TriangleAlert } from "lucide-react";
+import {
+  ClipboardCheck,
+  ClipboardList,
+  Images,
+  Loader2,
+  MessageCircle,
+  Plus,
+  Search,
+  TriangleAlert,
+} from "lucide-react";
 import { ImportCases } from "@/components/ImportCases";
 import { SetupChecklist, TrialBanner } from "@/components/SetupChecklist";
-import { Loading } from "@/components/page";
+import { Empty, Loading, PageHeader } from "@/components/page";
 
 /**
  * The worklist.
@@ -148,29 +157,32 @@ export default function Cases() {
       <TrialBanner />
       <SetupChecklist />
 
-      <div className="flex flex-wrap items-center gap-3">
-        <h1 className="font-display text-2xl">
-          {showClosed ? "Closed cases" : "Cases"}
-        </h1>
-        <div className="ml-auto flex items-center gap-2">
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => setShowClosed((value) => !value)}
-          >
-            {showClosed ? "Show open" : "Show closed"}
-          </Button>
-          <ImportCases />
-          <NewCaseDialog />
-        </div>
-      </div>
+      <PageHeader
+        title={showClosed ? "Closed cases" : "Cases"}
+        aside={
+          <>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => setShowClosed((value) => !value)}
+            >
+              {showClosed ? "Show open" : "Show closed"}
+            </Button>
+            <ImportCases />
+            <NewCaseDialog />
+          </>
+        }
+      />
 
       <div className="relative">
-        <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+        <Search
+          className="pointer-events-none absolute left-3.5 top-1/2 size-4 -translate-y-1/2 text-muted-foreground"
+          strokeWidth={1.75}
+        />
         <Input
           value={search}
           placeholder="Search by name"
-          className="pl-9"
+          className="pl-10"
           onChange={(event) => setSearch(event.target.value)}
         />
       </div>
@@ -178,26 +190,40 @@ export default function Cases() {
       {cases.isPending ? (
         <Loading />
       ) : rows.length === 0 ? (
-        <div className="rounded-xl border border-dashed border-border py-16 text-center">
-          <p className="text-muted-foreground">
-            {search.trim()
-              ? `Nothing matching "${search.trim()}".`
-              : showClosed
-                ? "Nothing closed yet."
-                : "No open cases."}
-          </p>
-        </div>
+        search.trim() ? (
+          <Empty icon={Search} title={`Nothing matching "${search.trim()}"`}>
+            Search covers the name on the case. Closed cases are hidden unless
+            you ask for them.
+          </Empty>
+        ) : showClosed ? (
+          <Empty icon={ClipboardCheck} title="Nothing closed yet">
+            Cases appear here once you close them. Everything the family added
+            stays with them.
+          </Empty>
+        ) : (
+          <Empty
+            icon={ClipboardList}
+            title="No open cases"
+            action={<NewCaseDialog />}
+          >
+            Open one with just a name — everything else can wait until you
+            know it.
+          </Empty>
+        )
       ) : (
-        <ul className="space-y-2">
+        <ul className="space-y-2.5">
           {rows.map((row) => (
             <li key={row.id}>
               <Link
                 href={`/cases/${row.id}`}
-                className="flex flex-wrap items-center gap-x-4 gap-y-2 rounded-xl border border-border bg-card px-4 py-3.5 hover:border-[var(--accent)] transition-colors"
+                className="lift group flex flex-wrap items-center gap-x-4 gap-y-2 rounded-xl
+                           border border-border bg-card px-4 py-3.5 no-underline
+                           shadow-[var(--elevation-1)] transition-gentle
+                           hover:border-[color-mix(in_oklab,var(--accent)_45%,var(--border))]"
               >
                 <span className="min-w-0 flex-1">
                   <span className="flex items-center gap-2">
-                    <span className="font-medium truncate">
+                    <span className="truncate font-semibold">
                       {row.displayName}
                     </span>
                     {/*
@@ -206,8 +232,9 @@ export default function Cases() {
                       pre-need planner to offer condolences.
                     */}
                     {row.kind === "pre_need" && (
-                      <span className="shrink-0 rounded-full border border-border
-                                       px-2 py-0.5 text-xs text-muted-foreground">
+                      <span className="shrink-0 rounded-full border border-[var(--accent)]/30
+                                       bg-[var(--accent-soft)] px-2 py-0.5 text-xs font-semibold
+                                       text-[var(--accent-deep)]">
                         Planning ahead
                       </span>
                     )}
@@ -220,31 +247,50 @@ export default function Cases() {
                   </span>
                 </span>
 
-                <span className="flex shrink-0 items-center gap-3 text-sm">
-                  {row.unreadFamilyMessages > 0 && (
+                {/*
+                  The three numbers, each in a fixed-width cell so they line up
+                  down the list. A director scanning forty rows for "who is
+                  behind" is reading a column, not three floating badges that
+                  move with the length of the name beside them.
+                */}
+                <span className="tabular flex shrink-0 items-center gap-1 text-sm">
+                  <span className="grid w-14 place-items-center" title="Messages waiting for a reply">
+                    {row.unreadFamilyMessages > 0 ? (
+                      <span className="flex items-center gap-1 rounded-full bg-[var(--accent)] px-2 py-0.5 font-semibold text-white">
+                        <MessageCircle className="size-3.5" />
+                        {row.unreadFamilyMessages}
+                      </span>
+                    ) : (
+                      <span className="flex items-center gap-1 text-muted-foreground/35">
+                        <MessageCircle className="size-3.5" />0
+                      </span>
+                    )}
+                  </span>
+
+                  <span className="grid w-12 place-items-center" title="Still outstanding with the family">
                     <span
-                      className="flex items-center gap-1 rounded-full bg-[var(--accent)] px-2 py-0.5 text-white"
-                      title="Messages waiting for a reply"
-                    >
-                      <MessageCircle className="size-3.5" />
-                      {row.unreadFamilyMessages}
-                    </span>
-                  )}
-                  {row.outstandingDeadlines > 0 && (
-                    <span
-                      className="flex items-center gap-1 text-muted-foreground"
-                      title="Still outstanding with the family"
+                      className={
+                        row.outstandingDeadlines > 0
+                          ? "flex items-center gap-1 font-semibold text-[var(--notice)]"
+                          : "flex items-center gap-1 text-muted-foreground/35"
+                      }
                     >
                       <TriangleAlert className="size-3.5" />
                       {row.outstandingDeadlines}
                     </span>
-                  )}
-                  <span
-                    className="flex items-center gap-1 text-muted-foreground"
-                    title="Photographs in"
-                  >
-                    <Images className="size-3.5" />
-                    {row.photoCount}
+                  </span>
+
+                  <span className="grid w-12 place-items-center" title="Photographs in">
+                    <span
+                      className={
+                        row.photoCount > 0
+                          ? "flex items-center gap-1 text-muted-foreground"
+                          : "flex items-center gap-1 text-muted-foreground/35"
+                      }
+                    >
+                      <Images className="size-3.5" />
+                      {row.photoCount}
+                    </span>
                   </span>
                 </span>
               </Link>

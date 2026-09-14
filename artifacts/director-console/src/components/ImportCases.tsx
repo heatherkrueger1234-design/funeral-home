@@ -177,7 +177,7 @@ export function ImportCases() {
             </p>
 
             {preview.issues.length > 0 && (
-              <ul className="space-y-1 rounded-lg border border-border bg-card p-3 text-sm">
+              <ul className="space-y-1 rounded-lg border border-border bg-card p-3.5 text-sm shadow-[var(--elevation-1)]">
                 {preview.issues.slice(0, 8).map((issue) => (
                   <li
                     key={`${issue.row}-${issue.message}`}

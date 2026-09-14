@@ -13,8 +13,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
-import { CalendarSync, Church, Loader2, Plus, X } from "lucide-react";
-import { Loading } from "@/components/page";
+import { CalendarClock, CalendarSync, Church, Loader2, Plus, X } from "lucide-react";
+import { Empty, Loading } from "@/components/page";
 
 /**
  * The timeline the family is shown.
@@ -94,9 +94,10 @@ export function TimelinePanel({
       {deadlines.isPending ? (
         <Loading />
       ) : rows.length === 0 ? (
-        <p className="rounded-xl border border-dashed border-border py-10 text-center text-muted-foreground">
-          Nothing on the timeline yet.
-        </p>
+        <Empty icon={CalendarClock} title="Nothing on the timeline yet">
+          Set the service date and your standard schedule fills this in; or
+          add a single step below.
+        </Empty>
       ) : (
         <ul className="space-y-2">
           {rows.map((row) => {
@@ -105,7 +106,7 @@ export function TimelinePanel({
             return (
               <li
                 key={row.id}
-                className="flex items-center gap-3 rounded-lg border border-border bg-card px-4 py-2.5"
+                className="flex items-center gap-3 rounded-lg border border-border bg-card px-4 py-3 shadow-[var(--elevation-1)]"
               >
                 {row.isEvent ? (
                   <Church className="size-5 shrink-0 text-[var(--accent-deep)]" />
@@ -156,7 +157,7 @@ export function TimelinePanel({
       )}
 
       <form
-        className="space-y-4 rounded-xl border border-border bg-card p-4"
+        className="space-y-4 rounded-xl border border-border bg-card p-5 shadow-[var(--elevation-1)]"
         onSubmit={(event) => {
           event.preventDefault();
           add.mutate({
