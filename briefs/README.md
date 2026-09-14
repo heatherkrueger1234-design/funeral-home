@@ -25,6 +25,11 @@ and CI fails on drift. Never hand-edit generated files. Change the spec, run
 `pnpm --filter @workspace/api-spec run codegen`, and commit the result in the
 same commit.
 
+Codegen runs per tag, so **give your endpoints their own tag** and add one line
+per tag to each package's hand-written `src/index.ts`. `TEAM-SPLIT.md` explains
+why; the short version is that it keeps your generated code out of everybody
+else's diff.
+
 **Component 1 first.** Identity, roles, levels and passwords land before
 anything else wires up to them. Until then, build your schema, your logic and
 your UI, and leave `TODO(C1)` where a permission check goes. Do not invent a
