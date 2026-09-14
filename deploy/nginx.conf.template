@@ -10,6 +10,26 @@
 # envsubst step. NGINX_ENVSUBST_FILTER (set in Dockerfile.web) restricts it to
 # NGINX_-prefixed names, so $host, $uri and friends survive untouched.
 
+# When something else terminates TLS in front of this container -- a load
+# balancer, Caddy, another nginx -- it tells us so with X-Forwarded-Proto, and
+# this container's own $scheme is "http" because the hop from it to here is
+# plaintext inside the deployment's network. Forwarding $scheme in that case
+# overwrites the truth with the wrong answer, and the failure is silent and
+# expensive: the API decides the request arrived over plain HTTP, still marks
+# the session cookie Secure because production always does, and the browser
+# accepts a cookie it will never send back. The director signs in, lands on
+# the sign-in page, and nothing on screen says why.
+#
+# So: believe the header when a proxy in front set one, and fall back to our
+# own scheme when nothing did. Anything that is not exactly "http" or "https"
+# is ignored rather than passed along, because this value decides whether the
+# session cookie is treated as safe.
+map $http_x_forwarded_proto $client_proto {
+    default          $scheme;
+    "https"          "https";
+    "http"           "http";
+}
+
 server {
     listen 80;
     server_name _;
@@ -31,6 +51,13 @@ server {
 
     # Belt and braces. The API sets its own headers via helmet; these apply to
     # the static documents nginx serves without ever reaching the API.
+    #
+    # Repeated verbatim in every location below that sets an add_header of its
+    # own, because nginx replaces rather than merges: a location with one
+    # add_header silently loses all three of these. That is not theoretical --
+    # it cost this config every security header on every HTML response,
+    # including the deep links families open from a text message, because
+    # `location = /index.html` sets a Cache-Control and nothing else.
     add_header X-Content-Type-Options nosniff always;
     add_header X-Frame-Options DENY always;
     add_header Referrer-Policy strict-origin-when-cross-origin always;
@@ -40,6 +67,13 @@ server {
     # "is the API up", and conflating them takes both out at once.
     location = /healthz {
         access_log off;
+        # Repeated, not inherited. nginx's add_header only inherits from an
+        # outer level when the current level declares none of its own, so the
+        # single add_header below would otherwise drop all three server-level
+        # security headers from this response.
+        add_header X-Content-Type-Options nosniff always;
+        add_header X-Frame-Options DENY always;
+        add_header Referrer-Policy strict-origin-when-cross-origin always;
         add_header Content-Type text/plain;
         return 200 "ok\n";
     }
@@ -63,8 +97,9 @@ server {
         proxy_set_header X-Forwarded-Host  $host;
         # Express trusts this to decide whether the session cookie is marked
         # Secure. Without it, a login over HTTPS hands out a cookie that will
-        # also travel over plain HTTP.
-        proxy_set_header X-Forwarded-Proto $scheme;
+        # also travel over plain HTTP. See the map above for why this is
+        # $client_proto and not $scheme.
+        proxy_set_header X-Forwarded-Proto $client_proto;
 
         # Long, because the two slow paths are real work and not a hang: the
         # photo pack zips hundreds of decrypted images, and a phone on a bad
@@ -84,6 +119,14 @@ server {
     # nothing.
     location /assets/ {
         access_log off;
+        # Repeated, not inherited. nginx's add_header only inherits from an
+        # outer level when the current level declares none of its own, so the
+        # single add_header below would otherwise drop all three server-level
+        # security headers from this response.
+        add_header X-Content-Type-Options nosniff always;
+        add_header X-Frame-Options DENY always;
+        add_header Referrer-Policy strict-origin-when-cross-origin always;
+
         # One header, not `expires 1y` plus an add_header: those emit two
         # Cache-Control lines, and an intermediary that reads the first and
         # stops gets a different answer than the browser does.
@@ -95,6 +138,13 @@ server {
     # fingerprinted bundles, and a stale copy pins a browser to a deployment
     # that no longer exists.
     location = /index.html {
+        # Repeated, not inherited. nginx's add_header only inherits from an
+        # outer level when the current level declares none of its own, so the
+        # single add_header below would otherwise drop all three server-level
+        # security headers from this response.
+        add_header X-Content-Type-Options nosniff always;
+        add_header X-Frame-Options DENY always;
+        add_header Referrer-Policy strict-origin-when-cross-origin always;
         add_header Cache-Control "no-store, must-revalidate" always;
     }
 

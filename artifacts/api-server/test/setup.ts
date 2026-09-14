@@ -12,6 +12,15 @@ import { beforeEach, afterAll } from "vitest";
 process.env["ENCRYPTION_KEY"] ??= "BwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwc=";
 process.env["NODE_ENV"] ??= "test";
 
+/*
+ * A fixed, obviously-fake webhook secret, so the billing tests can sign an
+ * event the way Stripe does and assert that a *valid* one is accepted. Without
+ * a secret set, `verifyWebhook` returns null for everything and the webhook
+ * tests would pass against a completely broken endpoint -- which is exactly
+ * how it shipped broken. Never a real value.
+ */
+process.env["STRIPE_WEBHOOK_SECRET"] ??= "whsec_test_only_not_a_real_secret";
+
 const { db, pool } = await import("@workspace/db");
 const { sql } = await import("drizzle-orm");
 
@@ -46,6 +55,8 @@ beforeEach(async () => {
     sql`TRUNCATE TABLE
       platform_audit,
       platform_sessions,
+      practitioner_licences,
+      home_licensure,
       platform_admins,
       aftercare_deliveries,
       aftercare_enrollments,

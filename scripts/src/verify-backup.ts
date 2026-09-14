@@ -50,6 +50,59 @@ const TABLES = [
   "vendors",
 ] as const;
 
+/**
+ * Fingerprint the bytes that cannot be re-created.
+ *
+ * Row counts are necessary and nowhere near sufficient. The two columns this
+ * product could not survive losing are `uploads.data` -- the encrypted
+ * photographs, of which this database holds the only copy some families have
+ * -- and `vital_statistics.social_security_number`, which is ciphertext under
+ * ENCRYPTION_KEY. Both are the kind of value a dump can mangle while keeping
+ * every count identical: a bytea escaped one way and restored another, or a
+ * client/server version pair that disagrees about encoding, produces exactly
+ * this. Counting the rows would call that a clean backup.
+ *
+ * So take an md5 of the concatenated bytes on both sides and compare. An
+ * md5 is not a security claim here; it is a cheap way to notice that a
+ * photograph came back different from how it went in.
+ *
+ * Deliberately computed in the database rather than pulled into this process:
+ * the point is to compare what Postgres actually holds, and streaming a
+ * gigabyte of photographs through node to hash it would make the drill
+ * expensive enough that somebody switches it off.
+ */
+const DIGESTS = [
+  {
+    label: "encrypted photographs (uploads.data)",
+    // Ordered, so the digest does not depend on Postgres's row order.
+    sql: "select md5(coalesce(string_agg(md5(data), ',' order by id), '')) as digest from uploads",
+  },
+  {
+    label: "encrypted SSNs (vital_statistics.social_security_number)",
+    sql:
+      "select md5(coalesce(string_agg(md5(social_security_number), ',' order by id), '')) " +
+      "as digest from vital_statistics where social_security_number is not null",
+  },
+] as const;
+
+async function digests(url: string): Promise<Record<string, string>> {
+  const client = new pg.Client({ connectionString: url });
+  await client.connect();
+
+  try {
+    const result: Record<string, string> = {};
+
+    for (const { label, sql } of DIGESTS) {
+      const { rows } = await client.query<{ digest: string | null }>(sql);
+      result[label] = rows[0]?.digest ?? "";
+    }
+
+    return result;
+  } finally {
+    await client.end();
+  }
+}
+
 async function counts(url: string): Promise<Record<string, number>> {
   const client = new pg.Client({ connectionString: url });
   await client.connect();
@@ -132,6 +185,7 @@ async function main(): Promise<void> {
   console.log(`Verifying ${path.basename(file)} (${(info.size / 1024 / 1024).toFixed(1)} MB)`);
 
   const live = await counts(DATABASE_URL);
+  const liveDigests = await digests(DATABASE_URL);
 
   console.log("Restoring into the scratch database…");
   await psql(VERIFY_DATABASE_URL, file);
@@ -170,7 +224,36 @@ async function main(): Promise<void> {
     fail("The restore produced no rows at all. That is not a working backup.");
   }
 
-  console.log(`\nVerified: ${total} rows restored, every table matching.`);
+  /*
+   * And now the part row counts cannot tell you: did the bytes survive.
+   */
+  const restoredDigests = await digests(VERIFY_DATABASE_URL);
+  let corrupted = 0;
+
+  for (const { label } of DIGESTS) {
+    const before = liveDigests[label] ?? "";
+    const after = restoredDigests[label] ?? "";
+
+    if (before !== after) {
+      corrupted += 1;
+      console.error(`  ${label}: digest ${before || "(none)"} became ${after || "(none)"}  ← CORRUPTED`);
+    } else if (before === "") {
+      // Nothing of this kind in the database. Say so rather than printing a
+      // matching digest of nothing, which reads like a pass.
+      console.log(`  ${label}: none present to check`);
+    } else {
+      console.log(`  ${label}: byte-identical (${before.slice(0, 12)}…)`);
+    }
+  }
+
+  if (corrupted > 0) {
+    fail(
+      "The rows all came back and the encrypted bytes did not. This backup " +
+        "would restore a database full of photographs that no longer open.",
+    );
+  }
+
+  console.log(`\nVerified: ${total} rows restored, every table matching, encrypted bytes identical.`);
 }
 
 main().catch((error: unknown) => {

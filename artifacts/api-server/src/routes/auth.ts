@@ -57,7 +57,7 @@ function authPayload(user: User, home: FuneralHome) {
  * "Green Lawn" is ordinary, two hundred is a bug or an attack, and either
  * way it should fail loudly instead of spinning.
  */
-async function uniqueSlug(name: string): Promise<string> {
+export async function uniqueSlug(name: string): Promise<string> {
   const base =
     name
       .toLowerCase()

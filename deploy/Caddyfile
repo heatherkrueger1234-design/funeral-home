@@ -1,0 +1,69 @@
+# TLS, and the only thing on this host listening to the internet.
+#
+# The two nginx containers serve the apps and proxy /api; this sits in front of
+# both and terminates TLS for them. Caddy rather than nginx-with-certbot for
+# one reason: certificate renewal here is not a cron job somebody has to
+# remember to check. Caddy obtains and renews from Let's Encrypt on its own,
+# and a certificate that quietly failed to renew is one of the two ways a
+# deployment like this dies on a Sunday.
+#
+# Set FAMILY_DOMAIN and CONSOLE_DOMAIN in .env. Both must already resolve to
+# this host's public address before the stack comes up: Let's Encrypt proves
+# control by connecting back on :80, so DNS first, then `docker compose up`.
+#
+# ACME_EMAIL is where Let's Encrypt writes when something is wrong -- expiry
+# warnings land there, so use an address a person reads.
+
+{
+	email {$ACME_EMAIL}
+	# Staging CA while you are still getting DNS right. Let's Encrypt's
+	# production rate limit is five failures per account per hostname per
+	# hour, and hitting it locks you out for the rest of the hour at exactly
+	# the moment you are iterating. Set ACME_CA to
+	# https://acme-staging-v02.api.letsencrypt.org/directory first; the
+	# certificate will be untrusted, which is the point -- it proves the
+	# whole path works without spending real attempts. Unset it when green.
+	acme_ca {$ACME_CA}
+}
+
+# Shared by both sites.
+(common) {
+	encode gzip
+
+	header {
+		# A year, and preload-eligible. This is the header that makes the
+		# Secure session cookie mean something: without it the first request
+		# of the day can still go out over plain HTTP.
+		Strict-Transport-Security "max-age=31536000; includeSubDomains"
+		# Caddy announces itself by default; there is no reason to tell the
+		# internet which proxy and version is in front of a database of
+		# death certificates.
+		-Server
+	}
+
+	# Caddy sets X-Forwarded-Proto, X-Forwarded-For and X-Forwarded-Host on
+	# its own. The nginx behind this forwards that proto through rather than
+	# overwriting it with its own -- see deploy/nginx.conf.template.
+	#
+	# Two proxies now sit in front of the API, so TRUST_PROXY_HOPS must be 2.
+	# It is set in docker-compose.tls.yml, and getting it wrong is not
+	# cosmetic: the rate limiter starts counting nginx's address as the
+	# client and one family's retries throttle every other family.
+	reverse_proxy {args[0]} {
+		# A phone on a bad connection uploading a 40MB HEIC, and the photo
+		# pack zipping hundreds of decrypted images, are both real work
+		# rather than a hang. Matches the nginx timeouts behind this.
+		transport http {
+			read_timeout 600s
+			write_timeout 600s
+		}
+	}
+}
+
+{$FAMILY_DOMAIN} {
+	import common family-portal:80
+}
+
+{$CONSOLE_DOMAIN} {
+	import common director-console:80
+}
