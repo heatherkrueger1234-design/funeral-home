@@ -19,7 +19,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Loader2, Plus, X } from "lucide-react";
+import { Plus, Quote, X } from "lucide-react";
+import { Empty, Loading } from "@/components/page";
 
 /**
  * The home's own verses, prayers and closing lines.
@@ -71,9 +72,9 @@ export function SnippetLibrary({ readOnly }: { readOnly: boolean }) {
   const rows = snippets.data ?? [];
 
   return (
-    <section className="space-y-4 rounded-xl border border-border bg-card p-4">
+    <section className="space-y-4 rounded-xl border border-border bg-card p-5 shadow-[var(--elevation-1)]">
       <div>
-        <h2 className="font-medium">Your verses and readings</h2>
+        <h2 className="font-display text-lg">Your verses and readings</h2>
         <p className="text-sm text-muted-foreground">
           What you print on cards and programs. Add them once and pick from
           them in the print studio, instead of copying from a Word file.
@@ -81,15 +82,12 @@ export function SnippetLibrary({ readOnly }: { readOnly: boolean }) {
       </div>
 
       {snippets.isPending ? (
-        <div className="py-6 text-center">
-          <Loader2 className="size-5 animate-spin mx-auto text-muted-foreground" />
-        </div>
+        <Loading />
       ) : rows.length === 0 ? (
-        <p className="rounded-lg border border-dashed border-border px-4 py-6 text-sm text-muted-foreground">
-          Nothing here yet. We don't ship any — most of what goes on a prayer
-          card belongs to somebody, and your own list is better than a generic
-          one anyway.
-        </p>
+        <Empty icon={Quote} title="Nothing here yet">
+          We don't ship any — most of what goes on a prayer card belongs to
+          somebody, and your own list is better than a generic one anyway.
+        </Empty>
       ) : (
         <ul className="space-y-2">
           {rows.map((snippet) => (
@@ -106,7 +104,7 @@ export function SnippetLibrary({ readOnly }: { readOnly: boolean }) {
                       : snippet.body}
                   </p>
                   {snippet.attribution && (
-                    <p className="mt-1 text-xs text-muted-foreground">
+                    <p className="mt-1 text-sm leading-snug text-muted-foreground">
                       — {snippet.attribution}
                     </p>
                   )}

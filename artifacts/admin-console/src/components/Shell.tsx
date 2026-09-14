@@ -26,11 +26,11 @@ function NavLink({ href, label }: { href: string; label: string }) {
     <Link
       href={href}
       className={cn(
-        "inline-flex min-h-11 items-center rounded-md px-3 text-sm font-semibold",
-        "transition-colors duration-150 ease-out",
+        "inline-flex min-h-9 items-center rounded-md px-3 text-sm font-semibold no-underline",
+        "transition-colors duration-200 ease-[cubic-bezier(0.2,0.6,0.3,1)]",
         active
           ? "bg-[var(--accent-soft)] text-[var(--accent-deep)]"
-          : "text-[var(--muted-foreground)] hover:text-[var(--foreground)]",
+          : "text-[var(--muted-foreground)] hover:bg-[var(--muted)] hover:text-[var(--foreground)]",
       )}
       aria-current={active ? "page" : undefined}
     >
@@ -54,12 +54,19 @@ export function Shell({
   });
 
   return (
-    <div className="min-h-screen">
-      <header className="border-b border-[var(--border)] bg-[var(--card)]">
-        <div className="mx-auto flex max-w-6xl flex-wrap items-center gap-x-6 gap-y-2 px-6 py-3">
-          <Link href="/" className="font-display text-lg">
+    <div className="min-h-dvh">
+      {/* Sticky: this console is read alongside a long table, and whose
+          platform it is should not scroll away. */}
+      <header className="sticky top-0 z-30 border-b border-[var(--border)] bg-[var(--card)]/95 backdrop-blur-sm supports-[backdrop-filter]:bg-[var(--card)]/85">
+        <div className="mx-auto flex max-w-6xl flex-wrap items-center gap-x-5 gap-y-2 px-6 py-2.5">
+          <Link href="/" className="font-display text-lg no-underline">
             Holding Today
           </Link>
+
+          <span
+            className="hidden h-5 w-px shrink-0 bg-[var(--border)] sm:block"
+            aria-hidden
+          />
           <nav aria-label="Sections" className="flex items-center gap-1">
             {PLACES.map((place) => (
               <NavLink key={place.href} {...place} />
@@ -79,6 +86,7 @@ export function Shell({
       </header>
 
       <main className="mx-auto max-w-6xl px-6 py-8">{children}</main>
+
     </div>
   );
 }

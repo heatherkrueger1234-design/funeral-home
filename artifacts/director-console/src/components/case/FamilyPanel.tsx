@@ -159,7 +159,7 @@ export function FamilyPanel({ caseId, contacts }: Props) {
             return (
               <li
                 key={contact.id}
-                className="flex flex-wrap items-center gap-x-4 gap-y-2 rounded-xl border border-border bg-card px-4 py-3"
+                className="flex flex-wrap items-center gap-x-4 gap-y-2 rounded-xl border border-border bg-card px-4 py-3.5 shadow-[var(--elevation-1)]"
               >
                 <span className="min-w-0 flex-1">
                   <span className="block font-medium truncate">
@@ -228,7 +228,7 @@ export function FamilyPanel({ caseId, contacts }: Props) {
       )}
 
       <form
-        className="space-y-4 rounded-xl border border-border bg-card p-4"
+        className="space-y-4 rounded-xl border border-border bg-card p-5 shadow-[var(--elevation-1)]"
         onSubmit={(event) => {
           event.preventDefault();
           add.mutate({
@@ -282,7 +282,7 @@ export function FamilyPanel({ caseId, contacts }: Props) {
               value={email}
               onChange={(event) => setEmail(event.target.value)}
             />
-            <p className="text-xs text-muted-foreground">
+            <p className="text-sm leading-snug text-muted-foreground">
               Needed for the aftercare check-ins later.
             </p>
           </div>

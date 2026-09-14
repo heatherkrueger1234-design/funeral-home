@@ -17,7 +17,8 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { Copy, Loader2, Mail, Phone, CalendarClock, Check } from "lucide-react";
+import { Copy, Inbox, Mail, Phone, CalendarClock, Check } from "lucide-react";
+import { Empty, Loading, PageHeader } from "@/components/page";
 
 /**
  * People who asked, and whom nobody has answered yet.
@@ -77,59 +78,57 @@ export default function Requests() {
 
   const decline = useDeclineIntakeRequest({ mutation: { onSuccess: refresh } });
 
-  if (queue.isPending) {
-    return (
-      <div className="py-16 grid place-items-center">
-        <Loader2 className="size-6 animate-spin text-muted-foreground" />
-      </div>
-    );
-  }
+  if (queue.isPending) return <Loading rows={3} />;
 
   const rows = queue.data ?? [];
 
   return (
-    <div className="mx-auto w-full max-w-3xl px-5 py-8">
-      <header className="mb-6">
-        <h1 className="font-display text-2xl">Requests</h1>
-        <p className="text-muted-foreground text-sm mt-1">
-          People who found you themselves. Accepting one opens a case and gives
-          you the link to send back.
-        </p>
-      </header>
+    <div className="mx-auto w-full max-w-3xl space-y-6">
+      <PageHeader title="Requests">
+        People who found you themselves. Accepting one opens a case and gives
+        you the link to send back.
+      </PageHeader>
 
       {rows.length === 0 ? (
-        <div className="rounded-lg border border-dashed p-10 text-center">
-          <p className="font-medium mb-1">Nothing waiting</p>
-          <p className="text-sm text-muted-foreground">
-            Requests from your public page land here.
-          </p>
-        </div>
+        <Empty icon={Inbox} title="Nothing waiting">
+          Requests from your public page land here. Somebody who has your link
+          already goes straight into their own portal instead.
+        </Empty>
       ) : (
-        <ul className="space-y-3">
+        <ul className="space-y-2.5">
           {rows.map((row) => {
             const preNeed = row.kind === "pre_need";
 
             return (
               <li
                 key={row.id}
-                className={`rounded-lg border p-4 ${
-                  preNeed ? "" : "border-amber-300 bg-amber-50/50"
+                className={`relative overflow-hidden rounded-xl border bg-card p-4 shadow-[var(--elevation-1)] ${
+                  preNeed
+                    ? "border-border"
+                    : "border-[var(--notice)]/35 pl-5"
                 }`}
               >
+                {!preNeed && (
+                  <span
+                    aria-hidden
+                    className="absolute inset-y-0 left-0 w-1 bg-[var(--notice)]"
+                  />
+                )}
                 <div className="flex items-start justify-between gap-4">
                   <div className="min-w-0">
-                    <p className="text-xs font-medium uppercase tracking-wide mb-1
-                                  text-muted-foreground">
+                    <p className="eyebrow mb-1.5">
                       {preNeed ? (
                         <span className="inline-flex items-center gap-1.5">
                           <CalendarClock className="size-3.5" />
                           Planning ahead — nobody has died
                         </span>
                       ) : (
-                        <span className="text-amber-800">A death — ring them</span>
+                        <span className="text-[var(--notice)]">
+                          A death — ring them
+                        </span>
                       )}
                     </p>
-                    <p className="font-medium">
+                    <p className="font-semibold">
                       {preNeed
                         ? row.requesterName
                         : `${row.subjectDisplayName}`}
@@ -142,39 +141,42 @@ export default function Requests() {
                           }`}
                     </p>
                   </div>
-                  <p className="text-xs text-muted-foreground whitespace-nowrap">
+                  <p className="tabular shrink-0 whitespace-nowrap text-xs text-muted-foreground">
                     {ago(row.createdAt)}
                   </p>
                 </div>
 
-                <div className="flex flex-wrap gap-4 mt-3 text-sm">
+                <div className="mt-3.5 flex flex-wrap gap-x-4 gap-y-2 text-sm">
                   {row.requesterPhone && (
                     <a
                       href={`tel:${row.requesterPhone.replace(/[^\d+]/g, "")}`}
-                      className="inline-flex items-center gap-1.5 hover:underline"
+                      className="tabular inline-flex items-center gap-1.5 font-semibold
+                                 text-[var(--accent-deep)] no-underline hover:underline"
                     >
-                      <Phone className="size-4" />
+                      <Phone className="size-4" strokeWidth={1.75} />
                       {row.requesterPhone}
                     </a>
                   )}
                   {row.requesterEmail && (
                     <a
                       href={`mailto:${row.requesterEmail}`}
-                      className="inline-flex items-center gap-1.5 hover:underline"
+                      className="inline-flex items-center gap-1.5 font-semibold
+                                 text-[var(--accent-deep)] no-underline hover:underline"
                     >
-                      <Mail className="size-4" />
+                      <Mail className="size-4" strokeWidth={1.75} />
                       {row.requesterEmail}
                     </a>
                   )}
                 </div>
 
                 {row.note && (
-                  <p className="mt-3 text-sm whitespace-pre-wrap rounded bg-muted/50 p-3">
+                  <p className="mt-3.5 whitespace-pre-wrap rounded-lg border border-border
+                                bg-[var(--sunken)] p-3.5 text-sm leading-relaxed">
                     {row.note}
                   </p>
                 )}
 
-                <div className="flex gap-2 mt-4">
+                <div className="mt-4 flex flex-wrap gap-2">
                   <Button
                     size="sm"
                     disabled={accept.isPending || decline.isPending}
@@ -193,7 +195,7 @@ export default function Requests() {
                     Dismiss
                   </Button>
                 </div>
-                <p className="text-xs text-muted-foreground mt-2">
+                <p className="mt-2.5 text-sm leading-snug leading-relaxed text-muted-foreground">
                   Dismissing sends them nothing. If they need telling, tell them
                   yourself.
                 </p>
@@ -214,12 +216,14 @@ export default function Requests() {
             </DialogDescription>
           </DialogHeader>
           <div className="flex gap-2">
-            <code className="flex-1 rounded border bg-muted px-3 py-2 text-xs break-all">
+            <code className="flex-1 break-all rounded-md border border-border bg-[var(--sunken)]
+                             px-3 py-2.5 font-mono text-xs leading-relaxed">
               {link?.url}
             </code>
             <Button
               variant="outline"
-              size="sm"
+              size="icon"
+              aria-label="Copy the link"
               onClick={() => {
                 if (!link) return;
                 void navigator.clipboard?.writeText(link.url).then(() => {

@@ -61,8 +61,8 @@ export function DetailsPanel({
 
   return (
     <div className="grid gap-6 lg:grid-cols-2">
-      <section className="space-y-4 rounded-xl border border-border bg-card p-4">
-        <h2 className="font-medium">The service</h2>
+      <section className="space-y-4 rounded-xl border border-border bg-card p-5 shadow-[var(--elevation-1)]">
+        <h2 className="font-display text-lg">The service</h2>
 
         <div className="space-y-1.5">
           <Label htmlFor="serviceAt">Date and time</Label>
@@ -75,7 +75,7 @@ export function DetailsPanel({
               save({ serviceAt: value ? new Date(value).toISOString() : null });
             }}
           />
-          <p className="text-xs text-muted-foreground">
+          <p className="text-sm leading-snug text-muted-foreground">
             The family is shown this as confirmed. Leave it empty until it is.
           </p>
         </div>
@@ -108,15 +108,15 @@ export function DetailsPanel({
               ))}
             </SelectContent>
           </Select>
-          <p className="text-xs text-muted-foreground">
+          <p className="text-sm leading-snug text-muted-foreground">
             Who the family is told to picture when the portal says "your
             director".
           </p>
         </div>
       </section>
 
-      <section className="space-y-4 rounded-xl border border-border bg-card p-4">
-        <h2 className="font-medium">The person</h2>
+      <section className="space-y-4 rounded-xl border border-border bg-card p-5 shadow-[var(--elevation-1)]">
+        <h2 className="font-display text-lg">The person</h2>
 
         <div className="grid gap-4 sm:grid-cols-2">
           <div className="space-y-1.5">
@@ -157,15 +157,15 @@ export function DetailsPanel({
               save({ decedentPreferredName: event.target.value.trim() || null })
             }
           />
-          <p className="text-xs text-muted-foreground">
+          <p className="text-sm leading-snug text-muted-foreground">
             Used everywhere the family sees their name.
           </p>
         </div>
       </section>
 
       {(aftercare.data ?? []).length > 0 && (
-        <section className="space-y-3 rounded-xl border border-border bg-card p-4 lg:col-span-2">
-          <h2 className="font-medium">Aftercare</h2>
+        <section className="space-y-3 rounded-xl border border-border bg-card p-5 shadow-[var(--elevation-1)] lg:col-span-2">
+          <h2 className="font-display text-lg">Aftercare</h2>
           <ul className="space-y-2">
             {aftercare.data!.map((enrollment) => (
               <li
@@ -186,7 +186,7 @@ export function DetailsPanel({
               </li>
             ))}
           </ul>
-          <p className="text-xs text-muted-foreground">
+          <p className="text-sm leading-snug text-muted-foreground">
             Signed "{aftercare.data![0]!.brandedAs}". Nothing is sent until a
             family member says yes.
           </p>

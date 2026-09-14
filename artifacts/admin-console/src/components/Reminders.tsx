@@ -39,7 +39,7 @@ export function Reminders({
 }) {
   if (reminders.length === 0) {
     return (
-      <p className="max-w-prose text-sm text-[var(--muted-foreground)]">
+      <p className="max-w-prose text-sm leading-relaxed text-[var(--muted-foreground)]">
         {emptyDetail}
       </p>
     );
@@ -54,7 +54,7 @@ export function Reminders({
           <li
             key={reminder.key}
             className={cn(
-              "rounded-md border-l-2 py-1 pl-4",
+              "border-l-2 py-0.5 pl-4",
               attention
                 ? "border-[var(--notice)]"
                 : "border-[var(--border)]",
@@ -62,16 +62,14 @@ export function Reminders({
           >
             <p
               className={cn(
-                "text-xs font-semibold uppercase tracking-wide",
-                attention
-                  ? "text-[var(--notice)]"
-                  : "text-[var(--muted-foreground)]",
+                "eyebrow mb-0.5",
+                attention && "text-[var(--notice)]",
               )}
             >
               {STANDING_COPY[reminder.standing]}
             </p>
-            <p className="max-w-prose text-[15px]">{reminder.summary}</p>
-            <p className="mt-1 max-w-prose text-sm text-[var(--muted-foreground)]">
+            <p className="max-w-prose font-medium">{reminder.summary}</p>
+            <p className="mt-1 max-w-prose text-sm leading-relaxed text-[var(--muted-foreground)]">
               {reminder.detail}
             </p>
           </li>

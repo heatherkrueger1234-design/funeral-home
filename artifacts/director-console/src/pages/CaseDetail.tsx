@@ -21,7 +21,6 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import { useToast } from "@/hooks/use-toast";
-import { Loader2 } from "lucide-react";
 import { FamilyPanel } from "@/components/case/FamilyPanel";
 import { PhotosPanel } from "@/components/case/PhotosPanel";
 import { ObituaryPanel } from "@/components/case/ObituaryPanel";
@@ -33,6 +32,8 @@ import { VitalsPanel } from "@/components/case/VitalsPanel";
 import { PrintPanel } from "@/components/case/PrintPanel";
 import { DetailsPanel } from "@/components/case/DetailsPanel";
 import { CaseData } from "@/components/CaseData";
+import { Empty, Loading } from "@/components/page";
+import { FileQuestion } from "lucide-react";
 
 export default function CaseDetail() {
   const [, params] = useRoute("/cases/:caseId");
@@ -62,16 +63,14 @@ export default function CaseDetail() {
     },
   });
 
-  if (row.isPending) {
-    return (
-      <div className="py-16 text-center">
-        <Loader2 className="size-5 animate-spin mx-auto text-muted-foreground" />
-      </div>
-    );
-  }
+  if (row.isPending) return <Loading rows={4} />;
 
   if (!row.data) {
-    return <p className="py-16 text-center text-muted-foreground">Not found.</p>;
+    return (
+      <Empty icon={FileQuestion} title="That case isn't here">
+        It may have been closed and removed, or the address may be wrong.
+      </Empty>
+    );
   }
 
   const detail = row.data;
@@ -81,7 +80,7 @@ export default function CaseDetail() {
     <div className="space-y-6">
       <header className="flex flex-wrap items-start gap-4">
         <div className="min-w-0 flex-1">
-          <h1 className="font-display text-2xl leading-tight">
+          <h1 className="font-display text-[1.75rem] leading-tight">
             {detail.displayName}
           </h1>
           {/*
@@ -90,12 +89,13 @@ export default function CaseDetail() {
             planner is the mistake this label exists to prevent.
           */}
           {detail.kind === "pre_need" && (
-            <p className="mt-1 mb-1 inline-block rounded-full border px-2.5 py-0.5
-                          text-xs text-muted-foreground">
+            <p className="mb-1.5 mt-2 inline-block rounded-full border border-[var(--accent)]/30
+                          bg-[var(--accent-soft)] px-2.5 py-1 text-xs font-semibold
+                          text-[var(--accent-deep)]">
               Planning ahead — {detail.displayName} is living
             </p>
           )}
-          <p className="text-muted-foreground">
+          <p className="mt-1 text-muted-foreground">
             {closed
               ? detail.kind === "pre_need"
                 ? "Plan complete"
@@ -136,11 +136,11 @@ export default function CaseDetail() {
       </header>
 
       <Tabs value={tab} onValueChange={setTab}>
-        <TabsList className="flex-wrap h-auto">
+        <TabsList>
           <TabsTrigger value="family">
             Family
             {detail.unreadFamilyMessages > 0 && (
-              <span className="ml-1.5 rounded-full bg-[var(--accent)] px-1.5 text-xs text-white">
+              <span className="tabular rounded-full bg-[var(--accent)] px-1.5 py-0.5 text-xs font-semibold text-white">
                 {detail.unreadFamilyMessages}
               </span>
             )}
@@ -154,8 +154,8 @@ export default function CaseDetail() {
           <TabsTrigger value="timeline">
             Timeline
             {detail.outstandingDeadlines > 0 && (
-              <span className="ml-1.5 text-muted-foreground">
-                ({detail.outstandingDeadlines})
+              <span className="tabular rounded-full bg-[var(--muted)] px-1.5 py-0.5 text-xs font-semibold text-muted-foreground">
+                {detail.outstandingDeadlines}
               </span>
             )}
           </TabsTrigger>
@@ -164,7 +164,7 @@ export default function CaseDetail() {
           <TabsTrigger value="data">Data</TabsTrigger>
         </TabsList>
 
-        <div className="mt-5">
+        <div className="mt-6">
           <TabsContent value="family">
             <FamilyPanel caseId={caseId} contacts={detail.contacts} />
           </TabsContent>

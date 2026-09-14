@@ -21,7 +21,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Check, Loader2, Plus, X } from "lucide-react";
+import { Check, Plus, X } from "lucide-react";
+import { Loading } from "@/components/page";
 
 /**
  * The custody log, and the sheet that goes to the preparation room.
@@ -85,9 +86,7 @@ export function BelongingsPanel({ caseId }: { caseId: number }) {
 
   if (items.isPending || preparation.isPending) {
     return (
-      <div className="py-12 text-center">
-        <Loader2 className="size-5 animate-spin mx-auto text-muted-foreground" />
-      </div>
+      <Loading />
     );
   }
 
@@ -101,7 +100,7 @@ export function BelongingsPanel({ caseId }: { caseId: number }) {
     <div className="grid gap-6 lg:grid-cols-2">
       <section className="space-y-3">
         <div className="flex items-center gap-2">
-          <h2 className="font-medium">In your care</h2>
+          <h2 className="font-display text-lg">In your care</h2>
           {outstanding > 0 && (
             <span className="rounded-full bg-[var(--accent-soft)] px-2 py-0.5 text-xs text-[var(--accent-deep)]">
               {outstanding} to return
@@ -113,12 +112,11 @@ export function BelongingsPanel({ caseId }: { caseId: number }) {
           {rows.map((item) => (
             <li
               key={item.id}
-              className="space-y-2 rounded-lg border border-border bg-card p-3"
+              className="space-y-2 rounded-lg border border-border bg-card p-3.5 shadow-[var(--elevation-1)]"
             >
               <div className="flex items-start gap-2">
                 <Input
                   defaultValue={item.description}
-                  className="h-9"
                   onBlur={(event) => {
                     const next = event.target.value.trim();
                     if (!next || next === item.description) return;
@@ -151,7 +149,7 @@ export function BelongingsPanel({ caseId }: { caseId: number }) {
                     })
                   }
                 >
-                  <SelectTrigger className="h-8 w-[8.5rem]">
+                  <SelectTrigger className="w-[8.5rem]">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
@@ -172,7 +170,7 @@ export function BelongingsPanel({ caseId }: { caseId: number }) {
                     })
                   }
                 >
-                  <SelectTrigger className="h-8 w-[9.5rem]">
+                  <SelectTrigger className="w-[9.5rem]">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
@@ -187,7 +185,7 @@ export function BelongingsPanel({ caseId }: { caseId: number }) {
 
               {/* The line that answers "who took the ring in?". */}
               {item.receivedAt && (
-                <p className="text-xs text-muted-foreground">
+                <p className="text-sm leading-snug text-muted-foreground">
                   Taken in {formatWhen(item.receivedAt)}
                   {item.receivedByName ? ` by ${item.receivedByName}` : ""}
                   {item.returnedAt
@@ -230,7 +228,7 @@ export function BelongingsPanel({ caseId }: { caseId: number }) {
 
       <section className="space-y-4">
         <div className="flex items-center gap-2">
-          <h2 className="font-medium">Preparation</h2>
+          <h2 className="font-display text-lg">Preparation</h2>
           {prep?.reviewedAt ? (
             <span className="flex items-center gap-1 text-xs text-muted-foreground">
               <Check className="size-3.5" />

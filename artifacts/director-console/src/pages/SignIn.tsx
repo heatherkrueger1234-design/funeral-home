@@ -62,14 +62,27 @@ export default function SignIn() {
   }
 
   return (
-    <div className="min-h-dvh grid place-items-center px-5 py-16">
+    /*
+      The only screen in the product with nothing else on it, so it is allowed
+      to be composed as a page rather than as a form: the name set above the
+      card in the serif, the work inside it. A sign-in box floating in the
+      middle of an empty page is what a scaffold looks like.
+    */
+    <div className="grid min-h-dvh place-items-center px-5 py-12">
       <div className="w-full max-w-sm">
-        <h1 className="font-display text-2xl mb-1">Holding Today</h1>
-        <p className="text-muted-foreground mb-8">
-          The calm side of arrangements, for you and the families you serve.
-        </p>
+        <header className="mb-7 text-center">
+          <h1 className="font-display text-[1.75rem] leading-tight">
+            Holding Today
+          </h1>
+          <p className="mt-1.5 text-sm leading-relaxed text-muted-foreground">
+            The calm side of arrangements, for you and the families you serve.
+          </p>
+        </header>
 
-        <form onSubmit={submit} className="space-y-4">
+        <form
+          onSubmit={submit}
+          className="space-y-4 rounded-2xl border border-border bg-card p-6 shadow-[var(--elevation-2)] sm:p-7"
+        >
           {registering && (
             <>
               <div className="space-y-1.5">
@@ -116,14 +129,14 @@ export default function SignIn() {
               onChange={(event) => setPassword(event.target.value)}
             />
             {registering && (
-              <p className="text-sm text-muted-foreground">
+              <p className="text-sm leading-snug text-muted-foreground">
                 At least 10 characters. A phrase you'll remember beats
                 something clever.
               </p>
             )}
           </div>
 
-          <Button type="submit" className="w-full" disabled={pending}>
+          <Button type="submit" size="lg" className="mt-1 w-full" disabled={pending}>
             {pending && <Loader2 className="size-4 animate-spin" />}
             {registering ? "Open the account" : "Sign in"}
           </Button>
@@ -131,7 +144,10 @@ export default function SignIn() {
 
         <button
           type="button"
-          className="mt-6 w-full text-sm text-muted-foreground underline"
+          className="mt-6 w-full rounded-md py-2 text-sm text-muted-foreground underline
+                     decoration-[var(--border-strong)] underline-offset-4
+                     transition-colors duration-200 hover:text-foreground hover:decoration-[var(--accent)]
+                     focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--accent)]"
           onClick={() => setMode(registering ? "signIn" : "register")}
         >
           {registering

@@ -21,7 +21,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Check, Loader2, Lock, Plus, X } from "lucide-react";
+import { Check, Lock, Plus, Shirt, X } from "lucide-react";
+import { Divider, Empty, Loading, PageHeader } from "@/components/page";
 
 /**
  * What to bring in, and how they should look.
@@ -82,43 +83,44 @@ export default function Belongings() {
   const remove = useDeleteFamilyBelonging({ mutation: { onSuccess: refreshItems } });
   const savePrep = useUpdateFamilyPreparation({ mutation: { onSuccess: refreshPrep } });
 
-  if (items.isPending || preparation.isPending) {
-    return (
-      <div className="py-12 text-center">
-        <Loader2 className="size-5 animate-spin mx-auto text-muted-foreground" />
-      </div>
-    );
-  }
+  if (items.isPending || preparation.isPending) return <Loading rows={4} />;
 
   const rows = items.data ?? [];
   const prep = preparation.data;
 
   return (
     <div className="space-y-8">
-      <header>
-        <h1 className="font-display text-2xl mb-1">Clothing and belongings</h1>
-        <p className="text-muted-foreground">
-          Take your time with this. Nothing here has to be answered today, and
-          you can change your mind until the funeral home has the item.
-        </p>
-      </header>
+      <PageHeader title="Clothing and belongings">
+        Take your time with this. Nothing here has to be answered today, and
+        you can change your mind until the funeral home has the item.
+      </PageHeader>
 
       <section className="space-y-3">
-        <ul className="space-y-2">
+        <Divider label="What they'll wear, and what to keep" />
+
+        {rows.length === 0 && (
+          <Empty icon={Shirt} title="Nothing listed yet">
+            Add a suit, a dress, a ring — anything you would like them to have
+            with them, or anything you want back afterwards.
+          </Empty>
+        )}
+
+        <ul className="space-y-2.5">
           {rows.map((item) => {
             const held = item.receivedAt !== null;
 
             return (
               <li
                 key={item.id}
-                className="space-y-2 rounded-xl border border-border bg-card p-3"
+                className={`space-y-2.5 rounded-xl border bg-card p-3.5 shadow-[var(--elevation-1)] ${
+                  held ? "border-[var(--accent)]/30 bg-[var(--sunken)]" : "border-border"
+                }`}
               >
                 <div className="flex items-start gap-2">
                   <div className="min-w-0 flex-1">
                     <Input
                       defaultValue={item.description}
                       disabled={held}
-                      className="h-9"
                       onBlur={(event) => {
                         const next = event.target.value.trim();
                         if (!next || next === item.description) return;
@@ -132,10 +134,10 @@ export default function Belongings() {
 
                   {held ? (
                     <span
-                      className="flex shrink-0 items-center gap-1 pt-2 text-xs text-muted-foreground"
+                      className="mt-2 flex shrink-0 items-center gap-1 rounded-full bg-[var(--accent-soft)] px-2 py-0.5 text-xs font-semibold text-[var(--accent-deep)]"
                       title="The funeral home has this."
                     >
-                      <Lock className="size-3.5" />
+                      <Lock className="size-3" />
                       With them
                     </span>
                   ) : (
@@ -161,7 +163,7 @@ export default function Belongings() {
                     })
                   }
                 >
-                  <SelectTrigger className="h-9">
+                  <SelectTrigger>
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
@@ -183,7 +185,8 @@ export default function Belongings() {
           })}
         </ul>
 
-        <div className="flex flex-wrap gap-2">
+        {/* Adding something: one line, kept visually apart from the list. */}
+        <div className="flex flex-wrap gap-2 rounded-xl border border-dashed border-[var(--border-strong)] p-2.5">
           <Select value={kind} onValueChange={setKind}>
             <SelectTrigger className="w-[11rem]">
               <SelectValue />
@@ -228,22 +231,21 @@ export default function Belongings() {
       </section>
 
       <section className="space-y-5">
-        <div>
-          <h2 className="font-display text-xl mb-1">How they looked</h2>
-          <p className="text-muted-foreground">
-            Whatever you can tell us helps. Even "she never wore makeup" is
-            exactly the sort of thing we need to know.
-          </p>
-        </div>
+        <Divider label="How they looked" />
+
+        <p className="text-muted-foreground">
+          Whatever you can tell us helps. Even "she never wore makeup" is
+          exactly the sort of thing we need to know.
+        </p>
 
         {prep?.reviewedAt && (
-          <p className="flex items-center gap-1.5 text-sm text-[var(--accent-deep)]">
+          <p className="flex items-center gap-2 rounded-lg bg-[var(--accent-soft)] px-3 py-2 text-sm font-semibold text-[var(--accent-deep)]">
             <Check className="size-4" />
             The funeral home has read this.
           </p>
         )}
 
-        <div className="space-y-1.5">
+        <div className="space-y-2">
           <Label htmlFor="hair">Their hair</Label>
           <Textarea
             id="hair"
@@ -258,7 +260,7 @@ export default function Belongings() {
           />
         </div>
 
-        <div className="space-y-1.5">
+        <div className="space-y-2">
           <Label htmlFor="cosmetics">Makeup</Label>
           <Textarea
             id="cosmetics"
@@ -273,7 +275,7 @@ export default function Belongings() {
           />
         </div>
 
-        <div className="space-y-1.5">
+        <div className="space-y-2">
           <Label htmlFor="jewellery">Jewellery they should be wearing</Label>
           <Textarea
             id="jewellery"
@@ -288,7 +290,7 @@ export default function Belongings() {
           />
         </div>
 
-        <div className="space-y-1.5">
+        <div className="space-y-2">
           <Label htmlFor="other">Anything else</Label>
           <Textarea
             id="other"
@@ -303,7 +305,7 @@ export default function Belongings() {
           />
         </div>
 
-        <p className="text-sm text-muted-foreground">
+        <p className="border-l-2 border-[var(--accent)]/30 pl-4 text-sm leading-relaxed text-muted-foreground">
           It also helps enormously to mark a recent photograph as “this is how
           they looked” on the photographs page.
         </p>

@@ -120,6 +120,7 @@ function ConvertToAtNeed({
             <div>
               <Label htmlFor="dateOfDeath">Date of death</Label>
               <Input
+                className="mt-2"
                 id="dateOfDeath"
                 type="date"
                 value={dateOfDeath}
@@ -129,6 +130,7 @@ function ConvertToAtNeed({
             <div>
               <Label htmlFor="serviceAt">Service, if it is known yet</Label>
               <Input
+                className="mt-2"
                 id="serviceAt"
                 type="datetime-local"
                 value={serviceAt}
@@ -233,6 +235,7 @@ function EraseCase({
             <div>
               <Label htmlFor="reason">Why (for your own records)</Label>
               <Input
+                className="mt-2"
                 id="reason"
                 value={reason}
                 onChange={(event) => setReason(event.target.value)}

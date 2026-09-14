@@ -121,35 +121,41 @@ export function Homes() {
 
 function HomesTable({ homes }: { homes: AdminHome[] }) {
   return (
-    <div className="overflow-x-auto rounded-lg border border-[var(--border)] bg-[var(--card)]">
+    <div className="overflow-x-auto rounded-xl border border-[var(--border)] bg-[var(--card)] shadow-[var(--elevation-1)]">
       <table className="w-full min-w-[52rem] text-left">
-        <thead className="text-sm text-[var(--muted-foreground)]">
-          <tr className="border-b border-[var(--border)]">
-            <th scope="col" className="px-4 py-3 font-medium">Home</th>
-            <th scope="col" className="px-4 py-3 font-medium">Account</th>
-            <th scope="col" className="px-4 py-3 font-medium">Cases</th>
-            <th scope="col" className="px-4 py-3 font-medium">Links opened</th>
-            <th scope="col" className="px-4 py-3 font-medium">Photographs</th>
-            <th scope="col" className="px-4 py-3 font-medium">Joined</th>
+        {/*
+          The header is a rule and a set of small caps, the way a printed
+          table rules its header — not a grey band. The counts are right-aligned
+          so the digits stack; the words stay left. A column of numbers that
+          are not aligned is a column nobody can scan.
+        */}
+        <thead>
+          <tr className="border-b border-[var(--border-strong)] bg-[var(--sunken)]">
+            <th scope="col" className="eyebrow px-4 py-2.5">Home</th>
+            <th scope="col" className="eyebrow px-4 py-2.5">Account</th>
+            <th scope="col" className="eyebrow px-4 py-2.5 text-right">Cases</th>
+            <th scope="col" className="eyebrow px-4 py-2.5 text-right">Links opened</th>
+            <th scope="col" className="eyebrow px-4 py-2.5 text-right">Photographs</th>
+            <th scope="col" className="eyebrow px-4 py-2.5 text-right">Joined</th>
           </tr>
         </thead>
         <tbody>
           {homes.map((home) => (
             <tr
               key={home.id}
-              className="border-b border-[var(--border)] last:border-0 hover:bg-[var(--muted)]"
+              className="border-b border-[var(--border)] transition-colors duration-150 last:border-0 hover:bg-[var(--sunken)]"
             >
               <td className="px-4 py-3">
                 <Link
                   href={`/homes/${home.id}`}
-                  className="inline-flex items-center gap-2 font-semibold hover:underline"
+                  className="inline-flex items-center gap-2 font-semibold no-underline hover:underline"
                 >
                   <Swatch color={home.accentColor} name={home.name} />
                   {/* Long names wrap rather than blowing the column out. */}
                   <span className="max-w-[18rem] break-words">{home.name}</span>
                 </Link>
                 {(home.city || home.region) && (
-                  <p className="text-sm text-[var(--muted-foreground)]">
+                  <p className="mt-0.5 text-sm text-[var(--muted-foreground)]">
                     {[home.city, home.region].filter(Boolean).join(", ")}
                   </p>
                 )}
@@ -162,17 +168,20 @@ function HomesTable({ homes }: { homes: AdminHome[] }) {
                   </p>
                 )}
               </td>
-              <td className="tabular px-4 py-3">
+              <td className="tabular px-4 py-3 text-right">
                 {home.engagement.casesOpened}
               </td>
-              <td className="tabular px-4 py-3">
-                {home.engagement.familyLinksOpened} of{" "}
-                {home.engagement.familyLinksCreated}
+              <td className="tabular px-4 py-3 text-right">
+                {home.engagement.familyLinksOpened}
+                <span className="text-[var(--muted-foreground)]">
+                  {" "}
+                  of {home.engagement.familyLinksCreated}
+                </span>
               </td>
-              <td className="tabular px-4 py-3">
+              <td className="tabular px-4 py-3 text-right">
                 {home.engagement.photographs}
               </td>
-              <td className="tabular px-4 py-3 text-sm">
+              <td className="tabular whitespace-nowrap px-4 py-3 text-right text-sm text-[var(--muted-foreground)]">
                 {formatDate(home.createdAt)}
               </td>
             </tr>

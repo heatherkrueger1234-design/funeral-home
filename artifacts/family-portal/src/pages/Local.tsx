@@ -15,7 +15,8 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
-import { Check, Loader2, MapPin, Phone } from "lucide-react";
+import { Check, MapPin, Phone } from "lucide-react";
+import { Divider, Empty, Loading, PageHeader } from "@/components/page";
 
 /**
  * Local help: headstones, cemeteries, urns, someone to lead the service.
@@ -93,13 +94,7 @@ export default function Local() {
     },
   });
 
-  if (session.isPending || vendors.isPending) {
-    return (
-      <div className="py-12 text-center">
-        <Loader2 className="size-5 animate-spin mx-auto text-muted-foreground" />
-      </div>
-    );
-  }
+  if (session.isPending || vendors.isPending) return <Loading rows={4} />;
 
   const postalCode = session.data?.case.postalCode ?? null;
   const rows = vendors.data ?? [];
@@ -107,21 +102,18 @@ export default function Local() {
 
   return (
     <div className="space-y-8">
-      <header>
-        <h1 className="font-display text-2xl mb-1">Local help</h1>
-        <p className="text-muted-foreground">
-          People {session.data?.home.name} works with and would recommend. You
-          are under no obligation to use any of them.
-        </p>
-      </header>
+      <PageHeader title="Local help">
+        People {session.data?.home.name} works with and would recommend. You
+        are under no obligation to use any of them.
+      </PageHeader>
 
       {/* Asked once, here, where it is obviously needed. */}
       {!postalCode ? (
-        <section className="rounded-xl border border-[var(--accent)] bg-[var(--accent-soft)] p-4">
+        <section className="rounded-xl border border-[var(--accent)]/25 bg-[var(--accent-soft)] p-5">
           <Label htmlFor="zip" className="mb-1.5 block">
             Whereabouts are you?
           </Label>
-          <p className="mb-3 text-sm text-muted-foreground">
+          <p className="mb-3.5 text-sm leading-relaxed text-muted-foreground">
             A ZIP code is enough. It lets us show you what's actually nearby.
           </p>
           <div className="flex gap-2">
@@ -145,11 +137,11 @@ export default function Local() {
         </section>
       ) : (
         <p className="flex items-center gap-1.5 text-sm text-muted-foreground">
-          <MapPin className="size-4" />
-          Showing what's near {postalCode}.
+          <MapPin className="size-4 shrink-0" strokeWidth={1.75} />
+          Showing what's near <span className="tabular">{postalCode}</span>.
           <button
             type="button"
-            className="underline"
+            className="font-semibold text-[var(--accent-deep)] underline decoration-[var(--accent)]/40 underline-offset-4 hover:decoration-[var(--accent)]"
             onClick={() =>
               setPostalCode.mutate({ data: { postalCode: "" } })
             }
@@ -160,34 +152,36 @@ export default function Local() {
       )}
 
       {rows.length === 0 ? (
-        <p className="rounded-xl border border-dashed border-border py-12 text-center text-muted-foreground">
-          Nothing here yet. Ask {session.data?.home.name} — they will know who
-          to point you to.
-        </p>
+        <Empty icon={MapPin} title="Nothing here yet">
+          Ask {session.data?.home.name} — they will know who to point you to,
+          and a recommendation over the telephone is worth more than a list.
+        </Empty>
       ) : (
         GROUPS.filter((group) =>
           rows.some((vendor) => vendor.kind === group.kind),
         ).map((group) => (
           <section key={group.kind} className="space-y-3">
-            <h2 className="font-display text-lg">{group.label}</h2>
+            <Divider label={group.label} />
 
-            <ul className="space-y-2">
+            <ul className="space-y-2.5">
               {rows
                 .filter((vendor) => vendor.kind === group.kind)
                 .map((vendor) => (
                   <li
                     key={vendor.id}
-                    className="rounded-xl border border-border bg-card p-4"
+                    className="rounded-xl border border-border bg-card p-4 shadow-[var(--elevation-1)]"
                   >
-                    <p className="font-medium">{vendor.name}</p>
-                    <p className="text-sm text-muted-foreground">
+                    <p className="font-semibold">{vendor.name}</p>
+                    <p className="mt-0.5 text-sm text-muted-foreground">
                       {[vendor.city, vendor.region].filter(Boolean).join(", ")}
                       {vendor.distanceMiles !== null
                         ? ` · about ${vendor.distanceMiles} miles away`
                         : ""}
                     </p>
                     {vendor.notes && (
-                      <p className="mt-1 text-sm">{vendor.notes}</p>
+                      <p className="mt-2 text-sm leading-relaxed">
+                        {vendor.notes}
+                      </p>
                     )}
 
                     <div className="mt-3 flex flex-wrap gap-2">
@@ -201,8 +195,8 @@ export default function Local() {
                       )}
 
                       {asked.has(vendor.id) ? (
-                        <span className="flex items-center gap-1.5 text-sm text-muted-foreground">
-                          <Check className="size-4" />
+                        <span className="flex items-center gap-1.5 rounded-full bg-[var(--accent-soft)] px-2.5 py-1 text-sm font-semibold text-[var(--accent-deep)]">
+                          <Check className="size-3.5" />
                           Price requested
                         </span>
                       ) : (
@@ -217,7 +211,7 @@ export default function Local() {
                     </div>
 
                     {asking === vendor.id && (
-                      <div className="mt-3 space-y-2">
+                      <div className="mt-3 space-y-2.5 rounded-lg border border-border bg-[var(--sunken)] p-3">
                         <Textarea
                           rows={3}
                           value={request}
@@ -258,30 +252,32 @@ export default function Local() {
 
       {(quotes.data ?? []).some((quote) => quote.quotedAmountCents !== null) && (
         <section className="space-y-3">
-          <h2 className="font-display text-lg">Prices you've been given</h2>
-          <ul className="space-y-2">
+          <Divider label="Prices you've been given" />
+          <ul className="divide-y divide-border overflow-hidden rounded-xl border border-border bg-card shadow-[var(--elevation-1)]">
             {(quotes.data ?? [])
               .filter((quote) => quote.quotedAmountCents !== null)
               .map((quote) => (
                 <li
                   key={quote.id}
-                  className="flex items-center gap-3 rounded-lg border border-border bg-card px-4 py-3"
+                  className="flex items-center gap-3 px-4 py-3.5"
                 >
                   <span className="min-w-0 flex-1">
-                    <span className="block truncate">{quote.vendorName}</span>
+                    <span className="block truncate font-medium">
+                      {quote.vendorName}
+                    </span>
                     {quote.response && (
                       <span className="block text-sm text-muted-foreground">
                         {quote.response}
                       </span>
                     )}
                   </span>
-                  <span className="font-medium">
+                  <span className="tabular shrink-0 font-semibold">
                     ${(quote.quotedAmountCents! / 100).toLocaleString()}
                   </span>
                 </li>
               ))}
           </ul>
-          <p className="text-sm text-muted-foreground">
+          <p className="border-l-2 border-[var(--accent)]/30 pl-4 text-sm leading-relaxed text-muted-foreground">
             These are the vendors' own prices, passed on as given. Nothing here
             is a charge from {session.data?.home.name}.
           </p>

@@ -25,7 +25,8 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
-import { Check, Loader2, Printer, Trash2, Plus } from "lucide-react";
+import { Check, Printer, Trash2, Plus } from "lucide-react";
+import { Loading } from "@/components/page";
 
 /**
  * The print studio.
@@ -160,7 +161,7 @@ function Studio({
             <div key={slot.key} className="space-y-1.5">
               <Label htmlFor={slot.key}>{slot.label}</Label>
               {slot.hint && (
-                <p className="text-xs text-muted-foreground">{slot.hint}</p>
+                <p className="text-sm leading-snug text-muted-foreground">{slot.hint}</p>
               )}
               <Input
                 id={slot.key}
@@ -179,7 +180,7 @@ function Studio({
           <div key={slot.key} className="space-y-1.5">
             <Label htmlFor={slot.key}>{slot.label}</Label>
             {slot.hint && (
-              <p className="text-xs text-muted-foreground">{slot.hint}</p>
+              <p className="text-sm leading-snug text-muted-foreground">{slot.hint}</p>
             )}
 
             {/* Pick from the home's own list rather than retyping it. */}
@@ -192,7 +193,7 @@ function Studio({
                   if (snippet) save({ [slot.key]: snippet.body });
                 }}
               >
-                <SelectTrigger className="h-8">
+                <SelectTrigger>
                   <SelectValue placeholder="Use one of ours…" />
                 </SelectTrigger>
                 <SelectContent>
@@ -217,7 +218,7 @@ function Studio({
               }}
             />
             {slot.maxLength && (
-              <p className="text-xs text-muted-foreground">
+              <p className="text-sm leading-snug text-muted-foreground">
                 Up to {slot.maxLength} characters fits.
               </p>
             )}
@@ -311,9 +312,7 @@ export function PrintPanel({ caseId }: { caseId: number }) {
 
   if (templates.isPending || items.isPending) {
     return (
-      <div className="py-12 text-center">
-        <Loader2 className="size-5 animate-spin mx-auto text-muted-foreground" />
-      </div>
+      <Loading />
     );
   }
 
@@ -340,7 +339,7 @@ export function PrintPanel({ caseId }: { caseId: number }) {
           {items.data!.map((item) => (
             <li
               key={item.id}
-              className="flex flex-wrap items-center gap-3 rounded-xl border border-border bg-card px-4 py-3"
+              className="flex flex-wrap items-center gap-3 rounded-xl border border-border bg-card px-4 py-3.5 shadow-[var(--elevation-1)]"
             >
               <span className="min-w-0 flex-1">
                 <span className="block truncate font-medium">
@@ -384,13 +383,13 @@ export function PrintPanel({ caseId }: { caseId: number }) {
       )}
 
       <section className="space-y-3">
-        <h3 className="font-medium">Start something</h3>
+        <h3 className="font-display text-base">Start something</h3>
         <ul className="grid gap-3 sm:grid-cols-2">
           {templates.data!.map((template) => (
             <li key={template.key}>
               <button
                 type="button"
-                className="w-full rounded-xl border border-border bg-card p-4 text-left transition-colors hover:border-[var(--accent)]"
+                className="w-full lift rounded-xl border border-border bg-card p-5 text-left shadow-[var(--elevation-1)] transition-gentle hover:border-[color-mix(in_oklab,var(--accent)_45%,var(--border))]"
                 onClick={() =>
                   create.mutate({ caseId, data: { templateKey: template.key } })
                 }

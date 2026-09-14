@@ -6,7 +6,7 @@ import {
 } from "@workspace/api-client-react";
 import { useLink } from "@/lib/link";
 import { voiceFor } from "@/lib/voice";
-import { Loader2, Phone } from "lucide-react";
+import { ArrowLeft, Phone } from "lucide-react";
 
 /**
  * The frame every screen sits in: the home's branding, the person who died,
@@ -35,7 +35,33 @@ function useBrandColor(accent: string | undefined) {
 function FullScreen({ children }: { children: ReactNode }) {
   return (
     <div className="min-h-dvh grid place-items-center px-6 py-16">
-      <div className="w-full max-w-md text-center">{children}</div>
+      <div className="w-full max-w-md">{children}</div>
+    </div>
+  );
+}
+
+/**
+ * The loading state, which is nearly always over before it is seen.
+ *
+ * A spinner announces waiting; this does not. Three bars in the shape of the
+ * heading and the two lines under it, breathing rather than spinning. If the
+ * connection is slow enough that this is on screen for two seconds, the page
+ * that replaces it does not jump.
+ */
+function Waiting() {
+  return (
+    <div className="mx-auto w-full max-w-2xl px-5 py-10" role="status" aria-label="Loading">
+      <div className="animate-pulse space-y-6">
+        <div className="space-y-2.5">
+          <div className="h-7 w-2/3 rounded-md bg-[var(--muted)]" />
+          <div className="h-4 w-1/2 rounded-md bg-[var(--muted)]/70" />
+        </div>
+        <div className="space-y-3">
+          {[0, 1, 2, 3].map((row) => (
+            <div key={row} className="h-16 rounded-xl bg-[var(--muted)]/60" />
+          ))}
+        </div>
+      </div>
     </div>
   );
 }
@@ -69,36 +95,39 @@ export function PortalShell({ children }: { children: ReactNode }) {
      */
     return (
       <FullScreen>
-        <h1 className="font-display text-2xl mb-3">This page needs your link</h1>
-        <p className="text-muted-foreground">
-          Your funeral home sent you a link by text message or email. Open it
-          from that message and this page will remember you — there is nothing
-          to sign in to, and no password to remember.
-        </p>
-        <div className="mt-8 pt-6 border-t text-left space-y-4">
-          <p className="text-sm font-medium">If you have not been sent one</p>
-          <p className="text-sm text-muted-foreground">
-            Whether someone has died, or you are planning your own funeral in
-            advance, start from the funeral home's own website — they will have
-            a link on it — or telephone them. This page cannot reach them for
-            you, because it does not know which home you mean.
+        <div className="rounded-2xl border border-border bg-card p-7 shadow-[var(--elevation-2)] sm:p-9">
+          <h1 className="font-display text-[1.6rem] mb-3">
+            This page needs your link
+          </h1>
+          <p className="text-muted-foreground">
+            Your funeral home sent you a link by text message or email. Open it
+            from that message and this page will remember you — there is nothing
+            to sign in to, and no password to remember.
           </p>
-          <p className="text-sm text-muted-foreground">
-            If you already have a file with them and cannot find the link,
-            telephone and ask them to send another. Nothing you have added is
-            lost.
-          </p>
+
+          <hr className="my-7 border-0 border-t border-border" />
+
+          <p className="eyebrow mb-3">If you have not been sent one</p>
+          <div className="space-y-3">
+            <p className="text-sm text-muted-foreground">
+              Whether someone has died, or you are planning your own funeral in
+              advance, start from the funeral home's own website — they will have
+              a link on it — or telephone them. This page cannot reach them for
+              you, because it does not know which home you mean.
+            </p>
+            <p className="text-sm text-muted-foreground">
+              If you already have a file with them and cannot find the link,
+              telephone and ask them to send another. Nothing you have added is
+              lost.
+            </p>
+          </div>
         </div>
       </FullScreen>
     );
   }
 
   if (session.isPending) {
-    return (
-      <FullScreen>
-        <Loader2 className="size-6 animate-spin mx-auto text-muted-foreground" />
-      </FullScreen>
-    );
+    return <Waiting />;
   }
 
   if (session.isError) {
@@ -106,14 +135,16 @@ export function PortalShell({ children }: { children: ReactNode }) {
 
     return (
       <FullScreen>
-        <h1 className="font-display text-2xl mb-3">
-          {gone ? "This link has expired" : "We couldn't open this"}
-        </h1>
-        <p className="text-muted-foreground">
-          {gone
-            ? "Please ask the funeral home to send you a new one. Nothing you have already added has been lost."
-            : "Please check your connection and try again."}
-        </p>
+        <div className="rounded-2xl border border-border bg-card p-7 text-center shadow-[var(--elevation-2)] sm:p-9">
+          <h1 className="font-display text-[1.6rem] mb-3">
+            {gone ? "This link has expired" : "We couldn't open this"}
+          </h1>
+          <p className="text-muted-foreground">
+            {gone
+              ? "Please ask the funeral home to send you a new one. Nothing you have already added has been lost."
+              : "Please check your connection and try again."}
+          </p>
+        </div>
       </FullScreen>
     );
   }
@@ -126,21 +157,38 @@ export function PortalShell({ children }: { children: ReactNode }) {
 
   return (
     <div className="min-h-dvh flex flex-col">
-      <header className="bg-[var(--accent)] text-white">
+      {/*
+        Sticky, and deliberately. The home's name at the top of the screen is
+        the reassurance that this is the right place — a family who has to
+        scroll up to check they are still somewhere their funeral home sent
+        them has been let down by the design.
+
+        The gradient is two stops of the home's own colour rather than a flat
+        fill: flat blocks of saturated colour are what a form looks like, and
+        a slight fall from deep to true is what a printed letterhead looks
+        like.
+      */}
+      <header
+        className="sticky top-0 z-30 text-white shadow-[0_1px_0_rgb(0_0_0/0.06),0_6px_16px_-12px_rgb(40_34_24/0.5)]"
+        style={{
+          background:
+            "linear-gradient(170deg, var(--accent-deep) 0%, var(--accent) 65%)",
+        }}
+      >
         <div className="mx-auto w-full max-w-2xl px-5 py-4">
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-3.5">
             {home.logoUploadId !== null && (
               <img
                 src={`/api/family/uploads/${home.logoUploadId}`}
                 alt=""
-                className="h-9 w-9 rounded object-contain bg-white/95 p-1"
+                className="h-10 w-10 shrink-0 rounded-lg bg-white object-contain p-1.5 shadow-[0_1px_3px_rgb(0_0_0/0.18)] ring-1 ring-white/25"
               />
             )}
             <div className="min-w-0">
-              <p className="font-display text-base leading-tight truncate">
+              <p className="font-display text-[1.0625rem] leading-tight truncate">
                 {home.name}
               </p>
-              <p className="text-white/75 text-sm leading-tight truncate">
+              <p className="truncate text-sm leading-tight text-white/70">
                 {voice.strapline(subject.displayName)}
               </p>
             </div>
@@ -149,30 +197,54 @@ export function PortalShell({ children }: { children: ReactNode }) {
       </header>
 
       {!atHub && (
-        <div className="mx-auto w-full max-w-2xl px-5 pt-4">
+        <div className="mx-auto w-full max-w-2xl px-5 pt-5">
           <Link
             href="/"
-            className="text-sm text-muted-foreground hover:text-foreground"
+            className="group inline-flex items-center gap-1.5 rounded-md text-sm text-muted-foreground no-underline transition-colors duration-200 hover:text-foreground"
           >
-            ← Everything else
+            <ArrowLeft className="size-4 transition-transform duration-200 ease-[cubic-bezier(0.2,0.6,0.3,1)] group-hover:-translate-x-0.5" />
+            Everything else
           </Link>
         </div>
       )}
 
-      <main className="mx-auto w-full max-w-2xl px-5 py-6 flex-1">{children}</main>
+      <main className="mx-auto w-full max-w-2xl flex-1 px-5 pb-10 pt-6">
+        {children}
+      </main>
 
       {/*
         The urgent line, on every screen. A family who needs it needs it now,
         and should never have to work out which page it was on.
+
+        Set below a hairline rule and in the home's own colour, so it reads as
+        the last line of the stationery rather than as another button.
       */}
       {home.urgentPhone && (
-        <footer className="mx-auto w-full max-w-2xl px-5 pb-8 pt-2">
+        <footer className="mx-auto w-full max-w-2xl px-5 pb-10">
+          <hr className="mb-5 border-0 border-t border-border" />
           <a
             href={`tel:${home.urgentPhone.replace(/[^\d+]/g, "")}`}
-            className="flex items-center justify-center gap-2 rounded-lg border border-border bg-card px-4 py-3 text-sm text-muted-foreground"
+            className="lift flex items-center gap-3 rounded-xl border border-border bg-card px-4 py-3.5
+                       no-underline shadow-[var(--elevation-1)] transition-gentle
+                       hover:border-[var(--accent)]"
           >
-            <Phone className="size-4" />
-            If you need someone now, call {home.urgentPhone}
+            <span className="grid size-9 shrink-0 place-items-center rounded-full bg-[var(--accent-soft)] text-[var(--accent-deep)]">
+              <Phone className="size-4" strokeWidth={1.75} />
+            </span>
+            {/*
+              Two lines, not one. Centred on a single line this wrapped at
+              phone width into "call" on one row and half a telephone number
+              on the next — which is the one piece of text on this product
+              that has to be readable at a glance in the dark.
+            */}
+            <span className="min-w-0">
+              <span className="block text-sm text-muted-foreground">
+                If you need someone now
+              </span>
+              <span className="tabular block font-semibold text-foreground">
+                {home.urgentPhone}
+              </span>
+            </span>
           </a>
         </footer>
       )}
