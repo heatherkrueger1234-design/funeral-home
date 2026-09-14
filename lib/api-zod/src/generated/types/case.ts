@@ -27,6 +27,11 @@ arranging their own funeral. Every label, every date and every
 line of condolence has to read this first.
  */
   kind: CaseKind;
+  /** The home knows the right of final disposition is contested. While
+true, the portal offers no authorizing actions and says the home is
+confirming who is arranging the funeral.
+ */
+  dispositionDisputed?: boolean;
   decedentFirstName: string;
   decedentLastName: string;
   decedentPreferredName: string | null;

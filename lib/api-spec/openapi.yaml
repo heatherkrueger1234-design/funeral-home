@@ -63,6 +63,11 @@ tags:
       their own funeral in advance.
   - name: intake
     description: The director's queue of those requests
+  - name: platform
+    description: |
+      Us, above all the tenants. A separate account, a separate session and a
+      separate cookie from any funeral home's staff — see
+      `lib/db/src/schema/platform.ts` for why it is not a role on `users`.
 
 paths:
   /healthz:
@@ -2388,6 +2393,199 @@ paths:
                 type: string
                 format: binary
 
+  # -------------------------------------------------------------- platform --
+
+  /admin/auth/login:
+    post:
+      operationId: platformLogin
+      tags: [platform]
+      summary: Sign in to the platform console
+      description: |
+        A different credential, a different cookie and a shorter session than
+        a director's. This account can read across every funeral home in the
+        system, so a laptop left open should stop being a problem the same day
+        rather than the same month.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PlatformLoginInput"
+      responses:
+        "200":
+          description: Signed in
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PlatformAdmin"
+        "401":
+          description: Wrong email or password
+        "429":
+          description: Too many attempts
+
+  /admin/auth/logout:
+    post:
+      operationId: platformLogout
+      tags: [platform]
+      summary: Sign out of the platform console
+      responses:
+        "204":
+          description: Signed out
+
+  /admin/auth/me:
+    get:
+      operationId: getPlatformMe
+      tags: [platform]
+      summary: Who is signed in to the platform console
+      responses:
+        "200":
+          description: The signed-in platform account
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PlatformAdmin"
+        "401":
+          description: Not signed in
+
+  # ------------------------------------------- family access and passwords --
+
+  /family/password:
+    put:
+      operationId: setFamilyOwnPassword
+      tags: [family]
+      summary: Choose a password for this link
+      description: |
+        Set *after* the link has been followed, never as a wall in front of it.
+        A password is required before an authorizing contact can sign anything,
+        because a text message can be forwarded and a signature about burying
+        somebody should need more than holding that message.
+
+        Replacing an existing password requires the current one.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/FamilyPasswordInput"
+      responses:
+        "204":
+          description: Set
+        "400":
+          description: Too short
+        "401":
+          description: The current password did not match
+
+  /contacts/{contactId}/access:
+    patch:
+      operationId: setContactAccess
+      tags: [contacts]
+      summary: Set what this person may do
+      description: |
+        Staff only, and never self-selected. `authorizing` additionally
+        requires recording which tier of the statutory priority order the
+        determination was made under — see the authority endpoint.
+      parameters:
+        - $ref: "#/components/parameters/ContactId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ContactAccessInput"
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FamilyContact"
+        "404":
+          description: No such contact
+
+  /contacts/{contactId}/authority:
+    post:
+      operationId: recordContactAuthority
+      tags: [contacts]
+      summary: Record who holds the right of final disposition
+      description: |
+        The director's determination, from documents, written down. **The
+        software never works this out.** Inferring the right of final
+        disposition from a relationship dropdown would be confidently wrong in
+        exactly the cases that end up in front of a probate judge.
+
+        Recording this raises the contact to `authorizing`. They still cannot
+        sign anything until they have a password.
+      parameters:
+        - $ref: "#/components/parameters/ContactId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ContactAuthorityInput"
+      responses:
+        "200":
+          description: Recorded
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FamilyContact"
+        "404":
+          description: No such contact
+
+  /contacts/{contactId}/password:
+    post:
+      operationId: setContactPassword
+      tags: [contacts]
+      summary: Set an initial password to hand over
+      description: |
+        Generates a password the director reads out on the telephone or hands
+        over in person, which is how a funeral home already does everything
+        else. Returned once and never retrievable again.
+      parameters:
+        - $ref: "#/components/parameters/ContactId"
+      responses:
+        "200":
+          description: Set, and shown once
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/IssuedPassword"
+        "404":
+          description: No such contact
+
+  /cases/{caseId}/disposition-dispute:
+    put:
+      operationId: setDispositionDispute
+      tags: [cases]
+      summary: Mark the right of final disposition as contested
+      description: |
+        While set, the family portal stops offering authorizing actions and
+        says plainly that the home is confirming who is arranging the funeral.
+
+        Colorado sends disputes between people of equal priority to the probate
+        court, and a third party may decline to act until it has confirmation
+        the argument is over. Declining is the safe posture; this makes it the
+        automatic one.
+      parameters:
+        - $ref: "#/components/parameters/CaseId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/DispositionDisputeInput"
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Case"
+        "404":
+          description: No such case
+
+
 components:
   parameters:
     CaseId:
@@ -3150,6 +3348,12 @@ components:
             `pre_need` means the person this file is about is still alive and
             arranging their own funeral. Every label, every date and every
             line of condolence has to read this first.
+        dispositionDisputed:
+          type: boolean
+          description: |
+            The home knows the right of final disposition is contested. While
+            true, the portal offers no authorizing actions and says the home is
+            confirming who is arranging the funeral.
         decedentFirstName:
           type: string
         decedentLastName:
@@ -3385,6 +3589,30 @@ components:
         role:
           type: string
           enum: [next_of_kin, contributor]
+          description: Who they are to the deceased, not what they may do.
+        accessLevel:
+          type: string
+          enum: [viewing, arranging, authorizing]
+          description: |
+            What they may do. `authorizing` means they hold the right of final
+            disposition under the statutory priority order, as determined by a
+            director and recorded here — never computed from `relationship`.
+        dispositionTier:
+          type: string
+          nullable: true
+          description: |
+            Which tier of the statutory priority order the determination was
+            made under, e.g. `surviving_spouse`. Free text, because the statute
+            is amended and a case outlives a deployment.
+        authorityRecordedAt:
+          type: string
+          format: date-time
+          nullable: true
+        hasPassword:
+          type: boolean
+          description: |
+            An authorizing contact cannot sign anything until this is true. A
+            forwarded text message is not enough to bury somebody.
         canInvite:
           type: boolean
         expiresAt:
@@ -3414,6 +3642,10 @@ components:
           phone,
           email,
           role,
+          accessLevel,
+          dispositionTier,
+          authorityRecordedAt,
+          hasPassword,
           canInvite,
           expiresAt,
           revokedAt,
@@ -5273,3 +5505,103 @@ components:
           messagesLocked,
           aftercare,
         ]
+
+    PlatformAdmin:
+      description: |
+        One of us. Never a funeral home's staff member — a different table, a
+        different session and a different cookie, so that neither resolver can
+        ever return the other kind of account.
+      type: object
+      properties:
+        id:
+          type: integer
+        email:
+          type: string
+        displayName:
+          type: string
+          nullable: true
+        role:
+          type: string
+          enum: [owner, support]
+          description: |
+            `support` can look but not change. It exists so that helping a
+            funeral home does not require the ability to suspend one.
+        hasPassword:
+          type: boolean
+        lastSeenAt:
+          type: string
+          format: date-time
+          nullable: true
+        createdAt:
+          type: string
+          format: date-time
+      required: [id, email, displayName, role, hasPassword, lastSeenAt, createdAt]
+
+    PlatformLoginInput:
+      type: object
+      properties:
+        email:
+          type: string
+        password:
+          type: string
+      required: [email, password]
+
+    FamilyPasswordInput:
+      type: object
+      properties:
+        password:
+          type: string
+          minLength: 10
+          description: |
+            Long enough to be worth having, short enough that somebody can
+            choose a passphrase they will actually recall on the worst week of
+            their life.
+        currentPassword:
+          type: string
+          nullable: true
+          description: Required when replacing an existing password.
+      required: [password]
+
+    ContactAccessInput:
+      type: object
+      properties:
+        accessLevel:
+          type: string
+          enum: [viewing, arranging]
+          description: |
+            `authorizing` is deliberately absent. Raising somebody to it is
+            recording a legal determination, so it goes through the authority
+            endpoint, which requires saying what the determination was.
+      required: [accessLevel]
+
+    ContactAuthorityInput:
+      type: object
+      properties:
+        dispositionTier:
+          type: string
+          minLength: 1
+          description: |
+            Which tier of the statutory priority order this person was found to
+            hold, in the director's own words.
+      required: [dispositionTier]
+
+    IssuedPassword:
+      description: |
+        Shown once, at the moment it is set, and never retrievable again —
+        only the hash is kept. The director reads it out or hands it over.
+      type: object
+      properties:
+        password:
+          type: string
+      required: [password]
+
+    DispositionDisputeInput:
+      type: object
+      properties:
+        disputed:
+          type: boolean
+        note:
+          type: string
+          nullable: true
+          description: For the home's own record. Never shown to the family.
+      required: [disputed]

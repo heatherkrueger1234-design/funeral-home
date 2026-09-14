@@ -7,7 +7,12 @@ import {
   toPublicFamilyContact,
   type FamilyContact,
 } from "@workspace/db";
-import { CreateCaseContactBody, UpdateContactBody } from "@workspace/api-zod";
+import {
+  CreateCaseContactBody,
+  UpdateContactBody,
+  SetContactAccessBody,
+  RecordContactAuthorityBody,
+} from "@workspace/api-zod";
 import {
   assertHasUpdates,
   badRequest,
@@ -19,6 +24,8 @@ import { currentUser, tenant } from "../middleware/require-auth";
 import { linkUrl, mintLink } from "../lib/family-link";
 import { sendSms, SmsNotSentError } from "../lib/sms";
 import { markOnboarding } from "../lib/onboarding";
+import { hashPassword } from "../lib/auth";
+import { issuePassphrase } from "../lib/passphrase";
 import { loadCase } from "./cases";
 
 const router: IRouter = Router();
@@ -221,6 +228,117 @@ router.post("/contacts/:contactId/send-link", async (req, res) => {
     sent,
     smsError,
   });
+});
+
+/* ------------------------------------------------ what a contact may do --- */
+
+/**
+ * Set a contact's access level.
+ *
+ * `authorizing` is deliberately not reachable here. Raising somebody to it is
+ * recording a legal determination about who holds the right of final
+ * disposition, so it goes through the route below, which will not let a
+ * director do it without saying what the determination was.
+ */
+router.patch("/contacts/:contactId/access", async (req, res) => {
+  const existing = await loadContact(req, req.params.contactId);
+  const body = parseBody(SetContactAccessBody, req.body);
+
+  // Stepping down from `authorizing` clears the determination with it. A
+  // recorded authority that outlived the access it justified is exactly the
+  // sort of stale row somebody later mistakes for current.
+  const clearing =
+    existing.accessLevel === "authorizing"
+      ? {
+          dispositionTier: null,
+          authorityRecordedByUserId: null,
+          authorityRecordedAt: null,
+        }
+      : {};
+
+  const [updated] = await db
+    .update(familyContactsTable)
+    .set({ accessLevel: body.accessLevel, ...clearing, updatedAt: new Date() })
+    .where(eq(familyContactsTable.id, existing.id))
+    .returning();
+
+  res.json(toPublicFamilyContact(updated!));
+});
+
+/**
+ * Record that this person holds the right of final disposition.
+ *
+ * The director's determination, from documents, written down — never the
+ * software's. Colorado's priority order (C.R.S. 15-19-106) has tiers that
+ * require a *majority* rather than a person, and reading a relationship
+ * dropdown could not tell the difference. So this asks a professional what
+ * they found, keeps their name against it, and stays out of the judgement.
+ *
+ * Only one contact per case can hold it: two people who both believe they are
+ * authorizing is the dispute this is meant to surface, not a state to store.
+ */
+router.post("/contacts/:contactId/authority", async (req, res) => {
+  const existing = await loadContact(req, req.params.contactId);
+  const body = parseBody(RecordContactAuthorityBody, req.body);
+  const user = currentUser(req);
+
+  const updated = await db.transaction(async (tx) => {
+    await tx
+      .update(familyContactsTable)
+      .set({
+        accessLevel: "arranging",
+        dispositionTier: null,
+        authorityRecordedByUserId: null,
+        authorityRecordedAt: null,
+        updatedAt: new Date(),
+      })
+      .where(
+        and(
+          eq(familyContactsTable.caseId, existing.caseId),
+          eq(familyContactsTable.accessLevel, "authorizing"),
+        ),
+      );
+
+    const [row] = await tx
+      .update(familyContactsTable)
+      .set({
+        accessLevel: "authorizing",
+        dispositionTier: body.dispositionTier.trim(),
+        authorityRecordedByUserId: user.id,
+        authorityRecordedAt: new Date(),
+        updatedAt: new Date(),
+      })
+      .where(eq(familyContactsTable.id, existing.id))
+      .returning();
+
+    return row!;
+  });
+
+  res.json(toPublicFamilyContact(updated));
+});
+
+/**
+ * Issue a password for a contact, for the director to hand over.
+ *
+ * Shown once and never retrievable, because only the hash is kept. This is
+ * how a funeral home already does everything else — on the telephone, or
+ * across a desk — and it keeps the promise that no bereaved family member is
+ * ever asked to fill in a registration form.
+ */
+router.post("/contacts/:contactId/password", async (req, res) => {
+  const existing = await loadContact(req, req.params.contactId);
+  const password = issuePassphrase();
+
+  await db
+    .update(familyContactsTable)
+    .set({
+      passwordHash: await hashPassword(password),
+      passwordSetAt: new Date(),
+      updatedAt: new Date(),
+    })
+    .where(eq(familyContactsTable.id, existing.id));
+
+  res.json({ password });
 });
 
 export default router;

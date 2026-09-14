@@ -18,6 +18,7 @@ import {
   UpdateCaseBody,
   GetCasesQueryParams,
   ConvertCaseToAtNeedBody,
+  SetDispositionDisputeBody,
 } from "@workspace/api-zod";
 import {
   assertHasUpdates,
@@ -427,6 +428,41 @@ router.post("/cases/:caseId/close", async (req, res) => {
     leadDirector: null,
     contacts: contacts.map(toPublicFamilyContact),
   });
+});
+
+/**
+ * Mark the right of final disposition as contested, or settled again.
+ *
+ * Colorado resolves disputes between people of equal priority in the probate
+ * court, and a third party is not liable for refusing to act until it has a
+ * court order or reasonable confirmation that the argument is over
+ * (C.R.S. 15-19-106). Refusing is therefore the safe posture, and this exists
+ * so the software makes refusing easy rather than awkward: while it is set,
+ * the family portal offers no authorizing actions and says plainly that the
+ * home is confirming who is arranging the funeral.
+ *
+ * The note is for the home's own record and is never shown to the family.
+ */
+router.put("/cases/:caseId/disposition-dispute", async (req, res) => {
+  const existing = await loadCase(req, req.params.caseId);
+  const body = parseBody(SetDispositionDisputeBody, req.body);
+
+  const [updated] = await db
+    .update(casesTable)
+    .set({ dispositionDisputed: body.disputed, updatedAt: new Date() })
+    .where(eq(casesTable.id, existing.id))
+    .returning();
+
+  req.log?.info(
+    {
+      caseId: existing.id,
+      disputed: body.disputed,
+      note: body.note ?? null,
+    },
+    "Disposition dispute flag changed",
+  );
+
+  res.json(updated!);
 });
 
 export default router;
