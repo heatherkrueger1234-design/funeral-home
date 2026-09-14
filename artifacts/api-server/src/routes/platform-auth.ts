@@ -13,7 +13,7 @@ import {
   clearPlatformSessionCookie,
   createPlatformSession,
   destroyPlatformSession,
-  recordPlatformAccess,
+  recordPlatformSignIn,
   setPlatformSessionCookie,
 } from "../lib/platform-auth";
 import {
@@ -66,7 +66,7 @@ router.post("/admin/auth/login", authRateLimit, async (req, res) => {
     .set({ lastSeenAt: new Date() })
     .where(eq(platformAdminsTable.id, admin.id));
 
-  recordPlatformAccess({ adminId: admin.id, action: "sign_in" });
+  recordPlatformSignIn(admin);
 
   res.json(toPublicPlatformAdmin(admin));
 });

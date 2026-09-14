@@ -28,6 +28,7 @@ import vitalsRouter from "./vitals";
 import printRouter from "./print";
 import aftercareRouter from "./aftercare";
 import uploadsRouter from "./uploads";
+import adminRouter from "./admin";
 
 const router: IRouter = Router();
 
@@ -57,6 +58,13 @@ router.use(authRouter);
  * why an admin route cannot accidentally be written as a staff one.
  */
 router.use(platformAuthRouter);
+
+/**
+ * The platform console. Above the staff gate because a platform admin has no
+ * staff session — a different account, in a different table, with a different
+ * cookie. Its own gate is mounted inside the router, on `/admin`.
+ */
+router.use(adminRouter);
 
 /**
  * The front door. Reachable with no credential at all, and the only place in
