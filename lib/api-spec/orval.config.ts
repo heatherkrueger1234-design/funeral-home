@@ -25,7 +25,19 @@ export default defineConfig({
       workspace: apiClientReactSrc,
       target: "generated",
       client: "react-query",
-      mode: "split",
+      // One directory per tag, and one file per schema.
+      //
+      // This is a merge-conflict decision rather than an aesthetic one. In
+      // "split" mode every endpoint in the product lands in a single
+      // ten-thousand-line generated file, so two people adding unrelated
+      // endpoints in the same week regenerate the same lines and collide on
+      // code neither of them wrote. Per tag, an added endpoint touches its
+      // own tag's directory and the schema files it actually uses.
+      mode: "tags-split",
+      schemas: "generated/model",
+      // tags-split defaults this to true, which writes into the package's
+      // hand-written src/index.ts. generated/ is orval's; src/index.ts is ours.
+      indexFiles: false,
       baseUrl: "/api",
       clean: true,
       prettier: true,
@@ -52,7 +64,10 @@ export default defineConfig({
       client: "zod",
       target: "generated",
       schemas: { path: "generated/types", type: "typescript" },
-      mode: "split",
+      // Per tag, for the reason given above. The types were already one file
+      // each; the validators were not.
+      mode: "tags-split",
+      indexFiles: false,
       clean: true,
       prettier: true,
       override: {

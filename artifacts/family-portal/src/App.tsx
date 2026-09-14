@@ -14,6 +14,7 @@ import Hub from "@/pages/Hub";
 import Photos from "@/pages/Photos";
 import Obituary from "@/pages/Obituary";
 import Selections from "@/pages/Selections";
+import Choices from "@/pages/Choices";
 import Timeline from "@/pages/Timeline";
 import Messages from "@/pages/Messages";
 import Aftercare from "@/pages/Aftercare";
@@ -93,6 +94,7 @@ export default function App() {
               <Route path="/photos" component={Photos} />
               <Route path="/obituary" component={Obituary} />
               <Route path="/service" component={Selections} />
+              <Route path="/choices" component={Choices} />
               <Route path="/timeline" component={Timeline} />
               <Route path="/messages" component={Messages} />
               <Route path="/aftercare" component={Aftercare} />

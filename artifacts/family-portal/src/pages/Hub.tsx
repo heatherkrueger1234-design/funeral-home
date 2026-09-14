@@ -1,6 +1,8 @@
 import { voiceFor } from "@/lib/voice";
 import { Link } from "wouter";
 import {
+  formatPrice,
+  useGetFamilyStorefront,
   useGetFamilySession,
   useGetFamilyDeadlines,
 } from "@workspace/api-client-react";
@@ -8,6 +10,7 @@ import {
   Images,
   FileText,
   ListMusic,
+  Flower2,
   Shirt,
   ClipboardList,
   FileCheck,
@@ -77,6 +80,7 @@ function Card({ href, icon: Icon, title, detail, badge }: CardProps) {
 export default function Hub() {
   const session = useGetFamilySession();
   const deadlines = useGetFamilyDeadlines();
+  const storefront = useGetFamilyStorefront();
 
   if (!session.data) return null;
 
@@ -95,6 +99,12 @@ export default function Hub() {
 
   const serviceWhen = formatWhen(deceased.serviceAt);
   const voice = voiceFor(deceased.kind);
+
+  // Counted rather than badged. A number beside "Caskets, urns and services"
+  // is the family's own note of where they got to; a badge would be a shop.
+  const chosenCount = (storefront.data?.selection.lines ?? []).filter(
+    (line) => line.kind !== "package_adjustment",
+  ).length;
 
   // The soonest thing that is actually due. One is useful; a list of five on
   // the front page is a wall a grieving person bounces off.
@@ -200,6 +210,23 @@ export default function Hub() {
           title="Hymns and readings"
           detail="Music, readings, and who will carry"
         />
+        {/*
+          Offered only once the home has a price list, because until then
+          there is genuinely nothing behind it — and a card that opens onto
+          an apology is worse than no card.
+        */}
+        {storefront.data?.hasGeneralPriceList && (
+          <Card
+            href="/choices"
+            icon={Flower2}
+            title="Caskets, urns and services"
+            detail={
+              chosenCount === 0
+                ? `What ${home.name} can arrange, with every price`
+                : `${chosenCount} chosen · ${formatPrice(storefront.data.selection.totalCents)}`
+            }
+          />
+        )}
         <Card
           href="/proofs"
           icon={FileCheck}

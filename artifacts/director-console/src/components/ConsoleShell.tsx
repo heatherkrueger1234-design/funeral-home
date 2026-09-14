@@ -3,7 +3,14 @@ import { Link, useLocation } from "wouter";
 import { useLogout } from "@workspace/api-client-react";
 import { useSession } from "@/lib/session";
 import { Button } from "@/components/ui/button";
-import { Settings, LogOut, ClipboardList, Contact, Inbox } from "lucide-react";
+import {
+  Settings,
+  LogOut,
+  ClipboardList,
+  Contact,
+  Inbox,
+  Tag,
+} from "lucide-react";
 import {
   useGetIntakeRequests,
   getGetIntakeRequestsQueryKey,
@@ -75,6 +82,16 @@ export function ConsoleShell({ children }: { children: ReactNode }) {
                     {waiting}
                   </span>
                 )}
+              </Link>
+            </Button>
+            <Button
+              asChild
+              variant={location === "/catalogue" ? "secondary" : "ghost"}
+              size="sm"
+            >
+              <Link href="/catalogue">
+                <Tag className="size-4" />
+                Catalogue
               </Link>
             </Button>
             <Button
