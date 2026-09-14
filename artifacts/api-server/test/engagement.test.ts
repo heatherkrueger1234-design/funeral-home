@@ -2,6 +2,9 @@ import { createHmac } from "node:crypto";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import request from "supertest";
 import app from "../src/app";
+import { db, platformAdminsTable } from "@workspace/db";
+import { hashPassword } from "../src/lib/auth";
+import { engagementForHomes } from "../src/lib/engagement";
 import { signUpHome, createCase, inviteFamily, asFamily } from "./helpers";
 
 /**
@@ -727,5 +730,77 @@ describe("what the family is left with", () => {
     expect(
       res.body.checkIns.map((entry: { dayOffset: number }) => entry.dayOffset),
     ).toEqual([30, 60, 90, 365]);
+  });
+});
+
+/* ------------------------------------------------- the two must not drift -- */
+
+/**
+ * The admin console counts the same things, and has to get the same answers.
+ *
+ * Component 2 landed with its own `platformEngagementFor` inside `admin.ts`,
+ * written before this component existed. That file belongs to Component 2 and
+ * is not ours to rewrite — but two implementations of the same counting is
+ * exactly how a home ends up with an overview screen and a case list that
+ * disagree about how many links were opened, with nobody able to say which is
+ * lying.
+ *
+ * So this asserts they agree, field for field, on everything they both claim
+ * to count. Whoever changes either one next finds out here rather than from a
+ * customer, and the fix is to delete the duplicate and import
+ * `engagementForHomes` — which is the whole reason its field names were kept
+ * identical to what that console already renders.
+ */
+describe("the admin console's counting and ours", () => {
+  it("agree on every field they both report", async () => {
+    const staff = await signUpHome();
+    const row = await createCase(staff, { serviceAt: SATURDAY });
+    const { token } = await inviteFamily(staff, row.id as number);
+    await inviteFamily(staff, row.id as number, { name: "James Hale" });
+    await asFamily(token).get("/api/family/session").expect(200);
+
+    const agent = request.agent(app);
+    await db.insert(platformAdminsTable).values({
+      email: "heather@holdingtoday.example",
+      passwordHash: await hashPassword("correct-horse-battery"),
+      displayName: "Heather Krueger",
+      role: "owner",
+    });
+    await agent
+      .post("/api/admin/auth/login")
+      .send({
+        email: "heather@holdingtoday.example",
+        password: "correct-horse-battery",
+      })
+      .expect(200);
+
+    const theirs = (
+      await agent.get(`/api/admin/homes/${staff.homeId}`).expect(200)
+    ).body.engagement;
+
+    const ours = (await engagementForHomes([staff.homeId])).get(staff.homeId)!;
+
+    // Named explicitly, so that an `engagement` block that quietly became
+    // empty passes this loop vacuously rather than catching anything.
+    expect(Object.keys(theirs).sort()).toEqual(
+      [
+        "aftercareConsented",
+        "aftercareDeclined",
+        "aftercareEnrolled",
+        "aftercareUnsubscribed",
+        "casesActive",
+        "casesOpened",
+        "familyLinksCreated",
+        "familyLinksOpened",
+        "photographs",
+      ].sort(),
+    );
+
+    for (const field of Object.keys(theirs) as (keyof typeof ours)[]) {
+      expect(
+        { field, value: ours[field] },
+        `${field} disagrees between admin.ts and lib/engagement.ts`,
+      ).toEqual({ field, value: theirs[field] });
+    }
   });
 });
