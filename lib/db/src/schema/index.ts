@@ -7,6 +7,10 @@
  * reaches it through a `family_contacts` token rather than an account.
  */
 
+/* Us, above all the tenants. Deliberately its own account, session and
+ * audit trail — see the file for why it is not a flag on `users`. */
+export * from "./platform";
+
 /* The tenant, and the people who work there. */
 export * from "./funeral-homes";
 export * from "./users";
@@ -32,10 +36,6 @@ export * from "./selections";
 /* What the family brings in, and how they should look. */
 export * from "./belongings";
 
-/* What was selected, the statement it adds up to, and where the home — not
- * this product — takes the money for it. */
-export * from "./orders";
-
 /* The paperwork that holds everything else up. */
 export * from "./vital-statistics";
 
@@ -46,6 +46,11 @@ export * from "./print";
 export * from "./timeline-templates";
 export * from "./messages";
 export * from "./deadlines";
+
+/* What the home sells, what the family chose, and the statement that comes
+ * out of it. */
+export * from "./catalogue";
+export * from "./storefront";
 
 /* The local network a home can point a family at. */
 export * from "./vendors";

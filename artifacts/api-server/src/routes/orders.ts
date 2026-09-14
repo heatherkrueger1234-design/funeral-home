@@ -1,639 +1,862 @@
 import { Router, type IRouter } from "express";
-import { and, eq, max, ne } from "drizzle-orm";
-import { z } from "zod";
+import { and, eq, isNull } from "drizzle-orm";
 import {
   db,
-  casesTable,
-  paymentHandoffTable,
-  statementLinesTable,
-  statementsTable,
-  isUnpricedKind,
-  paymentPageUrlProblem,
-  STATEMENT_LINE_KINDS,
-  type Statement,
-  type StatementLine,
+  catalogueItemsTable,
+  catalogueCategoriesTable,
+  cataloguePackageItemsTable,
+  cataloguePackagesTable,
+  merchandiseSelectionItemsTable,
+  merchandiseSelectionsTable,
+  isBehindTheGpl,
+  mayDiscussPayment,
+  type Case,
+  type CatalogueItem,
+  type FuneralHome,
+  type MerchandiseSelection,
+  type MerchandiseSelectionItem,
 } from "@workspace/db";
-import {
-  assertHasUpdates,
-  badRequest,
-  parseBody,
-  parseId,
-  requireRow,
-} from "../lib/http";
+import { badRequest, parseBody, parseId, requireRow } from "../lib/http";
 import { currentUser, tenant } from "../middleware/require-auth";
 import { familyCase, familyHome } from "../middleware/require-family";
+import { serveUpload } from "../lib/media";
 import {
-  assertDraft,
-  assertNotPreNeed,
-  confirmedStatementForCase,
-  handoffForHome,
-  linesForStatement,
-  statementsForCase,
-  toHandoffJson,
-  toStatementJson,
-  withLines,
-} from "../lib/statement";
-import { renderStatement } from "../lib/statement-render";
+  AddSelectionItemBody,
+  AddSelectionPackageBody,
+} from "@workspace/api-zod";
+import {
+  assertMayShowCaskets,
+  blankToNull,
+  parseFamilyProvided,
+  parseSelectionLineUpdate,
+  parseSelectionUpdate,
+  browsableSections,
+  catalogueFor,
+  dataUri,
+  ensureSelection,
+  mayShowCaskets,
+  nextLinePosition,
+  packagesFor,
+  selectionFor,
+  settingsFor,
+  toCatalogueJson,
+  toPackageJson,
+  toSelectionJson,
+} from "../lib/storefront";
+import {
+  hostOf,
+  renderStatement,
+  type PriceListKind,
+} from "../lib/price-list-render";
+import { renderPriceListFor, sendPrintable } from "./catalogue";
 import { loadCase } from "./cases";
 
 /**
- * The statement, and handing the family off to the home to settle it.
+ * What a family chose, and the statement that comes out of it.
  *
- * **No route in this file moves money.** There is no processor here, no
- * charge, no refund, no funds held and no card or bank detail accepted
- * anywhere — the closest this surface comes is storing a hyperlink the home
- * typed in and reading it back out. The one Stripe integration in this
- * application is us billing the home for its subscription, in `billing.ts`,
- * and it is not extended to families. `test/statement.test.ts` asserts both
- * of those, because a rule that is only written down is one somebody will
- * eventually write around.
+ * Two routers live here. The director's is mounted behind the staff session
+ * gate; the family's is exported and mounted behind the link gate, which is
+ * why no path in it carries a case id — the token names the case and there
+ * is nothing for a handler to forget to check.
  *
- * The request bodies are validated by hand-written zod below rather than by
- * `@workspace/api-zod`. TODO(C1): the OpenAPI spec is one file that every
- * component would have to edit at once until Component 1 splits it per
- * domain, so nothing here is in the spec yet. When `lib/api-spec/paths/`
- * exists, `orders.yaml` moves these there and the generated validators
- * replace them.
+ * The Funeral Rule's two structural demands shape every handler below.
+ * Everything is itemised, always: a line carries the price of the thing on
+ * it, a package writes its members as ordinary lines plus one adjustment,
+ * and there is no way through this file to record a purchase without a
+ * per-item price. And removing anything changes the total, immediately, in
+ * front of whoever is looking at it.
+ *
+ * The third demand is an absence. A family bringing their own casket or urn
+ * goes down a path with no price on it at all, because a provider may not
+ * refuse a third-party casket and may not charge for handling one.
+ *
+ * Every path here is in `openapi.yaml` under the `orders` tag, and both front
+ * ends reach them through the hooks orval generates from it.
  */
 
 const router: IRouter = Router();
 
-/* ------------------------------------------------------------- the bodies */
+/* ---------------------------------------------------------- the machinery */
 
-const cents = z
-  .number()
-  .int("Prices are in whole cents.")
-  .min(0, "A price cannot be negative. Record a discount as an allowance.")
-  // A hundred thousand dollars. Not a policy about what a funeral may cost —
-  // a guard against a director typing a price in cents that was meant to be
-  // in dollars, which is the mistake this column invites.
-  .max(10_000_000, "That looks like a typing slip. Please check the amount.");
+type Actor = { funeralHomeId: number; case: Case };
 
-const LineBody = z.object({
-  kind: z.enum(STATEMENT_LINE_KINDS),
-  description: z.string().min(1).max(400),
-  detail: z.string().max(2_000).nullish(),
-  quantity: z.number().int().min(1).max(999).optional(),
-  unitAmountCents: cents.optional(),
-  disclosure: z.string().max(2_000).nullish(),
-  catalogueItemId: z.number().int().positive().nullish(),
-});
+async function selectionOrEmpty(actor: Actor) {
+  return ensureSelection(actor.case.id, actor.funeralHomeId);
+}
 
-const LineUpdateBody = LineBody.partial();
+/**
+ * A selection stops taking changes once the director has agreed it.
+ *
+ * The statement is the document the home hands a family at the end of an
+ * arrangement, and a document that keeps changing after it is handed over is
+ * not a document. Reopening is a deliberate act by a director, which is why
+ * it lives on their side of the gate and not the family's.
+ */
+function assertOpen(selection: MerchandiseSelection): void {
+  if (selection.status === "confirmed") {
+    throw badRequest(
+      "This arrangement has been agreed. Ask the funeral home to reopen it if something needs to change.",
+    );
+  }
+}
 
-const StatementBody = z.object({
-  reference: z.string().max(120).nullish(),
-  notes: z.string().max(4_000).nullish(),
-});
-
-const SettleBody = z.object({
-  note: z.string().max(400).nullish(),
-});
-
-const HandoffBody = z.object({
-  paymentPageUrl: z.string().max(2_000).nullish(),
-  otherWaysToPay: z.string().max(2_000).nullish(),
-});
-
-/* ------------------------------------------------------------- the loads  */
-
-async function loadStatementById(
-  statementId: number,
+async function loadCatalogueItem(
   funeralHomeId: number,
-): Promise<Statement> {
+  itemId: number,
+): Promise<CatalogueItem & { section: string }> {
   const [row] = await db
-    .select()
-    .from(statementsTable)
+    .select({
+      item: catalogueItemsTable,
+      section: catalogueCategoriesTable.section,
+    })
+    .from(catalogueItemsTable)
+    .innerJoin(
+      catalogueCategoriesTable,
+      eq(catalogueItemsTable.categoryId, catalogueCategoriesTable.id),
+    )
     .where(
       and(
-        eq(statementsTable.id, statementId),
-        eq(statementsTable.funeralHomeId, funeralHomeId),
+        eq(catalogueItemsTable.id, itemId),
+        eq(catalogueItemsTable.funeralHomeId, funeralHomeId),
+        isNull(catalogueItemsTable.archivedAt),
+        isNull(catalogueCategoriesTable.archivedAt),
       ),
     )
     .limit(1);
 
-  return requireRow(row, "That statement could not be found.");
+  const found = requireRow(row, "That is no longer in the catalogue.");
+  return { ...found.item, section: found.section };
 }
 
-function loadStatement(
-  req: Parameters<typeof tenant>[0],
-  rawId: string | undefined,
-): Promise<Statement> {
-  return loadStatementById(parseId(rawId), tenant(req).id);
+/**
+ * Stamp which price list this selection is being priced from.
+ *
+ * Done once, when the first line is written, and never rewritten afterwards.
+ * A home that raises its prices in March must not be able to change what a
+ * family agreed in February, and the effective date on the statement is what
+ * proves which list the numbers came from.
+ */
+async function stampPriceList(
+  selection: MerchandiseSelection,
+  funeralHomeId: number,
+): Promise<void> {
+  if (selection.gplEffectiveOn !== null) return;
+
+  const settings = await settingsFor(funeralHomeId);
+  if (!settings?.gplEffectiveOn) return;
+
+  await db
+    .update(merchandiseSelectionsTable)
+    .set({ gplEffectiveOn: settings.gplEffectiveOn, updatedAt: new Date() })
+    .where(eq(merchandiseSelectionsTable.id, selection.id));
+}
+
+async function touchSelection(selectionId: number): Promise<void> {
+  await db
+    .update(merchandiseSelectionsTable)
+    .set({ updatedAt: new Date() })
+    .where(eq(merchandiseSelectionsTable.id, selectionId));
+}
+
+async function addItem(
+  actor: Actor,
+  values: { itemId: number; quantity?: number },
+): Promise<void> {
+  const { selection } = await selectionOrEmpty(actor);
+  assertOpen(selection);
+
+  const item = await loadCatalogueItem(actor.funeralHomeId, values.itemId);
+
+  if (isBehindTheGpl(item.section)) {
+    const settings = await settingsFor(actor.funeralHomeId);
+    assertMayShowCaskets(settings, selection);
+  }
+
+  await db.insert(merchandiseSelectionItemsTable).values({
+    funeralHomeId: actor.funeralHomeId,
+    selectionId: selection.id,
+    kind: "item",
+    catalogueItemId: item.id,
+    name: item.name,
+    description: item.description,
+    section: item.section,
+    unitPriceCents: item.priceCents,
+    quantity: values.quantity ?? 1,
+    position: await nextLinePosition(selection.id),
+  });
+
+  await stampPriceList(selection, actor.funeralHomeId);
+  await touchSelection(selection.id);
+}
+
+/**
+ * Choosing a package.
+ *
+ * It writes the package's items as ordinary itemised lines and then one
+ * adjustment line carrying the difference between the home's package price
+ * and what those items come to individually. That is not a formality: it is
+ * what keeps the Rule's two requirements true at once. Every item still
+ * shows its own price, and declining any one of them works exactly as
+ * declining anything else does — the item goes, the adjustment goes with it,
+ * and the total moves in front of the family.
+ */
+async function addPackage(actor: Actor, packageId: number): Promise<void> {
+  const { selection } = await selectionOrEmpty(actor);
+  assertOpen(selection);
+
+  const [pack] = await db
+    .select()
+    .from(cataloguePackagesTable)
+    .where(
+      and(
+        eq(cataloguePackagesTable.id, packageId),
+        eq(cataloguePackagesTable.funeralHomeId, actor.funeralHomeId),
+        isNull(cataloguePackagesTable.archivedAt),
+      ),
+    )
+    .limit(1);
+
+  const chosen = requireRow(pack, "That package is no longer offered.");
+
+  const members = await db
+    .select({
+      item: catalogueItemsTable,
+      quantity: cataloguePackageItemsTable.quantity,
+      section: catalogueCategoriesTable.section,
+    })
+    .from(cataloguePackageItemsTable)
+    .innerJoin(
+      catalogueItemsTable,
+      eq(cataloguePackageItemsTable.itemId, catalogueItemsTable.id),
+    )
+    .innerJoin(
+      catalogueCategoriesTable,
+      eq(catalogueItemsTable.categoryId, catalogueCategoriesTable.id),
+    )
+    .where(
+      and(
+        eq(cataloguePackageItemsTable.packageId, chosen.id),
+        isNull(catalogueItemsTable.archivedAt),
+      ),
+    );
+
+  if (members.length === 0) {
+    throw badRequest("There is nothing in that package any more.");
+  }
+
+  if (members.some((member) => isBehindTheGpl(member.section))) {
+    const settings = await settingsFor(actor.funeralHomeId);
+    assertMayShowCaskets(settings, selection);
+  }
+
+  const itemised = members.reduce(
+    (total, member) => total + member.item.priceCents * member.quantity,
+    0,
+  );
+
+  let position = await nextLinePosition(selection.id);
+
+  await db.transaction(async (tx) => {
+    for (const member of members) {
+      await tx.insert(merchandiseSelectionItemsTable).values({
+        funeralHomeId: actor.funeralHomeId,
+        selectionId: selection.id,
+        kind: "item",
+        catalogueItemId: member.item.id,
+        packageId: chosen.id,
+        name: member.item.name,
+        description: member.item.description,
+        section: member.section,
+        unitPriceCents: member.item.priceCents,
+        quantity: member.quantity,
+        position: position++,
+      });
+    }
+
+    // Only when there is a difference. A package priced at exactly the sum
+    // of its parts is a shortcut for the director, not a discount, and a
+    // "$0.00 adjustment" line on a statement is a question nobody can answer.
+    if (chosen.priceCents !== itemised) {
+      await tx.insert(merchandiseSelectionItemsTable).values({
+        funeralHomeId: actor.funeralHomeId,
+        selectionId: selection.id,
+        kind: "package_adjustment",
+        packageId: chosen.id,
+        name: `${chosen.name} — package price`,
+        description:
+          "The difference between these items bought separately and the package price.",
+        unitPriceCents: chosen.priceCents - itemised,
+        quantity: 1,
+        position: position++,
+      });
+    }
+  });
+
+  await stampPriceList(selection, actor.funeralHomeId);
+  await touchSelection(selection.id);
+}
+
+async function addFamilyProvided(
+  actor: Actor,
+  values: { name: string; notes?: string | null },
+): Promise<void> {
+  const { selection } = await selectionOrEmpty(actor);
+  assertOpen(selection);
+
+  /*
+   * No price is read, no price is written, and the column is left null —
+   * which the table's own check constraint insists on. A funeral provider
+   * may not refuse a casket or urn a family bought elsewhere and may not
+   * charge a handling fee for one, so there is nothing here for a fee to be
+   * put into, on this path or any other.
+   */
+  await db.insert(merchandiseSelectionItemsTable).values({
+    funeralHomeId: actor.funeralHomeId,
+    selectionId: selection.id,
+    kind: "family_provided",
+    name: values.name,
+    notes: blankToNull(values.notes),
+    quantity: 1,
+    position: await nextLinePosition(selection.id),
+  });
+
+  await touchSelection(selection.id);
 }
 
 async function loadLine(
-  req: Parameters<typeof tenant>[0],
-  rawId: string | undefined,
-): Promise<StatementLine> {
-  const home = tenant(req);
-  const id = parseId(rawId);
+  actor: Actor,
+  lineId: number,
+): Promise<MerchandiseSelectionItem> {
+  const existing = await selectionFor(actor.case.id, actor.funeralHomeId);
+  if (!existing) throw badRequest("Nothing has been chosen yet.");
 
-  const [row] = await db
-    .select()
-    .from(statementLinesTable)
-    .where(
-      and(
-        eq(statementLinesTable.id, id),
-        eq(statementLinesTable.funeralHomeId, home.id),
-      ),
-    )
-    .limit(1);
-
-  return requireRow(row, "That line could not be found.");
-}
-
-/** The case a statement belongs to, re-read so its kind can be checked. */
-async function caseForStatement(row: Statement) {
-  const [found] = await db
-    .select()
-    .from(casesTable)
-    .where(
-      and(
-        eq(casesTable.id, row.caseId),
-        eq(casesTable.funeralHomeId, row.funeralHomeId),
-      ),
-    )
-    .limit(1);
-
-  return requireRow(found, "That case could not be found.");
+  const line = existing.lines.find((row) => row.id === lineId);
+  return requireRow(line, "That is no longer on the list.");
 }
 
 /**
- * A line the family brought in themselves carries no price and cannot be
- * given one — not by a careless caller and not by a later feature.
+ * Taking something off the list.
  *
- * The Funeral Rule forbids a provider from refusing a third-party casket or
- * urn and from charging a handling fee for one, and this is where that stops
- * being a paragraph in a brief and becomes something the API will not do.
+ * When the line came in as part of a package, the package's adjustment goes
+ * with it. The family bought the set at the set's price; once the set is
+ * broken, everything left stands at its own price, which is both what the
+ * Rule requires and what a home would tell them across a desk.
  */
-function normaliseAmount(kind: string, requested: number | undefined): number {
-  if (!isUnpricedKind(kind)) return requested ?? 0;
+async function removeLine(actor: Actor, lineId: number): Promise<void> {
+  const { selection } = await selectionOrEmpty(actor);
+  assertOpen(selection);
 
-  if (requested !== undefined && requested !== 0) {
-    throw badRequest(
-      "Something the family brought in themselves cannot carry a charge. " +
-        "Handling a casket or urn bought elsewhere is free, and the Funeral " +
-        "Rule requires it to stay free.",
-    );
-  }
+  const line = await loadLine(actor, lineId);
 
-  return 0;
-}
+  await db.transaction(async (tx) => {
+    await tx
+      .delete(merchandiseSelectionItemsTable)
+      .where(eq(merchandiseSelectionItemsTable.id, line.id));
 
-/* ----------------------------------------------------------- the handoff  */
-
-router.get("/payment-handoff", async (req, res) => {
-  const home = tenant(req);
-  res.json(toHandoffJson(await handoffForHome(home.id), home));
-});
-
-/**
- * Where the home's own payment page lives.
- *
- * The URL is checked rather than trusted, and the check is deliberately
- * unhelpful about anything except a plain `https://` address on a real
- * website: this link is sent to a grieving family beside a figure they owe,
- * which is the exact shape of a funeral scam. It has to be dull, expected and
- * visibly the home's own.
- */
-router.put("/payment-handoff", async (req, res) => {
-  const home = tenant(req);
-  const user = currentUser(req);
-
-  // Where the home's money is collected is the owner's call, the same as the
-  // branding and the office hours next to it. An employee's account being
-  // borrowed is the most ordinary way a payment link gets swapped.
-  if (user.role !== "owner") {
-    throw badRequest("Only an owner can change where payments are taken.");
-  }
-
-  const values = assertHasUpdates(parseBody(HandoffBody, req.body));
-
-  const url = values.paymentPageUrl?.trim() || null;
-
-  if (url !== null) {
-    const problem = paymentPageUrlProblem(url);
-    if (problem) throw badRequest(problem);
-  }
-
-  const otherWaysToPay = values.otherWaysToPay?.trim() || null;
-  const existing = await handoffForHome(home.id);
-
-  const next = {
-    paymentPageUrl:
-      values.paymentPageUrl === undefined ? existing?.paymentPageUrl ?? null : url,
-    otherWaysToPay:
-      values.otherWaysToPay === undefined
-        ? existing?.otherWaysToPay ?? null
-        : otherWaysToPay,
-    updatedAt: new Date(),
-    updatedByUserId: user.id,
-  };
-
-  if (existing) {
-    await db
-      .update(paymentHandoffTable)
-      .set(next)
-      .where(eq(paymentHandoffTable.id, existing.id));
-  } else {
-    await db
-      .insert(paymentHandoffTable)
-      .values({ funeralHomeId: home.id, ...next });
-  }
-
-  res.json(toHandoffJson(await handoffForHome(home.id), home));
-});
-
-/* ------------------------------------------------------- staff: statements */
-
-router.get("/cases/:caseId/statements", async (req, res) => {
-  const home = tenant(req);
-  const row = await loadCase(req, req.params.caseId);
-
-  const rows = await statementsForCase(row.id, home.id);
-  const withEverything = await Promise.all(rows.map(withLines));
-
-  res.json(withEverything.map(toStatementJson));
-});
-
-/**
- * Start working on one.
- *
- * A revision starts from the confirmed statement rather than from nothing,
- * because the reason a director opens one is almost always that a single line
- * changed — the cemetery quoted a different figure, the family added twelve
- * more certified copies — and retyping thirty lines to correct one is how a
- * second mistake gets made.
- */
-router.post("/cases/:caseId/statements", async (req, res) => {
-  const home = tenant(req);
-  const row = await loadCase(req, req.params.caseId);
-
-  assertNotPreNeed(row);
-
-  const existing = await statementsForCase(row.id, home.id);
-  const open = existing.find((entry) => entry.status === "draft");
-
-  if (open) {
-    throw badRequest(
-      "There is already a statement in progress for this case. Finish or " +
-        "confirm that one first.",
-    );
-  }
-
-  const latest = existing[0] ?? null;
-  const previous = existing.find((entry) => entry.status === "confirmed") ?? null;
-
-  const [created] = await db
-    .insert(statementsTable)
-    .values({
-      funeralHomeId: home.id,
-      caseId: row.id,
-      version: (latest?.version ?? 0) + 1,
-      supersedesStatementId: previous?.id ?? null,
-      reference: previous?.reference ?? null,
-      notes: previous?.notes ?? null,
-    })
-    .returning();
-
-  if (previous) {
-    const carried = await linesForStatement(previous.id);
-
-    if (carried.length > 0) {
-      await db.insert(statementLinesTable).values(
-        carried.map((line) => ({
-          funeralHomeId: home.id,
-          statementId: created!.id,
-          kind: line.kind,
-          description: line.description,
-          detail: line.detail,
-          catalogueItemId: line.catalogueItemId,
-          quantity: line.quantity,
-          unitAmountCents: line.unitAmountCents,
-          disclosure: line.disclosure,
-          position: line.position,
-        })),
-      );
+    if (line.packageId !== null && line.kind === "item") {
+      await tx
+        .delete(merchandiseSelectionItemsTable)
+        .where(
+          and(
+            eq(merchandiseSelectionItemsTable.selectionId, selection.id),
+            eq(merchandiseSelectionItemsTable.packageId, line.packageId),
+            eq(merchandiseSelectionItemsTable.kind, "package_adjustment"),
+          ),
+        );
     }
+  });
+
+  await touchSelection(selection.id);
+}
+
+async function updateLine(
+  actor: Actor,
+  lineId: number,
+  values: { quantity?: number; notes?: string | null },
+): Promise<void> {
+  const { selection } = await selectionOrEmpty(actor);
+  assertOpen(selection);
+
+  const line = await loadLine(actor, lineId);
+
+  if (line.kind === "package_adjustment") {
+    throw badRequest(
+      "A package's price adjustment follows its items. Change one of them instead.",
+    );
   }
 
-  res.status(201).json(toStatementJson(await withLines(created!)));
-});
-
-router.get("/statements/:statementId", async (req, res) => {
-  const row = await loadStatement(req, req.params.statementId);
-  res.json(toStatementJson(await withLines(row)));
-});
-
-router.put("/statements/:statementId", async (req, res) => {
-  const row = await loadStatement(req, req.params.statementId);
-  const values = assertHasUpdates(parseBody(StatementBody, req.body));
-
-  assertDraft(row);
-
-  const [updated] = await db
-    .update(statementsTable)
+  await db
+    .update(merchandiseSelectionItemsTable)
     .set({
-      ...(values.reference === undefined
-        ? {}
-        : { reference: values.reference?.trim() || null }),
-      ...(values.notes === undefined
-        ? {}
-        : { notes: values.notes?.trim() || null }),
+      ...(values.quantity === undefined ? {} : { quantity: values.quantity }),
+      ...(values.notes === undefined ? {} : { notes: blankToNull(values.notes) }),
       updatedAt: new Date(),
     })
-    .where(eq(statementsTable.id, row.id))
-    .returning();
+    .where(eq(merchandiseSelectionItemsTable.id, line.id));
 
-  res.json(toStatementJson(await withLines(updated!)));
-});
+  await touchSelection(selection.id);
+}
 
-router.post("/statements/:statementId/lines", async (req, res) => {
-  const home = tenant(req);
-  const row = await loadStatement(req, req.params.statementId);
-  const values = parseBody(LineBody, req.body);
+/* ------------------------------------------------------ what both sides see */
 
-  assertDraft(row);
-  assertNotPreNeed(await caseForStatement(row));
+/**
+ * Where a family is told to send the money, which is never to us.
+ *
+ * Four rules are baked into this one function so that neither front end can
+ * get them wrong. A pre-need plan gets nothing at all — recording a plan is
+ * lawful and taking money for it is a licensed activity we do not perform.
+ * A draft gets nothing, because a family should not be nudged towards paying
+ * for an arrangement the director has not yet agreed. Once the director has
+ * ticked it off against their own books the link goes away, because asking
+ * somebody to pay again for their mother's funeral is the worst version of
+ * this screen there is. And what comes back is a link and some words, never
+ * an amount received or a status: we do not process payments, so we do not
+ * know, and saying otherwise would be a lie told to somebody at their most
+ * trusting.
+ */
+async function paymentHandoff(
+  funeralHomeId: number,
+  home: FuneralHome,
+  subject: Case,
+  selection: MerchandiseSelection,
+): Promise<Record<string, unknown> | null> {
+  if (!mayDiscussPayment(subject)) return null;
+  if (selection.status !== "confirmed") return null;
+  if (selection.settledAt !== null) return null;
 
-  const description = values.description.trim();
-  if (!description) throw badRequest("Please say what the item is.");
+  const settings = await settingsFor(funeralHomeId);
+  const url = settings?.paymentPageUrl?.trim() || null;
 
-  const [last] = await db
-    .select({ value: max(statementLinesTable.position) })
-    .from(statementLinesTable)
-    .where(eq(statementLinesTable.statementId, row.id));
+  return {
+    /** The home's own page, at the home's own processor. Never ours. */
+    url,
+    /** Shown beside the link so nobody is surprised by where it goes. */
+    host: url ? hostOf(url) : null,
+    instructions: settings?.paymentInstructions?.trim() || null,
+    /** The number to ring when there is no link, which is not an error. */
+    phone: home.phone,
+  };
+}
+
+async function storefrontPayload(options: {
+  funeralHomeId: number;
+  home: FuneralHome;
+  case: Case;
+  /** Staff see everything; a family sees only what the GPL has unlocked. */
+  forFamily: boolean;
+}) {
+  const { funeralHomeId, forFamily } = options;
+
+  const settings = await settingsFor(funeralHomeId);
+  const entry = await ensureSelection(options.case.id, funeralHomeId);
+
+  const sections = forFamily
+    ? browsableSections(settings, entry.selection)
+    : undefined;
+
+  const tree = await catalogueFor(funeralHomeId, { sections });
+  const allItems = (
+    sections ? await catalogueFor(funeralHomeId) : tree
+  ).flatMap((block) => block.items);
+
+  /*
+   * A package is only offered once everything in it may be shown. Otherwise
+   * a family who has not been given the price list could reach a casket
+   * through a package, which is the sequence the Rule is about.
+   */
+  const packages = mayShowCaskets(settings, entry.selection) || !forFamily
+    ? (await packagesFor(funeralHomeId)).map((pack) =>
+        toPackageJson(pack, allItems),
+      )
+    : [];
+
+  return {
+    hasGeneralPriceList: settings?.gplEffectiveOn != null,
+    gplEffectiveOn: settings?.gplEffectiveOn ?? null,
+    /** Whether caskets and vaults are showing yet, and why not if they are not. */
+    casketsUnlocked: mayShowCaskets(settings, entry.selection),
+    categories: toCatalogueJson(tree),
+    packages,
+    selection: toSelectionJson(entry),
+    payment: await paymentHandoff(
+      funeralHomeId,
+      options.home,
+      options.case,
+      entry.selection,
+    ),
+    /** Nothing is owed on a plan, and nothing is collected on one. */
+    mayDiscussPayment: mayDiscussPayment(options.case),
+  };
+}
+
+/**
+ * Record that this family has the General Price List.
+ *
+ * Set by the family opening it, and by a director recording that they handed
+ * one across the desk. Both are the same fact and both unlock the same
+ * thing, which is the point: the Rule cares that the family has the list,
+ * not which way it reached them.
+ */
+async function recordGplShown(selection: MerchandiseSelection): Promise<void> {
+  if (selection.gplShownAt !== null) return;
 
   await db
-    .insert(statementLinesTable)
-    .values({
+    .update(merchandiseSelectionsTable)
+    .set({ gplShownAt: new Date(), updatedAt: new Date() })
+    .where(eq(merchandiseSelectionsTable.id, selection.id));
+}
+
+async function renderStatementFor(options: {
+  home: FuneralHome;
+  case: Case;
+  funeralHomeId: number;
+}): Promise<string> {
+  const entry = await ensureSelection(options.case.id, options.funeralHomeId);
+  const settings = await settingsFor(options.funeralHomeId);
+
+  return renderStatement({
+    home: options.home,
+    case: options.case,
+    settings,
+    selection: entry.selection,
+    lines: entry.lines,
+    logoDataUri: await dataUri(options.home.logoUploadId),
+  });
+}
+
+/* ------------------------------------------------------------- director -- */
+
+function staffActor(req: Parameters<typeof tenant>[0], row: Case): Actor {
+  return { funeralHomeId: tenant(req).id, case: row };
+}
+
+router.get("/cases/:caseId/selection", async (req, res) => {
+  const home = tenant(req);
+  const row = await loadCase(req, req.params.caseId);
+
+  res.json(
+    await storefrontPayload({
       funeralHomeId: home.id,
-      statementId: row.id,
-      kind: values.kind,
-      description,
-      detail: values.detail?.trim() || null,
-      catalogueItemId: values.catalogueItemId ?? null,
-      quantity: isUnpricedKind(values.kind) ? 1 : values.quantity ?? 1,
-      unitAmountCents: normaliseAmount(values.kind, values.unitAmountCents),
-      disclosure: values.disclosure?.trim() || null,
-      position: (last?.value ?? -1) + 1,
-    });
-
-  res.status(201).json(toStatementJson(await withLines(row)));
-});
-
-router.put("/statement-lines/:lineId", async (req, res) => {
-  const existing = await loadLine(req, req.params.lineId);
-  const values = assertHasUpdates(parseBody(LineUpdateBody, req.body));
-  const statement = await loadStatementById(existing.statementId, existing.funeralHomeId);
-
-  assertDraft(statement);
-
-  const kind = values.kind ?? existing.kind;
-  const requested =
-    values.unitAmountCents === undefined
-      ? isUnpricedKind(kind)
-        ? undefined
-        : existing.unitAmountCents
-      : values.unitAmountCents;
-
-  await db
-    .update(statementLinesTable)
-    .set({
-      kind,
-      ...(values.description === undefined
-        ? {}
-        : { description: values.description.trim() }),
-      ...(values.detail === undefined
-        ? {}
-        : { detail: values.detail?.trim() || null }),
-      ...(values.disclosure === undefined
-        ? {}
-        : { disclosure: values.disclosure?.trim() || null }),
-      ...(values.catalogueItemId === undefined
-        ? {}
-        : { catalogueItemId: values.catalogueItemId ?? null }),
-      quantity: isUnpricedKind(kind) ? 1 : values.quantity ?? existing.quantity,
-      unitAmountCents: normaliseAmount(kind, requested),
-      updatedAt: new Date(),
-    })
-    .where(eq(statementLinesTable.id, existing.id));
-
-  res.json(toStatementJson(await withLines(statement)));
-});
-
-router.delete("/statement-lines/:lineId", async (req, res) => {
-  const existing = await loadLine(req, req.params.lineId);
-  const statement = await loadStatementById(existing.statementId, existing.funeralHomeId);
-
-  assertDraft(statement);
-
-  await db
-    .delete(statementLinesTable)
-    .where(eq(statementLinesTable.id, existing.id));
-
-  res.json(toStatementJson(await withLines(statement)));
-});
-
-/**
- * Hand it over.
- *
- * Confirming is the moment the document becomes the one the family was given,
- * so it is also the moment it stops being editable. Any earlier confirmed
- * statement on the case is marked superseded rather than deleted: what was
- * once handed to somebody is evidence, and evidence that can be tidied away
- * is not evidence.
- */
-router.post("/statements/:statementId/confirm", async (req, res) => {
-  const home = tenant(req);
-  const user = currentUser(req);
-  const row = await loadStatement(req, req.params.statementId);
-
-  assertDraft(row);
-  assertNotPreNeed(await caseForStatement(row));
-
-  const lines = await linesForStatement(row.id);
-
-  if (lines.length === 0) {
-    throw badRequest(
-      "There is nothing on this statement yet. Add what the family chose first.",
-    );
-  }
-
-  const now = new Date();
-
-  await db
-    .update(statementsTable)
-    .set({ status: "superseded", updatedAt: now })
-    .where(
-      and(
-        eq(statementsTable.caseId, row.caseId),
-        eq(statementsTable.funeralHomeId, home.id),
-        eq(statementsTable.status, "confirmed"),
-        ne(statementsTable.id, row.id),
-      ),
-    );
-
-  const [updated] = await db
-    .update(statementsTable)
-    .set({
-      status: "confirmed",
-      confirmedAt: now,
-      confirmedByUserId: user.id,
-      updatedAt: now,
-    })
-    .where(eq(statementsTable.id, row.id))
-    .returning();
-
-  res.json(toStatementJson(await withLines(updated!)));
-});
-
-/**
- * A note about the home's own books, and nothing more than that.
- *
- * We do not process the payment, are not told when one is made, and have no
- * way to check. What this records is that a member of staff looked at the
- * home's records and said so — which is why the route is called `settled`,
- * why the response carries who marked it, and why no sentence rendered from
- * it anywhere says "paid" or "received".
- */
-router.post("/statements/:statementId/settled", async (req, res) => {
-  const user = currentUser(req);
-  const row = await loadStatement(req, req.params.statementId);
-  const values = parseBody(SettleBody, req.body);
-
-  if (row.status !== "confirmed") {
-    throw badRequest(
-      "Only a confirmed statement can be marked settled. Confirm it first.",
-    );
-  }
-
-  const [updated] = await db
-    .update(statementsTable)
-    .set({
-      settledAt: new Date(),
-      settledByUserId: user.id,
-      settledNote: values.note?.trim() || null,
-      updatedAt: new Date(),
-    })
-    .where(eq(statementsTable.id, row.id))
-    .returning();
-
-  res.json(toStatementJson(await withLines(updated!)));
-});
-
-/** Undo the mark, for the afternoon it was put on the wrong case. */
-router.delete("/statements/:statementId/settled", async (req, res) => {
-  const row = await loadStatement(req, req.params.statementId);
-
-  const [updated] = await db
-    .update(statementsTable)
-    .set({
-      settledAt: null,
-      settledByUserId: null,
-      settledNote: null,
-      updatedAt: new Date(),
-    })
-    .where(eq(statementsTable.id, row.id))
-    .returning();
-
-  res.json(toStatementJson(await withLines(updated!)));
-});
-
-router.get("/statements/:statementId/print", async (req, res) => {
-  const home = tenant(req);
-  const row = await loadStatement(req, req.params.statementId);
-  const forCase = await caseForStatement(row);
-
-  const statement = await withLines(row);
-
-  res.type("html").send(
-    renderStatement({
-      statement,
-      case: forCase,
       home,
-      handoff: toHandoffJson(await handoffForHome(home.id), home),
+      case: row,
+      forFamily: false,
     }),
   );
 });
 
-/* ------------------------------------------------------- the family's copy */
+router.post("/cases/:caseId/selection/gpl-given", async (req, res) => {
+  const home = tenant(req);
+  const row = await loadCase(req, req.params.caseId);
+  const entry = await ensureSelection(row.id, home.id);
+
+  await recordGplShown(entry.selection);
+
+  res.json(toSelectionJson((await selectionFor(row.id, home.id))!));
+});
+
+router.post("/cases/:caseId/selection/items", async (req, res) => {
+  const home = tenant(req);
+  const row = await loadCase(req, req.params.caseId);
+
+  await addItem(staffActor(req, row), parseBody(AddSelectionItemBody, req.body));
+
+  res.status(201).json(toSelectionJson((await selectionFor(row.id, home.id))!));
+});
+
+router.post("/cases/:caseId/selection/packages", async (req, res) => {
+  const home = tenant(req);
+  const row = await loadCase(req, req.params.caseId);
+  const values = parseBody(AddSelectionPackageBody, req.body);
+
+  await addPackage(staffActor(req, row), values.packageId);
+
+  res.status(201).json(toSelectionJson((await selectionFor(row.id, home.id))!));
+});
+
+router.post("/cases/:caseId/selection/family-provided", async (req, res) => {
+  const home = tenant(req);
+  const row = await loadCase(req, req.params.caseId);
+
+  await addFamilyProvided(
+    staffActor(req, row),
+    parseFamilyProvided(req.body),
+  );
+
+  res.status(201).json(toSelectionJson((await selectionFor(row.id, home.id))!));
+});
+
+router.put("/cases/:caseId/selection/items/:lineId", async (req, res) => {
+  const home = tenant(req);
+  const row = await loadCase(req, req.params.caseId);
+
+  await updateLine(
+    staffActor(req, row),
+    parseId(req.params.lineId),
+    parseSelectionLineUpdate(req.body),
+  );
+
+  res.json(toSelectionJson((await selectionFor(row.id, home.id))!));
+});
+
+router.delete("/cases/:caseId/selection/items/:lineId", async (req, res) => {
+  const home = tenant(req);
+  const row = await loadCase(req, req.params.caseId);
+
+  await removeLine(staffActor(req, row), parseId(req.params.lineId));
+
+  res.json(toSelectionJson((await selectionFor(row.id, home.id))!));
+});
 
 /**
- * What the family sees, on the family gate.
+ * Agreeing the arrangement, and later noting that the home's own books say
+ * it was paid.
  *
- * Mounted under `/family` in `routes/index.ts` alongside the main family
- * router, so it inherits the link-token gate and carries no case id — the
- * token names the case and there is nothing here to tamper with.
+ * `settled` is a note about the home's records and the copy around it says
+ * so in those words. We process nothing, hold nothing and confirm nothing:
+ * a tick here means a director looked at their own accounts, and if this
+ * interface ever implies it means a payment reached us, that is a defect.
  */
-const familyRouter: IRouter = Router();
+router.put("/cases/:caseId/selection", async (req, res) => {
+  const home = tenant(req);
+  const user = currentUser(req);
+  const row = await loadCase(req, req.params.caseId);
+  const values = parseSelectionUpdate(req.body);
+
+  const entry = await ensureSelection(row.id, home.id);
+
+  if (values.settled !== undefined && !mayDiscussPayment(row)) {
+    throw badRequest(
+      "This is a plan, not a bill. Nothing is owed on it and nothing is collected for it.",
+    );
+  }
+
+  if (values.confirmed === true && entry.lines.length === 0) {
+    throw badRequest("Nothing has been chosen yet.");
+  }
+
+  const settings = await settingsFor(home.id);
+
+  await db
+    .update(merchandiseSelectionsTable)
+    .set({
+      ...(values.notes === undefined ? {} : { notes: blankToNull(values.notes) }),
+      ...(values.confirmed === undefined
+        ? {}
+        : values.confirmed
+          ? {
+              status: "confirmed",
+              confirmedAt: new Date(),
+              confirmedByUserId: user.id,
+              gplEffectiveOn:
+                entry.selection.gplEffectiveOn ?? settings?.gplEffectiveOn ?? null,
+            }
+          : { status: "draft", confirmedAt: null, confirmedByUserId: null }),
+      ...(values.settled === undefined
+        ? {}
+        : values.settled
+          ? { settledAt: new Date(), settledByUserId: user.id }
+          : { settledAt: null, settledByUserId: null }),
+      ...(values.settledNote === undefined
+        ? {}
+        : { settledNote: blankToNull(values.settledNote) }),
+      updatedAt: new Date(),
+    })
+    .where(eq(merchandiseSelectionsTable.id, entry.selection.id));
+
+  res.json(
+    await storefrontPayload({
+      funeralHomeId: home.id,
+      home,
+      case: row,
+      forFamily: false,
+    }),
+  );
+});
+
+router.get("/cases/:caseId/statement/render", async (req, res) => {
+  const home = tenant(req);
+  const row = await loadCase(req, req.params.caseId);
+
+  sendPrintable(
+    res,
+    await renderStatementFor({ home, case: row, funeralHomeId: home.id }),
+  );
+});
+
+export default router;
+
+/* --------------------------------------------------------------- family -- */
 
 /**
- * The one confirmed statement, the total, and where the home takes payment.
+ * The family's storefront.
  *
- * A pre-need case returns nothing at all, and that is the whole feature: the
- * plan is recorded, the money is not discussed. There is no figure, no link
- * and no mention of either, because a total plus a way to pay it is a preneed
- * contract, and selling one of those in Colorado needs a Division of
- * Insurance licence and 85% of the money in trust.
- *
- * With no confirmed statement the answer is also nothing — an empty response
- * rather than a 404, so the portal can say "your director is still putting
- * this together" instead of showing a family an error about their mother.
+ * Mounted under `/family`, behind the link gate, alongside the rest of the
+ * family surface. No path here names a case, because the token already does.
  */
-familyRouter.get("/statement", async (req, res) => {
-  const row = familyCase(req);
+export const familyStorefrontRouter: IRouter = Router();
+
+function familyActor(req: Parameters<typeof familyCase>[0]): Actor {
+  const subject = familyCase(req);
+  return { funeralHomeId: subject.funeralHomeId, case: subject };
+}
+
+familyStorefrontRouter.get("/storefront", async (req, res) => {
+  const subject = familyCase(req);
   const home = familyHome(req);
 
-  if (row.kind === "pre_need") {
-    res.json({ statement: null, payment: null });
-    return;
+  res.json(
+    await storefrontPayload({
+      funeralHomeId: subject.funeralHomeId,
+      home,
+      case: subject,
+      forFamily: true,
+    }),
+  );
+});
+
+/**
+ * The price list, as the family reads it — and the moment the sequence turns.
+ *
+ * Recording that it was opened is a side effect of a GET, which is normally
+ * a thing worth avoiding. Here it is the honest option: the fact the Rule
+ * cares about is that the family has the list, and that becomes true when
+ * the sheet renders, not when a separate request happens to succeed
+ * afterwards. The family surface records a link being opened the same way.
+ */
+familyStorefrontRouter.get(
+  "/storefront/price-lists/:kind/render",
+  async (req, res) => {
+    const subject = familyCase(req);
+    const home = familyHome(req);
+    const kind = req.params.kind as PriceListKind;
+
+    if (!["gpl", "cpl", "obcpl"].includes(kind)) {
+      throw badRequest("That is not one of the price lists.");
+    }
+
+    const entry = await ensureSelection(subject.id, subject.funeralHomeId);
+
+    if (kind !== "gpl") {
+      const settings = await settingsFor(subject.funeralHomeId);
+      assertMayShowCaskets(settings, entry.selection);
+    }
+
+    const html = await renderPriceListFor(subject.funeralHomeId, home, kind);
+
+    if (kind === "gpl") await recordGplShown(entry.selection);
+
+    sendPrintable(res, html);
+  },
+);
+
+familyStorefrontRouter.post("/storefront/items", async (req, res) => {
+  const actor = familyActor(req);
+  await addItem(actor, parseBody(AddSelectionItemBody, req.body));
+
+  res
+    .status(201)
+    .json(toSelectionJson((await selectionFor(actor.case.id, actor.funeralHomeId))!));
+});
+
+familyStorefrontRouter.post("/storefront/packages", async (req, res) => {
+  const actor = familyActor(req);
+  const values = parseBody(AddSelectionPackageBody, req.body);
+
+  await addPackage(actor, values.packageId);
+
+  res
+    .status(201)
+    .json(toSelectionJson((await selectionFor(actor.case.id, actor.funeralHomeId))!));
+});
+
+/**
+ * "We are bringing our own."
+ *
+ * There is no price on this request, no price in the row it writes, and no
+ * fee anywhere on the path a family walks to get here. The Funeral Rule
+ * forbids a provider from refusing a casket or urn bought elsewhere and from
+ * charging a handling fee for accepting one, and the surest way to keep a
+ * fee out of a product is to build nowhere to put one.
+ */
+familyStorefrontRouter.post("/storefront/family-provided", async (req, res) => {
+  const actor = familyActor(req);
+  await addFamilyProvided(actor, parseFamilyProvided(req.body));
+
+  res
+    .status(201)
+    .json(toSelectionJson((await selectionFor(actor.case.id, actor.funeralHomeId))!));
+});
+
+familyStorefrontRouter.put("/storefront/items/:lineId", async (req, res) => {
+  const actor = familyActor(req);
+
+  await updateLine(
+    actor,
+    parseId(req.params.lineId),
+    parseSelectionLineUpdate(req.body),
+  );
+
+  res.json(
+    toSelectionJson((await selectionFor(actor.case.id, actor.funeralHomeId))!),
+  );
+});
+
+familyStorefrontRouter.delete("/storefront/items/:lineId", async (req, res) => {
+  const actor = familyActor(req);
+  await removeLine(actor, parseId(req.params.lineId));
+
+  res.json(
+    toSelectionJson((await selectionFor(actor.case.id, actor.funeralHomeId))!),
+  );
+});
+
+familyStorefrontRouter.get("/storefront/statement/render", async (req, res) => {
+  const subject = familyCase(req);
+  const home = familyHome(req);
+
+  sendPrintable(
+    res,
+    await renderStatementFor({
+      home,
+      case: subject,
+      funeralHomeId: subject.funeralHomeId,
+    }),
+  );
+});
+
+/**
+ * A photograph of something in the catalogue.
+ *
+ * The home's catalogue photographs are not attached to any case, so the
+ * family's ordinary upload route — which serves only files on their own case
+ * — cannot reach them, and rightly so. This one checks the file is being
+ * used by a live item in this home's catalogue before it serves a byte.
+ */
+familyStorefrontRouter.get("/storefront/uploads/:uploadId", async (req, res) => {
+  const subject = familyCase(req);
+  const uploadId = parseId(req.params.uploadId);
+
+  const [row] = await db
+    .select({ id: catalogueItemsTable.id })
+    .from(catalogueItemsTable)
+    .where(
+      and(
+        eq(catalogueItemsTable.funeralHomeId, subject.funeralHomeId),
+        eq(catalogueItemsTable.photoUploadId, uploadId),
+        isNull(catalogueItemsTable.archivedAt),
+      ),
+    )
+    .limit(1);
+
+  if (!row) {
+    // The same answer as a file that does not exist: a family holding a link
+    // should not be able to probe which upload ids their home has.
+    throw badRequest("That photograph could not be found.");
   }
 
-  const confirmed = await confirmedStatementForCase(row.id, home.id);
-
-  if (!confirmed) {
-    res.json({ statement: null, payment: null });
-    return;
-  }
-
-  res.json({
-    statement: toStatementJson(await withLines(confirmed)),
-    payment: toHandoffJson(await handoffForHome(home.id), home),
+  await serveUpload(res, {
+    uploadId,
+    funeralHomeId: subject.funeralHomeId,
   });
 });
 
-/**
- * Their own copy, to print or to save. No account, no login, no asking us
- * for it again in a year — a document about your own mother should not be
- * hostage to a vendor's uptime.
- */
-familyRouter.get("/statement/print", async (req, res) => {
-  const row = familyCase(req);
-  const home = familyHome(req);
-
-  if (row.kind === "pre_need") {
-    throw badRequest("There is no statement on a pre-need file.");
-  }
-
-  const confirmed = await confirmedStatementForCase(row.id, home.id);
-
-  if (!confirmed) {
-    throw badRequest(
-      "Your funeral director has not finished this yet. They will let you know when it is ready.",
-    );
-  }
-
-  res.type("html").send(
-    renderStatement({
-      statement: await withLines(confirmed),
-      case: row,
-      home,
-      handoff: toHandoffJson(await handoffForHome(home.id), home),
-    }),
-  );
-});
-
-export { familyRouter as familyStatementRouter };
-export default router;

@@ -45,6 +45,15 @@ tags:
     description: The home's local network, and quotes passed through it
   - name: vitals
     description: What the death certificate needs
+  - name: catalogue
+    description: |
+      What a home sells, at the home's own prices. Ships empty: we supply no
+      merchandise and set no prices. Also the three price lists the FTC
+      Funeral Rule requires a funeral provider to be able to produce.
+  - name: orders
+    description: |
+      What a family chose, and the Statement of Funeral Goods and Services
+      Selected that comes out of it. No money moves through any of it.
   - name: billing
     description: Subscription, trial, and the setup checklist
   - name: print
@@ -63,6 +72,11 @@ tags:
       their own funeral in advance.
   - name: intake
     description: The director's queue of those requests
+  - name: platform
+    description: |
+      Us, above all the tenants. A separate account, a separate session and a
+      separate cookie from any funeral home's staff — see
+      `lib/db/src/schema/platform.ts` for why it is not a role on `users`.
 
 paths:
   /healthz:
@@ -2388,6 +2402,934 @@ paths:
                 type: string
                 format: binary
 
+  # -------------------------------------------------------------- platform --
+
+  /admin/auth/login:
+    post:
+      operationId: platformLogin
+      tags: [platform]
+      summary: Sign in to the platform console
+      description: |
+        A different credential, a different cookie and a shorter session than
+        a director's. This account can read across every funeral home in the
+        system, so a laptop left open should stop being a problem the same day
+        rather than the same month.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PlatformLoginInput"
+      responses:
+        "200":
+          description: Signed in
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PlatformAdmin"
+        "401":
+          description: Wrong email or password
+        "429":
+          description: Too many attempts
+
+  /admin/auth/logout:
+    post:
+      operationId: platformLogout
+      tags: [platform]
+      summary: Sign out of the platform console
+      responses:
+        "204":
+          description: Signed out
+
+  /admin/auth/me:
+    get:
+      operationId: getPlatformMe
+      tags: [platform]
+      summary: Who is signed in to the platform console
+      responses:
+        "200":
+          description: The signed-in platform account
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PlatformAdmin"
+        "401":
+          description: Not signed in
+
+  # ------------------------------------------- family access and passwords --
+
+  /family/password:
+    put:
+      operationId: setFamilyOwnPassword
+      tags: [family]
+      summary: Choose a password for this link
+      description: |
+        Set *after* the link has been followed, never as a wall in front of it.
+        A password is required before an authorizing contact can sign anything,
+        because a text message can be forwarded and a signature about burying
+        somebody should need more than holding that message.
+
+        Replacing an existing password requires the current one.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/FamilyPasswordInput"
+      responses:
+        "204":
+          description: Set
+        "400":
+          description: Too short
+        "401":
+          description: The current password did not match
+
+  /contacts/{contactId}/access:
+    patch:
+      operationId: setContactAccess
+      tags: [contacts]
+      summary: Set what this person may do
+      description: |
+        Staff only, and never self-selected. `authorizing` additionally
+        requires recording which tier of the statutory priority order the
+        determination was made under — see the authority endpoint.
+      parameters:
+        - $ref: "#/components/parameters/ContactId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ContactAccessInput"
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FamilyContact"
+        "404":
+          description: No such contact
+
+  /contacts/{contactId}/authority:
+    post:
+      operationId: recordContactAuthority
+      tags: [contacts]
+      summary: Record who holds the right of final disposition
+      description: |
+        The director's determination, from documents, written down. **The
+        software never works this out.** Inferring the right of final
+        disposition from a relationship dropdown would be confidently wrong in
+        exactly the cases that end up in front of a probate judge.
+
+        Recording this raises the contact to `authorizing`. They still cannot
+        sign anything until they have a password.
+      parameters:
+        - $ref: "#/components/parameters/ContactId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ContactAuthorityInput"
+      responses:
+        "200":
+          description: Recorded
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FamilyContact"
+        "404":
+          description: No such contact
+
+  /contacts/{contactId}/password:
+    post:
+      operationId: setContactPassword
+      tags: [contacts]
+      summary: Set an initial password to hand over
+      description: |
+        Generates a password the director reads out on the telephone or hands
+        over in person, which is how a funeral home already does everything
+        else. Returned once and never retrievable again.
+      parameters:
+        - $ref: "#/components/parameters/ContactId"
+      responses:
+        "200":
+          description: Set, and shown once
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/IssuedPassword"
+        "404":
+          description: No such contact
+
+  /cases/{caseId}/disposition-dispute:
+    put:
+      operationId: setDispositionDispute
+      tags: [cases]
+      summary: Mark the right of final disposition as contested
+      description: |
+        While set, the family portal stops offering authorizing actions and
+        says plainly that the home is confirming who is arranging the funeral.
+
+        Colorado sends disputes between people of equal priority to the probate
+        court, and a third party may decline to act until it has confirmation
+        the argument is over. Declining is the safe posture; this makes it the
+        automatic one.
+      parameters:
+        - $ref: "#/components/parameters/CaseId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/DispositionDisputeInput"
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Case"
+        "404":
+          description: No such case
+
+  # ------------------------------------------------------- storefront: the
+  # catalogue --
+  #
+  # What a home sells, at the home's own prices. Ships empty: nothing in this
+  # section, and nothing behind it, creates an item or suggests a price. The
+  # sections an item can belong to are the FTC Funeral Rule's own divisions,
+  # because they decide which of the three statutory price lists it prints on.
+
+  /storefront/settings:
+    get:
+      operationId: getStorefrontSettings
+      tags: [catalogue]
+      summary: The price list's effective date, its disclosures, and how the home is paid
+      responses:
+        "200":
+          description: Settings
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StorefrontSettings"
+    put:
+      operationId: updateStorefrontSettings
+      tags: [catalogue]
+      summary: Change them
+      description: |
+        Disclosures are merged by key rather than replaced, because the console
+        edits one slot at a time and a PUT that dropped the others would strip
+        a home's price list of paragraphs their attorney wrote.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/StorefrontSettingsUpdate"
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StorefrontSettings"
+
+  /catalogue:
+    get:
+      operationId: getCatalogue
+      tags: [catalogue]
+      summary: Everything this home sells, by category
+      responses:
+        "200":
+          description: The catalogue
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Catalogue"
+
+  /catalogue/categories:
+    post:
+      operationId: createCatalogueCategory
+      tags: [catalogue]
+      summary: Add a category, named by the home
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CatalogueCategoryInput"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CatalogueCategory"
+
+  /catalogue/categories/{categoryId}:
+    put:
+      operationId: updateCatalogueCategory
+      tags: [catalogue]
+      parameters:
+        - $ref: "#/components/parameters/CategoryId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CatalogueCategoryUpdate"
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CatalogueCategory"
+        "404":
+          description: No such category
+    delete:
+      operationId: deleteCatalogueCategory
+      tags: [catalogue]
+      summary: Remove it, or retire it if a family has already chosen from it
+      description: |
+        A category a family has chosen from is part of a statement, and a
+        statement is a document the home handed across a desk. So once one of
+        its items appears on any selection this archives instead of deleting,
+        and says which it did.
+      parameters:
+        - $ref: "#/components/parameters/CategoryId"
+      responses:
+        "200":
+          description: Archived rather than deleted
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ArchivedInstead"
+        "204":
+          description: Deleted
+        "404":
+          description: No such category
+
+  /catalogue/items:
+    post:
+      operationId: createCatalogueItem
+      tags: [catalogue]
+      summary: Add one item, at the home's own price
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CatalogueItemInput"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CatalogueItem"
+
+  /catalogue/items/{itemId}:
+    put:
+      operationId: updateCatalogueItem
+      tags: [catalogue]
+      parameters:
+        - $ref: "#/components/parameters/ItemId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CatalogueItemUpdate"
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CatalogueItem"
+        "404":
+          description: No such item
+    delete:
+      operationId: deleteCatalogueItem
+      tags: [catalogue]
+      summary: Remove it, or retire it if a family has already chosen it
+      parameters:
+        - $ref: "#/components/parameters/ItemId"
+      responses:
+        "200":
+          description: Archived rather than deleted
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ArchivedInstead"
+        "204":
+          description: Deleted
+        "404":
+          description: No such item
+
+  /catalogue/packages:
+    post:
+      operationId: createCataloguePackage
+      tags: [catalogue]
+      summary: Offer several items together, at a price of the home's own
+      description: |
+        In addition to the itemised catalogue, never instead of it. Choosing a
+        package writes its members as ordinary itemised lines plus a single
+        adjustment carrying the difference, so declining any one of them still
+        works and still moves the total.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CataloguePackageInput"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CataloguePackage"
+
+  /catalogue/packages/{packageId}:
+    put:
+      operationId: updateCataloguePackage
+      tags: [catalogue]
+      parameters:
+        - $ref: "#/components/parameters/PackageId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CataloguePackageUpdate"
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CataloguePackage"
+        "404":
+          description: No such package
+    delete:
+      operationId: deleteCataloguePackage
+      tags: [catalogue]
+      summary: Withdraw it, or retire it if a family has already chosen it
+      description: |
+        Archived rather than deleted once anybody has chosen it. A selection's
+        lines point back at the package they came from, and that link is what
+        lets declining one of its items take the package's price adjustment
+        with it.
+      parameters:
+        - $ref: "#/components/parameters/PackageId"
+      responses:
+        "200":
+          description: Archived rather than deleted
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ArchivedInstead"
+        "204":
+          description: Deleted
+        "404":
+          description: No such package
+
+  /catalogue/import/preview:
+    post:
+      operationId: previewCatalogueImport
+      tags: [catalogue]
+      summary: Read a price sheet and show what would be loaded
+      description: |
+        Always run before importing. Returns the guessed column mapping, the
+        guessed price list for each of the home's own category names, the first
+        rows as they would be created, and every row that could not be read.
+
+        Columns labelled cost or wholesale are never read as a price. They sit
+        beside the retail column in every supplier's export, and importing one
+        would publish a home's margin on the sheet it hands a family.
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              $ref: "#/components/schemas/CsvUploadInput"
+      responses:
+        "200":
+          description: What would happen
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CatalogueImportPreview"
+
+  /catalogue/import:
+    post:
+      operationId: importCatalogue
+      tags: [catalogue]
+      summary: Load a price sheet
+      description: |
+        Matches on the home's own item code where there is one and on name
+        otherwise, so dropping in last year's sheet again updates prices rather
+        than doubling the catalogue.
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              $ref: "#/components/schemas/CatalogueImportInput"
+      responses:
+        "200":
+          description: What was loaded
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CatalogueImportResult"
+
+  /catalogue/price-lists/{kind}/render:
+    get:
+      operationId: renderPriceList
+      tags: [catalogue]
+      summary: The General, Casket or Outer Burial Container Price List
+      description: |
+        Print-ready HTML on letter paper. The three documents the Funeral Rule
+        requires a provider to be able to produce, rendered from the same
+        function the family surface renders them from — a family and a director
+        looking at two different price lists is the bug this makes impossible.
+      parameters:
+        - $ref: "#/components/parameters/PriceListKind"
+      responses:
+        "200":
+          description: The document
+          content:
+            text/html:
+              schema:
+                type: string
+        "400":
+          description: There is nothing in the catalogue to put on that list
+
+  # -------------------------------------- storefront: what a family chose --
+  #
+  # The selection record, and the Statement of Funeral Goods and Services
+  # Selected that comes out of it. Everything is itemised, always: no operation
+  # below can record a purchase without a per-item price, and removing anything
+  # changes the total in front of whoever is looking at it.
+  #
+  # The one exception is the path a family takes when they are bringing their
+  # own casket or urn, which carries no price at all — a provider may not
+  # refuse a third-party casket and may not charge for handling one.
+
+  /cases/{caseId}/selection:
+    get:
+      operationId: getCaseStorefront
+      tags: [orders]
+      summary: The catalogue and this family's selection, as the director sees it
+      parameters:
+        - $ref: "#/components/parameters/CaseId"
+      responses:
+        "200":
+          description: The storefront for this case
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Storefront"
+        "404":
+          description: No such case
+    put:
+      operationId: updateMerchandiseSelection
+      tags: [orders]
+      summary: Agree the arrangement, reopen it, or note the home's own books
+      description: |
+        `settled` is a note about the home's records and nothing more. We
+        process no payments, so we cannot know whether one was made; a request
+        to settle a `pre_need` case is refused, because nothing is owed on a
+        plan.
+      parameters:
+        - $ref: "#/components/parameters/CaseId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/MerchandiseSelectionUpdate"
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Storefront"
+        "400":
+          description: Nothing chosen yet, or a plan cannot be settled
+        "404":
+          description: No such case
+
+  /cases/{caseId}/selection/gpl-given:
+    post:
+      operationId: recordGplGiven
+      tags: [orders]
+      summary: Record that this family has the General Price List
+      description: |
+        Set by the family opening it, and by a director recording that they
+        handed one across the desk. Both are the same fact and both unlock the
+        same thing: the Rule cares that the family has the list, not which way
+        it reached them.
+      parameters:
+        - $ref: "#/components/parameters/CaseId"
+      responses:
+        "200":
+          description: Recorded
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MerchandiseSelection"
+        "404":
+          description: No such case
+
+  /cases/{caseId}/selection/items:
+    post:
+      operationId: addSelectionItem
+      tags: [orders]
+      summary: Put a catalogue item on the sheet
+      description: |
+        There is no price in this body and there never will be. What a thing
+        costs is copied from the home's own catalogue row at the moment the
+        line is written — a client that could name a price could name a
+        different one.
+      parameters:
+        - $ref: "#/components/parameters/CaseId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SelectionItemInput"
+      responses:
+        "201":
+          description: Added
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MerchandiseSelection"
+        "400":
+          description: A casket, before this family has the General Price List
+        "404":
+          description: No such case or item
+
+  /cases/{caseId}/selection/packages:
+    post:
+      operationId: addSelectionPackage
+      tags: [orders]
+      summary: Fill the sheet from a package
+      parameters:
+        - $ref: "#/components/parameters/CaseId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SelectionPackageInput"
+      responses:
+        "201":
+          description: Added
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MerchandiseSelection"
+        "400":
+          description: A casket, before this family has the General Price List
+        "404":
+          description: No such case or package
+
+  /cases/{caseId}/selection/family-provided:
+    post:
+      operationId: addFamilyProvidedItem
+      tags: [orders]
+      summary: Record that the family is bringing their own
+      description: |
+        No price is accepted here, and none is stored. A funeral provider may
+        not refuse a casket or urn a family bought elsewhere and may not charge
+        a handling fee for one, so there is nowhere on this path for a fee to
+        go — enforced by a check constraint on the table as well as by this
+        schema.
+      parameters:
+        - $ref: "#/components/parameters/CaseId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/FamilyProvidedInput"
+      responses:
+        "201":
+          description: Recorded
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MerchandiseSelection"
+        "404":
+          description: No such case
+
+  /cases/{caseId}/selection/items/{lineId}:
+    put:
+      operationId: updateSelectionLine
+      tags: [orders]
+      parameters:
+        - $ref: "#/components/parameters/CaseId"
+        - $ref: "#/components/parameters/LineId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SelectionLineUpdate"
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MerchandiseSelection"
+        "400":
+          description: The arrangement has been agreed, or that line follows a package
+        "404":
+          description: No such case or line
+    delete:
+      operationId: removeSelectionLine
+      tags: [orders]
+      summary: Decline something, and watch the total change
+      description: |
+        When the line came in as part of a package, the package's adjustment
+        goes with it: the set is broken, so everything left stands at its own
+        price.
+      parameters:
+        - $ref: "#/components/parameters/CaseId"
+        - $ref: "#/components/parameters/LineId"
+      responses:
+        "200":
+          description: Removed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MerchandiseSelection"
+        "400":
+          description: The arrangement has been agreed
+        "404":
+          description: No such case or line
+
+  /cases/{caseId}/statement/render:
+    get:
+      operationId: renderStatement
+      tags: [orders]
+      summary: The Statement of Funeral Goods and Services Selected
+      description: |
+        The itemised document the Funeral Rule requires a provider to give at
+        the end of an arrangement, generated from what the family actually
+        chose. Carries the legal name; every other screen says what they were
+        called, and this one is read beside a death certificate.
+      parameters:
+        - $ref: "#/components/parameters/CaseId"
+      responses:
+        "200":
+          description: The document
+          content:
+            text/html:
+              schema:
+                type: string
+        "404":
+          description: No such case
+
+  # --------------------------------- storefront: the family's own browsing --
+  #
+  # Reached with the link token, like everything else under `/family`, and
+  # carrying no case id for the same reason. What differs from the director's
+  # view above is the sequence: no casket and no outer burial container is
+  # returned here until this family has the General Price List.
+
+  /family/storefront:
+    get:
+      operationId: getFamilyStorefront
+      tags: [orders]
+      summary: What this family may see, and what they have chosen
+      responses:
+        "200":
+          description: The storefront
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Storefront"
+
+  /family/storefront/price-lists/{kind}/render:
+    get:
+      operationId: renderFamilyPriceList
+      tags: [orders]
+      summary: The price list, as the family reads it
+      description: |
+        Opening the General Price List records that this family has it, which
+        is the moment caskets become visible. A side effect on a GET, and the
+        honest option: the fact the Rule cares about is that the family has the
+        list, and that becomes true when the sheet renders.
+
+        The Casket and Outer Burial Container lists are behind the same gate as
+        the caskets themselves.
+      parameters:
+        - $ref: "#/components/parameters/PriceListKind"
+      responses:
+        "200":
+          description: The document
+          content:
+            text/html:
+              schema:
+                type: string
+        "400":
+          description: Nothing to print, or a casket list before the General Price List
+
+  /family/storefront/items:
+    post:
+      operationId: addFamilyStorefrontItem
+      tags: [orders]
+      summary: Choose something
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SelectionItemInput"
+      responses:
+        "201":
+          description: Chosen
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MerchandiseSelection"
+        "400":
+          description: A casket before the General Price List, or the arrangement is agreed
+
+  /family/storefront/packages:
+    post:
+      operationId: addFamilyStorefrontPackage
+      tags: [orders]
+      summary: Choose a package
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SelectionPackageInput"
+      responses:
+        "201":
+          description: Chosen
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MerchandiseSelection"
+        "400":
+          description: A casket before the General Price List, or the arrangement is agreed
+
+  /family/storefront/family-provided:
+    post:
+      operationId: addFamilyProvidedToStorefront
+      tags: [orders]
+      summary: Tell the home you are bringing your own
+      description: |
+        A name, and optionally a note about who is bringing it and when. No
+        price, no fee, and nowhere for one to be added later.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/FamilyProvidedInput"
+      responses:
+        "201":
+          description: Recorded
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MerchandiseSelection"
+        "400":
+          description: The arrangement has been agreed
+
+  /family/storefront/items/{lineId}:
+    put:
+      operationId: updateFamilyStorefrontLine
+      tags: [orders]
+      parameters:
+        - $ref: "#/components/parameters/LineId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SelectionLineUpdate"
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MerchandiseSelection"
+        "400":
+          description: The arrangement has been agreed
+        "404":
+          description: No such line
+    delete:
+      operationId: removeFamilyStorefrontLine
+      tags: [orders]
+      summary: Change your mind about something
+      responses:
+        "200":
+          description: Removed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MerchandiseSelection"
+        "400":
+          description: The arrangement has been agreed
+        "404":
+          description: No such line
+      parameters:
+        - $ref: "#/components/parameters/LineId"
+
+  /family/storefront/statement/render:
+    get:
+      operationId: renderFamilyStatement
+      tags: [orders]
+      summary: The family's own copy of the statement
+      responses:
+        "200":
+          description: The document
+          content:
+            text/html:
+              schema:
+                type: string
+
+  /family/storefront/uploads/{uploadId}:
+    get:
+      operationId: getFamilyCataloguePhoto
+      tags: [orders]
+      summary: A photograph of something in the catalogue
+      description: |
+        The home's catalogue photographs belong to no case, so the family's
+        ordinary upload route — which serves only files on their own case —
+        cannot reach them, and rightly so. This one checks the file is in use
+        by a live item in this home's catalogue before it serves a byte.
+      parameters:
+        - $ref: "#/components/parameters/UploadId"
+      responses:
+        "200":
+          description: The bytes
+          content:
+            image/*:
+              schema:
+                type: string
+                format: binary
+        "400":
+          description: Not a photograph on this home's catalogue
+
+
 components:
   parameters:
     CaseId:
@@ -2450,6 +3392,38 @@ components:
       required: true
       schema:
         type: integer
+    CategoryId:
+      name: categoryId
+      in: path
+      required: true
+      schema:
+        type: integer
+    ItemId:
+      name: itemId
+      in: path
+      required: true
+      schema:
+        type: integer
+    PackageId:
+      name: packageId
+      in: path
+      required: true
+      schema:
+        type: integer
+    LineId:
+      name: lineId
+      in: path
+      required: true
+      schema:
+        type: integer
+    PriceListKind:
+      name: kind
+      in: path
+      required: true
+      description: Which of the three statutory lists.
+      schema:
+        type: string
+        enum: [gpl, cpl, obcpl]
 
   schemas:
     HealthStatus:
@@ -3150,6 +4124,12 @@ components:
             `pre_need` means the person this file is about is still alive and
             arranging their own funeral. Every label, every date and every
             line of condolence has to read this first.
+        dispositionDisputed:
+          type: boolean
+          description: |
+            The home knows the right of final disposition is contested. While
+            true, the portal offers no authorizing actions and says the home is
+            confirming who is arranging the funeral.
         decedentFirstName:
           type: string
         decedentLastName:
@@ -3385,6 +4365,30 @@ components:
         role:
           type: string
           enum: [next_of_kin, contributor]
+          description: Who they are to the deceased, not what they may do.
+        accessLevel:
+          type: string
+          enum: [viewing, arranging, authorizing]
+          description: |
+            What they may do. `authorizing` means they hold the right of final
+            disposition under the statutory priority order, as determined by a
+            director and recorded here — never computed from `relationship`.
+        dispositionTier:
+          type: string
+          nullable: true
+          description: |
+            Which tier of the statutory priority order the determination was
+            made under, e.g. `surviving_spouse`. Free text, because the statute
+            is amended and a case outlives a deployment.
+        authorityRecordedAt:
+          type: string
+          format: date-time
+          nullable: true
+        hasPassword:
+          type: boolean
+          description: |
+            An authorizing contact cannot sign anything until this is true. A
+            forwarded text message is not enough to bury somebody.
         canInvite:
           type: boolean
         expiresAt:
@@ -3414,6 +4418,10 @@ components:
           phone,
           email,
           role,
+          accessLevel,
+          dispositionTier,
+          authorityRecordedAt,
+          hasPassword,
           canInvite,
           expiresAt,
           revokedAt,
@@ -5273,3 +6281,864 @@ components:
           messagesLocked,
           aftercare,
         ]
+
+    PlatformAdmin:
+      description: |
+        One of us. Never a funeral home's staff member — a different table, a
+        different session and a different cookie, so that neither resolver can
+        ever return the other kind of account.
+      type: object
+      properties:
+        id:
+          type: integer
+        email:
+          type: string
+        displayName:
+          type: string
+          nullable: true
+        role:
+          type: string
+          enum: [owner, support]
+          description: |
+            `support` can look but not change. It exists so that helping a
+            funeral home does not require the ability to suspend one.
+        hasPassword:
+          type: boolean
+        lastSeenAt:
+          type: string
+          format: date-time
+          nullable: true
+        createdAt:
+          type: string
+          format: date-time
+      required: [id, email, displayName, role, hasPassword, lastSeenAt, createdAt]
+
+    PlatformLoginInput:
+      type: object
+      properties:
+        email:
+          type: string
+        password:
+          type: string
+      required: [email, password]
+
+    FamilyPasswordInput:
+      type: object
+      properties:
+        password:
+          type: string
+          minLength: 10
+          description: |
+            Long enough to be worth having, short enough that somebody can
+            choose a passphrase they will actually recall on the worst week of
+            their life.
+        currentPassword:
+          type: string
+          nullable: true
+          description: Required when replacing an existing password.
+      required: [password]
+
+    ContactAccessInput:
+      type: object
+      properties:
+        accessLevel:
+          type: string
+          enum: [viewing, arranging]
+          description: |
+            `authorizing` is deliberately absent. Raising somebody to it is
+            recording a legal determination, so it goes through the authority
+            endpoint, which requires saying what the determination was.
+      required: [accessLevel]
+
+    ContactAuthorityInput:
+      type: object
+      properties:
+        dispositionTier:
+          type: string
+          minLength: 1
+          description: |
+            Which tier of the statutory priority order this person was found to
+            hold, in the director's own words.
+      required: [dispositionTier]
+
+    IssuedPassword:
+      description: |
+        Shown once, at the moment it is set, and never retrievable again —
+        only the hash is kept. The director reads it out or hands it over.
+      type: object
+      properties:
+        password:
+          type: string
+      required: [password]
+
+    DispositionDisputeInput:
+      type: object
+      properties:
+        disputed:
+          type: boolean
+        note:
+          type: string
+          nullable: true
+          description: For the home's own record. Never shown to the family.
+      required: [disputed]
+
+    # ------------------------------------------------- storefront schemas --
+    #
+    # Prices are integer cents throughout. Every number here is added to other
+    # numbers and printed on a document the Funeral Rule requires to be
+    # accurate, and floating point gets that wrong by a cent often enough to
+    # matter — a cent wrong on a statement is a telephone call the director
+    # should not have to take.
+
+    CatalogueSection:
+      type: string
+      description: |
+        Which statutory price list a category's items print on. Fixed rather
+        than named by the home, because these are the Rule's own divisions and
+        a home that invents a fourth one has a price list that does not comply.
+        What the home names is the category.
+      enum:
+        - services
+        - caskets
+        - outer_burial_containers
+        - merchandise
+        - cash_advance
+
+    ItemAvailability:
+      type: string
+      description: |
+        `by_request` is the honest answer for the casket a home will order in
+        but does not keep. Deliberately not "out of stock": a family reading
+        that about their mother's casket hears a shop.
+      enum: [available, by_request]
+
+    ArchivedInstead:
+      description: |
+        Returned in place of a 204 when the row could not be deleted because a
+        family has already chosen from it. A statement is a document the home
+        handed across a desk, and it does not get to change.
+      type: object
+      properties:
+        archived:
+          type: boolean
+      required: [archived]
+
+    DisclosureSlot:
+      description: |
+        A disclosure the Funeral Rule requires on a General Price List. The
+        slot is ours; the words are the home's. The Rule prescribes what each
+        must convey and a home's counsel signs off on how it is said.
+      type: object
+      properties:
+        key:
+          type: string
+        title:
+          type: string
+        note:
+          type: string
+          description: What the Rule requires this to convey, in plain English.
+      required: [key, title, note]
+
+    StorefrontSettings:
+      type: object
+      properties:
+        gplEffectiveOn:
+          type: string
+          format: date-time
+          nullable: true
+          description: |
+            The date printed on the price lists, and the switch that turns the
+            storefront on. Until it is set the home has no General Price List,
+            and no family is shown a casket.
+        hasGeneralPriceList:
+          type: boolean
+        disclosures:
+          type: object
+          additionalProperties:
+            type: string
+          description: The home's own wording, by slot key. Blank slots are not printed.
+        priceListFootnote:
+          type: string
+          nullable: true
+        paymentPageUrl:
+          type: string
+          nullable: true
+          description: |
+            The home's own payment page, at the home's own processor. A link,
+            not an integration. Nothing in this product takes money from a
+            family.
+        paymentInstructions:
+          type: string
+          nullable: true
+          description: The other ways the home takes money, in the home's own words.
+        disclosureSlots:
+          type: array
+          items:
+            $ref: "#/components/schemas/DisclosureSlot"
+      required:
+        [
+          gplEffectiveOn,
+          hasGeneralPriceList,
+          disclosures,
+          priceListFootnote,
+          paymentPageUrl,
+          paymentInstructions,
+          disclosureSlots,
+        ]
+
+    StorefrontSettingsUpdate:
+      type: object
+      properties:
+        gplEffectiveOn:
+          type: string
+          format: date-time
+          nullable: true
+        disclosures:
+          type: object
+          additionalProperties:
+            type: string
+        priceListFootnote:
+          type: string
+          nullable: true
+        paymentPageUrl:
+          type: string
+          maxLength: 500
+          pattern: "^https://\\S+$"
+          nullable: true
+          description: |
+            Send null to clear it. A payment link under a funeral home's name
+            that is not even encrypted has no business existing, so the scheme
+            is part of the contract rather than a check one client remembers.
+        paymentInstructions:
+          type: string
+          nullable: true
+
+    CatalogueItem:
+      type: object
+      properties:
+        id:
+          type: integer
+        categoryId:
+          type: integer
+        name:
+          type: string
+        description:
+          type: string
+          nullable: true
+        itemCode:
+          type: string
+          nullable: true
+          description: The home's own reference, so a re-import updates rather than duplicates.
+        priceCents:
+          type: integer
+        priceUnit:
+          type: string
+          nullable: true
+          description: '"each", "per day", "per mile". Printed beside the price, never parsed.'
+        photoUploadId:
+          type: integer
+          nullable: true
+        availability:
+          $ref: "#/components/schemas/ItemAvailability"
+        position:
+          type: integer
+        archivedAt:
+          type: string
+          format: date-time
+          nullable: true
+      required:
+        [
+          id,
+          categoryId,
+          name,
+          description,
+          itemCode,
+          priceCents,
+          priceUnit,
+          photoUploadId,
+          availability,
+          position,
+          archivedAt,
+        ]
+
+    CatalogueCategory:
+      type: object
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        description:
+          type: string
+          nullable: true
+        section:
+          $ref: "#/components/schemas/CatalogueSection"
+        position:
+          type: integer
+        archivedAt:
+          type: string
+          format: date-time
+          nullable: true
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/CatalogueItem"
+      required: [id, name, description, section, position, archivedAt, items]
+
+    CataloguePackage:
+      type: object
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        description:
+          type: string
+          nullable: true
+        priceCents:
+          type: integer
+        itemisedTotalCents:
+          type: integer
+          description: |
+            What the same items come to bought one at a time. Always sent
+            alongside the package price, never instead of it — a package that
+            is the only price on offer is the thing the Rule forbids.
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/CatalogueItem"
+      required: [id, name, description, priceCents, itemisedTotalCents, items]
+
+    Catalogue:
+      type: object
+      properties:
+        hasGeneralPriceList:
+          type: boolean
+        gplEffectiveOn:
+          type: string
+          format: date-time
+          nullable: true
+        categories:
+          type: array
+          items:
+            $ref: "#/components/schemas/CatalogueCategory"
+        packages:
+          type: array
+          items:
+            $ref: "#/components/schemas/CataloguePackage"
+      required: [hasGeneralPriceList, gplEffectiveOn, categories, packages]
+
+    CatalogueCategoryInput:
+      type: object
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 120
+        description:
+          type: string
+          maxLength: 400
+          nullable: true
+        section:
+          $ref: "#/components/schemas/CatalogueSection"
+      required: [name, section]
+
+    CatalogueCategoryUpdate:
+      type: object
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 120
+        description:
+          type: string
+          maxLength: 400
+          nullable: true
+        section:
+          $ref: "#/components/schemas/CatalogueSection"
+        position:
+          type: integer
+          minimum: 0
+        archived:
+          type: boolean
+
+    CatalogueItemInput:
+      type: object
+      properties:
+        categoryId:
+          type: integer
+        name:
+          type: string
+          minLength: 1
+          maxLength: 200
+        description:
+          type: string
+          maxLength: 2000
+          nullable: true
+        itemCode:
+          type: string
+          maxLength: 100
+          nullable: true
+        priceCents:
+          type: integer
+          minimum: 0
+          maximum: 1000000000
+        priceUnit:
+          type: string
+          maxLength: 40
+          nullable: true
+        photoUploadId:
+          type: integer
+          nullable: true
+        availability:
+          $ref: "#/components/schemas/ItemAvailability"
+      required: [categoryId, name, priceCents]
+
+    CatalogueItemUpdate:
+      type: object
+      properties:
+        categoryId:
+          type: integer
+        name:
+          type: string
+          minLength: 1
+          maxLength: 200
+        description:
+          type: string
+          maxLength: 2000
+          nullable: true
+        itemCode:
+          type: string
+          maxLength: 100
+          nullable: true
+        priceCents:
+          type: integer
+          minimum: 0
+          maximum: 1000000000
+        priceUnit:
+          type: string
+          maxLength: 40
+          nullable: true
+        photoUploadId:
+          type: integer
+          nullable: true
+        availability:
+          $ref: "#/components/schemas/ItemAvailability"
+        position:
+          type: integer
+          minimum: 0
+        archived:
+          type: boolean
+
+    CataloguePackageInput:
+      type: object
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 160
+        description:
+          type: string
+          maxLength: 1000
+          nullable: true
+        priceCents:
+          type: integer
+          minimum: 0
+          maximum: 1000000000
+        itemIds:
+          type: array
+          minItems: 1
+          maxItems: 60
+          items:
+            type: integer
+      required: [name, priceCents, itemIds]
+
+    CataloguePackageUpdate:
+      type: object
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 160
+        description:
+          type: string
+          maxLength: 1000
+          nullable: true
+        priceCents:
+          type: integer
+          minimum: 0
+          maximum: 1000000000
+        itemIds:
+          type: array
+          minItems: 1
+          maxItems: 60
+          items:
+            type: integer
+        archived:
+          type: boolean
+
+    CatalogueImportInput:
+      type: object
+      properties:
+        file:
+          type: string
+          format: binary
+        sections:
+          type: string
+          description: |
+            JSON object mapping each of the home's own category names to the
+            price list it belongs on, as corrected by the director in the
+            preview. A category left out keeps the guess.
+      required: [file]
+
+    CatalogueImportCategory:
+      description: One of the home's own category names, and where we think it goes.
+      type: object
+      properties:
+        name:
+          type: string
+        section:
+          $ref: "#/components/schemas/CatalogueSection"
+        itemCount:
+          type: integer
+      required: [name, section, itemCount]
+
+    CatalogueImportRow:
+      type: object
+      properties:
+        row:
+          type: integer
+          description: The line number a spreadsheet shows, so "row 34" means row 34.
+        categoryName:
+          type: string
+        name:
+          type: string
+        description:
+          type: string
+          nullable: true
+        priceCents:
+          type: integer
+        itemCode:
+          type: string
+          nullable: true
+      required: [row, categoryName, name, description, priceCents, itemCode]
+
+    CatalogueImportPreview:
+      type: object
+      properties:
+        headers:
+          type: array
+          items:
+            type: string
+        mapping:
+          type: object
+          additionalProperties:
+            type: string
+            nullable: true
+        totalRows:
+          type: integer
+        categories:
+          type: array
+          items:
+            $ref: "#/components/schemas/CatalogueImportCategory"
+        wouldCreate:
+          type: integer
+        wouldUpdate:
+          type: integer
+        rows:
+          type: array
+          items:
+            $ref: "#/components/schemas/CatalogueImportRow"
+        issues:
+          type: array
+          items:
+            $ref: "#/components/schemas/ImportRowIssue"
+      required:
+        [
+          headers,
+          mapping,
+          totalRows,
+          categories,
+          wouldCreate,
+          wouldUpdate,
+          rows,
+          issues,
+        ]
+
+    CatalogueImportResult:
+      type: object
+      properties:
+        created:
+          type: integer
+        updated:
+          type: integer
+        issues:
+          type: array
+          items:
+            $ref: "#/components/schemas/ImportRowIssue"
+      required: [created, updated, issues]
+
+    SelectionLineKind:
+      type: string
+      description: |
+        `family_provided` is the one that matters legally: that line carries no
+        price, because a provider may not charge for handling a casket or urn
+        bought elsewhere. `package_adjustment` is the only line that may be
+        negative, because it is the only one that is a discount.
+      enum: [item, family_provided, package_adjustment]
+
+    MerchandiseSelectionLine:
+      type: object
+      properties:
+        id:
+          type: integer
+        kind:
+          $ref: "#/components/schemas/SelectionLineKind"
+        catalogueItemId:
+          type: integer
+          nullable: true
+        packageId:
+          type: integer
+          nullable: true
+        name:
+          type: string
+          description: |
+            Snapshotted when the line was written, not joined at render time.
+            A home raising its prices in March must not rewrite what a family
+            agreed in February.
+        description:
+          type: string
+          nullable: true
+        section:
+          type: string
+          nullable: true
+        unitPriceCents:
+          type: integer
+          nullable: true
+          description: Null on a family-provided line. There is no fee on that path.
+        quantity:
+          type: integer
+        lineTotalCents:
+          type: integer
+        notes:
+          type: string
+          nullable: true
+        position:
+          type: integer
+      required:
+        [
+          id,
+          kind,
+          catalogueItemId,
+          packageId,
+          name,
+          description,
+          section,
+          unitPriceCents,
+          quantity,
+          lineTotalCents,
+          notes,
+          position,
+        ]
+
+    MerchandiseSelection:
+      type: object
+      properties:
+        id:
+          type: integer
+        status:
+          type: string
+          enum: [draft, confirmed]
+        gplShownAt:
+          type: string
+          format: date-time
+          nullable: true
+          description: When this family was given the General Price List.
+        gplEffectiveOn:
+          type: string
+          format: date-time
+          nullable: true
+          description: Which price list these numbers came from.
+        confirmedAt:
+          type: string
+          format: date-time
+          nullable: true
+        settledAt:
+          type: string
+          format: date-time
+          nullable: true
+          description: |
+            A note about the home's own books, never a receipt from us. We
+            process no payments, so we do not know.
+        settledNote:
+          type: string
+          nullable: true
+        notes:
+          type: string
+          nullable: true
+        lines:
+          type: array
+          items:
+            $ref: "#/components/schemas/MerchandiseSelectionLine"
+        totalCents:
+          type: integer
+        updatedAt:
+          type: string
+          format: date-time
+      required:
+        [
+          id,
+          status,
+          gplShownAt,
+          gplEffectiveOn,
+          confirmedAt,
+          settledAt,
+          settledNote,
+          notes,
+          lines,
+          totalCents,
+          updatedAt,
+        ]
+
+    PaymentHandoff:
+      description: |
+        Where a family is told to send the money, which is never to us. Null on
+        a pre-need plan and null on a draft. There is no amount in this shape
+        and never will be: we process nothing, so we know nothing, and a field
+        called `amountPaid` would be a lie with a type annotation.
+      type: object
+      properties:
+        url:
+          type: string
+          nullable: true
+        host:
+          type: string
+          nullable: true
+          description: Shown beside the link so nobody is surprised by where it goes.
+        instructions:
+          type: string
+          nullable: true
+        phone:
+          type: string
+          nullable: true
+          description: The number to ring when there is no link, which is not an error.
+      required: [url, host, instructions, phone]
+
+    Storefront:
+      type: object
+      properties:
+        hasGeneralPriceList:
+          type: boolean
+        gplEffectiveOn:
+          type: string
+          format: date-time
+          nullable: true
+        casketsUnlocked:
+          type: boolean
+          description: |
+            Whether caskets and outer burial containers are showing. False
+            until the home has a dated price list and this family has it.
+        categories:
+          type: array
+          items:
+            $ref: "#/components/schemas/CatalogueCategory"
+        packages:
+          type: array
+          items:
+            $ref: "#/components/schemas/CataloguePackage"
+        selection:
+          $ref: "#/components/schemas/MerchandiseSelection"
+        payment:
+          allOf:
+            - $ref: "#/components/schemas/PaymentHandoff"
+          nullable: true
+        mayDiscussPayment:
+          type: boolean
+          description: False on a pre-need case. Nothing is owed on a plan.
+      required:
+        [
+          hasGeneralPriceList,
+          gplEffectiveOn,
+          casketsUnlocked,
+          categories,
+          packages,
+          selection,
+          payment,
+          mayDiscussPayment,
+        ]
+
+    SelectionItemInput:
+      type: object
+      additionalProperties: false
+      properties:
+        itemId:
+          type: integer
+        quantity:
+          type: integer
+          minimum: 1
+          maximum: 99
+      required: [itemId]
+
+    SelectionPackageInput:
+      type: object
+      additionalProperties: false
+      properties:
+        packageId:
+          type: integer
+      required: [packageId]
+
+    FamilyProvidedInput:
+      description: |
+        What the family is bringing, and optionally who is bringing it and
+        when. No price, and no field to put one in.
+
+        `additionalProperties: false` here means what it says: a client that
+        tries to attach a fee to a third-party casket is refused outright
+        rather than having the field quietly ignored. The generator does not
+        carry that through to the validator, so the server re-applies it —
+        see `assertNoExtraKeys` in `lib/storefront.ts`.
+      type: object
+      additionalProperties: false
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 200
+        notes:
+          type: string
+          maxLength: 500
+          nullable: true
+      required: [name]
+
+    SelectionLineUpdate:
+      type: object
+      additionalProperties: false
+      properties:
+        quantity:
+          type: integer
+          minimum: 1
+          maximum: 99
+        notes:
+          type: string
+          maxLength: 500
+          nullable: true
+
+    MerchandiseSelectionUpdate:
+      type: object
+      additionalProperties: false
+      properties:
+        notes:
+          type: string
+          maxLength: 4000
+          nullable: true
+        confirmed:
+          type: boolean
+        settled:
+          type: boolean
+          description: |
+            A director reading their own books. Refused on a pre-need case,
+            where nothing is owed and nothing is collected.
+        settledNote:
+          type: string
+          maxLength: 500
+          nullable: true

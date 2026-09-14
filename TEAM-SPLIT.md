@@ -14,19 +14,39 @@ Branch for every component: `claude/app-capability-check-mvfn8x` in
 from it, both with `clean: true`, and CI fails when the checked-in generated
 code drifts from the spec.
 
-That means:
+**This is now handled — here is what actually changed, and what you do.**
 
-- **Nobody edits `lib/api-zod/src/generated` or
-  `lib/api-client-react/src/generated` by hand. Ever.** They are build output.
-  Change the spec, run codegen, commit what falls out.
-- **Nobody edits a spec file they do not own.** Component 1 splits the single
-  `openapi.yaml` into one file per domain under `lib/api-spec/paths/` so that
-  each component owns its own. Until that split lands, *do not add paths to
-  the spec at all* — build behind it and wire up after.
+Orval used to emit everything into two enormous files: `api.ts` in the react
+client was 10,772 lines and its zod counterpart 3,979, both rewritten in full
+on every spec change. Six people adding unrelated endpoints would have
+regenerated the same lines every time and collided on code none of them wrote.
+
+Codegen now runs in `tags-split` mode, so **each OpenAPI tag gets its own
+directory** under `generated/`, and each schema its own file. An endpoint you
+add lands in your tag's directory and touches nothing of anybody else's.
+
+So:
+
+- **Give your endpoints their own tag.** Add it to the `tags:` list in
+  `openapi.yaml` — `catalogue`, `orders`, `admin`, `forms`, `engagement` — and
+  tag every operation you add. A new tag is a new directory, which is a clean
+  add rather than a conflict. Putting your endpoints under somebody else's tag
+  is how you end up merging against them.
+- **Add one line to each package's `src/index.ts`** for your new tag. Those two
+  files are hand-written and alphabetical; orval does not touch them. One line
+  each is the entire cost of this layout.
+- **Never hand-edit anything under `generated/`.** It is cleaned and rewritten
+  wholesale on every run. Change the spec, run codegen, commit what falls out.
+- **`openapi.yaml` itself is still one file**, organised by domain with comment
+  separators. Append your paths in your own clearly-marked section rather than
+  interleaving them with somebody else's — git merges distant hunks cleanly and
+  adjacent ones badly.
 - Run `pnpm --filter @workspace/api-spec run codegen` after any spec change,
   then `pnpm run typecheck`, and commit the generated diff in the same commit
   as the spec change. A spec change committed without its generated code is a
   red build for everyone else.
+- Codegen is idempotent: running it twice changes nothing. If it does, say so
+  rather than committing the churn.
 
 ## The second rule
 
@@ -44,7 +64,7 @@ another component owns, say so rather than editing it.
 
 | # | Component | Owns | Depends on |
 | --- | --- | --- | --- |
-| 1 | Identity, roles, levels, passwords | `lib/db/src/schema/{platform,users,family-contacts,sessions}.ts`, `artifacts/api-server/src/middleware/*`, `artifacts/api-server/src/lib/{auth,platform-auth,family-link}.ts`, `artifacts/api-server/src/routes/{auth,index}.ts`, the spec split | — |
+| 1 | Identity, roles, levels, passwords | `lib/db/src/schema/{platform,users,family-contacts,sessions}.ts`, `artifacts/api-server/src/middleware/*`, `artifacts/api-server/src/lib/{auth,platform-auth,family-link}.ts`, `artifacts/api-server/src/routes/{auth,index}.ts`, `lib/api-spec/orval.config.ts` | — |
 | 2 | Platform admin console | `artifacts/admin-console/**` (new app), `artifacts/api-server/src/routes/admin.ts`, `lib/api-spec/paths/admin.yaml` | 1 |
 | 3 | Storefront, catalogue and the statement | `lib/db/src/schema/{catalogue,storefront,orders}.ts`, `artifacts/api-server/src/routes/{catalogue,orders}.ts`, `lib/api-spec/paths/{catalogue,orders}.yaml`, storefront pages in both frontends | 1 |
 | 4 | Deployment: a real host, TLS, mail, backups, monitoring | `deploy/**`, `docker-compose.yml`, the `Dockerfile`s, `.github/workflows/**`, `DEPLOY.md`, `LAUNCH.md` | nothing — starts immediately |

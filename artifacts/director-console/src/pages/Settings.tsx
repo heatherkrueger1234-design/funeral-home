@@ -14,7 +14,6 @@ import { Button } from "@/components/ui/button";
 import { Loader2 } from "lucide-react";
 import { StandardSchedule } from "@/components/StandardSchedule";
 import { BillingSection } from "@/components/BillingSection";
-import { PaymentHandoffSection } from "@/components/PaymentHandoffSection";
 import { SnippetLibrary } from "@/components/SnippetLibrary";
 
 /** "08:00" for a time input, from minutes since midnight. */
@@ -286,8 +285,6 @@ export default function Settings() {
           </p>
         </div>
       </section>
-
-      <PaymentHandoffSection readOnly={readOnly} />
     </div>
   );
 }

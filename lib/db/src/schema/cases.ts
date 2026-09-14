@@ -3,6 +3,7 @@ import {
   text,
   serial,
   integer,
+  boolean,
   timestamp,
   index,
 } from "drizzle-orm/pg-core";
@@ -56,6 +57,21 @@ export const casesTable = pgTable(
      * paperwork holds the sale.
      */
     kind: text("kind").notNull().default("at_need"),
+
+    /**
+     * Set when the home knows the right of final disposition is contested.
+     *
+     * Colorado resolves disputes between people of equal priority in the
+     * probate court, and a third party is not liable for refusing to act
+     * until it has a court order or reasonable confirmation that the argument
+     * is over (C.R.S. 15-19-106). Refusing is therefore the safe posture, and
+     * this column exists so that the software makes refusing easy rather than
+     * awkward: while it is set, the portal stops offering authorizing actions
+     * and says plainly that the home is waiting on confirmation.
+     *
+     * A calm sentence, not an error state. The family already knows.
+     */
+    dispositionDisputed: boolean("disposition_disputed").notNull().default(false),
 
     /* --------------------------------------------------------- the person */
 

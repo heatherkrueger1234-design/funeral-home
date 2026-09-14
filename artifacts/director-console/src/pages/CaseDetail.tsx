@@ -31,7 +31,7 @@ import { MessagesPanel } from "@/components/case/MessagesPanel";
 import { BelongingsPanel } from "@/components/case/BelongingsPanel";
 import { VitalsPanel } from "@/components/case/VitalsPanel";
 import { PrintPanel } from "@/components/case/PrintPanel";
-import { StatementPanel } from "@/components/case/StatementPanel";
+import { ArrangementPanel } from "@/components/case/ArrangementPanel";
 import { DetailsPanel } from "@/components/case/DetailsPanel";
 import { CaseData } from "@/components/CaseData";
 
@@ -77,18 +77,6 @@ export default function CaseDetail() {
 
   const detail = row.data;
   const closed = detail.status === "closed";
-
-  /*
-   * Someone arranging their own funeral in advance has no statement tab.
-   *
-   * A total plus a way to pay it, put to a living planner, is a preneed
-   * contract — and selling one in Colorado means a Division of Insurance
-   * licence, $100,000 of net worth or a bond, and 85% of the money in trust
-   * (C.R.S. Title 10, Article 15). The plan is recorded here; the money is
-   * arranged under the home's own licence, elsewhere. The API refuses it too,
-   * so this is the polite half of a rule that is enforced on the server.
-   */
-  const takesPayment = detail.kind !== "pre_need";
 
   return (
     <div className="space-y-6">
@@ -163,10 +151,8 @@ export default function CaseDetail() {
           <TabsTrigger value="belongings">Belongings</TabsTrigger>
           <TabsTrigger value="obituary">Obituary</TabsTrigger>
           <TabsTrigger value="service">Service</TabsTrigger>
+          <TabsTrigger value="arrangement">Arrangement</TabsTrigger>
           <TabsTrigger value="print">Print</TabsTrigger>
-          {takesPayment && (
-            <TabsTrigger value="statement">Statement</TabsTrigger>
-          )}
           <TabsTrigger value="timeline">
             Timeline
             {detail.outstandingDeadlines > 0 && (
@@ -203,14 +189,15 @@ export default function CaseDetail() {
           <TabsContent value="service">
             <ServicePanel caseId={caseId} />
           </TabsContent>
+          <TabsContent value="arrangement">
+            <ArrangementPanel
+              caseId={caseId}
+              isPreNeed={detail.kind === "pre_need"}
+            />
+          </TabsContent>
           <TabsContent value="print">
             <PrintPanel caseId={caseId} />
           </TabsContent>
-          {takesPayment && (
-            <TabsContent value="statement">
-              <StatementPanel caseId={caseId} />
-            </TabsContent>
-          )}
           <TabsContent value="timeline">
             <TimelinePanel caseId={caseId} serviceAt={detail.serviceAt} />
           </TabsContent>

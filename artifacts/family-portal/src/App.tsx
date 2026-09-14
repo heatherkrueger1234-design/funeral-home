@@ -14,6 +14,7 @@ import Hub from "@/pages/Hub";
 import Photos from "@/pages/Photos";
 import Obituary from "@/pages/Obituary";
 import Selections from "@/pages/Selections";
+import Choices from "@/pages/Choices";
 import Timeline from "@/pages/Timeline";
 import Messages from "@/pages/Messages";
 import Aftercare from "@/pages/Aftercare";
@@ -21,7 +22,6 @@ import Belongings from "@/pages/Belongings";
 import Local from "@/pages/Local";
 import Vitals from "@/pages/Vitals";
 import Proofs from "@/pages/Proofs";
-import Statement from "@/pages/Statement";
 import Start from "@/pages/Start";
 import NotFound from "@/pages/NotFound";
 
@@ -94,6 +94,7 @@ export default function App() {
               <Route path="/photos" component={Photos} />
               <Route path="/obituary" component={Obituary} />
               <Route path="/service" component={Selections} />
+              <Route path="/choices" component={Choices} />
               <Route path="/timeline" component={Timeline} />
               <Route path="/messages" component={Messages} />
               <Route path="/aftercare" component={Aftercare} />
@@ -101,7 +102,6 @@ export default function App() {
               <Route path="/local" component={Local} />
               <Route path="/certificate" component={Vitals} />
               <Route path="/proofs" component={Proofs} />
-              <Route path="/statement" component={Statement} />
               <Route component={NotFound} />
             </Switch>
           </PortalShell>

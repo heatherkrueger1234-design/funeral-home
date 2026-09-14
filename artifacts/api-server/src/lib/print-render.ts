@@ -43,7 +43,7 @@ export function esc(value: string): string {
 }
 
 /** Preserve the line breaks a director typed, which are the layout. */
-function lines(value: string): string {
+export function lines(value: string): string {
   return esc(value)
     .split(/\r?\n/)
     .map((line) => line.trim())

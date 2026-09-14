@@ -202,60 +202,98 @@ that actually stops new cases.
 New homes get a 30-day trial, dated from registration so "when does this end"
 has an answer from the first minute.
 
-**That subscription is the only money in this system**, and the next section is
-why.
+## The storefront, the price lists and the statement
 
-## The statement, and why we never touch the family's money
+The home's own merchandise, at the home's own prices, and the three price
+lists the FTC Funeral Rule requires a funeral provider to be able to produce.
 
-The product processes no payments, holds no funds, stores no card or bank
-detail and takes no percentage of anything a home sells. There is no Stripe
-Connect, no merchant-of-record question, no split and no escrow. A family that
-owes a funeral home money is linked out to **the home's own payment page**, at
-the home's own processor, under the home's own merchant account.
+**It ships empty, and that is the feature.** There is no starter catalogue, no
+suggested pricing, no typical markup and no default urn anywhere in
+`lib/db/src/schema/catalogue.ts` or any migration of it. A home's merchandise
+and what it charges for it are its margin, its livelihood and its own Funeral
+Rule disclosure — and a vendor whose software has an opinion about either is
+competing with the selection room it was sold to. The only thing this system
+knows about a price is which number to print.
 
-Every instinct in software pushes the other way, so the reasoning is written
-down rather than left to be re-derived:
+Homes load their own with **`/api/catalogue/import`**, which reads the CSV
+they already have. Columns are guessed and previewed before anything is
+written; anything labelled cost or wholesale is deliberately never read as a
+price, because those columns sit right beside the retail one in every
+supplier's export and importing one would publish a home's margin on a sheet
+a family reads.
 
-- Homes have taken money for a century — cards, checks, insurance assignments,
-  payment plans. We are not an improvement on that; we would be a second thing
-  to reconcile.
-- Routing funds on a home's behalf raises money transmission questions in every
-  state we sell into. Linking out raises none.
-- No card data means no PCI scope. No connected accounts means no identity
-  verification wall standing between a home and its first useful day.
-- Chargebacks, refunds and disputes stay with the home, which is where the
-  relationship and the bookkeeping already are.
+### What the Funeral Rule shapes
 
-What we *do* produce is the **Statement of Funeral Goods and Services
-Selected** — the itemised document the FTC Funeral Rule requires a provider to
-give at the end of an arrangement. `lib/db/src/schema/orders.ts` holds it,
-`routes/orders.ts` serves it and `lib/statement-render.ts` prints it, on the
-home's letterhead and with no mark of ours on it, because the provider is the
-home and we are a software vendor.
+The Rule binds the *home*, not us. Our job is a storefront a home can use
+without breaking it, so these are enforced rather than suggested:
 
-Three things are load-bearing and should not be traded away:
+- **Every item carries its own price.** Packages exist in addition, never
+  instead: choosing one writes its members as ordinary itemised lines plus a
+  single adjustment carrying the saving, so declining any one of them removes
+  the item, drops the adjustment and moves the total in front of the family.
+- **The catalogue prints as a General Price List, a Casket Price List and an
+  Outer Burial Container Price List**, from
+  `artifacts/api-server/src/lib/price-list-render.ts` — print-ready HTML on
+  letter paper, sharing its escaping with the print studio next door.
+- **No casket reaches a family before the General Price List does.** The gate
+  is on the server (`mayShowCaskets`), not drawn in the interface and hoped
+  for: casket and outer-burial-container categories are not returned, and
+  adding one to a selection is refused, until the home has dated a price list
+  and this family has been given it — by opening it, or by a director
+  recording that they handed one across the desk.
+- **A family bringing their own casket or urn is charged nothing**, and there
+  is nowhere to put a fee if somebody later wants one. A provider may not
+  refuse a third-party casket or surcharge for handling it, so that path has
+  no price in its request body, no price in the row it writes, and a check
+  constraint on `merchandise_selection_items` that refuses one.
+- The GPL's required disclosures are **slots we name and words the home
+  writes**. The Rule prescribes what each must convey; a national SaaS typing
+  the paragraphs for two hundred homes would be giving legal advice it is not
+  qualified to give.
 
-- **Confirming freezes it.** A change afterwards is a revision that supersedes
-  the old one. A document already handed to a family is evidence, and evidence
-  that can be quietly rewritten is not evidence.
-- **A third-party casket or urn carries no price and no fee.** The Funeral Rule
-  forbids refusing one and forbids charging to handle it, so the `family_provided`
-  kind has no price field the API will accept. Do not add one "for convenience".
-- **Settled is a note about the home's books, never a receipt from us.** We do
-  not process the payment and are never told when one is made. No sentence
-  anywhere may say "paid" or "payment received".
+### The statement, and the handoff
 
-**A `pre_need` case has no statement, no total and no payment link**, in the
-UI or the API. Under C.R.S. Title 10, Article 15 a Colorado preneed contract
-needs a Division of Insurance licence, a $500 filing fee, $100,000 of net worth
-or a bond, and 85% of the money in trust — or insurance funding instead. There
-are exactly two lawful funding methods and neither is a hyperlink. The plan is
-recorded here; the money is arranged under the home's own licence, elsewhere.
-See `COLORADO.md` section 4.
+A confirmed selection is the **Statement of Funeral Goods and Services
+Selected**, generated from what the family actually chose and printable by
+both sides. Names, sections and prices are snapshotted onto the line when it
+is added, so a home raising its prices in March cannot rewrite what a family
+agreed in February.
 
-`test/statement.test.ts` asserts the two absences: that a pre-need case offers
-no payment path, and that no file in this component names a processor, stores a
-card or bank detail, or reaches the subscription billing module.
+**No money moves through this product.** A confirmed at-need statement ends
+with the home's own payment page, at the home's own processor, with the
+destination host printed underneath — a message about money sent to a
+bereaved family is exactly what a scammer imitates, so ours has to be boring,
+expected and visibly theirs. With no link set, the family is asked to
+telephone, which is an answer rather than an error. The "settled" mark is a
+director reading their own books and the copy says so; nothing here implies
+we received or confirmed a payment, because we cannot know.
+
+**A `pre_need` case has no payment path at all** — not in the interface, not
+in the API, not on the printed sheet, which says plainly that it is a plan
+and not a bill. Selling a preneed contract in Colorado needs a Division of
+Insurance licence, a bond or $100,000 of net worth and 85% of the money in
+trust; there are two lawful funding methods and neither is a payment link.
+
+`storefront.test.ts` carries a test that reads this component's own source and
+fails if a card field, a balance or a second Stripe surface ever appears in
+it. Everything else in that file would still pass if one did.
+
+One more absence is worth naming, because it is a sentence in the interface
+rather than a rule: once a director ticks a statement off against their own
+books, the family stops being offered a way to pay it. Asking somebody to pay
+again for their mother's funeral is the worst version of that screen there is.
+
+### A note on `additionalProperties: false`
+
+The spec marks the no-fee bodies `additionalProperties: false`, and orval does
+not carry that through to `.strict()` — a generated validator *drops* an
+unknown key where the spec says to refuse it. For most bodies that is what we
+want. For "we are bringing our own" it is not: a client attaching a fee to a
+third-party casket must be told no, because the difference between "refused"
+and "silently ignored" is the difference between a rule the product enforces
+and one it merely happens to obey today. `assertNoExtraKeys` in
+`artifacts/api-server/src/lib/storefront.ts` puts it back. If orval ever
+learns to emit `.strict()`, delete it.
 
 ## Tests
 
