@@ -1,4 +1,4 @@
-@import url('https://fonts.googleapis.com/css2?family=Lora:ital,wght@0,400;0,500;0,600;1,400&family=Nunito:wght@300;400;500;600;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Lora:ital,wght@0,400;0,500;0,600;1,400;1,500&family=Source+Sans+3:ital,wght@0,300;0,400;0,500;0,600;0,700;1,400&display=swap');
 @import "tailwindcss";
 @import "tw-animate-css";
 @plugin "@tailwindcss/typography";
@@ -6,14 +6,19 @@
 /*
  * The console's surface.
  *
- * Shares the family portal's palette so a director recognises what their
- * families are looking at, but denser: this is a screen somebody has open all
- * day at a desk, not one they open once on a phone in a hospital corridor.
- * Hence the ordinary 16px base type rather than the portal's 17px.
+ * Shares the family portal's paper, ink and elevation exactly, so a director
+ * recognises what their families are looking at — but set denser: this is a
+ * screen somebody has open all day at a desk, not one they open once on a
+ * phone in a hospital corridor. Hence the ordinary 16px base type rather
+ * than the portal's 17px, and tighter vertical rhythm on lists.
+ *
+ * The rule the whole console is held to: it should look like the desk of
+ * someone who is good at this. Uncluttered, everything where it was left,
+ * nothing blinking for attention.
  */
 
 @theme inline {
-  --font-sans: 'Nunito', ui-sans-serif, system-ui, sans-serif;
+  --font-sans: 'Source Sans 3', ui-sans-serif, system-ui, sans-serif;
   --font-display: 'Lora', ui-serif, Georgia, serif;
 
   --color-background: var(--background);
@@ -22,7 +27,9 @@
   --color-muted-foreground: var(--muted-foreground);
   --color-card: var(--card);
   --color-card-foreground: var(--foreground);
+  --color-sunken: var(--sunken);
   --color-border: var(--border);
+  --color-border-strong: var(--border-strong);
   --color-input: var(--border);
   --color-ring: var(--accent);
 
@@ -32,28 +39,59 @@
   --color-secondary-foreground: var(--foreground);
   --color-accent: var(--accent-soft);
   --color-accent-foreground: var(--accent-deep);
-  --color-destructive: #b3261e;
+  --color-destructive: var(--destructive);
   --color-destructive-foreground: #ffffff;
   --color-popover: var(--card);
   --color-popover-foreground: var(--foreground);
 
+  --color-notice: var(--notice);
+  --color-notice-soft: var(--notice-soft);
+
   --radius-lg: 1rem;
   --radius-md: 0.75rem;
   --radius-sm: 0.5rem;
+
+  --shadow-card: var(--elevation-1);
+  --shadow-raised: var(--elevation-2);
+  --shadow-float: var(--elevation-3);
+
+  --ease-gentle: cubic-bezier(0.2, 0.6, 0.3, 1);
 }
 
 :root {
-  --background: #faf8f5;
-  --foreground: #1f2421;
-  --muted: #f0ece6;
-  --muted-foreground: #6b7069;
+  --background: #f8f6f1;
+  --foreground: #1b201d;
+  --muted: #efebe3;
+  --muted-foreground: #6a6f68;
   --card: #ffffff;
-  --border: #e5ded4;
+  --sunken: #fbf9f5;
+  --border: #e7e0d5;
+  --border-strong: #d8cfc0;
 
   /* Replaced at runtime by the home's own colour. */
   --accent: #1f4e46;
   --accent-soft: #eef3f1;
   --accent-deep: #14332e;
+
+  /*
+   * Something has to mark an overdue thing, and red is not available for it:
+   * a director's worklist rendered in alarm colours would make every morning
+   * look like an emergency. This warm clay reads as "worth your attention".
+   */
+  --notice: #8a5a2b;
+  --notice-soft: #f7efe4;
+
+  --destructive: #a32a20;
+
+  --elevation-1: 0 1px 1px rgb(40 34 24 / 0.03), 0 1px 2px rgb(40 34 24 / 0.04);
+  --elevation-2:
+    0 1px 1px rgb(40 34 24 / 0.03),
+    0 2px 4px rgb(40 34 24 / 0.04),
+    0 12px 24px -16px rgb(40 34 24 / 0.16);
+  --elevation-3:
+    0 1px 2px rgb(40 34 24 / 0.05),
+    0 8px 16px -8px rgb(40 34 24 / 0.10),
+    0 24px 48px -24px rgb(40 34 24 / 0.22);
 
   --radius: 0.75rem;
 }
@@ -66,20 +104,101 @@ body {
   background: var(--background);
   color: var(--foreground);
   font-family: var(--font-sans);
+  font-optical-sizing: auto;
   -webkit-font-smoothing: antialiased;
-  /* Nothing here is dense enough to need a scrollbar sideways. */
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
   overflow-x: hidden;
+}
+
+html {
+  font-size: 16px;
+  -webkit-text-size-adjust: 100%;
 }
 
 h1, h2, h3, .font-display {
   font-family: var(--font-display);
-  letter-spacing: -0.01em;
+  font-weight: 500;
+  letter-spacing: -0.012em;
+  text-wrap: balance;
+}
+
+h1 { line-height: 1.2; }
+h2, h3 { line-height: 1.3; }
+
+p, li { text-wrap: pretty; }
+
+.eyebrow {
+  font-size: 0.6875rem;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--muted-foreground);
+}
+
+/* Counts, dates and case numbers sit in columns, so they line up in columns. */
+.tabular, time, table {
+  font-variant-numeric: tabular-nums;
 }
 
 /*
- * Bigger than a marketing site would use. The people reading this are often
- * in their seventies and are reading it on a phone in a hospital corridor.
+ * Half the value of a tool somebody lives in is being able to run it without
+ * the mouse, so focus is visible everywhere and nothing removes it.
  */
-html {
-  font-size: 16px;
+:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+  border-radius: var(--radius-sm);
+}
+
+::selection {
+  background: var(--accent-soft);
+  color: var(--accent-deep);
+}
+
+a[href]:not([class*="no-underline"]) {
+  text-underline-offset: 0.2em;
+  text-decoration-thickness: from-font;
+}
+
+.transition-gentle {
+  transition-property: color, background-color, border-color, box-shadow, transform, opacity;
+  transition-duration: 200ms;
+  transition-timing-function: var(--ease-gentle);
+}
+
+@media (hover: hover) {
+  .lift:hover {
+    box-shadow: var(--elevation-2);
+    transform: translateY(-1px);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+
+  .lift:hover { transform: none; }
+}
+
+/*
+ * Directors print case sheets and hand them to whoever is on the removal.
+ * Print on white, without the furniture, and never split a panel over two
+ * sheets.
+ */
+@media print {
+  :root { --background: #ffffff; }
+
+  body { background: #fff; }
+
+  header, nav, .no-print { display: none !important; }
+
+  main { max-width: none !important; padding: 0 !important; }
+
+  .lift, [class*="shadow"] { box-shadow: none !important; }
+
+  section, li, tr { break-inside: avoid; }
 }

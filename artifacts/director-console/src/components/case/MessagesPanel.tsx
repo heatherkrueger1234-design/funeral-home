@@ -9,6 +9,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Loader2, Moon, Send } from "lucide-react";
+import { Loading } from "@/components/page";
 
 /**
  * The thread, from the home's side.
@@ -38,9 +39,7 @@ export function MessagesPanel({ caseId }: { caseId: number }) {
 
   if (thread.isPending) {
     return (
-      <div className="py-12 text-center">
-        <Loader2 className="size-5 animate-spin mx-auto text-muted-foreground" />
-      </div>
+      <Loading />
     );
   }
 

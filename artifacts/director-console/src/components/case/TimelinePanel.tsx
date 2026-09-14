@@ -14,6 +14,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
 import { CalendarSync, Church, Loader2, Plus, X } from "lucide-react";
+import { Loading } from "@/components/page";
 
 /**
  * The timeline the family is shown.
@@ -91,9 +92,7 @@ export function TimelinePanel({
       </div>
 
       {deadlines.isPending ? (
-        <div className="py-12 text-center">
-          <Loader2 className="size-5 animate-spin mx-auto text-muted-foreground" />
-        </div>
+        <Loading />
       ) : rows.length === 0 ? (
         <p className="rounded-xl border border-dashed border-border py-10 text-center text-muted-foreground">
           Nothing on the timeline yet.

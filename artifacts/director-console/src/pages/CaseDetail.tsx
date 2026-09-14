@@ -21,7 +21,6 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import { useToast } from "@/hooks/use-toast";
-import { Loader2 } from "lucide-react";
 import { FamilyPanel } from "@/components/case/FamilyPanel";
 import { PhotosPanel } from "@/components/case/PhotosPanel";
 import { ObituaryPanel } from "@/components/case/ObituaryPanel";
@@ -33,6 +32,7 @@ import { VitalsPanel } from "@/components/case/VitalsPanel";
 import { PrintPanel } from "@/components/case/PrintPanel";
 import { DetailsPanel } from "@/components/case/DetailsPanel";
 import { CaseData } from "@/components/CaseData";
+import { Loading } from "@/components/page";
 
 export default function CaseDetail() {
   const [, params] = useRoute("/cases/:caseId");
@@ -64,9 +64,7 @@ export default function CaseDetail() {
 
   if (row.isPending) {
     return (
-      <div className="py-16 text-center">
-        <Loader2 className="size-5 animate-spin mx-auto text-muted-foreground" />
-      </div>
+      <Loading />
     );
   }
 

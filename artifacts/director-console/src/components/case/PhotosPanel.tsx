@@ -9,7 +9,8 @@ import {
   getGetCaseQueryKey,
 } from "@workspace/api-client-react";
 import { Button } from "@/components/ui/button";
-import { Check, Download, Eye, EyeOff, Loader2, Scissors, Star, Trash2 } from "lucide-react";
+import { Check, Download, Eye, EyeOff, Scissors, Star, Trash2 } from "lucide-react";
+import { Loading } from "@/components/page";
 
 /**
  * The photographs, as the director sees them: including the ones they have
@@ -45,9 +46,7 @@ export function PhotosPanel({
 
   if (photos.isPending) {
     return (
-      <div className="py-12 text-center">
-        <Loader2 className="size-5 animate-spin mx-auto text-muted-foreground" />
-      </div>
+      <Loading />
     );
   }
 

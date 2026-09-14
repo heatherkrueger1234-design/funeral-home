@@ -25,7 +25,8 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
-import { Check, Loader2, Printer, Trash2, Plus } from "lucide-react";
+import { Check, Printer, Trash2, Plus } from "lucide-react";
+import { Loading } from "@/components/page";
 
 /**
  * The print studio.
@@ -311,9 +312,7 @@ export function PrintPanel({ caseId }: { caseId: number }) {
 
   if (templates.isPending || items.isPending) {
     return (
-      <div className="py-12 text-center">
-        <Loader2 className="size-5 animate-spin mx-auto text-muted-foreground" />
-      </div>
+      <Loading />
     );
   }
 

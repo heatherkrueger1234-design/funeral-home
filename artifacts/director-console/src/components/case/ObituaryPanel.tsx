@@ -10,7 +10,8 @@ import {
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
-import { Check, Loader2, RefreshCw } from "lucide-react";
+import { Check, RefreshCw } from "lucide-react";
+import { Loading } from "@/components/page";
 
 /**
  * The obituary, from the director's side: the family's answers on the left,
@@ -59,9 +60,7 @@ export function ObituaryPanel({ caseId }: { caseId: number }) {
 
   if (obituary.isPending) {
     return (
-      <div className="py-12 text-center">
-        <Loader2 className="size-5 animate-spin mx-auto text-muted-foreground" />
-      </div>
+      <Loading />
     );
   }
 

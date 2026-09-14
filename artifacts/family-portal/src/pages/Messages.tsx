@@ -8,7 +8,8 @@ import {
 } from "@workspace/api-client-react";
 import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
-import { Loader2, Moon, Phone, Send } from "lucide-react";
+import { Loader2, MessageCircle, Moon, Phone, Send } from "lucide-react";
+import { Empty, Loading, PageHeader } from "@/components/page";
 
 /**
  * One thread, with the funeral home.
@@ -64,13 +65,7 @@ export default function Messages() {
     endRef.current?.scrollIntoView({ block: "end" });
   }, [messages?.length]);
 
-  if (thread.isPending) {
-    return (
-      <div className="py-12 text-center">
-        <Loader2 className="size-5 animate-spin mx-auto text-muted-foreground" />
-      </div>
-    );
-  }
+  if (thread.isPending) return <Loading rows={3} />;
 
   if (!thread.data) return null;
 
@@ -82,35 +77,49 @@ export default function Messages() {
   } = thread.data;
 
   return (
-    <div className="space-y-5">
-      <header>
-        <h1 className="font-display text-2xl mb-1">Messages</h1>
-        <p className="text-muted-foreground">
-          Everything in one place, so nothing gets lost between people.
-        </p>
-      </header>
+    <div className="space-y-6">
+      <PageHeader title="Messages">
+        Everything in one place, so nothing gets lost between people.
+      </PageHeader>
 
-      <div className="space-y-3">
+      <div className="space-y-2.5">
         {thread.data.messages.length === 0 && (
-          <p className="rounded-xl border border-dashed border-border px-4 py-8 text-center text-muted-foreground">
-            Nothing yet. Ask anything at all — no question is too small.
-          </p>
+          <Empty icon={MessageCircle} title="Nothing yet">
+            Ask anything at all — no question is too small, and there is no
+            such thing as bothering them.
+          </Empty>
         )}
 
         {thread.data.messages.map((message) => {
           const fromHome = message.authorSide === "home";
 
           return (
+            /*
+              The home's side is washed in the home's own colour and squared
+              off at the corner nearest its own edge; the family's side is
+              white card. Two shapes rather than two colours, so which is
+              which survives a brand colour that happens to be pale.
+            */
             <div
               key={message.id}
-              className={`max-w-[85%] rounded-xl px-4 py-3 ${
+              className={[
+                "max-w-[85%] px-4 py-3 shadow-[var(--elevation-1)]",
                 fromHome
-                  ? "bg-[var(--accent-soft)] text-[var(--accent-deep)]"
-                  : "ml-auto bg-card border border-border"
-              }`}
+                  ? "rounded-xl rounded-bl-sm bg-[var(--accent-soft)] text-[var(--accent-deep)] ring-1 ring-inset ring-[var(--accent)]/12"
+                  : "ml-auto rounded-xl rounded-br-sm border border-border bg-card",
+              ].join(" ")}
             >
-              <p className="whitespace-pre-wrap break-words">{message.body}</p>
-              <p className="mt-1.5 text-xs text-muted-foreground">
+              <p className="whitespace-pre-wrap break-words leading-relaxed">
+                {message.body}
+              </p>
+              <p
+                className={[
+                  "mt-2 text-xs",
+                  fromHome
+                    ? "text-[var(--accent-deep)]/65"
+                    : "text-muted-foreground",
+                ].join(" ")}
+              >
                 {message.authorName ?? (fromHome ? "The funeral home" : "You")}
                 {message.authorTitle ? `, ${message.authorTitle}` : ""} ·{" "}
                 {formatSent(message.createdAt)}
@@ -122,7 +131,7 @@ export default function Messages() {
       </div>
 
       {locked ? (
-        <p className="rounded-xl border border-border bg-card px-4 py-4 text-sm text-muted-foreground">
+        <p className="rounded-xl border border-border bg-[var(--sunken)] px-4 py-4 text-sm leading-relaxed text-muted-foreground">
           This conversation has been closed now that everything is finished.
           Please call the funeral home if you need them — they would rather
           hear from you than not.
@@ -130,9 +139,9 @@ export default function Messages() {
       ) : (
         <div className="space-y-3">
           {!withinOfficeHours && (
-            <div className="rounded-xl border border-border bg-card px-4 py-3">
-              <p className="flex items-start gap-2 text-sm text-muted-foreground">
-                <Moon className="mt-0.5 size-4 shrink-0" />
+            <div className="rounded-xl border border-border bg-[var(--sunken)] px-4 py-3.5">
+              <p className="flex items-start gap-2.5 text-sm leading-relaxed text-muted-foreground">
+                <Moon className="mt-0.5 size-4 shrink-0" strokeWidth={1.75} />
                 <span>
                   Send this whenever you like — it will be waiting for them.
                   Your director reads messages from{" "}
@@ -142,7 +151,7 @@ export default function Messages() {
               {urgentPhone && (
                 <a
                   href={`tel:${urgentPhone.replace(/[^\d+]/g, "")}`}
-                  className="mt-2 flex items-center gap-2 text-sm font-medium text-[var(--accent-deep)]"
+                  className="mt-2.5 flex items-center gap-2 text-sm font-semibold text-[var(--accent-deep)] decoration-[var(--accent)]/40 underline-offset-4 hover:decoration-[var(--accent)]"
                 >
                   <Phone className="size-4" />
                   If it can't wait, call {urgentPhone}
@@ -151,25 +160,33 @@ export default function Messages() {
             </div>
           )}
 
-          <Textarea
-            value={body}
-            rows={3}
-            placeholder="What would you like to ask?"
-            onChange={(event) => setBody(event.target.value)}
-          />
-          <Button
-            type="button"
-            className="w-full"
-            disabled={!body.trim() || send.isPending}
-            onClick={() => send.mutate({ data: { body: body.trim() } })}
-          >
-            {send.isPending ? (
-              <Loader2 className="size-4 animate-spin" />
-            ) : (
-              <Send className="size-4" />
-            )}
-            Send
-          </Button>
+          {/*
+            The box and its button are one panel. Two loose rectangles stacked
+            on a page is what a form looks like; this is meant to look like
+            somewhere to write.
+          */}
+          <div className="rounded-xl border border-border bg-card p-3 shadow-[var(--elevation-1)] focus-within:border-[var(--accent)]/50">
+            <Textarea
+              value={body}
+              rows={3}
+              placeholder="What would you like to ask?"
+              className="min-h-24 resize-y border-0 bg-transparent p-1 shadow-none focus-visible:shadow-none"
+              onChange={(event) => setBody(event.target.value)}
+            />
+            <Button
+              type="button"
+              className="mt-2 w-full"
+              disabled={!body.trim() || send.isPending}
+              onClick={() => send.mutate({ data: { body: body.trim() } })}
+            >
+              {send.isPending ? (
+                <Loader2 className="size-4 animate-spin" />
+              ) : (
+                <Send className="size-4" />
+              )}
+              Send
+            </Button>
+          </div>
         </div>
       )}
     </div>

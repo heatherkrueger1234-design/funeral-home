@@ -19,7 +19,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Loader2, Plus, X } from "lucide-react";
+import { Plus, X } from "lucide-react";
+import { Loading } from "@/components/page";
 
 /**
  * The home's own verses, prayers and closing lines.
@@ -81,9 +82,7 @@ export function SnippetLibrary({ readOnly }: { readOnly: boolean }) {
       </div>
 
       {snippets.isPending ? (
-        <div className="py-6 text-center">
-          <Loader2 className="size-5 animate-spin mx-auto text-muted-foreground" />
-        </div>
+        <Loading />
       ) : rows.length === 0 ? (
         <p className="rounded-lg border border-dashed border-border px-4 py-6 text-sm text-muted-foreground">
           Nothing here yet. We don't ship any — most of what goes on a prayer

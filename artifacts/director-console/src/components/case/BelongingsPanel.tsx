@@ -21,7 +21,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Check, Loader2, Plus, X } from "lucide-react";
+import { Check, Plus, X } from "lucide-react";
+import { Loading } from "@/components/page";
 
 /**
  * The custody log, and the sheet that goes to the preparation room.
@@ -85,9 +86,7 @@ export function BelongingsPanel({ caseId }: { caseId: number }) {
 
   if (items.isPending || preparation.isPending) {
     return (
-      <div className="py-12 text-center">
-        <Loader2 className="size-5 animate-spin mx-auto text-muted-foreground" />
-      </div>
+      <Loading />
     );
   }
 

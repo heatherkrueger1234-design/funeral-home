@@ -20,6 +20,7 @@ import {
 import { Images, Loader2, MessageCircle, Plus, Search, TriangleAlert } from "lucide-react";
 import { ImportCases } from "@/components/ImportCases";
 import { SetupChecklist, TrialBanner } from "@/components/SetupChecklist";
+import { Loading } from "@/components/page";
 
 /**
  * The worklist.
@@ -175,9 +176,7 @@ export default function Cases() {
       </div>
 
       {cases.isPending ? (
-        <div className="py-16 text-center">
-          <Loader2 className="size-5 animate-spin mx-auto text-muted-foreground" />
-        </div>
+        <Loading />
       ) : rows.length === 0 ? (
         <div className="rounded-xl border border-dashed border-border py-16 text-center">
           <p className="text-muted-foreground">

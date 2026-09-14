@@ -8,7 +8,8 @@ import {
 } from "@workspace/api-client-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { Loader2, Lock, Plus, X } from "lucide-react";
+import { Lock, Plus, X } from "lucide-react";
+import { Loading, PageHeader } from "@/components/page";
 
 /**
  * Hymns, readings, music, and the names of whoever will carry.
@@ -70,24 +71,15 @@ export default function Selections() {
   const add = useCreateFamilySelection({ mutation: { onSuccess: refresh } });
   const remove = useDeleteFamilySelection({ mutation: { onSuccess: refresh } });
 
-  if (selections.isPending) {
-    return (
-      <div className="py-12 text-center">
-        <Loader2 className="size-5 animate-spin mx-auto text-muted-foreground" />
-      </div>
-    );
-  }
+  if (selections.isPending) return <Loading rows={4} />;
 
   const rows = selections.data ?? [];
 
   return (
     <div className="space-y-8">
-      <header>
-        <h1 className="font-display text-2xl mb-1">The service</h1>
-        <p className="text-muted-foreground">
-          Add what you know. The funeral home will fill in the rest with you.
-        </p>
-      </header>
+      <PageHeader title="The service">
+        Add what you know. The funeral home will fill in the rest with you.
+      </PageHeader>
 
       {SECTIONS.map((section) => {
         const items = rows.filter((row) => row.kind === section.kind);
@@ -112,20 +104,34 @@ export default function Selections() {
         };
 
         return (
-          <section key={section.kind} className="space-y-3">
-            <h2 className="font-display text-lg">{section.title}</h2>
+          /*
+            One card per kind, with its entries and its own "add" line inside
+            it. The old shape — a floating heading, then loose rows, then two
+            loose boxes — left the eye to guess which input belonged to which
+            heading, which on a page with five of them is a guess people get
+            wrong.
+          */
+          <section
+            key={section.kind}
+            className="overflow-hidden rounded-xl border border-border bg-card shadow-[var(--elevation-1)]"
+          >
+            <h2 className="border-b border-border bg-[var(--sunken)] px-4 py-3 font-display text-base">
+              {section.title}
+            </h2>
 
             {items.length > 0 && (
-              <ul className="space-y-2">
+              <ul className="divide-y divide-border">
                 {items.map((item) => (
                   <li
                     key={item.id}
-                    className="flex items-center gap-3 rounded-lg border border-border bg-card px-3 py-2.5"
+                    className="flex items-center gap-3 px-4 py-3"
                   >
                     <span className="min-w-0 flex-1">
-                      <span className="block truncate">{item.value}</span>
+                      <span className="block truncate font-medium">
+                        {item.value}
+                      </span>
                       {item.attribution && (
-                        <span className="block text-sm text-muted-foreground truncate">
+                        <span className="block truncate text-sm text-muted-foreground">
                           {item.attribution}
                         </span>
                       )}
@@ -133,10 +139,10 @@ export default function Selections() {
 
                     {item.confirmedAt ? (
                       <span
-                        className="flex shrink-0 items-center gap-1 text-xs text-muted-foreground"
+                        className="flex shrink-0 items-center gap-1 rounded-full bg-[var(--accent-soft)] px-2 py-0.5 text-xs font-semibold text-[var(--accent-deep)]"
                         title="The funeral home has confirmed this one."
                       >
-                        <Lock className="size-3.5" />
+                        <Lock className="size-3" />
                         Confirmed
                       </span>
                     ) : (
@@ -158,7 +164,11 @@ export default function Selections() {
               </ul>
             )}
 
-            <div className="flex gap-2">
+            <div
+              className={`flex gap-2 px-4 py-3 ${
+                items.length > 0 ? "border-t border-border" : ""
+              }`}
+            >
               <Input
                 value={draft.value}
                 placeholder={section.placeholder}
@@ -179,7 +189,7 @@ export default function Selections() {
                 <Input
                   value={draft.attribution}
                   placeholder={section.attribution}
-                  className="max-w-[9rem]"
+                  className="max-w-[9rem] shrink"
                   onChange={(event) =>
                     setDrafts((current) => ({
                       ...current,

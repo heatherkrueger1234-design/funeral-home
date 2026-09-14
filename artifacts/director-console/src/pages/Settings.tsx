@@ -11,10 +11,10 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Button } from "@/components/ui/button";
-import { Loader2 } from "lucide-react";
 import { StandardSchedule } from "@/components/StandardSchedule";
 import { BillingSection } from "@/components/BillingSection";
 import { SnippetLibrary } from "@/components/SnippetLibrary";
+import { Loading, PageHeader } from "@/components/page";
 
 /** "08:00" for a time input, from minutes since midnight. */
 const toTimeInput = (minute: number) =>
@@ -51,9 +51,7 @@ export default function Settings() {
 
   if (home.isPending) {
     return (
-      <div className="py-16 text-center">
-        <Loader2 className="size-5 animate-spin mx-auto text-muted-foreground" />
-      </div>
+      <Loading />
     );
   }
 
@@ -65,14 +63,11 @@ export default function Settings() {
 
   return (
     <div className="max-w-2xl space-y-8">
-      <header>
-        <h1 className="font-display text-2xl mb-1">Settings</h1>
-        <p className="text-muted-foreground">
-          {readOnly
-            ? "Only an owner can change these."
-            : "How families see you, and when you are open."}
-        </p>
-      </header>
+      <PageHeader title="Settings">
+        {readOnly
+        ? "Only an owner can change these."
+        : "How families see you, and when you are open."}
+      </PageHeader>
 
       <section className="space-y-4 rounded-xl border border-border bg-card p-4">
         <h2 className="font-medium">How families see you</h2>

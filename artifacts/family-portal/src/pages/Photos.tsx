@@ -18,6 +18,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
 import { Check, Images, Loader2, Scissors, Star, Trash2, Upload } from "lucide-react";
+import { Empty, Loading, PageHeader } from "@/components/page";
 
 /**
  * The photo bin.
@@ -124,21 +125,38 @@ export default function Photos() {
 
   return (
     <div className="space-y-6">
-      <header>
-        <h1 className="font-display text-2xl mb-1">Photographs</h1>
-        <p className="text-muted-foreground">
-          Add as many as you like — go through every album if you want to.
-          You'll choose the ones for the slideshow afterwards.
-        </p>
-      </header>
+      <PageHeader title="Photographs">
+        Add as many as you like — go through every album if you want to.
+        You'll choose the ones for the slideshow afterwards.
+      </PageHeader>
 
       {count > 0 && (
-        <div className="rounded-xl border border-border bg-card px-4 py-3">
-          <p className="flex items-center gap-2 font-medium">
-            <Scissors className="size-4 text-[var(--accent-deep)]" />
-            {chosen.length} chosen for the slideshow
+        <div className="rounded-xl border border-border bg-card px-4 py-4 shadow-[var(--elevation-1)]">
+          <p className="flex items-center gap-2.5 font-semibold">
+            <span className="grid size-7 shrink-0 place-items-center rounded-full bg-[var(--accent-soft)] text-[var(--accent-deep)]">
+              <Scissors className="size-3.5" />
+            </span>
+            <span className="tabular">{chosen.length}</span> chosen for the
+            slideshow
           </p>
-          <p className="mt-1 text-sm text-muted-foreground">
+          {/*
+            A rule rather than a percentage. "Around fifty is comfortable" is
+            a piece of advice, not a target to hit, and a progress bar that
+            fills up would turn choosing photographs of a dead parent into a
+            task with a score.
+          */}
+          <div
+            aria-hidden
+            className="mt-3 h-1 overflow-hidden rounded-full bg-[var(--muted)]"
+          >
+            <div
+              className="h-full rounded-full bg-[var(--accent)] transition-[width] duration-500 ease-[cubic-bezier(0.2,0.6,0.3,1)]"
+              style={{
+                width: `${Math.min(100, (chosen.length / Math.max(1, target)) * 100)}%`,
+              }}
+            />
+          </div>
+          <p className="mt-2.5 text-sm leading-relaxed text-muted-foreground">
             {chosen.length === 0
               ? `Tap “Use this” on the ones you'd like shown. Around ${target} is comfortable to watch.`
               : chosen.length > target
@@ -159,7 +177,8 @@ export default function Photos() {
         />
         <Button
           type="button"
-          className="w-full h-12"
+          size="lg"
+          className="w-full"
           disabled={uploading !== null || remaining === 0}
           onClick={() => fileInput.current?.click()}
         >
@@ -183,36 +202,51 @@ export default function Photos() {
       </div>
 
       {photos.isPending ? (
-        <div className="py-12 text-center">
-          <Loader2 className="size-5 animate-spin mx-auto text-muted-foreground" />
-        </div>
+        <Loading rows={3} />
       ) : count === 0 ? (
-        <div className="rounded-xl border border-dashed border-border py-12 text-center">
-          <Images className="size-8 mx-auto mb-3 text-muted-foreground" />
-          <p className="text-muted-foreground">
-            Nothing here yet. Anything you have is welcome — old, blurry,
-            or from someone's camera roll.
-          </p>
-        </div>
+        <Empty icon={Images} title="Nothing here yet">
+          Anything you have is welcome — old, blurry, or from someone's camera
+          roll. There is no such thing as a photograph that is not good enough.
+        </Empty>
       ) : (
         <ul className="space-y-3">
           {photos.data!.map((photo) => (
             <li
               key={photo.id}
-              className="flex gap-3 rounded-xl border border-border bg-card p-3"
+              className={[
+                "flex gap-3.5 rounded-xl border bg-card p-3.5 transition-gentle",
+                "shadow-[var(--elevation-1)]",
+                photo.selected
+                  ? "border-[var(--accent)]/45 ring-1 ring-inset ring-[var(--accent)]/15"
+                  : "border-border",
+              ].join(" ")}
             >
-              <img
-                src={`/api/family/uploads/${photo.uploadId}`}
-                alt={photo.caption ?? ""}
-                loading="lazy"
-                className="size-20 shrink-0 rounded-lg object-cover bg-muted"
-              />
+              {/*
+                A fixed square with the picture covering it. Camera rolls are
+                a mix of portrait and landscape, and a list that jumps between
+                the two reads as a mess however good the photographs are.
+              */}
+              <div className="relative size-24 shrink-0">
+                <img
+                  src={`/api/family/uploads/${photo.uploadId}`}
+                  alt={photo.caption ?? ""}
+                  loading="lazy"
+                  className="size-full rounded-lg bg-muted object-cover ring-1 ring-inset ring-black/5"
+                />
+                {photo.isPortrait && (
+                  <span
+                    className="absolute -right-1.5 -top-1.5 grid size-6 place-items-center rounded-full bg-[var(--accent)] text-white shadow-[var(--elevation-1)]"
+                    title="The main photograph"
+                  >
+                    <Star className="size-3 fill-current" />
+                  </span>
+                )}
+              </div>
 
-              <div className="min-w-0 flex-1 space-y-2">
+              <div className="min-w-0 flex-1 space-y-2.5">
                 <Input
                   defaultValue={photo.caption ?? ""}
                   placeholder="Who's in it, and when?"
-                  className="h-9"
                   // Saved on blur rather than on every keystroke: this is a
                   // phone keyboard on mobile data, and a request per letter
                   // would be both slow and pointless.

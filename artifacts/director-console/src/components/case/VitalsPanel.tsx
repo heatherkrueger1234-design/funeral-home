@@ -8,7 +8,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { Check, Loader2, ShieldCheck, TriangleAlert } from "lucide-react";
+import { Check, ShieldCheck, TriangleAlert } from "lucide-react";
+import { Loading } from "@/components/page";
 
 /**
  * The certificate details, from the home's side.
@@ -103,9 +104,7 @@ export function VitalsPanel({ caseId }: { caseId: number }) {
 
   if (vitals.isPending) {
     return (
-      <div className="py-12 text-center">
-        <Loader2 className="size-5 animate-spin mx-auto text-muted-foreground" />
-      </div>
+      <Loading />
     );
   }
 

@@ -9,7 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { Loader2, Phone, ArrowLeft, Check } from "lucide-react";
+import { Loader2, Phone, ArrowLeft, ArrowRight, Check } from "lucide-react";
 
 /**
  * The home's front door: which of the three situations is this, and where
@@ -32,7 +32,9 @@ type Door = "at_need" | "pre_need" | null;
 function Shell({ children }: { children: React.ReactNode }) {
   return (
     <div className="min-h-dvh bg-[var(--background)]">
-      <div className="mx-auto w-full max-w-xl px-5 py-10 sm:py-14">{children}</div>
+      <div className="mx-auto w-full max-w-xl px-5 py-10 sm:py-16">
+        {children}
+      </div>
     </div>
   );
 }
@@ -58,15 +60,19 @@ function UrgentLine({
   return (
     <a
       href={`tel:${number.replace(/[^\d+]/g, "")}`}
-      className="flex items-center gap-3 rounded-lg border border-[var(--accent)]/30
-                 bg-[var(--accent-soft)] px-4 py-3 mb-8 hover:bg-[var(--accent-soft)]/70"
+      className="lift mb-8 flex items-center gap-3.5 rounded-xl border border-[var(--accent)]/25
+                 bg-[var(--accent-soft)] px-4 py-4 no-underline shadow-[var(--elevation-1)]
+                 transition-gentle hover:border-[var(--accent)]/50"
     >
-      <Phone className="size-5 text-[var(--accent-deep)] shrink-0" />
+      <span className="grid size-10 shrink-0 place-items-center rounded-full bg-white/70 text-[var(--accent-deep)]">
+        <Phone className="size-5" strokeWidth={1.75} />
+      </span>
       <span className="text-sm">
-        <span className="block font-medium text-[var(--accent-deep)]">
-          If this cannot wait, telephone {number}
+        <span className="block font-semibold text-[var(--accent-deep)]">
+          If this cannot wait, telephone{" "}
+          <span className="tabular">{number}</span>
         </span>
-        <span className="block text-muted-foreground">
+        <span className="mt-0.5 block text-muted-foreground">
           A death in the night, or anything urgent. Someone answers.
         </span>
       </span>
@@ -94,7 +100,22 @@ export default function Start() {
   if (home.isPending) {
     return (
       <Shell>
-        <Loader2 className="size-6 animate-spin mx-auto text-muted-foreground" />
+        <div
+          className="animate-pulse space-y-8"
+          role="status"
+          aria-label="Loading"
+        >
+          <div className="space-y-2.5">
+            <div className="h-9 w-3/5 rounded-md bg-[var(--muted)]" />
+            <div className="h-4 w-2/5 rounded-md bg-[var(--muted)]/70" />
+          </div>
+          <div className="h-[4.5rem] rounded-xl bg-[var(--muted)]/60" />
+          <div className="space-y-3">
+            {[0, 1, 2].map((row) => (
+              <div key={row} className="h-28 rounded-xl bg-[var(--muted)]/50" />
+            ))}
+          </div>
+        </div>
       </Shell>
     );
   }
@@ -102,13 +123,15 @@ export default function Start() {
   if (home.isError || !home.data) {
     return (
       <Shell>
-        <h1 className="font-display text-2xl mb-3">
-          We could not find that funeral home
-        </h1>
-        <p className="text-muted-foreground">
-          Please check the address, or go back to the funeral home's own
-          website and follow the link from there.
-        </p>
+        <div className="rounded-2xl border border-border bg-card p-7 shadow-[var(--elevation-2)] sm:p-9">
+          <h1 className="font-display text-2xl">
+            We could not find that funeral home
+          </h1>
+          <p className="mt-3 text-muted-foreground">
+            Please check the address, or go back to the funeral home's own
+            website and follow the link from there.
+          </p>
+        </div>
       </Shell>
     );
   }
@@ -120,15 +143,15 @@ export default function Start() {
       <Shell>
         <div className="text-center">
           <div
-            className="mx-auto mb-5 grid size-12 place-items-center rounded-full
-                       bg-[var(--accent-soft)]"
+            className="mx-auto mb-6 grid size-14 place-items-center rounded-full
+                       bg-[var(--accent-soft)] ring-1 ring-[var(--accent)]/15"
           >
-            <Check className="size-6 text-[var(--accent-deep)]" />
+            <Check className="size-7 text-[var(--accent-deep)]" strokeWidth={1.75} />
           </div>
-          <h1 className="font-display text-2xl mb-3">
+          <h1 className="font-display text-[1.75rem] leading-tight">
             {h.name} has your message
           </h1>
-          <p className="text-muted-foreground mb-8">
+          <p className="mx-auto mb-8 mt-3 max-w-sm leading-relaxed text-muted-foreground">
             {sent.kind === "at_need"
               ? "Someone will be in touch. If anything cannot wait, please telephone them rather than waiting for a reply here."
               : "There is no hurry, and nothing more for you to do today. Someone will be in touch to talk it through."}
@@ -144,10 +167,11 @@ export default function Start() {
       <Shell>
         <button
           onClick={() => setDoor(null)}
-          className="mb-6 inline-flex items-center gap-1.5 text-sm text-muted-foreground
-                     hover:text-foreground"
+          className="group mb-7 inline-flex items-center gap-1.5 rounded-md text-sm text-muted-foreground
+                     transition-colors duration-200 hover:text-foreground"
         >
-          <ArrowLeft className="size-4" /> Back
+          <ArrowLeft className="size-4 transition-transform duration-200 ease-[cubic-bezier(0.2,0.6,0.3,1)] group-hover:-translate-x-0.5" />
+          Back
         </button>
         <IntakeForm
           slug={slug}
@@ -163,10 +187,17 @@ export default function Start() {
 
   return (
     <Shell>
-      <header className="mb-8">
-        <h1 className="font-display text-3xl leading-tight">{h.name}</h1>
+      {/*
+        A masthead rather than a page title. The rule underneath it is doing
+        the same job the rule under a letterhead does: it says this is
+        somebody's establishment, and what follows is addressed to you.
+      */}
+      <header className="mb-8 border-b border-border pb-7">
+        <h1 className="font-display text-[2rem] leading-tight sm:text-[2.25rem]">
+          {h.name}
+        </h1>
         {(h.city || h.addressLine1) && (
-          <p className="text-muted-foreground mt-1">
+          <p className="mt-1.5 text-muted-foreground">
             {[h.addressLine1, h.city, h.region].filter(Boolean).join(", ")}
           </p>
         )}
@@ -174,8 +205,8 @@ export default function Start() {
 
       <UrgentLine urgentPhone={h.urgentPhone} phone={h.phone} />
 
-      <h2 className="font-display text-xl mb-1">Which of these is you?</h2>
-      <p className="text-muted-foreground text-sm mb-5">
+      <h2 className="font-display text-xl">Which of these is you?</h2>
+      <p className="mb-5 mt-1 text-sm text-muted-foreground">
         So we take you to the right place.
       </p>
 
@@ -211,9 +242,9 @@ export default function Start() {
             />
           </>
         ) : (
-          <div className="rounded-lg border p-4">
-            <p className="font-medium mb-1">Starting something new</p>
-            <p className="text-sm text-muted-foreground">
+          <div className="rounded-xl border border-border bg-card p-5 shadow-[var(--elevation-1)]">
+            <p className="mb-1 font-semibold">Starting something new</p>
+            <p className="text-sm leading-relaxed text-muted-foreground">
               {h.name} would rather you telephoned for a first conversation,
               whether that is because of a death or because you are planning
               ahead. Their number is above.
@@ -225,6 +256,17 @@ export default function Start() {
   );
 }
 
+/**
+ * One of the three doors.
+ *
+ * Where there is somewhere to go, the whole card is the button — not a small
+ * "Start" in the corner of a paragraph. Somebody reading this at 2am after a
+ * death should not have to aim.
+ *
+ * The first card has no action at all and is not pretending to: no hover, no
+ * arrow, nothing to click. It is an instruction to go and look in their
+ * messages, and dressing it as a button would send them somewhere useless.
+ */
 function DoorCard({
   title,
   body,
@@ -238,19 +280,43 @@ function DoorCard({
   onClick?: () => void;
   actionLabel?: string;
 }) {
-  return (
-    <div className="rounded-lg border p-4">
-      <p className="font-medium mb-1">{title}</p>
-      <p className="text-sm text-muted-foreground">{body}</p>
+  const inner = (
+    <>
+      <p className="font-semibold">{title}</p>
+      <p className="mt-1 text-sm leading-relaxed text-muted-foreground">
+        {body}
+      </p>
       {footnote && (
-        <p className="text-sm text-muted-foreground mt-2">{footnote}</p>
+        <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
+          {footnote}
+        </p>
       )}
-      {onClick && (
-        <Button onClick={onClick} className="mt-3" size="sm">
-          {actionLabel}
-        </Button>
-      )}
-    </div>
+    </>
+  );
+
+  if (!onClick) {
+    return (
+      <div className="rounded-xl border border-border bg-card p-5 shadow-[var(--elevation-1)]">
+        {inner}
+      </div>
+    );
+  }
+
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className="lift group w-full rounded-xl border border-border bg-card p-5 text-left
+                 shadow-[var(--elevation-1)] transition-gentle
+                 hover:border-[color-mix(in_oklab,var(--accent)_45%,var(--border))]
+                 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--accent)]"
+    >
+      {inner}
+      <span className="mt-3.5 inline-flex items-center gap-1.5 text-sm font-semibold text-[var(--accent-deep)]">
+        {actionLabel}
+        <ArrowRight className="size-4 transition-transform duration-200 ease-[cubic-bezier(0.2,0.6,0.3,1)] group-hover:translate-x-0.5" />
+      </span>
+    </button>
   );
 }
 
@@ -331,10 +397,10 @@ function IntakeForm({
         });
       }}
     >
-      <h1 className="font-display text-2xl mb-2">
+      <h1 className="font-display text-[1.75rem] leading-tight">
         {preNeed ? "Planning ahead" : "Starting with " + homeName}
       </h1>
-      <p className="text-muted-foreground mb-6">
+      <p className="mb-7 mt-2 leading-relaxed text-muted-foreground">
         {preNeed
           ? "A few details so someone can get in touch. Nothing here is a commitment, and nothing is decided today."
           : "Just enough for someone to ring you back. Everything else can wait until you have spoken to them."}
@@ -342,10 +408,11 @@ function IntakeForm({
 
       {!preNeed && <UrgentLine urgentPhone={urgentPhone} phone={phone} />}
 
-      <div className="space-y-4">
+      <div className="space-y-5">
         <div>
           <Label htmlFor="requesterName">Your full name</Label>
           <Input
+            className="mt-2"
             id="requesterName"
             value={requesterName}
             onChange={(event) => setRequesterName(event.target.value)}
@@ -353,16 +420,17 @@ function IntakeForm({
             required
           />
           {preNeed && (
-            <p className="text-xs text-muted-foreground mt-1">
+            <p className="mt-1.5 text-sm text-muted-foreground">
               This is the name the plan will be in.
             </p>
           )}
         </div>
 
-        <div className="grid gap-4 sm:grid-cols-2">
+        <div className="grid gap-5 sm:grid-cols-2">
           <div>
             <Label htmlFor="requesterPhone">Telephone</Label>
             <Input
+              className="mt-2"
               id="requesterPhone"
               type="tel"
               value={requesterPhone}
@@ -373,6 +441,7 @@ function IntakeForm({
           <div>
             <Label htmlFor="requesterEmail">Email</Label>
             <Input
+              className="mt-2"
               id="requesterEmail"
               type="email"
               value={requesterEmail}
@@ -382,19 +451,20 @@ function IntakeForm({
           </div>
         </div>
         {!reachable && (
-          <p className="text-xs text-muted-foreground -mt-2">
+          <p className="-mt-2 text-sm text-muted-foreground">
             One of the two, so they can reach you.
           </p>
         )}
 
         {!preNeed && (
           <>
-            <div className="pt-2 border-t">
-              <p className="font-medium text-sm mb-3 mt-3">Who has died</p>
-              <div className="grid gap-4 sm:grid-cols-2">
+            <div className="border-t border-border pt-5">
+              <p className="eyebrow mb-3.5">Who has died</p>
+              <div className="grid gap-5 sm:grid-cols-2">
                 <div>
                   <Label htmlFor="subjectFirstName">First name</Label>
                   <Input
+                    className="mt-2"
                     id="subjectFirstName"
                     value={subjectFirstName}
                     onChange={(event) => setSubjectFirstName(event.target.value)}
@@ -404,6 +474,7 @@ function IntakeForm({
                 <div>
                   <Label htmlFor="subjectLastName">Last name</Label>
                   <Input
+                    className="mt-2"
                     id="subjectLastName"
                     value={subjectLastName}
                     onChange={(event) => setSubjectLastName(event.target.value)}
@@ -415,6 +486,7 @@ function IntakeForm({
             <div>
               <Label htmlFor="relationship">They were your</Label>
               <Input
+                className="mt-2"
                 id="relationship"
                 value={relationship}
                 onChange={(event) => setRelationship(event.target.value)}
@@ -432,6 +504,7 @@ function IntakeForm({
           </Label>
           <Textarea
             id="note"
+            className="mt-2"
             value={note}
             onChange={(event) => setNote(event.target.value)}
             rows={4}
@@ -440,17 +513,17 @@ function IntakeForm({
         </div>
       </div>
 
-      <Button type="submit" className="mt-6 w-full" disabled={!ready || submit.isPending}>
-        {submit.isPending ? (
-          <Loader2 className="size-4 animate-spin" />
-        ) : preNeed ? (
-          "Send this to " + homeName
-        ) : (
-          "Send this to " + homeName
-        )}
+      <Button
+        type="submit"
+        size="lg"
+        className="mt-7 w-full"
+        disabled={!ready || submit.isPending}
+      >
+        {submit.isPending && <Loader2 className="size-4 animate-spin" />}
+        Send this to {homeName}
       </Button>
 
-      <p className="text-xs text-muted-foreground mt-4">
+      <p className="mt-5 border-l-2 border-[var(--accent)]/30 pl-4 text-sm leading-relaxed text-muted-foreground">
         This goes to {homeName} and to nobody else. It is not a public notice,
         and nothing is published anywhere.
       </p>

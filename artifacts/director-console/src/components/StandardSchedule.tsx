@@ -18,7 +18,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Loader2, Plus, X } from "lucide-react";
+import { Plus, X } from "lucide-react";
+import { Loading } from "@/components/page";
 
 /**
  * The home's standard schedule, edited once and applied to every case.
@@ -81,9 +82,7 @@ export function StandardSchedule({ readOnly }: { readOnly: boolean }) {
       </div>
 
       {template.isPending ? (
-        <div className="py-6 text-center">
-          <Loader2 className="size-5 animate-spin mx-auto text-muted-foreground" />
-        </div>
+        <Loading />
       ) : (
         <ul className="space-y-2">
           {rows.map((row) => (

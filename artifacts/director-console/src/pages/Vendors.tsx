@@ -23,6 +23,7 @@ import {
 } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
 import { Loader2, MapPin, Plus, Search, Star, Trash2 } from "lucide-react";
+import { Loading, PageHeader } from "@/components/page";
 
 /**
  * The home's local network.
@@ -104,13 +105,10 @@ export default function Vendors() {
 
   return (
     <div className="space-y-6">
-      <header>
-        <h1 className="font-display text-2xl mb-1">Local network</h1>
-        <p className="text-muted-foreground">
-          Who you'd point a family to. Anything switched on for families shows
-          in their portal, nearest first.
-        </p>
-      </header>
+      <PageHeader title="Local network">
+        Who you'd point a family to. Anything switched on for families shows
+        in their portal, nearest first.
+      </PageHeader>
 
       <div className="flex flex-wrap items-end gap-3">
         <div className="space-y-1.5">
@@ -220,9 +218,7 @@ export default function Vendors() {
       )}
 
       {vendors.isPending ? (
-        <div className="py-12 text-center">
-          <Loader2 className="size-5 animate-spin mx-auto text-muted-foreground" />
-        </div>
+        <Loading />
       ) : rows.length === 0 ? (
         <p className="rounded-xl border border-dashed border-border py-12 text-center text-muted-foreground">
           Nobody here yet. Add someone you'd actually recommend.

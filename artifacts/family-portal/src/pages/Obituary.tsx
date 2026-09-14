@@ -12,7 +12,8 @@ import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
-import { Check, Loader2 } from "lucide-react";
+import { Check, Lock } from "lucide-react";
+import { Divider, Loading, PageHeader } from "@/components/page";
 
 /**
  * The obituary, as a form rather than a blank page.
@@ -41,10 +42,13 @@ function Field({ id, label, hint, value, multiline, disabled, onSave }: FieldPro
   const Control = multiline ? Textarea : Input;
 
   return (
-    <div className="space-y-1.5">
+    <div>
       <Label htmlFor={id}>{label}</Label>
-      {hint && <p className="text-sm text-muted-foreground">{hint}</p>}
+      {hint && (
+        <p className="mt-1 text-sm leading-snug text-muted-foreground">{hint}</p>
+      )}
       <Control
+        className="mt-2"
         id={id}
         defaultValue={value ?? ""}
         disabled={disabled}
@@ -91,13 +95,7 @@ export default function Obituary() {
     },
   });
 
-  if (obituary.isPending) {
-    return (
-      <div className="py-12 text-center">
-        <Loader2 className="size-5 animate-spin mx-auto text-muted-foreground" />
-      </div>
-    );
-  }
+  if (obituary.isPending) return <Loading rows={5} />;
 
   if (!obituary.data) return null;
 
@@ -107,24 +105,39 @@ export default function Obituary() {
     update.mutate({ data: { [field]: value } });
 
   return (
-    <div className="space-y-6">
-      <header>
-        <h1 className="font-display text-2xl mb-1">The obituary</h1>
-        <p className="text-muted-foreground">
-          {locked
-            ? "The funeral home has approved this for print. Send them a message if something needs changing."
-            : "Answer whatever you can. Nothing is required, and it saves as you go."}
-        </p>
-      </header>
+    <div className="space-y-7 pb-16">
+      <PageHeader title="The obituary">
+        {locked
+        ? "The funeral home has approved this for print. Send them a message if something needs changing."
+        : "Answer whatever you can. Nothing is required, and it saves as you go."}
+      </PageHeader>
 
+      {/*
+        Pinned to the corner of the screen rather than set in the flow. It used
+        to sit between the heading and the first question, which meant the
+        whole form jumped down a line the first time anybody answered
+        anything — on a phone, mid-typing.
+      */}
       {savedAt !== null && !locked && (
-        <p className="flex items-center gap-1.5 text-sm text-[var(--accent-deep)]">
+        <p
+          role="status"
+          className="pointer-events-none fixed bottom-5 left-1/2 z-40 flex -translate-x-1/2 items-center gap-1.5 rounded-full border border-[var(--accent)]/20 bg-card px-3.5 py-1.5 text-sm font-semibold text-[var(--accent-deep)] shadow-[var(--elevation-2)]"
+        >
           <Check className="size-4" />
           Saved
         </p>
       )}
 
+      {locked && (
+        <p className="flex items-start gap-2.5 rounded-xl border border-border bg-[var(--sunken)] px-4 py-3.5 text-sm leading-relaxed text-muted-foreground">
+          <Lock className="mt-0.5 size-4 shrink-0" strokeWidth={1.75} />
+          This has been approved for print, so it can no longer be edited here.
+        </p>
+      )}
+
       <div className="space-y-5">
+        <Divider label="Their name and dates" />
+
         <Field
           id="fullName"
           label="Their full name"
@@ -167,6 +180,10 @@ export default function Obituary() {
           />
         </div>
 
+        <div className="pt-2">
+          <Divider label="Their life" />
+        </div>
+
         <Field
           id="biography"
           label="Their life"
@@ -176,6 +193,10 @@ export default function Obituary() {
           disabled={locked}
           onSave={save("biography")}
         />
+
+        <div className="pt-2">
+          <Divider label="Family" />
+        </div>
 
         <Field
           id="survivedBy"
@@ -194,6 +215,10 @@ export default function Obituary() {
           disabled={locked}
           onSave={save("precededBy")}
         />
+
+        <div className="pt-2">
+          <Divider label="Anything else" />
+        </div>
 
         <Field
           id="inLieuOfFlowers"
@@ -216,13 +241,14 @@ export default function Obituary() {
       </div>
 
       {!locked && (
-        <div className="rounded-xl border border-border bg-card p-4">
-          <p className="mb-3 text-sm text-muted-foreground">
+        <div className="rounded-xl border border-border bg-card p-5 shadow-[var(--elevation-1)]">
+          <p className="mb-4 text-sm leading-relaxed text-muted-foreground">
             When you've put in what you can, let the funeral home know. They'll
             write it up and check it with you.
           </p>
           <Button
             type="button"
+            size="lg"
             className="w-full"
             disabled={submit.isPending || draft.status === "submitted"}
             onClick={() => submit.mutate()}

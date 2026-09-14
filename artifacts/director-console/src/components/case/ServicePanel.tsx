@@ -6,7 +6,8 @@ import {
   getGetSelectionsQueryKey,
 } from "@workspace/api-client-react";
 import { Button } from "@/components/ui/button";
-import { Check, Loader2, X } from "lucide-react";
+import { Check, X } from "lucide-react";
+import { Loading } from "@/components/page";
 
 const LABELS: Record<string, string> = {
   hymn: "Hymns",
@@ -37,9 +38,7 @@ export function ServicePanel({ caseId }: { caseId: number }) {
 
   if (selections.isPending) {
     return (
-      <div className="py-12 text-center">
-        <Loader2 className="size-5 animate-spin mx-auto text-muted-foreground" />
-      </div>
+      <Loading />
     );
   }
 
