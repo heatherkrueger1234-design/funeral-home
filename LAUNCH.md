@@ -74,7 +74,7 @@ And, with a TLS terminator actually in front of it:
   fix too — the webhook was mounted where the body had already been parsed, so
   it could never have verified a single genuine Stripe event.
 
-163 tests, 4 projects typechecking, 3 apps building.
+165 tests, 4 projects typechecking, 3 apps building.
 
 ## What is not ready
 

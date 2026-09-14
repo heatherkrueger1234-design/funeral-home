@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import request from "supertest";
+import { createHmac } from "node:crypto";
 import { eq } from "drizzle-orm";
 import app from "../src/app";
 import { db, funeralHomesTable } from "@workspace/db";
@@ -123,8 +124,10 @@ describe("the Stripe webhook", () => {
    * So: sign an event the way Stripe signs it, and require that it is
    * accepted and acted on.
    */
-  async function postSignedEvent(body: unknown) {
-    const { createHmac } = await import("node:crypto");
+  // Not async, deliberately: it hands back supertest's own Test so callers can
+  // chain `.expect(200)` on it. An async wrapper returns a Promise, which has
+  // no `.expect`.
+  function postSignedEvent(body: unknown) {
     const payload = JSON.stringify(body);
     const timestamp = Math.floor(Date.now() / 1000);
     const signature = createHmac("sha256", process.env["STRIPE_WEBHOOK_SECRET"]!)
