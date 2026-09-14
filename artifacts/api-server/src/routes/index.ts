@@ -18,6 +18,8 @@ import contactsRouter from "./contacts";
 import photosRouter from "./photos";
 import obituaryRouter from "./obituary";
 import selectionsRouter from "./selections";
+import catalogueRouter from "./catalogue";
+import ordersRouter, { familyStorefrontRouter } from "./orders";
 import messagesRouter from "./messages";
 import deadlinesRouter from "./deadlines";
 import belongingsRouter from "./belongings";
@@ -98,7 +100,22 @@ router.use(billingWebhookRouter);
  * there is nothing for a handler to check and nothing for a family member to
  * tamper with.
  */
-router.use("/family", familyRateLimit, requireFamilyLink, familyRouter);
+/*
+ * `familyStorefrontRouter` rides the same mount rather than taking one of
+ * its own. It is a separate file because the storefront is one component's
+ * work and a thousand-line `family.ts` that six people edit is a merge
+ * conflict with a queue — but mounting it again under `/family` would run
+ * the limiter and the token lookup twice for every request that fell
+ * through to it, halving a family's budget and writing their "last seen"
+ * twice for one page load.
+ */
+router.use(
+  "/family",
+  familyRateLimit,
+  requireFamilyLink,
+  familyRouter,
+  familyStorefrontRouter,
+);
 
 /**
  * Everything below requires a staff session. Handlers then scope every query
@@ -118,6 +135,8 @@ router.use(contactsRouter);
 router.use(photosRouter);
 router.use(obituaryRouter);
 router.use(selectionsRouter);
+router.use(catalogueRouter);
+router.use(ordersRouter);
 router.use(messagesRouter);
 router.use(deadlinesRouter);
 router.use(belongingsRouter);
