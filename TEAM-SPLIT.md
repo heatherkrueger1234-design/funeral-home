@@ -76,6 +76,27 @@ Carried over from `replit.md` and still true. Do not quietly reverse these:
   home's insurer asks what the vendor's software stores about their families,
   and the answer has to stay boring.
 
+## Colorado law: read `COLORADO.md`
+
+This product is built for Colorado homes first, and Colorado rewrote its entire
+funeral regime in 2024 after the Return to Nature and Sunset Mesa scandals.
+[`COLORADO.md`](./COLORADO.md) has the verified statutory constraints, divided
+into one section per component. **Read your section before you write code** —
+it is not background reading, it decides how several of these components are
+shaped. Section 1 in particular is where the family access levels come from.
+
+The headlines, so everybody has seen them:
+
+- Practitioner licensure is required by **1 January 2027**. That is three
+  months away and every home you sell to is mid-scramble.
+- A death certificate must be filed through the state's electronic system
+  within **72 hours** of taking custody. That clock drives the deadline
+  defaults.
+- Who may authorise anything is a **statutory priority order** (C.R.S.
+  15-19-106), not whoever answered the phone.
+- **Pre-need prepayment requires a Division of Insurance licence, $100,000 of
+  net worth or bond, and 85% of funds in trust. We are not building it.**
+
 ## Legal constraints you must not design around
 
 Two of these components can create real regulatory exposure. They are called
