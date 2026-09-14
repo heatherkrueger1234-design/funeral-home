@@ -9,7 +9,6 @@ import {
   usersTable,
   toPublicFamilyContact,
   toStaffSignature,
-  MESSAGE_LOCK_DAYS,
   canOpenCases,
   type Case,
 } from "@workspace/db";
@@ -387,9 +386,16 @@ router.post("/cases/:caseId/close", async (req, res) => {
 
   const now = new Date();
   // Measured from the service where there is one. A case closed without a
-  // service date still gets a fortnight, counted from today.
+  // service date still gets the window, counted from today.
+  //
+  // The length is the home's, read here at the moment of closing rather than
+  // consulted continuously. A home that shortens it must not retroactively
+  // slam a conversation shut on a family who is mid-sentence in one that was
+  // already open.
   const from = existing.serviceAt ?? now;
-  const lockAt = new Date(from.getTime() + MESSAGE_LOCK_DAYS * 24 * 60 * 60 * 1000);
+  const lockAt = new Date(
+    from.getTime() + home.messageLockDays * 24 * 60 * 60 * 1000,
+  );
 
   const [closed] = await db
     .update(casesTable)

@@ -15,6 +15,7 @@ import Photos from "@/pages/Photos";
 import Obituary from "@/pages/Obituary";
 import Selections from "@/pages/Selections";
 import Timeline from "@/pages/Timeline";
+import ServiceTime from "@/pages/ServiceTime";
 import Messages from "@/pages/Messages";
 import Aftercare from "@/pages/Aftercare";
 import Belongings from "@/pages/Belongings";
@@ -94,6 +95,7 @@ export default function App() {
               <Route path="/obituary" component={Obituary} />
               <Route path="/service" component={Selections} />
               <Route path="/timeline" component={Timeline} />
+              <Route path="/service-time" component={ServiceTime} />
               <Route path="/messages" component={Messages} />
               <Route path="/aftercare" component={Aftercare} />
               <Route path="/belongings" component={Belongings} />

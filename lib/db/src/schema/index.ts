@@ -42,6 +42,13 @@ export * from "./print";
 export * from "./timeline-templates";
 export * from "./messages";
 export * from "./deadlines";
+export * from "./service-offers";
+
+/* What the home says once, and what it charges. The second of these is
+ * staff-only, and `price-list.ts` explains at length why that is not a
+ * preference. */
+export * from "./policies";
+export * from "./price-list";
 
 /* The local network a home can point a family at. */
 export * from "./vendors";

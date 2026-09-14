@@ -125,13 +125,6 @@ export type PhotoStatus = (typeof PHOTO_STATUSES)[number];
  */
 export const MAX_PHOTOS_PER_CASE = 1000;
 
-/**
- * What a watchable slideshow holds. A recommendation shown to whoever is
- * choosing, never enforced: a family who wants sixty for their mother gets
- * sixty.
- */
-export const SLIDESHOW_TARGET = 50;
-
 export const insertCasePhotoSchema = createInsertSchema(casePhotosTable).omit({
   id: true,
   funeralHomeId: true,

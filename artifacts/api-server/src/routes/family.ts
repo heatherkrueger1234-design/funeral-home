@@ -19,11 +19,9 @@ import {
   uploadsTable,
   usersTable,
   toPublicFamilyContact,
-  toPublicFuneralHome,
   toStaffSignature,
   decedentDisplayName,
   MAX_PHOTOS_PER_CASE,
-  SLIDESHOW_TARGET,
 } from "@workspace/db";
 import {
   UpdateFamilyPhotoBody,
@@ -57,6 +55,13 @@ import {
   familyContact,
   familyHome,
 } from "../middleware/require-family";
+import { publicHome } from "../lib/storefront";
+import {
+  chooseOffer,
+  chosenOffer,
+  offersForCase,
+  openOfferCount,
+} from "../lib/service-offers";
 import {
   photoUpload,
   photosForCase,
@@ -114,8 +119,18 @@ router.get("/session", async (req, res) => {
   const row = familyCase(req);
   const home = familyHome(req);
 
-  const [photos, selectedPhotos, deadlines, unread, obituary, lead, aftercare] =
-    await Promise.all([
+  const [
+    photos,
+    selectedPhotos,
+    deadlines,
+    unread,
+    obituary,
+    lead,
+    aftercare,
+    home_,
+    openOffers,
+    settled,
+  ] = await Promise.all([
     db
       .select({ value: count() })
       .from(casePhotosTable)
@@ -166,6 +181,9 @@ router.get("/session", async (req, res) => {
       .from(aftercareEnrollmentsTable)
       .where(eq(aftercareEnrollmentsTable.contactId, contact.id))
       .limit(1),
+    publicHome(home),
+    openOfferCount(row.id),
+    chosenOffer(row.id),
   ]);
 
   const deliveries = aftercare[0]
@@ -178,17 +196,24 @@ router.get("/session", async (req, res) => {
 
   res.json({
     contact: toPublicFamilyContact(contact),
-    home: toPublicFuneralHome(home),
+    home: home_,
     case: { ...row, displayName: decedentDisplayName(row) },
     leadDirector: lead[0] ? toStaffSignature(lead[0]) : null,
     photoCount: Number(photos[0]?.value ?? 0),
     photoLimit: MAX_PHOTOS_PER_CASE,
     selectedPhotoCount: Number(selectedPhotos[0]?.value ?? 0),
-    slideshowTarget: SLIDESHOW_TARGET,
+    slideshowTarget: home.slideshowTarget,
     obituaryStatus: obituary[0]?.status ?? "family_draft",
     outstandingDeadlines: Number(deadlines[0]?.value ?? 0),
     unreadMessages: Number(unread[0]?.value ?? 0),
     messagesLocked: isThreadLocked(row),
+    /*
+     * The one thing on this screen somebody else is waiting on. Everything
+     * else the portal asks for can wait until the family is ready; a date
+     * the home cannot confirm is holding up the florist, the printer and
+     * the church, so the hub puts this above all of it.
+     */
+    awaitingServiceChoice: openOffers > 0 && settled === undefined,
     aftercare: aftercare[0]
       ? {
           ...aftercare[0],
@@ -996,6 +1021,73 @@ router.post("/messages", async (req, res) => {
     readAt: created!.readAt,
     createdAt: created!.createdAt,
   });
+});
+
+/* ----------------------------------------------------- the service date --- */
+
+/**
+ * The one date a family sets on anything.
+ *
+ * Everywhere else in this portal the family is answering questions about the
+ * past — who their mother was, which photographs, which hymn. This is the
+ * single place they decide something about the week ahead, and it is the
+ * decision the florist, the printer and the church are all waiting on.
+ *
+ * No case id in the path, like every route in this file: the token names
+ * exactly one case, so there is nothing for anybody to tamper with.
+ */
+async function serviceOffersPayload(row: typeof casesTable.$inferSelect, home: { phone: string | null }) {
+  const [offers, chosen] = await Promise.all([
+    offersForCase(row.id),
+    chosenOffer(row.id),
+  ]);
+
+  return {
+    offers,
+    chosenOfferId: chosen?.id ?? null,
+    // The confirmed time, which the home may have set directly without ever
+    // offering anything. A family looking at this has nothing left to answer.
+    serviceAt: row.serviceAt,
+    serviceLocation: row.serviceLocation,
+    // Shown beside a settled choice, because the way to move an agreed
+    // funeral is to speak to a person, not to tap a different button.
+    homePhone: home.phone,
+  };
+}
+
+router.get("/service-offers", async (req, res) => {
+  const row = familyCase(req);
+  const home = familyHome(req);
+
+  res.json(await serviceOffersPayload(row, home));
+});
+
+router.post("/service-offers/:offerId/choose", async (req, res) => {
+  const row = familyCase(req);
+  const home = familyHome(req);
+  const contact = familyContact(req);
+  const offerId = parseId(req.params.offerId);
+
+  await chooseOffer(row, offerId, { contactId: contact.id });
+
+  /*
+   * Re-read rather than patching the request's copy: choosing writes both the
+   * service date and, when the option carried one, the location. A family
+   * handed back the copy this request started with would see the time they
+   * did not pick for as long as the screen stayed open.
+   */
+  const [fresh] = await db
+    .select()
+    .from(casesTable)
+    .where(eq(casesTable.id, row.id))
+    .limit(1);
+
+  res.json(
+    await serviceOffersPayload(
+      requireRow(fresh, "That case could not be found."),
+      home,
+    ),
+  );
 });
 
 /* ----------------------------------------------------------- deadlines --- */

@@ -237,6 +237,23 @@ the family believes they have reached someone.
  */
   intakeNotifyEmail?: string | null;
   aftercareSenderName?: string | null;
+  /** One line above the form on the public page. What a family needs
+off it is that they have the right place and that a person will
+answer - not that the home is compassionate, which every home
+says.
+ */
+  storefrontHeadline?: string | null;
+  /** A paragraph or two under it. Both may be blank. */
+  storefrontAbout?: string | null;
+  /** How long the case chat stays open after the service. Read when a
+case closes, so shortening it never slams a live conversation
+shut mid-sentence.
+ */
+  messageLockDays: number;
+  /** How many photographs the home asks a family to pick. Shown as a
+target, never enforced.
+ */
+  slideshowTarget: number;
   subscriptionStatus: FuneralHomeSubscriptionStatus;
   trialEndsAt?: string | null;
 }
@@ -272,6 +289,29 @@ export interface FuneralHomeUpdate {
   intakeEnabled?: boolean;
   intakeNotifyEmail?: string | null;
   aftercareSenderName?: string | null;
+  /** @maxLength 160 */
+  storefrontHeadline?: string | null;
+  /** @maxLength 4000 */
+  storefrontAbout?: string | null;
+  /**
+   * @minimum 1
+   * @maximum 365
+   */
+  messageLockDays?: number;
+  /**
+   * @minimum 1
+   * @maximum 500
+   */
+  slideshowTarget?: number;
+}
+
+/**
+ * A published policy section, as anyone may read it.
+ */
+export interface PublicHomePolicy {
+  id: number;
+  title: string;
+  body: string;
 }
 
 /**
@@ -296,6 +336,304 @@ call. Show the number instead of the request form.
   officeOpensMinute: number;
   officeClosesMinute: number;
   timezone: string;
+  /** One line above the form on the public page. What a family needs
+off it is that they have the right place and that a person will
+answer - not that the home is compassionate, which every home
+says.
+ */
+  storefrontHeadline: string | null;
+  /** A paragraph or two under it. Both may be blank. */
+  storefrontAbout: string | null;
+  /** The home's published policy sections. Drafts are absent, and so
+is any hint that there are drafts. Prices are absent too, and
+that is not an oversight - see `/home/price-list`.
+ */
+  policies: PublicHomePolicy[];
+}
+
+export type DashboardServiceKind =
+  (typeof DashboardServiceKind)[keyof typeof DashboardServiceKind];
+
+export const DashboardServiceKind = {
+  at_need: "at_need",
+  pre_need: "pre_need",
+} as const;
+
+export interface DashboardService {
+  caseId: number;
+  decedentName: string;
+  kind: DashboardServiceKind;
+  serviceAt: string;
+  serviceLocation: string | null;
+}
+
+/**
+ * Read this before writing any sentence about the person. A
+`pre_need` subject is alive and arranging their own funeral.
+
+ */
+export type DashboardCaseKind =
+  (typeof DashboardCaseKind)[keyof typeof DashboardCaseKind];
+
+export const DashboardCaseKind = {
+  at_need: "at_need",
+  pre_need: "pre_need",
+} as const;
+
+export interface DashboardCase {
+  caseId: number;
+  decedentName: string;
+  /** Read this before writing any sentence about the person. A
+`pre_need` subject is alive and arranging their own funeral.
+ */
+  kind: DashboardCaseKind;
+  openedAt: string;
+}
+
+export interface DashboardDeadline {
+  id: number;
+  caseId: number;
+  decedentName: string;
+  title: string;
+  dueAt: string;
+  isEvent: boolean;
+}
+
+/**
+ * The landing screen, in one read. Counts and the few rows behind them -
+never the whole case list, because a home three years in has hundreds
+and a dashboard that loads them all stops being a dashboard.
+
+ */
+export interface HomeDashboard {
+  homeName: string;
+  /** Cases not yet closed. The size of what is being carried. */
+  openCases: number;
+  /** Services in the next seven days, soonest first. */
+  servicesThisWeek: DashboardService[];
+  /** Active cases with no service date at all. These are the ones
+where nothing is due yet because nothing can be dated - the
+standard schedule measures from the service, so a case without
+one has an empty timeline and a family being told nothing.
+ */
+  awaitingServiceDate: DashboardCase[];
+  /** Past due, not done. Across every open case. */
+  overdue: DashboardDeadline[];
+  /** Due in the next three days. */
+  dueSoon: DashboardDeadline[];
+  /** Messages from families nobody at the home has read. */
+  unansweredMessages: number;
+  /** How many separate families those are sitting in. */
+  casesWaitingOnReply: number;
+  /** Requests off the public page waiting for a director. */
+  pendingRequests: number;
+  /** Cases where the home has offered times and nobody has picked. */
+  offersAwaitingChoice: number;
+}
+
+export type InboxEntryKind =
+  (typeof InboxEntryKind)[keyof typeof InboxEntryKind];
+
+export const InboxEntryKind = {
+  at_need: "at_need",
+  pre_need: "pre_need",
+} as const;
+
+export type InboxEntryLastMessageFrom =
+  (typeof InboxEntryLastMessageFrom)[keyof typeof InboxEntryLastMessageFrom];
+
+export const InboxEntryLastMessageFrom = {
+  home: "home",
+  family: "family",
+} as const;
+
+/**
+ * One case's conversation, summarised.
+ */
+export interface InboxEntry {
+  caseId: number;
+  decedentName: string;
+  kind: InboxEntryKind;
+  /** Trimmed for a list. The thread has the whole thing. */
+  lastMessageBody: string;
+  lastMessageAt: string;
+  lastMessageFrom: InboxEntryLastMessageFrom;
+  /** How many the home has not opened. This is what sorts the list:
+somebody waiting comes before somebody who was answered.
+ */
+  unreadFromFamily: number;
+  /** Whether the latest family message arrived outside the home's
+hours. Not a reason to reply at 2am - it is context for a
+director reading at eight.
+ */
+  sentOutsideOfficeHours: boolean;
+  /** The fortnight after the service has passed, for both sides. */
+  locked: boolean;
+}
+
+/**
+ * A time the home has confirmed it can do, waiting on the family.
+
+ */
+export interface ServiceOffer {
+  id: number;
+  caseId: number;
+  startsAt: string;
+  location: string | null;
+  note: string | null;
+  position: number;
+  chosenAt: string | null;
+  /** Who answered, when it was the family. Null when the home
+confirmed it on their behalf, which is what a telephone call
+looks like from here.
+ */
+  chosenByName: string | null;
+}
+
+export interface ServiceOfferInput {
+  startsAt: string;
+  /** @maxLength 200 */
+  location?: string | null;
+  /** @maxLength 400 */
+  note?: string | null;
+}
+
+/**
+ * What choosing did, so the console can say it rather than imply it.
+ */
+export interface ChosenService {
+  offer: ServiceOffer;
+  serviceAt: string;
+  /** Timeline entries added from the home's standard schedule. */
+  scheduleCreated: number;
+  /** Entries that already existed and were moved to fit. */
+  scheduleMoved: number;
+}
+
+/**
+ * The choice as the family sees it. `chosenOfferId` null with a
+non-empty `offers` is the only state that asks them for anything.
+
+ */
+export interface FamilyServiceOffers {
+  offers: ServiceOffer[];
+  chosenOfferId: number | null;
+  /** The confirmed time, which may have been set by the home without
+any offer at all. A family shown this has nothing left to answer.
+ */
+  serviceAt: string | null;
+  serviceLocation: string | null;
+  /** Shown beside a settled choice, because the way to change an
+agreed funeral time is to speak to a person.
+ */
+  homePhone: string | null;
+}
+
+/**
+ * A section of the home's own words. Words only - nothing here changes
+what the software does.
+
+ */
+export interface HomePolicy {
+  id: number;
+  title: string;
+  body: string;
+  position: number;
+  /** False is a draft. Staff see it; nobody else does. */
+  published: boolean;
+}
+
+export interface HomePolicyInput {
+  /**
+   * @minLength 1
+   * @maxLength 120
+   */
+  title: string;
+  /**
+   * @minLength 1
+   * @maxLength 4000
+   */
+  body: string;
+  published?: boolean;
+}
+
+export interface HomePolicyUpdate {
+  /**
+   * @minLength 1
+   * @maxLength 120
+   */
+  title?: string;
+  /**
+   * @minLength 1
+   * @maxLength 4000
+   */
+  body?: string;
+  /** @minimum 0 */
+  position?: number;
+  published?: boolean;
+}
+
+/**
+ * One line of the home's staff-only crib sheet. Never returned by a
+family or public endpoint - see the `/home/price-list` description.
+
+ */
+export interface PriceItem {
+  id: number;
+  category: string;
+  label: string;
+  /** Null means there is no number - flowers at market, a cemetery's
+own fee. The note carries the reason.
+ */
+  amountCents: number | null;
+  /** The amount already formatted, so two clients cannot round it differently. */
+  amountLabel: string | null;
+  note: string | null;
+  position: number;
+  enabled: boolean;
+}
+
+export interface PriceItemInput {
+  /**
+   * @minLength 1
+   * @maxLength 80
+   */
+  category: string;
+  /**
+   * @minLength 1
+   * @maxLength 160
+   */
+  label: string;
+  /**
+   * @minimum 0
+   * @maximum 100000000
+   */
+  amountCents?: number | null;
+  /** @maxLength 200 */
+  note?: string | null;
+}
+
+export interface PriceItemUpdate {
+  /**
+   * @minLength 1
+   * @maxLength 80
+   */
+  category?: string;
+  /**
+   * @minLength 1
+   * @maxLength 160
+   */
+  label?: string;
+  /**
+   * @minimum 0
+   * @maximum 100000000
+   */
+  amountCents?: number | null;
+  /** @maxLength 200 */
+  note?: string | null;
+  /** @minimum 0 */
+  position?: number;
+  enabled?: boolean;
 }
 
 /**
@@ -1743,6 +2081,11 @@ export interface FamilySession {
   outstandingDeadlines: number;
   unreadMessages: number;
   messagesLocked: boolean;
+  /** The home has offered times and nobody has picked one. The single
+thing on this screen that somebody else is waiting on, so the
+portal puts it above everything else.
+ */
+  awaitingServiceChoice: boolean;
   aftercare: AftercareEnrollment | null;
 }
 

@@ -10,6 +10,9 @@ import familyRouter from "./family";
 import publicRouter from "./public";
 import intakeRouter from "./intake";
 import homeRouter from "./home";
+import dashboardRouter from "./dashboard";
+import storefrontRouter from "./storefront";
+import pricingRouter from "./pricing";
 import casesRouter from "./cases";
 import exportRouter from "./export";
 import importRouter from "./import";
@@ -19,6 +22,7 @@ import obituaryRouter from "./obituary";
 import selectionsRouter from "./selections";
 import messagesRouter from "./messages";
 import deadlinesRouter from "./deadlines";
+import serviceOffersRouter from "./service-offers";
 import belongingsRouter from "./belongings";
 import vendorsRouter from "./vendors";
 import vitalsRouter from "./vitals";
@@ -100,6 +104,14 @@ router.use(requireAuth);
 
 router.use(billingRouter);
 router.use(homeRouter);
+router.use(dashboardRouter);
+router.use(storefrontRouter);
+/*
+ * Staff-only, and the mounting is what makes it so: there is no equivalent
+ * line under the family gate or above it, and `schema/price-list.ts` explains
+ * why adding one is a bigger decision than it looks.
+ */
+router.use(pricingRouter);
 router.use(importRouter);
 router.use(casesRouter);
 router.use(exportRouter);
@@ -110,6 +122,7 @@ router.use(obituaryRouter);
 router.use(selectionsRouter);
 router.use(messagesRouter);
 router.use(deadlinesRouter);
+router.use(serviceOffersRouter);
 router.use(belongingsRouter);
 router.use(vendorsRouter);
 router.use(vitalsRouter);

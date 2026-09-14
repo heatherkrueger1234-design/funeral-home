@@ -63,6 +63,20 @@ tags:
       their own funeral in advance.
   - name: intake
     description: The director's queue of those requests
+  - name: dashboard
+    description: |
+      The home's master page. One read for the landing screen, and the
+      cross-case view of a product whose every other screen is one case.
+  - name: service-offers
+    description: |
+      Times the home can do, for the family to pick from. Offers, not
+      bookings - this knows nothing about whether the church is free.
+  - name: storefront
+    description: The home's public page, and the policies published on it
+  - name: pricing
+    description: |
+      The home's own prices, for the home's own staff. Never reachable by a
+      family or by the public; see `/home/price-list`.
 
 paths:
   /healthz:
@@ -459,6 +473,319 @@ paths:
           required: true
           schema:
             type: integer
+      responses:
+        "204":
+          description: Deleted
+
+  # ------------------------------------------------------------ dashboard --
+
+  /home/dashboard:
+    get:
+      operationId: getHomeDashboard
+      tags: [dashboard]
+      summary: The home's master page - what needs answering today
+      description: |
+        One read for the landing screen. Nothing here is new information:
+        every number on it is reachable a page at a time. What it adds is
+        that a director opening the console at eight in the morning does not
+        have to visit four screens to discover that a family answered at
+        midnight and a service is tomorrow.
+
+        Scoped to the signed-in staff member's own home, like everything
+        below the session gate.
+      responses:
+        "200":
+          description: The home's day
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HomeDashboard"
+
+  /home/inbox:
+    get:
+      operationId: getHomeInbox
+      tags: [dashboard]
+      summary: Every family conversation, the ones waiting first
+      description: |
+        The cross-case view of the one-thread-per-case rule. A director
+        working four funerals had no way to see that the Okonkwo family wrote
+        at midnight except by opening the Okonkwo case.
+
+        Replying is deliberately not here. A reply goes to
+        `POST /cases/{caseId}/messages`, which is the single place a message
+        can be written, the single place the out-of-hours stamp is applied,
+        and the single place the fortnight lock is enforced.
+      responses:
+        "200":
+          description: One entry per case that has a conversation
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/InboxEntry"
+
+  # ------------------------------------------------------- service offers --
+
+  /cases/{caseId}/service-offers:
+    get:
+      operationId: getServiceOffers
+      tags: [service-offers]
+      summary: The times offered to this family
+      parameters:
+        - $ref: "#/components/parameters/CaseId"
+      responses:
+        "200":
+          description: Soonest first
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/ServiceOffer"
+    post:
+      operationId: createServiceOffer
+      tags: [service-offers]
+      summary: Offer the family a time
+      description: |
+        A time the home has already confirmed it can do. This endpoint knows
+        nothing about whether the church is free - it records what the
+        director would otherwise have said on the telephone.
+
+        Refused once the family has chosen, because a list that grows after
+        an answer is a list somebody will answer twice.
+      parameters:
+        - $ref: "#/components/parameters/CaseId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ServiceOfferInput"
+      responses:
+        "201":
+          description: Offered
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ServiceOffer"
+        "409":
+          description: The family has already chosen
+
+  /cases/{caseId}/service-offers/{offerId}/confirm:
+    post:
+      operationId: confirmServiceOffer
+      tags: [service-offers]
+      summary: Record that the family picked this one
+      description: |
+        For the family who rang instead of tapping, which is most of them
+        over sixty. Identical in effect to the family choosing it themselves:
+        the service date is set and the home's standard schedule is applied.
+      parameters:
+        - $ref: "#/components/parameters/CaseId"
+        - $ref: "#/components/parameters/OfferId"
+      responses:
+        "200":
+          description: Confirmed, with what the schedule did
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ChosenService"
+        "409":
+          description: A time has already been chosen for this case
+
+  /service-offers/{offerId}:
+    delete:
+      operationId: deleteServiceOffer
+      tags: [service-offers]
+      summary: Withdraw an offered time
+      description: |
+        Refused once it is the chosen one. Deleting the family's answer out
+        from under them would leave a case with a service date that no longer
+        traces to anything, and a family who believes they have settled it.
+      parameters:
+        - $ref: "#/components/parameters/OfferId"
+      responses:
+        "204":
+          description: Withdrawn
+        "409":
+          description: This is the time the family chose
+
+  /family/service-offers:
+    get:
+      operationId: getFamilyServiceOffers
+      tags: [family]
+      summary: The times the home can do, and which one was picked
+      responses:
+        "200":
+          description: The choice, open or settled
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FamilyServiceOffers"
+
+  /family/service-offers/{offerId}/choose:
+    post:
+      operationId: chooseFamilyServiceOffer
+      tags: [family]
+      summary: Pick one
+      description: |
+        The one place a family sets a date on anything. Choosing writes the
+        service date and builds the timeline from the home's standard
+        schedule, so a family who answers at eleven at night has a dated list
+        at eleven at night.
+
+        A second choice is refused rather than applied. Two people in the
+        same kitchen tapping two different times must not move a funeral, and
+        changing an agreed time is a telephone call to the home, not a tap.
+      parameters:
+        - $ref: "#/components/parameters/OfferId"
+      responses:
+        "200":
+          description: Settled
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FamilyServiceOffers"
+        "404":
+          description: No such offer on this case
+        "409":
+          description: A time has already been chosen
+
+  # ---------------------------------------------------------- storefront --
+
+  /home/policies:
+    get:
+      operationId: getHomePolicies
+      tags: [storefront]
+      summary: What the home says the same way every time
+      description: |
+        Staff see drafts as well as published sections. The public page and
+        the family portal see only the published ones.
+      responses:
+        "200":
+          description: In the order the home put them in
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/HomePolicy"
+    post:
+      operationId: createHomePolicy
+      tags: [storefront]
+      summary: Add a section
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/HomePolicyInput"
+      responses:
+        "201":
+          description: Created, unpublished
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HomePolicy"
+
+  /policies/{policyId}:
+    put:
+      operationId: updateHomePolicy
+      tags: [storefront]
+      summary: Edit a section, or publish it
+      parameters:
+        - $ref: "#/components/parameters/PolicyId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/HomePolicyUpdate"
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HomePolicy"
+    delete:
+      operationId: deleteHomePolicy
+      tags: [storefront]
+      summary: Remove a section
+      parameters:
+        - $ref: "#/components/parameters/PolicyId"
+      responses:
+        "204":
+          description: Removed
+
+  # ------------------------------------------------------------- pricing --
+
+  /home/price-list:
+    get:
+      operationId: getPriceList
+      tags: [pricing]
+      summary: The home's own prices, for the home's own staff
+      description: |
+        Staff-only, and that is a rule rather than a default. These numbers
+        are never returned by a family route or a public one - the FTC
+        Funeral Rule governs how a funeral provider discloses prices, and a
+        national SaaS publishing a home's numbers off a text box would be
+        handing that home a compliance problem. This is the crib sheet a
+        director has open at a kitchen table, nothing more.
+      responses:
+        "200":
+          description: Grouped by the home's own categories
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/PriceItem"
+    post:
+      operationId: createPriceItem
+      tags: [pricing]
+      summary: Add a line
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PriceItemInput"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PriceItem"
+
+  /price-items/{itemId}:
+    put:
+      operationId: updatePriceItem
+      tags: [pricing]
+      summary: Change a line, or take it off the sheet
+      parameters:
+        - $ref: "#/components/parameters/PriceItemId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PriceItemUpdate"
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PriceItem"
+    delete:
+      operationId: deletePriceItem
+      tags: [pricing]
+      summary: Delete a line
+      parameters:
+        - $ref: "#/components/parameters/PriceItemId"
       responses:
         "204":
           description: Deleted
@@ -2450,6 +2777,24 @@ components:
       required: true
       schema:
         type: integer
+    OfferId:
+      name: offerId
+      in: path
+      required: true
+      schema:
+        type: integer
+    PolicyId:
+      name: policyId
+      in: path
+      required: true
+      schema:
+        type: integer
+    PriceItemId:
+      name: itemId
+      in: path
+      required: true
+      schema:
+        type: integer
 
   schemas:
     HealthStatus:
@@ -2794,6 +3139,29 @@ components:
         aftercareSenderName:
           type: string
           nullable: true
+        storefrontHeadline:
+          type: string
+          nullable: true
+          description: |
+            One line above the form on the public page. What a family needs
+            off it is that they have the right place and that a person will
+            answer - not that the home is compassionate, which every home
+            says.
+        storefrontAbout:
+          type: string
+          nullable: true
+          description: A paragraph or two under it. Both may be blank.
+        messageLockDays:
+          type: integer
+          description: |
+            How long the case chat stays open after the service. Read when a
+            case closes, so shortening it never slams a live conversation
+            shut mid-sentence.
+        slideshowTarget:
+          type: integer
+          description: |
+            How many photographs the home asks a family to pick. Shown as a
+            target, never enforced.
         subscriptionStatus:
           type: string
           enum: [trial, active, past_due, canceled]
@@ -2815,6 +3183,8 @@ components:
           timezone,
           aftercareEnabled,
           intakeEnabled,
+          messageLockDays,
+          slideshowTarget,
           subscriptionStatus,
         ]
 
@@ -2869,6 +3239,22 @@ components:
         aftercareSenderName:
           type: string
           nullable: true
+        storefrontHeadline:
+          type: string
+          nullable: true
+          maxLength: 160
+        storefrontAbout:
+          type: string
+          nullable: true
+          maxLength: 4000
+        messageLockDays:
+          type: integer
+          minimum: 1
+          maximum: 365
+        slideshowTarget:
+          type: integer
+          minimum: 1
+          maximum: 500
 
     # ------------------------------------------------------- what a family sees
 
@@ -2917,6 +3303,26 @@ components:
           type: integer
         timezone:
           type: string
+        storefrontHeadline:
+          type: string
+          nullable: true
+          description: |
+            One line above the form on the public page. What a family needs
+            off it is that they have the right place and that a person will
+            answer - not that the home is compassionate, which every home
+            says.
+        storefrontAbout:
+          type: string
+          nullable: true
+          description: A paragraph or two under it. Both may be blank.
+        policies:
+          type: array
+          description: |
+            The home's published policy sections. Drafts are absent, and so
+            is any hint that there are drafts. Prices are absent too, and
+            that is not an oversight - see `/home/price-list`.
+          items:
+            $ref: "#/components/schemas/PublicHomePolicy"
       required:
         [
           name,
@@ -2934,7 +3340,423 @@ components:
           officeOpensMinute,
           officeClosesMinute,
           timezone,
+          storefrontHeadline,
+          storefrontAbout,
+          policies,
         ]
+
+    # ----------------------------------------------------------- dashboard --
+
+    HomeDashboard:
+      type: object
+      description: |
+        The landing screen, in one read. Counts and the few rows behind them -
+        never the whole case list, because a home three years in has hundreds
+        and a dashboard that loads them all stops being a dashboard.
+      properties:
+        homeName:
+          type: string
+        openCases:
+          type: integer
+          description: Cases not yet closed. The size of what is being carried.
+        servicesThisWeek:
+          type: array
+          description: Services in the next seven days, soonest first.
+          items:
+            $ref: "#/components/schemas/DashboardService"
+        awaitingServiceDate:
+          type: array
+          description: |
+            Active cases with no service date at all. These are the ones
+            where nothing is due yet because nothing can be dated - the
+            standard schedule measures from the service, so a case without
+            one has an empty timeline and a family being told nothing.
+          items:
+            $ref: "#/components/schemas/DashboardCase"
+        overdue:
+          type: array
+          description: Past due, not done. Across every open case.
+          items:
+            $ref: "#/components/schemas/DashboardDeadline"
+        dueSoon:
+          type: array
+          description: Due in the next three days.
+          items:
+            $ref: "#/components/schemas/DashboardDeadline"
+        unansweredMessages:
+          type: integer
+          description: Messages from families nobody at the home has read.
+        casesWaitingOnReply:
+          type: integer
+          description: How many separate families those are sitting in.
+        pendingRequests:
+          type: integer
+          description: Requests off the public page waiting for a director.
+        offersAwaitingChoice:
+          type: integer
+          description: Cases where the home has offered times and nobody has picked.
+      required:
+        [
+          homeName,
+          openCases,
+          servicesThisWeek,
+          awaitingServiceDate,
+          overdue,
+          dueSoon,
+          unansweredMessages,
+          casesWaitingOnReply,
+          pendingRequests,
+          offersAwaitingChoice,
+        ]
+
+    DashboardCase:
+      type: object
+      properties:
+        caseId:
+          type: integer
+        decedentName:
+          type: string
+        kind:
+          type: string
+          enum: [at_need, pre_need]
+          description: |
+            Read this before writing any sentence about the person. A
+            `pre_need` subject is alive and arranging their own funeral.
+        openedAt:
+          type: string
+          format: date-time
+      required: [caseId, decedentName, kind, openedAt]
+
+    DashboardService:
+      type: object
+      properties:
+        caseId:
+          type: integer
+        decedentName:
+          type: string
+        kind:
+          type: string
+          enum: [at_need, pre_need]
+        serviceAt:
+          type: string
+          format: date-time
+        serviceLocation:
+          type: string
+          nullable: true
+      required: [caseId, decedentName, kind, serviceAt, serviceLocation]
+
+    DashboardDeadline:
+      type: object
+      properties:
+        id:
+          type: integer
+        caseId:
+          type: integer
+        decedentName:
+          type: string
+        title:
+          type: string
+        dueAt:
+          type: string
+          format: date-time
+        isEvent:
+          type: boolean
+      required: [id, caseId, decedentName, title, dueAt, isEvent]
+
+    InboxEntry:
+      type: object
+      description: One case's conversation, summarised.
+      properties:
+        caseId:
+          type: integer
+        decedentName:
+          type: string
+        kind:
+          type: string
+          enum: [at_need, pre_need]
+        lastMessageBody:
+          type: string
+          description: Trimmed for a list. The thread has the whole thing.
+        lastMessageAt:
+          type: string
+          format: date-time
+        lastMessageFrom:
+          type: string
+          enum: [home, family]
+        unreadFromFamily:
+          type: integer
+          description: |
+            How many the home has not opened. This is what sorts the list:
+            somebody waiting comes before somebody who was answered.
+        sentOutsideOfficeHours:
+          type: boolean
+          description: |
+            Whether the latest family message arrived outside the home's
+            hours. Not a reason to reply at 2am - it is context for a
+            director reading at eight.
+        locked:
+          type: boolean
+          description: The fortnight after the service has passed, for both sides.
+      required:
+        [
+          caseId,
+          decedentName,
+          kind,
+          lastMessageBody,
+          lastMessageAt,
+          lastMessageFrom,
+          unreadFromFamily,
+          sentOutsideOfficeHours,
+          locked,
+        ]
+
+    # ------------------------------------------------------ service offers --
+
+    ServiceOffer:
+      type: object
+      description: |
+        A time the home has confirmed it can do, waiting on the family.
+      properties:
+        id:
+          type: integer
+        caseId:
+          type: integer
+        startsAt:
+          type: string
+          format: date-time
+        location:
+          type: string
+          nullable: true
+        note:
+          type: string
+          nullable: true
+        position:
+          type: integer
+        chosenAt:
+          type: string
+          format: date-time
+          nullable: true
+        chosenByName:
+          type: string
+          nullable: true
+          description: |
+            Who answered, when it was the family. Null when the home
+            confirmed it on their behalf, which is what a telephone call
+            looks like from here.
+      required:
+        [id, caseId, startsAt, location, note, position, chosenAt, chosenByName]
+
+    ServiceOfferInput:
+      type: object
+      properties:
+        startsAt:
+          type: string
+          format: date-time
+        location:
+          type: string
+          nullable: true
+          maxLength: 200
+        note:
+          type: string
+          nullable: true
+          maxLength: 400
+      required: [startsAt]
+
+    ChosenService:
+      type: object
+      description: What choosing did, so the console can say it rather than imply it.
+      properties:
+        offer:
+          $ref: "#/components/schemas/ServiceOffer"
+        serviceAt:
+          type: string
+          format: date-time
+        scheduleCreated:
+          type: integer
+          description: Timeline entries added from the home's standard schedule.
+        scheduleMoved:
+          type: integer
+          description: Entries that already existed and were moved to fit.
+      required: [offer, serviceAt, scheduleCreated, scheduleMoved]
+
+    FamilyServiceOffers:
+      type: object
+      description: |
+        The choice as the family sees it. `chosenOfferId` null with a
+        non-empty `offers` is the only state that asks them for anything.
+      properties:
+        offers:
+          type: array
+          items:
+            $ref: "#/components/schemas/ServiceOffer"
+        chosenOfferId:
+          type: integer
+          nullable: true
+        serviceAt:
+          type: string
+          format: date-time
+          nullable: true
+          description: |
+            The confirmed time, which may have been set by the home without
+            any offer at all. A family shown this has nothing left to answer.
+        serviceLocation:
+          type: string
+          nullable: true
+        homePhone:
+          type: string
+          nullable: true
+          description: |
+            Shown beside a settled choice, because the way to change an
+            agreed funeral time is to speak to a person.
+      required:
+        [offers, chosenOfferId, serviceAt, serviceLocation, homePhone]
+
+    # ---------------------------------------------------------- storefront --
+
+    HomePolicy:
+      type: object
+      description: |
+        A section of the home's own words. Words only - nothing here changes
+        what the software does.
+      properties:
+        id:
+          type: integer
+        title:
+          type: string
+        body:
+          type: string
+        position:
+          type: integer
+        published:
+          type: boolean
+          description: False is a draft. Staff see it; nobody else does.
+      required: [id, title, body, position, published]
+
+    HomePolicyInput:
+      type: object
+      properties:
+        title:
+          type: string
+          minLength: 1
+          maxLength: 120
+        body:
+          type: string
+          minLength: 1
+          maxLength: 4000
+        published:
+          type: boolean
+      required: [title, body]
+
+    HomePolicyUpdate:
+      type: object
+      properties:
+        title:
+          type: string
+          minLength: 1
+          maxLength: 120
+        body:
+          type: string
+          minLength: 1
+          maxLength: 4000
+        position:
+          type: integer
+          minimum: 0
+        published:
+          type: boolean
+
+    PublicHomePolicy:
+      type: object
+      description: A published policy section, as anyone may read it.
+      properties:
+        id:
+          type: integer
+        title:
+          type: string
+        body:
+          type: string
+      required: [id, title, body]
+
+    # ------------------------------------------------------------- pricing --
+
+    PriceItem:
+      type: object
+      description: |
+        One line of the home's staff-only crib sheet. Never returned by a
+        family or public endpoint - see the `/home/price-list` description.
+      properties:
+        id:
+          type: integer
+        category:
+          type: string
+        label:
+          type: string
+        amountCents:
+          type: integer
+          nullable: true
+          description: |
+            Null means there is no number - flowers at market, a cemetery's
+            own fee. The note carries the reason.
+        amountLabel:
+          type: string
+          nullable: true
+          description: The amount already formatted, so two clients cannot round it differently.
+        note:
+          type: string
+          nullable: true
+        position:
+          type: integer
+        enabled:
+          type: boolean
+      required:
+        [id, category, label, amountCents, amountLabel, note, position, enabled]
+
+    PriceItemInput:
+      type: object
+      properties:
+        category:
+          type: string
+          minLength: 1
+          maxLength: 80
+        label:
+          type: string
+          minLength: 1
+          maxLength: 160
+        amountCents:
+          type: integer
+          nullable: true
+          minimum: 0
+          maximum: 100000000
+        note:
+          type: string
+          nullable: true
+          maxLength: 200
+      required: [category, label]
+
+    PriceItemUpdate:
+      type: object
+      properties:
+        category:
+          type: string
+          minLength: 1
+          maxLength: 80
+        label:
+          type: string
+          minLength: 1
+          maxLength: 160
+        amountCents:
+          type: integer
+          nullable: true
+          minimum: 0
+          maximum: 100000000
+        note:
+          type: string
+          nullable: true
+          maxLength: 200
+        position:
+          type: integer
+          minimum: 0
+        enabled:
+          type: boolean
 
     StaffSignature:
       type: object
@@ -5253,6 +6075,12 @@ components:
           type: integer
         messagesLocked:
           type: boolean
+        awaitingServiceChoice:
+          type: boolean
+          description: |
+            The home has offered times and nobody has picked one. The single
+            thing on this screen that somebody else is waiting on, so the
+            portal puts it above everything else.
         aftercare:
           oneOf:
             - $ref: "#/components/schemas/AftercareEnrollment"
@@ -5271,5 +6099,6 @@ components:
           outstandingDeadlines,
           unreadMessages,
           messagesLocked,
+          awaitingServiceChoice,
           aftercare,
         ]

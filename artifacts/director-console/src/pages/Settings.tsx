@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { Link } from "wouter";
 import { useQueryClient } from "@tanstack/react-query";
 import {
   useGetHome,
@@ -194,57 +194,83 @@ export default function Settings() {
       <BillingSection readOnly={readOnly} />
 
       {/*
-        A public page nobody knows about is a public page that does nothing.
-        This is where a home finds out it has one, and gets the address to put
-        on their own website.
+        The rules below genuinely change what the software does, which is why
+        they live here rather than on the storefront next to the words. A home
+        that writes "photographs are due four days before" into a policy
+        section has changed a sentence; changing the standard schedule above
+        is what changes a date.
       */}
       <section className="space-y-4 rounded-xl border border-border bg-card p-4">
+        <h2 className="font-medium">How you work</h2>
+
+        <div className="grid gap-4 sm:grid-cols-2">
+          <div className="space-y-1.5">
+            <Label htmlFor="messageLockDays">Thread stays open for</Label>
+            <div className="flex items-center gap-2">
+              <Input
+                id="messageLockDays"
+                type="number"
+                min={1}
+                max={365}
+                className="w-24"
+                disabled={readOnly}
+                defaultValue={row.messageLockDays}
+                onBlur={(event) => {
+                  const days = Number(event.target.value);
+                  if (Number.isInteger(days) && days >= 1 && days <= 365) {
+                    save({ messageLockDays: days });
+                  }
+                }}
+              />
+              <span className="text-sm text-muted-foreground">
+                days after the service
+              </span>
+            </div>
+            <p className="text-xs text-muted-foreground">
+              Applied when you close a case, for both sides. Conversations
+              already open keep the window they were closed with — shortening
+              this will not shut a door on a family mid-sentence.
+            </p>
+          </div>
+
+          <div className="space-y-1.5">
+            <Label htmlFor="slideshowTarget">Ask families for about</Label>
+            <div className="flex items-center gap-2">
+              <Input
+                id="slideshowTarget"
+                type="number"
+                min={1}
+                max={500}
+                className="w-24"
+                disabled={readOnly}
+                defaultValue={row.slideshowTarget}
+                onBlur={(event) => {
+                  const target = Number(event.target.value);
+                  if (Number.isInteger(target) && target >= 1 && target <= 500) {
+                    save({ slideshowTarget: target });
+                  }
+                }}
+              />
+              <span className="text-sm text-muted-foreground">photographs</span>
+            </div>
+            <p className="text-xs text-muted-foreground">
+              How long your slideshows actually run. Shown to the family as a
+              suggestion and never enforced — someone who wants sixty for
+              their mother gets sixty.
+            </p>
+          </div>
+        </div>
+      </section>
+
+      <section className="space-y-2 rounded-xl border border-dashed p-4">
         <h2 className="font-medium">Your public page</h2>
         <p className="text-sm text-muted-foreground">
-          Put this on your website, so a family who has just had a death — or
-          someone planning their own funeral in advance — can reach you without
-          waiting for office hours. Your telephone number is at the top of it,
-          above the form.
+          The address to put on your website, what it says, and the policies
+          families read on it now live on their own screen.
         </p>
-
-        <PublicPageLink slug={row.slug} />
-
-        <label className="flex items-start gap-3">
-          <Switch
-            checked={row.intakeEnabled}
-            disabled={readOnly}
-            onCheckedChange={(checked) => save({ intakeEnabled: checked })}
-          />
-          <span className="text-sm">
-            <span className="block font-medium">
-              Take requests through the page
-            </span>
-            <span className="block text-muted-foreground">
-              Turn this off if you would rather every first contact were a phone
-              call. The page still works and still shows your number — it just
-              offers the telephone instead of a form.
-            </span>
-          </span>
-        </label>
-
-        <div className="space-y-1.5">
-          <Label htmlFor="intakeNotifyEmail">Send requests to</Label>
-          <Input
-            id="intakeNotifyEmail"
-            type="email"
-            disabled={readOnly}
-            placeholder="Falls back to the owner's address"
-            defaultValue={row.intakeNotifyEmail ?? ""}
-            onBlur={(event) =>
-              save({ intakeNotifyEmail: event.target.value.trim() || null })
-            }
-          />
-          <p className="text-xs text-muted-foreground">
-            Whoever checks email during the day. A request sitting in a queue
-            nobody opens is worse than no form at all — the family believes they
-            have reached someone.
-          </p>
-        </div>
+        <Button asChild variant="outline" size="sm">
+          <Link href="/storefront">Open your page</Link>
+        </Button>
       </section>
 
       <section className="space-y-4 rounded-xl border border-border bg-card p-4">
@@ -285,53 +311,6 @@ export default function Settings() {
           </p>
         </div>
       </section>
-    </div>
-  );
-}
-
-/**
- * The address a home puts on their own website.
- *
- * Built from the family portal's origin at runtime rather than stored,
- * because the console and the portal are different hostnames and only the
- * deployment knows the second one. `VITE_FAMILY_PORTAL_URL` is read if the
- * build set it; otherwise this shows the path and says where it goes, which
- * is honest rather than confidently wrong.
- */
-function PublicPageLink({ slug }: { slug: string }) {
-  const [copied, setCopied] = useState(false);
-
-  const configured = import.meta.env["VITE_FAMILY_PORTAL_URL"] as
-    | string
-    | undefined;
-  const origin = configured?.replace(/\/+$/, "");
-  const url = `${origin ?? ""}/start/${slug}`;
-
-  return (
-    <div className="space-y-1.5">
-      <div className="flex gap-2">
-        <code className="flex-1 rounded border bg-muted px-3 py-2 text-xs break-all">
-          {url}
-        </code>
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={() => {
-            void navigator.clipboard?.writeText(url).then(() => {
-              setCopied(true);
-              setTimeout(() => setCopied(false), 2000);
-            });
-          }}
-        >
-          {copied ? "Copied" : "Copy"}
-        </Button>
-      </div>
-      {!origin && (
-        <p className="text-xs text-muted-foreground">
-          Add your family portal&rsquo;s address in front of that path — it is
-          the site your families open their texted links on.
-        </p>
-      )}
     </div>
   );
 }

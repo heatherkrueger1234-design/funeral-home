@@ -165,6 +165,9 @@ export default function Start() {
     <Shell>
       <header className="mb-8">
         <h1 className="font-display text-3xl leading-tight">{h.name}</h1>
+        {h.storefrontHeadline && (
+          <p className="font-display text-lg mt-1.5">{h.storefrontHeadline}</p>
+        )}
         {(h.city || h.addressLine1) && (
           <p className="text-muted-foreground mt-1">
             {[h.addressLine1, h.city, h.region].filter(Boolean).join(", ")}
@@ -173,6 +176,18 @@ export default function Start() {
       </header>
 
       <UrgentLine urgentPhone={h.urgentPhone} phone={h.phone} />
+
+      {/*
+        The home's own words, below the number rather than above it. Someone
+        reaching this page an hour after a death needs the telephone first;
+        what the home has to say about itself is for the person who has time
+        to read it.
+      */}
+      {h.storefrontAbout && (
+        <p className="whitespace-pre-wrap text-muted-foreground mb-8">
+          {h.storefrontAbout}
+        </p>
+      )}
 
       <h2 className="font-display text-xl mb-1">Which of these is you?</h2>
       <p className="text-muted-foreground text-sm mb-5">
@@ -221,7 +236,44 @@ export default function Start() {
           </div>
         )}
       </div>
+
+      <Policies policies={h.policies} />
     </Shell>
+  );
+}
+
+/**
+ * What the home says the same way to everyone.
+ *
+ * Last on the page, and collapsed, because nobody arrives here to read a
+ * policy — they arrive to reach a person. It earns its place for the person
+ * who comes back on day three wanting to know when the balance is due and
+ * would otherwise have to ring and ask.
+ */
+function Policies({
+  policies,
+}: {
+  policies: Array<{ id: number; title: string; body: string }>;
+}) {
+  if (policies.length === 0) return null;
+
+  return (
+    <section className="mt-10 border-t pt-6">
+      <h2 className="font-display text-lg mb-3">Things people ask</h2>
+      <div className="space-y-2">
+        {policies.map((policy) => (
+          <details
+            key={policy.id}
+            className="rounded-lg border px-4 py-3 [&_summary]:cursor-pointer"
+          >
+            <summary className="font-medium">{policy.title}</summary>
+            <p className="mt-2 whitespace-pre-wrap text-sm text-muted-foreground">
+              {policy.body}
+            </p>
+          </details>
+        ))}
+      </div>
+    </section>
   );
 }
 

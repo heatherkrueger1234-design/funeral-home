@@ -36,6 +36,7 @@ import {
 import { sendPasswordResetEmail } from "@workspace/mailer";
 import { authRateLimit } from "../middleware/rate-limit";
 import { seedTimelineTemplate } from "../lib/timeline";
+import { seedPolicyPrompts } from "../lib/storefront";
 import { currentUser, requireAuth, tenant } from "../middleware/require-auth";
 
 /**
@@ -141,6 +142,10 @@ router.post("/auth/register", authRateLimit, async (req, res) => {
     // timeline on every case; one that wants something different edits this
     // list once.
     await seedTimelineTemplate(createdHome!.id, tx);
+
+    // The same argument, for the sentences a home repeats at every kitchen
+    // table. Seeded unpublished — see `seedPolicyPrompts`.
+    await seedPolicyPrompts(createdHome!.id, tx);
 
     return { user: createdUser!, home: createdHome! };
   });

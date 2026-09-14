@@ -17,12 +17,16 @@ import { usersTable } from "./users";
  *
  * The name is the industry's own: directors say "case", and a product sold to
  * directors should speak their language rather than teach them ours. It is
- * deliberately *not* a case-management system — there is no price list, no
- * invoice, no contract, no venue booking here, and that omission is a product
- * decision rather than a gap. Homes already own systems for those, the FTC
- * Funeral Rule governs how prices must be disclosed, and cemeteries and
- * churches keep their own calendars. This table holds the collaboration with
- * the family, which is the part nobody has built.
+ * deliberately *not* a case-management system — there is no invoice, no
+ * contract and no venue booking here, and that omission is a product decision
+ * rather than a gap. Homes already own systems for those, the FTC Funeral Rule
+ * governs how prices must be disclosed, and cemeteries and churches keep their
+ * own calendars. This table holds the collaboration with the family, which is
+ * the part nobody has built.
+ *
+ * Money is not on this row and is not on any row reachable from it. A home's
+ * own price sheet lives in `home_price_items`, hangs off the *home* rather
+ * than off a case, and is staff-only for reasons set out at length there.
  *
  * What lives here is only the confirmed shape of the service, so the family
  * can be shown it. Changing it here does not move anything in the world.
@@ -138,7 +142,7 @@ export const casesTable = pgTable(
 
     /**
      * When the case chat stops accepting messages. Set when the case closes,
-     * to the service date plus a fortnight.
+     * to the service date plus the home's own `messageLockDays`.
      *
      * This is the column that protects the director six months later. Without
      * it, a case chat is a channel a family can reopen forever, and the
@@ -175,9 +179,6 @@ export type CaseKind = (typeof CASE_KINDS)[number];
 export function isPreNeed(row: Pick<Case, "kind">): boolean {
   return row.kind === "pre_need";
 }
-
-/** How long after the service the chat stays open. */
-export const MESSAGE_LOCK_DAYS = 14;
 
 export const insertCaseSchema = createInsertSchema(casesTable).omit({
   id: true,

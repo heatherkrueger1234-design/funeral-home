@@ -11,6 +11,20 @@ import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
 
 /**
+ * How long after the service the case chat stays open, for a home that has
+ * never thought about it. Two weeks is long enough to settle the things that
+ * surface after a funeral and short enough that the promise to end the
+ * endless thread stays true; a home that disagrees changes its own column.
+ */
+export const DEFAULT_MESSAGE_LOCK_DAYS = 14;
+
+/**
+ * How many photographs a home asks a family to pick for the slideshow, when
+ * it has not said. Roughly what a watchable slideshow holds.
+ */
+export const DEFAULT_SLIDESHOW_TARGET = 50;
+
+/**
  * A funeral home. The tenant, and the thing that pays the monthly bill.
  *
  * Every other table in this database is reachable from a row here, and every
@@ -111,6 +125,58 @@ export const funeralHomesTable = pgTable(
      * the family believes they have reached someone.
      */
     intakeNotifyEmail: text("intake_notify_email"),
+
+    /* ------------------------------------------------------- the storefront */
+
+    /**
+     * The two paragraphs on the home's public page, above the form.
+     *
+     * Not marketing copy, and the editor says so. The page is reached by
+     * somebody whose mother died an hour ago, and what they need off it is
+     * that they have the right place and that a person will answer. A
+     * headline that says "Serving Jefferson County since 1946" does that; a
+     * headline that says "Compassionate care for your loved ones" does not,
+     * because every home says it.
+     *
+     * Null on both is a perfectly good state -- the page already shows the
+     * name, the address and the telephone number, which is the part that
+     * matters. Nothing here is required before a home can take a request.
+     */
+    storefrontHeadline: text("storefront_headline"),
+    storefrontAbout: text("storefront_about"),
+
+    /* ------------------------------------------------- the operational rules */
+
+    /**
+     * How long the case chat stays open after the service, in days.
+     *
+     * Per home rather than the constant it replaces, because the right
+     * number is a matter of how a home works. Fourteen days suits a home
+     * that closes a file and moves on; a small-town home whose families are
+     * also its neighbours wants longer, and being unable to say so meant
+     * choosing between a promise the product could not keep and a door that
+     * shut on people too early.
+     *
+     * Applied when a case closes, and read from this column at that moment
+     * rather than continuously: a home that shortens this must not retro-
+     * actively slam a conversation shut on a family mid-sentence.
+     */
+    messageLockDays: integer("message_lock_days")
+      .notNull()
+      .default(DEFAULT_MESSAGE_LOCK_DAYS),
+
+    /**
+     * How many photographs the home asks a family to pick for the slideshow.
+     *
+     * Shown as a target, never enforced -- a family who wants sixty for
+     * their mother gets sixty. It is here because the number is a fact about
+     * how long the home's slideshows run, and a home whose service holds a
+     * ten-minute slideshow was previously being told to ask for fifty by
+     * software that had never seen one of their funerals.
+     */
+    slideshowTarget: integer("slideshow_target")
+      .notNull()
+      .default(DEFAULT_SLIDESHOW_TARGET),
 
     /* ---------------------------------------------------- subscription */
 
@@ -276,6 +342,8 @@ export type PublicFuneralHome = Pick<
   | "officeOpensMinute"
   | "officeClosesMinute"
   | "timezone"
+  | "storefrontHeadline"
+  | "storefrontAbout"
 >;
 
 export function toPublicFuneralHome(home: FuneralHome): PublicFuneralHome {
@@ -297,5 +365,10 @@ export function toPublicFuneralHome(home: FuneralHome): PublicFuneralHome {
     officeOpensMinute: home.officeOpensMinute,
     officeClosesMinute: home.officeClosesMinute,
     timezone: home.timezone,
+    // The home's own words about itself. Note what is *not* here, and see
+    // `price-list.ts` for why: the home's prices are staff-only, and this
+    // function is the one place where forgetting that would publish them.
+    storefrontHeadline: home.storefrontHeadline,
+    storefrontAbout: home.storefrontAbout,
   };
 }

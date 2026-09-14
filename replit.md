@@ -4,11 +4,21 @@ A funeral home buys this to stop cat-herding grieving families through
 paperwork and photo collection by text message at midnight.
 
 It is deliberately **not** a case-management system. Homes already own one.
-There is no price list, no invoice, no contract and no venue booking here, and
-those omissions are product decisions rather than gaps: the FTC Funeral Rule
-governs how prices must be disclosed, and churches and cemeteries keep their
-own calendars. What this owns is the collaboration with the family, which is
-the part nobody has built.
+There is no invoice, no contract, no published price list and no venue booking
+here, and those omissions are product decisions rather than gaps: the FTC
+Funeral Rule governs how prices must be disclosed, and churches and cemeteries
+keep their own calendars. What this owns is the collaboration with the family,
+which is the part nobody has built.
+
+Two things in here sit close enough to those lines to be worth stating
+plainly. A home can keep a **price sheet**, but it is staff-only and there is
+no setting that would show it to a family or put it on the public page -- it
+is the crib sheet a director has open at a kitchen table, not a General Price
+List, and `lib/db/src/schema/price-list.ts` explains at length why that
+boundary is enforced by tests rather than by intention. A home can also
+**offer a family a choice of service times**, but an offer is not a booking:
+nothing here knows whether the church is free, and only times the director has
+already confirmed by telephone belong in it.
 
 ## What it does
 
@@ -35,6 +45,22 @@ ticked off.
 start `pending` and send nothing until the family consents — they are shown
 the actual dates and a decline of equal visual weight, and a no is final.
 
+**5. The master page.** The screen a director opens first, and the only one
+in the product that is not about a single case: who is waiting on a reply,
+what went past due while they were at a graveside, what is happening this
+week, and which cases have no service date at all -- that last one because
+every step of the standard schedule is an offset from the service, so a case
+without one has an empty timeline and a family who has been told nothing. The
+cross-case inbox lives here too, for the same reason: one contained thread per
+family is a promise kept case by case, and the cost was that the thread nobody
+opened was the thread nobody answered.
+
+It is also where a home edits the things that are theirs rather than any one
+family's -- the words on their public page, the policies they repeat at every
+kitchen table, their standard schedule, their own staff-only price sheet, and
+the two rules that genuinely change what the software does (how long a thread
+stays open after the service, and how many photographs to ask for).
+
 Two things hold the rest together. The **standard schedule** is written once
 per home as offsets from the service, and every case gets it automatically the
 moment a service date exists — without it a director with four funerals this
@@ -51,14 +77,14 @@ frontends use, so a contract change cannot land on one side only. CI fails if
 the checked-in generated code drifts from the spec.
 
 ```
-lib/db              Drizzle schema. 15 tables, all reachable from funeral_homes.
+lib/db              Drizzle schema. 28 tables, all reachable from funeral_homes.
 lib/api-spec        openapi.yaml + orval config. The contract.
 lib/api-zod         Generated: zod validators (server-side).
 lib/api-client-react Generated: react-query hooks (+ hand-written multipart).
 lib/mailer          SMTP. Shared, because the aftercare worker sends mail too.
 artifacts/api-server Express. Two auth surfaces; see below.
 artifacts/family-portal   What the family opens. Mobile-first, brandable.
-artifacts/director-console What the home works cases from.
+artifacts/director-console What the home works cases from, and its master page.
 scripts             Backups, and the aftercare sender.
 ```
 

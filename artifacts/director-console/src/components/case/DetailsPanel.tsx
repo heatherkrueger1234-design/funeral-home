@@ -16,6 +16,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { DateOptions } from "@/components/case/DateOptions";
 
 /** For a `datetime-local` input, which wants local wall time with no zone. */
 function toLocalInput(value: string | Date | null): string {
@@ -79,6 +80,8 @@ export function DetailsPanel({
             The family is shown this as confirmed. Leave it empty until it is.
           </p>
         </div>
+
+        <DateOptions caseId={caseId} />
 
         <div className="space-y-1.5">
           <Label htmlFor="serviceLocation">Where</Label>

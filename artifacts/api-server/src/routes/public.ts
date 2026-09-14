@@ -5,7 +5,6 @@ import {
   db,
   funeralHomesTable,
   intakeRequestsTable,
-  toPublicFuneralHome,
   usersTable,
   INTAKE_REQUESTS_PER_HOME_PER_HOUR,
   INTAKE_REQUESTS_PER_IP_PER_HOUR,
@@ -13,6 +12,7 @@ import {
 import { SubmitIntakeRequestBody } from "@workspace/api-zod";
 import { sendIntakeNotificationEmail } from "@workspace/mailer";
 import { badRequest, notFound, parseBody, HttpError } from "../lib/http";
+import { publicHome } from "../lib/storefront";
 import { markOnboarding } from "../lib/onboarding";
 import { logger } from "../lib/logger";
 
@@ -77,7 +77,7 @@ router.get("/homes/:slug", async (req, res) => {
   if (!home) throw notFound("We could not find that funeral home.");
 
   res.json({
-    ...toPublicFuneralHome(home),
+    ...(await publicHome(home)),
     intakeEnabled: home.intakeEnabled && canOpenCases(home),
   });
 });

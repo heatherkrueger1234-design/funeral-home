@@ -23,8 +23,17 @@ export type ThreadOptions = {
   now?: Date;
 };
 
-/** A thread is locked once the case's lock date has passed. */
-export function isThreadLocked(row: Case, now = new Date()): boolean {
+/**
+ * A thread is locked once the case's lock date has passed.
+ *
+ * Takes only the column it reads, so the inbox — which selects a handful of
+ * fields across every case rather than whole rows — can ask the same question
+ * as the thread itself, instead of reimplementing it slightly differently.
+ */
+export function isThreadLocked(
+  row: Pick<Case, "messagesLockAt">,
+  now = new Date(),
+): boolean {
   return row.messagesLockAt !== null && row.messagesLockAt <= now;
 }
 
