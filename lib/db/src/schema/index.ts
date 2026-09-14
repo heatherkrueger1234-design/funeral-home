@@ -37,6 +37,8 @@ export * from "./selections";
 export * from "./belongings";
 
 /* The paperwork that holds everything else up. */
+export * from "./forms";
+export * from "./policies";
 export * from "./vital-statistics";
 
 /* What gets printed. */
