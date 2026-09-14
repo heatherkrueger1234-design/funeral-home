@@ -503,8 +503,8 @@ Prices were checked against the providers' own pages in September 2026 and are
 what they advertise for the plan named; confirm at signup, because one of them
 had moved by a factor of three since I last had a figure for it.
 
-**Total: about $63 a month, plus $11 a year for the domain, plus Stripe's
-percentage on what you actually collect.** Optional host backups add $9.60.
+**Total: about $64 a month, the domain included, plus Stripe's percentage on
+what you actually collect.** Optional host backups add $9.60.
 
 | | Per month |
 | --- | --- |
