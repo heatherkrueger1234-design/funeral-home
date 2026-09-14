@@ -27,6 +27,10 @@ import vendorsRouter from "./vendors";
 import vitalsRouter from "./vitals";
 import printRouter from "./print";
 import aftercareRouter from "./aftercare";
+import engagementRouter, {
+  familyEngagementRouter,
+  engagementWebhookRouter,
+} from "./engagement";
 import uploadsRouter from "./uploads";
 import adminRouter from "./admin";
 
@@ -113,6 +117,13 @@ router.use(tasksRouter);
  */
 
 /**
+ * A carrier delivering an inbound text, which is how STOP arrives. Above the
+ * gates for the same reason, and guarded by Twilio's own request signature
+ * instead — see `engagement.ts`.
+ */
+router.use(engagementWebhookRouter);
+
+/**
  * The family surface, mounted under `/family` so the gate applies to those
  * paths and only those paths — mounting the middleware without a prefix would
  * put it in front of every staff route as well.
@@ -137,6 +148,7 @@ router.use(
   requireFamilyLink,
   familyRouter,
   familyStorefrontRouter,
+  familyEngagementRouter,
 );
 
 /**
@@ -166,6 +178,7 @@ router.use(vendorsRouter);
 router.use(vitalsRouter);
 router.use(printRouter);
 router.use(aftercareRouter);
+router.use(engagementRouter);
 router.use(uploadsRouter);
 
 export default router;

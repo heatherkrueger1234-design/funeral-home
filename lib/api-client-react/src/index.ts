@@ -20,6 +20,7 @@ export * from "./generated/cases/cases";
 export * from "./generated/catalogue/catalogue";
 export * from "./generated/contacts/contacts";
 export * from "./generated/deadlines/deadlines";
+export * from "./generated/engagement/engagement";
 export * from "./generated/family/family";
 export * from "./generated/health/health";
 export * from "./generated/home/home";

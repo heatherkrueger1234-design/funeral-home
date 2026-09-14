@@ -47,6 +47,10 @@ export * from "./timeline-templates";
 export * from "./messages";
 export * from "./deadlines";
 
+/* Times a family can pick from, the clocks Colorado runs on a death, and the
+ * record of who said we may write to them. */
+export * from "./engagement";
+
 /* What the home sells, what the family chose, and the statement that comes
  * out of it. */
 export * from "./catalogue";
