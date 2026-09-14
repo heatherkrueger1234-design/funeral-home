@@ -3573,6 +3573,8 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/CaseFormDetail"
+        "409":
+          description: It has been signed, and stays as it was signed
         "404":
           description: Not a form on this case
 
@@ -3949,8 +3951,11 @@ paths:
         until they have found their mother's maiden name is a form they
         abandon on a phone at midnight.
 
-        Requires the access level the home set on the form. An `authorization`
-        is not saved here at all — see `/family/forms/{caseFormId}/authorize`.
+        Requires the access level the home set on the form.
+
+        Once an authorization has been signed it stops taking answers: the
+        signature snapshotted the boxes as they stood, and letting them drift
+        afterwards would leave two versions of what was signed.
       parameters:
         - $ref: "#/components/parameters/CaseFormId"
       requestBody:
@@ -3968,6 +3973,8 @@ paths:
                 $ref: "#/components/schemas/CaseFormDetail"
         "403":
           description: This form is above this person's access level
+        "409":
+          description: It has been signed, and stays as it was signed
         "404":
           description: Not a form shared with this family
 
@@ -4006,6 +4013,11 @@ paths:
 
         What is written is append-only and snapshots the answers as they stood
         at the moment of signing. A correction is a second authorization.
+
+        On a tier that needs a majority, a second authorizing contact signing
+        the same document adds their own consent to the authorization already
+        recorded rather than opening a rival one. Nobody consents on anybody
+        else's behalf here — see `FamilyAuthorizationInput`.
       parameters:
         - $ref: "#/components/parameters/CaseFormId"
       requestBody:
@@ -8526,9 +8538,18 @@ components:
       type: object
       additionalProperties: false
       description: |
-        The tier is not in here. It is the one the funeral home recorded
-        against this person, and a family member does not get to claim a
-        standing for themselves — `family-contacts.ts` says why at length.
+        Deliberately short. Two things a family member cannot do here:
+
+        Claim a tier. The standing is the one the funeral home recorded
+        against this person, from documents, and `family-contacts.ts` says at
+        length why an app that let somebody choose it would be wrong in
+        exactly the cases that end up in front of a judge.
+
+        Consent on somebody else's behalf. A daughter typing "my brother
+        agreed" is her assertion, not her brother's consent — which is the
+        very thing the majority rule exists to prevent. Every other
+        consenting person either signs here themselves or is recorded by the
+        home, with the channel it came through.
       properties:
         password:
           type: string
@@ -8542,16 +8563,6 @@ components:
           type: string
           maxLength: 120
           nullable: true
-        tierMemberCount:
-          type: integer
-          minimum: 1
-          maximum: 50
-          nullable: true
-        consents:
-          type: array
-          maxItems: 50
-          items:
-            $ref: "#/components/schemas/ConsentInput"
       required: [password, signedName]
 
     VerifyAuthorizationInput:

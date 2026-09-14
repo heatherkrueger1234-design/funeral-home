@@ -17,12 +17,20 @@ Two audiences, two authentication schemes, and the split is load-bearing:
 
  * OpenAPI spec version: 0.1.0
  */
-import type { ConsentInput } from "./consentInput";
 
 /**
- * The tier is not in here. It is the one the funeral home recorded
-against this person, and a family member does not get to claim a
-standing for themselves — `family-contacts.ts` says why at length.
+ * Deliberately short. Two things a family member cannot do here:
+
+Claim a tier. The standing is the one the funeral home recorded
+against this person, from documents, and `family-contacts.ts` says at
+length why an app that let somebody choose it would be wrong in
+exactly the cases that end up in front of a judge.
+
+Consent on somebody else's behalf. A daughter typing "my brother
+agreed" is her assertion, not her brother's consent — which is the
+very thing the majority rule exists to prevent. Every other
+consenting person either signs here themselves or is recorded by the
+home, with the channel it came through.
 
  */
 export interface FamilyAuthorizationInput {
@@ -38,11 +46,4 @@ export interface FamilyAuthorizationInput {
   signedName: string;
   /** @maxLength 120 */
   signedRelationship?: string | null;
-  /**
-   * @minimum 1
-   * @maximum 50
-   */
-  tierMemberCount?: number | null;
-  /** @maxItems 50 */
-  consents?: ConsentInput[];
 }

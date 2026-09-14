@@ -2485,8 +2485,11 @@ export function useGetFamilyForm<
 until they have found their mother's maiden name is a form they
 abandon on a phone at midnight.
 
-Requires the access level the home set on the form. An `authorization`
-is not saved here at all — see `/family/forms/{caseFormId}/authorize`.
+Requires the access level the home set on the form.
+
+Once an authorization has been signed it stops taking answers: the
+signature snapshotted the boxes as they stood, and letting them drift
+afterwards would leave two versions of what was signed.
 
  * @summary Save what they have so far
  */
@@ -2675,6 +2678,11 @@ holding a forwarded link, and the case is not marked disputed.
 
 What is written is append-only and snapshots the answers as they stood
 at the moment of signing. A correction is a second authorization.
+
+On a tier that needs a majority, a second authorizing contact signing
+the same document adds their own consent to the authorization already
+recorded rather than opening a rival one. Nobody consents on anybody
+else's behalf here — see `FamilyAuthorizationInput`.
 
  * @summary Sign an authorization
  */

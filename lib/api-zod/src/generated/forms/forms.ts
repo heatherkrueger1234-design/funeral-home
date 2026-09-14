@@ -1684,8 +1684,11 @@ export const GetFamilyFormResponse = zod
 until they have found their mother's maiden name is a form they
 abandon on a phone at midnight.
 
-Requires the access level the home set on the form. An `authorization`
-is not saved here at all — see `/family/forms/{caseFormId}/authorize`.
+Requires the access level the home set on the form.
+
+Once an authorization has been signed it stops taking answers: the
+signature snapshotted the boxes as they stood, and letting them drift
+afterwards would leave two versions of what was signed.
 
  * @summary Save what they have so far
  */
@@ -1880,6 +1883,11 @@ holding a forwarded link, and the case is not marked disputed.
 What is written is append-only and snapshots the answers as they stood
 at the moment of signing. A correction is a second authorization.
 
+On a tier that needs a majority, a second authorizing contact signing
+the same document adds their own consent to the authorization already
+recorded rather than opening a rival one. Nobody consents on anybody
+else's behalf here — see `FamilyAuthorizationInput`.
+
  * @summary Sign an authorization
  */
 export const AuthorizeFamilyFormParams = zod.object({
@@ -1892,14 +1900,6 @@ export const authorizeFamilyFormBodySignedNameMax = 200;
 
 export const authorizeFamilyFormBodySignedRelationshipMax = 120;
 
-export const authorizeFamilyFormBodyTierMemberCountMax = 50;
-
-export const authorizeFamilyFormBodyConsentsItemPersonNameMax = 200;
-
-export const authorizeFamilyFormBodyConsentsItemRelationshipMax = 120;
-
-export const authorizeFamilyFormBodyConsentsMax = 50;
-
 export const AuthorizeFamilyFormBody = zod
   .object({
     password: zod.string().min(1).max(authorizeFamilyFormBodyPasswordMax),
@@ -1908,33 +1908,9 @@ export const AuthorizeFamilyFormBody = zod
       .string()
       .max(authorizeFamilyFormBodySignedRelationshipMax)
       .nullish(),
-    tierMemberCount: zod
-      .number()
-      .min(1)
-      .max(authorizeFamilyFormBodyTierMemberCountMax)
-      .nullish(),
-    consents: zod
-      .array(
-        zod.object({
-          personName: zod
-            .string()
-            .min(1)
-            .max(authorizeFamilyFormBodyConsentsItemPersonNameMax),
-          relationship: zod
-            .string()
-            .max(authorizeFamilyFormBodyConsentsItemRelationshipMax)
-            .nullish(),
-          channel: zod
-            .enum(["portal", "in_person", "telephone", "email", "paper"])
-            .optional(),
-          consentedAt: zod.coerce.date().optional(),
-        }),
-      )
-      .max(authorizeFamilyFormBodyConsentsMax)
-      .optional(),
   })
   .describe(
-    "The tier is not in here. It is the one the funeral home recorded\nagainst this person, and a family member does not get to claim a\nstanding for themselves — `family-contacts.ts` says why at length.\n",
+    "Deliberately short. Two things a family member cannot do here:\n\nClaim a tier. The standing is the one the funeral home recorded\nagainst this person, from documents, and `family-contacts.ts` says at\nlength why an app that let somebody choose it would be wrong in\nexactly the cases that end up in front of a judge.\n\nConsent on somebody else's behalf. A daughter typing \"my brother\nagreed\" is her assertion, not her brother's consent — which is the\nvery thing the majority rule exists to prevent. Every other\nconsenting person either signs here themselves or is recorded by the\nhome, with the channel it came through.\n",
   );
 
 /**
