@@ -1,5 +1,5 @@
-# A whole installation on one host: Postgres, the API, both front ends, and a
-# toolbox container for migrations and backups.
+# A whole installation on one host: Postgres, the API, the three front ends,
+# and a toolbox container for migrations and backups.
 #
 #   cp .env.example .env    # then fill it in — it will not start without it
 #   docker compose run --rm tools pnpm --filter @workspace/db run push
@@ -52,7 +52,7 @@ services:
       # nginx. Both req.secure and the rate limiter's idea of the client
       # address depend on this matching reality.
       TRUST_PROXY_HOPS: ${TRUST_PROXY_HOPS:-1}
-      # The two apps are same-origin with their own API through nginx, so no
+      # The three apps are same-origin with their own API through nginx, so no
       # cross-origin request needs allowing. Left settable for a separate dev
       # server pointed at this stack.
       CORS_ORIGINS: ${CORS_ORIGINS:-}
@@ -98,6 +98,22 @@ services:
       - api
     ports:
       - "${CONSOLE_PORT:-8081}:80"
+
+  # The platform's own console — our staff, not a customer's. Published on its
+  # own port like the others. Nothing here is reachable without a row in
+  # `platform_admins` and the separate session cookie that comes with it, so
+  # a stack with no such row has a console that nobody can sign in to.
+  admin-console:
+    build:
+      context: .
+      dockerfile: Dockerfile.web
+      args:
+        APP: admin-console
+    restart: unless-stopped
+    depends_on:
+      - api
+    ports:
+      - "${ADMIN_CONSOLE_PORT:-8082}:80"
 
   # Not a server. `docker compose run --rm tools <command>` — migrations,
   # backups, restores, the ZIP centroid load, the aftercare send. It carries

@@ -91,32 +91,29 @@ export async function purgeExpiredPlatformSessions(): Promise<void> {
 /* ----------------------------------------------------------------- audit -- */
 
 /**
- * Record that one of us looked at something.
+ * Record a platform sign-in.
  *
- * Append-only, and never carries the data that was looked at — only enough to
- * say what was reached. A funeral home's insurer is entitled to ask what the
- * vendor can see, and a log of every look is a better answer than a promise.
- *
- * Fire-and-forget on purpose: failing to write an audit row must not fail the
- * request, or the first database hiccup takes the console down. A warning in
- * the log is the right trade, and it is loud enough to notice.
+ * Cross-tenant *reads* are audited in `routes/admin.ts`, which awaits the
+ * write so that a read whose audit row did not land cannot return data. This
+ * one is only the sign-in, where no home has been touched yet and nothing is
+ * being returned to protect — so it is fire-and-forget, and a failure here
+ * must not be able to stop somebody signing in.
  */
-export function recordPlatformAccess(options: {
-  adminId: number;
-  action: string;
-  funeralHomeId?: number | null;
-  subject?: string | null;
+export function recordPlatformSignIn(admin: {
+  id: number;
+  email: string;
 }): void {
   void db
     .insert(platformAuditTable)
     .values({
-      adminId: options.adminId,
-      action: options.action,
-      funeralHomeId: options.funeralHomeId ?? null,
-      subject: options.subject ?? null,
+      adminId: admin.id,
+      actorEmail: admin.email,
+      action: "sign_in",
+      subjectHomeId: null,
+      subjectHomeName: null,
     })
     .catch((err: unknown) => {
-      logger.warn({ err, action: options.action }, "Could not record platform access");
+      logger.warn({ err }, "Could not record platform sign-in");
     });
 }
 
