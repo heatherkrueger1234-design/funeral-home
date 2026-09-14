@@ -99,10 +99,34 @@ services:
     ports:
       - "${CONSOLE_PORT:-8081}:80"
 
-  # The platform's own console — our staff, not a customer's. Published on its
-  # own port like the others. Nothing here is reachable without a row in
-  # `platform_admins` and the separate session cookie that comes with it, so
-  # a stack with no such row has a console that nobody can sign in to.
+  # The platform's own console — our staff, not a customer's.
+  #
+  # Loopback only, here in the base file, and not because of TLS.
+  #
+  # The two front ends beside this one are bound to every interface because
+  # they have to be: a family opens the portal from a phone in a hospital car
+  # park, and a director opens the console from home at 2am. This one is ours,
+  # and a signed-in platform admin can read *every home on the platform* —
+  # so one stolen password here is not one home's cases, it is all of them.
+  # It has no business being reachable from the internet at any point in the
+  # life of a deployment.
+  #
+  # docker-compose.tls.yml closes the other two. It closes this one too, but
+  # relying on that would leave a window: DEPLOY.md's own "Bring it up"
+  # section runs `docker compose up -d` with no overlay, and anyone following
+  # it literally — or bringing the stack up once before wiring TLS — would put
+  # the platform console on 0.0.0.0 in plain HTTP for as long as that took.
+  # Binding it here means no combination of compose files opens it by
+  # omission.
+  #
+  # Reach it over an SSH tunnel to 127.0.0.1, which browsers treat as a secure
+  # context, so the Secure session cookie works with no certificate involved.
+  # The runbook in LAUNCH.md has the command.
+  #
+  # Nothing here is reachable without a row in `platform_admins` and the
+  # separate session cookie that comes with it, so a stack with no such row
+  # has a console nobody can sign in to. That is the second lock, not the
+  # first.
   admin-console:
     build:
       context: .
@@ -113,7 +137,7 @@ services:
     depends_on:
       - api
     ports:
-      - "${ADMIN_CONSOLE_PORT:-8082}:80"
+      - "127.0.0.1:${ADMIN_CONSOLE_PORT:-8082}:80"
 
   # Not a server. `docker compose run --rm tools <command>` — migrations,
   # backups, restores, the ZIP centroid load, the aftercare send. It carries

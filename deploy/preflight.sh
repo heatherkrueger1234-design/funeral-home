@@ -151,9 +151,165 @@ else
     done
   fi
 
+  # Free is not the same question as reachable, and only the second one is
+  # what Let's Encrypt asks. A cloud firewall or security group that never
+  # allowed :80 inbound is invisible from inside the host -- the port is
+  # genuinely free, nothing is misconfigured locally, and the HTTP-01
+  # challenge still fails. That is the 2am one, because the machine looks
+  # perfect from the machine.
+  #
+  # So: bind a listener on :80 for a moment and try to fetch a random token
+  # back through this host's own public address. A success is proof. A
+  # failure is *not* proof of the opposite -- plenty of providers do not
+  # route a host's own traffic back to itself (hairpin NAT) -- so that case
+  # is reported as inconclusive rather than as a pass or a fail. A check
+  # that cannot run is not a check that passed.
+  if [ -n "$PUBLIC_IP" ] && command -v python3 >/dev/null; then
+    if printf '%s\n' "${LISTENERS:-}" | awk '{print $4}' | grep -qE '[:.]80$'; then
+      warn "something is already bound to :80, so its reachability from the internet was not tested"
+    else
+      TOKEN="preflight-$$-$(date +%s)"
+      python3 - "$TOKEN" <<'PY' &
+import http.server, socketserver, sys
+token = sys.argv[1]
+class H(http.server.BaseHTTPRequestHandler):
+    def do_GET(self):
+        self.send_response(200); self.end_headers()
+        self.wfile.write(token.encode())
+    def log_message(self, *a): pass
+socketserver.TCPServer.allow_reuse_address = True
+# serve_forever, not handle_request: two requests are made against this --
+# one through loopback to prove the listener is up, then one through the
+# public address. Serving only the first would leave the second hitting a
+# closed socket, and the check would report "unreachable from outside" on
+# every host in the world.
+with socketserver.TCPServer(("", 80), H) as s:
+    s.serve_forever()
+PY
+      PROBE_PID=$!
+      sleep 1
+
+      # Through loopback first. If our own listener cannot even be reached on
+      # this host then the probe proved nothing about the firewall, and
+      # saying "check your firewall" would send somebody to the wrong place
+      # for an hour. Almost always it means something already holds :80 that
+      # neither ss nor netstat was here to show us.
+      LOCAL_SEEN="$(curl -fsS --max-time 5 "http://127.0.0.1/$TOKEN" 2>/dev/null || true)"
+      if [ "$LOCAL_SEEN" = "$TOKEN" ]; then
+        SEEN="$(curl -fsS --max-time 8 "http://$PUBLIC_IP/$TOKEN" 2>/dev/null || true)"
+      else
+        SEEN=""
+      fi
+
+      kill "$PROBE_PID" 2>/dev/null
+      wait "$PROBE_PID" 2>/dev/null
+
+      if [ "$LOCAL_SEEN" != "$TOKEN" ]; then
+        bad "could not bind and reach a test listener on :80 on this host itself. Something"
+        bad "else is holding the port — find it with 'lsof -i :80' or 'fuser 80/tcp' and stop"
+        bad "it, or Caddy will fail to start and no certificate will ever issue."
+      elif [ "$SEEN" = "$TOKEN" ]; then
+        ok ":80 is reachable from outside this host — the HTTP-01 challenge can complete"
+      else
+        warn "this host answers on :80 locally but not via $PUBLIC_IP. Often that is only the"
+        warn "provider declining to route a host's traffic back to itself, and nothing is"
+        warn "wrong. But if the first staging certificate fails, open :80 inbound in the"
+        warn "provider's firewall before retrying — it is the usual cause and it is"
+        warn "invisible from this side."
+      fi
+    fi
+  fi
+
   [ -n "${ACME_CA:-}" ] \
     && warn "ACME_CA is set, so certificates will come from Let's Encrypt's staging CA and browsers will not trust them. Right for a first run; unset it once one issues cleanly." \
     || ok "ACME_CA is unset, so certificates will be real"
+fi
+echo
+
+# ------------------------------------------------------------------ clock --
+# A wrong clock breaks things that never say "your clock is wrong".
+#
+# A certificate issued while this host is running fast is `notBefore` the
+# future as far as this host is concerned, so Caddy serves it and every
+# browser rejects it. Session and password-reset expiry are computed here, so
+# a host running slow hands out links that were dead before they were sent.
+# And every age in deploy/monitor.sh -- backup freshness, whether aftercare
+# ran -- is this clock minus a stored timestamp, so a skewed clock makes the
+# monitor confidently wrong in whichever direction hurts more.
+#
+# Compared against Let's Encrypt's own server, because that is the clock that
+# has to agree with this one.
+echo "Clock"
+REMOTE_DATE="$(curl -fsSI --max-time 15 https://acme-v02.api.letsencrypt.org/directory 2>/dev/null \
+  | tr -d '\r' | awk 'tolower($1) == "date:" { sub(/^[Dd]ate: */, ""); print; exit }')"
+if [ -z "$REMOTE_DATE" ]; then
+  warn "could not reach an external clock to compare against; skew was not checked"
+else
+  SKEW=$(( $(date +%s) - $(date -d "$REMOTE_DATE" +%s) ))
+  SKEW_ABS=${SKEW#-}
+  if [ "$SKEW_ABS" -ge 300 ]; then
+    bad "this host's clock is ${SKEW_ABS}s out. Install and start chrony or systemd-timesyncd,"
+    bad "wait for it to settle, and run this again — certificates issued now may not validate."
+  elif [ "$SKEW_ABS" -ge 30 ]; then
+    warn "this host's clock is ${SKEW_ABS}s out. Tolerable, but no time daemon appears to be"
+    warn "running — install chrony before it drifts far enough to matter."
+  else
+    ok "clock is within ${SKEW_ABS}s of real time"
+  fi
+fi
+echo
+
+# ------------------------------------------------------------------- disk --
+# Enough room to take a dump, which is a different question from enough room
+# to run. The night the disk is too full to back up is precisely the night
+# before you need the backup, and `pg_dump` failing half way leaves a
+# truncated file that looks like a backup in every listing.
+#
+# The multiplier is not padding. `pg_dump`'s plain format writes `bytea` as
+# hex -- two characters per byte -- and this database's bulk is encrypted
+# photographs, which are incompressible, so the dump of a photo-heavy home is
+# roughly twice the size of the database it came from. Asking for 2x free is
+# the floor, not the comfortable answer.
+echo "Disk"
+DISK_PATH="${DISK_PATH:-/var/lib/docker}"
+[ -d "$DISK_PATH" ] || DISK_PATH=/
+FREE_BYTES="$(df -PB1 "$DISK_PATH" 2>/dev/null | awk 'NR==2 {print $4}')"
+
+if [ -z "$FREE_BYTES" ]; then
+  bad "could not read free space on $DISK_PATH"
+else
+  human() { awk -v b="$1" 'BEGIN { split("B KiB MiB GiB TiB", u, " "); i = 1;
+    while (b >= 1024 && i < 5) { b /= 1024; i++ }; printf "%.1f%s", b, u[i] }'; }
+
+  # Ask the database how big it is, if it is up. On a first deployment it is
+  # not, and there is nothing to dump yet -- so a floor is applied instead of
+  # guessing, rather than reporting a pass nobody has earned.
+  DB_BYTES="$(docker compose -f "$ROOT/docker-compose.yml" exec -T db \
+    psql -U "${POSTGRES_USER:-funeral}" -d "${POSTGRES_DB:-funeral_home}" -tAc \
+    "select pg_database_size(current_database())" 2>/dev/null | tr -dc '0-9')"
+
+  if [ -z "$DB_BYTES" ]; then
+    # 2 GiB is enough for the schema, the 33,791 postal centroids and a
+    # pilot's first weeks. It is a floor to start on, not a capacity plan.
+    NEED=$(( 2 * 1024 * 1024 * 1024 ))
+    if [ "$FREE_BYTES" -lt "$NEED" ]; then
+      bad "$(human "$FREE_BYTES") free on $DISK_PATH. Start with at least 2GiB free."
+    else
+      ok "$(human "$FREE_BYTES") free on $DISK_PATH (database not running, so nothing to size against yet)"
+    fi
+  else
+    NEED=$(( DB_BYTES * 2 ))
+    if [ "$FREE_BYTES" -lt "$NEED" ]; then
+      bad "$(human "$FREE_BYTES") free on $DISK_PATH but a dump of this database needs about"
+      bad "$(human "$NEED"). Prune old dumps in the backups volume, or grow the disk, before"
+      bad "tonight's backup runs — a dump that runs out of room still leaves a file behind."
+    elif [ "$FREE_BYTES" -lt $(( DB_BYTES * 3 )) ]; then
+      warn "$(human "$FREE_BYTES") free on $DISK_PATH. Enough for one dump of $(human "$DB_BYTES"),"
+      warn "with little left over. Grow the disk before the photographs do."
+    else
+      ok "$(human "$FREE_BYTES") free on $DISK_PATH, against a $(human "$DB_BYTES") database"
+    fi
+  fi
 fi
 echo
 
