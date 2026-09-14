@@ -72,6 +72,11 @@ tags:
       their own funeral in advance.
   - name: intake
     description: The director's queue of those requests
+  - name: engagement
+    description: |
+      How a family is getting on, Colorado's own clock on a death, the times
+      a home offers a family to choose from, and what a family is left with
+      once the service is over. Counting happens here and nowhere else.
   - name: platform
     description: |
       Us, above all the tenants. A separate account, a separate session and a
@@ -3329,6 +3334,356 @@ paths:
         "400":
           description: Not a photograph on this home's catalogue
 
+  # ------------------------------------------------------- engagement: what
+  # the home can see about how a family is getting on --
+  #
+  # Counting happens once, here, and two audiences read the result. A
+  # director asks "did that text land, and is this family stuck?"; the
+  # platform admin console asks "are these homes getting value?" and reads
+  # the same computation aggregated per home.
+  #
+  # Nothing in this section ranks a family or scores one. `attention` is a
+  # list of plain sentences about what has not happened yet, written to be
+  # read aloud on a telephone.
+
+  /engagement:
+    get:
+      operationId: getHomeEngagement
+      tags: [engagement]
+      summary: This home's own totals, and which cases are worth a look
+      responses:
+        "200":
+          description: The report
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HomeEngagementReport"
+
+  /cases/{caseId}/engagement:
+    get:
+      operationId: getCaseEngagement
+      tags: [engagement]
+      summary: Who has opened their link, who is contributing, what is outstanding
+      parameters:
+        - $ref: "#/components/parameters/CaseId"
+      responses:
+        "200":
+          description: The case
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CaseEngagement"
+
+  # ------------------------------------------------- engagement: Colorado's
+  # own clock --
+  #
+  # These apply themselves. A director confirms the two dates only they know
+  # -- when the home took custody, and when the EDRS request went out -- and
+  # the deadlines follow from the statute rather than from anybody's
+  # preference. The family never sees any of this: it is the home's legal
+  # obligation, not a widow's homework.
+
+  /cases/{caseId}/statutory:
+    get:
+      operationId: getStatutorySchedule
+      tags: [engagement]
+      summary: Colorado's deadlines on this case, with what each one is measured from
+      description: |
+        Builds the schedule if it is not there yet, so a director is never
+        asked to press a button to be told about their own 72 hours.
+      parameters:
+        - $ref: "#/components/parameters/CaseId"
+      responses:
+        "200":
+          description: The schedule
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatutorySchedule"
+
+  /cases/{caseId}/statutory/clock:
+    put:
+      operationId: confirmStatutoryClock
+      tags: [engagement]
+      summary: Confirm when custody was taken, and when the EDRS request went out
+      parameters:
+        - $ref: "#/components/parameters/CaseId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/StatutoryClockInput"
+      responses:
+        "200":
+          description: The schedule, recalculated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatutorySchedule"
+
+  /statutory-deadlines/{statutoryDeadlineId}:
+    put:
+      operationId: updateStatutoryDeadline
+      tags: [engagement]
+      summary: Mark one done, or record that it does not apply
+      parameters:
+        - $ref: "#/components/parameters/StatutoryDeadlineId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/StatutoryDeadlineUpdate"
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatutoryDeadline"
+
+  # --------------------------------------------- engagement: offered times --
+  #
+  # The home defines the options and the family picks one. There is
+  # deliberately no endpoint anywhere that accepts a date a family typed:
+  # a date nobody read is how a family ends up outside a locked chapel.
+
+  /cases/{caseId}/slots:
+    get:
+      operationId: getCaseSlots
+      tags: [engagement]
+      summary: What this case has been offered, and what it has taken
+      parameters:
+        - $ref: "#/components/parameters/CaseId"
+      responses:
+        "200":
+          description: List
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/AppointmentSlot"
+    post:
+      operationId: offerSlots
+      tags: [engagement]
+      summary: Open one or more times for this family
+      parameters:
+        - $ref: "#/components/parameters/CaseId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SlotOfferInput"
+      responses:
+        "201":
+          description: Offered
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/AppointmentSlot"
+
+  /slots/{slotId}:
+    delete:
+      operationId: withdrawSlot
+      tags: [engagement]
+      summary: Take a time back off the table
+      description: |
+        Withdrawn rather than deleted. A family who had it booked is told it
+        is gone, instead of watching it vanish between two page loads.
+      parameters:
+        - $ref: "#/components/parameters/SlotId"
+      responses:
+        "200":
+          description: Withdrawn
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AppointmentSlot"
+
+  /cases/{caseId}/slots/notice:
+    post:
+      operationId: textFamilyAboutSlots
+      tags: [engagement]
+      summary: Text the family that there are times to choose from
+      description: |
+        Refused with a 409 for any number this home has no recorded consent
+        for, and for any number that has ever sent STOP. Nothing in this
+        product sends a text by another route.
+      parameters:
+        - $ref: "#/components/parameters/CaseId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SlotNoticeInput"
+      responses:
+        "200":
+          description: What was sent, and to whom
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SlotNoticeResult"
+        "409":
+          description: No recorded consent for that number
+
+  # ----------------------------------- engagement: who said we may write --
+
+  /cases/{caseId}/messaging-consent:
+    get:
+      operationId: getMessagingConsent
+      tags: [engagement]
+      summary: Who on this case may be texted, and who has asked us to stop
+      parameters:
+        - $ref: "#/components/parameters/CaseId"
+      responses:
+        "200":
+          description: List
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/MessagingConsentState"
+    post:
+      operationId: recordMessagingConsent
+      tags: [engagement]
+      summary: Record that somebody agreed to be texted
+      description: |
+        For the yes that happens on the telephone. Records who took it and
+        when, because "we have consent" is not a defence and "she agreed at
+        14:02 on the ninth, to Karen" is.
+      parameters:
+        - $ref: "#/components/parameters/CaseId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/MessagingConsentInput"
+      responses:
+        "201":
+          description: Recorded
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MessagingConsentState"
+        "409":
+          description: That address has asked us to stop, permanently
+
+  # --------------------------------------- engagement: what the family keeps
+
+  /cases/{caseId}/keepsake:
+    get:
+      operationId: getCaseKeepsake
+      tags: [engagement]
+      summary: What this family is left with once the service is over
+      parameters:
+        - $ref: "#/components/parameters/CaseId"
+      responses:
+        "200":
+          description: The keepsake
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Keepsake"
+
+  # ------------------------------------------- engagement: the family side --
+  #
+  # Reached with the link token like everything else under /family, and
+  # carrying no case id for the same reason.
+
+  /family/slots:
+    get:
+      operationId: getFamilySlots
+      tags: [engagement]
+      summary: Times you can choose from, and the one you have
+      responses:
+        "200":
+          description: List
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/AppointmentSlot"
+
+  /family/slots/{slotId}/take:
+    post:
+      operationId: takeFamilySlot
+      tags: [engagement]
+      summary: Take one of the offered times
+      parameters:
+        - $ref: "#/components/parameters/SlotId"
+      responses:
+        "200":
+          description: Taken
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AppointmentSlot"
+        "409":
+          description: Somebody took that one first
+
+  /family/slots/{slotId}/release:
+    post:
+      operationId: releaseFamilySlot
+      tags: [engagement]
+      summary: Give a time back
+      parameters:
+        - $ref: "#/components/parameters/SlotId"
+      responses:
+        "200":
+          description: Released
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AppointmentSlot"
+
+  /family/messaging-consent:
+    post:
+      operationId: setFamilyMessagingConsent
+      tags: [engagement]
+      summary: Say whether the home may text this number
+      description: |
+        "No" is permanent and is honoured everywhere, including the aftercare
+        check-ins. Nothing in this product asks again.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/FamilyMessagingConsentInput"
+      responses:
+        "200":
+          description: Recorded
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MessagingConsentState"
+
+  /family/keepsake:
+    get:
+      operationId: getFamilyKeepsake
+      tags: [engagement]
+      summary: The photographs, the obituary, the order of service, the check-ins
+      description: |
+        After the service the working surfaces recede and this is what is
+        left. It lives here, inside the product, and is never a handoff to
+        another application.
+      responses:
+        "200":
+          description: The keepsake
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Keepsake"
+
 
 components:
   parameters:
@@ -3424,6 +3779,18 @@ components:
       schema:
         type: string
         enum: [gpl, cpl, obcpl]
+    SlotId:
+      name: slotId
+      in: path
+      required: true
+      schema:
+        type: integer
+    StatutoryDeadlineId:
+      name: statutoryDeadlineId
+      in: path
+      required: true
+      schema:
+        type: integer
 
   schemas:
     HealthStatus:
@@ -7142,3 +7509,581 @@ components:
           type: string
           maxLength: 500
           nullable: true
+
+    # --------------------------------------------------------- engagement --
+
+    ContactEngagement:
+      type: object
+      description: |
+        One family member, and whether the link we sent them ever landed.
+        `linkOpened` false almost always means a wrong number rather than a
+        family ignoring anybody, which is why the console says so.
+      properties:
+        contactId:
+          type: integer
+        name:
+          type: string
+        role:
+          type: string
+        hasPhone:
+          type: boolean
+        linkOpened:
+          type: boolean
+        firstSeenAt:
+          type: string
+          format: date-time
+          nullable: true
+        lastSeenAt:
+          type: string
+          format: date-time
+          nullable: true
+        photographs:
+          type: integer
+        messages:
+          type: integer
+      required:
+        [contactId, name, role, hasPhone, linkOpened, photographs, messages]
+
+    CaseAttention:
+      type: object
+      description: |
+        Something a director might want to act on, in a sentence written to
+        survive being read aloud. Never a score, never a colour, never a count
+        of what a family has failed to do.
+      properties:
+        key:
+          type: string
+        sentence:
+          type: string
+      required: [key, sentence]
+
+    CaseEngagement:
+      type: object
+      properties:
+        caseId:
+          type: integer
+        contacts:
+          type: array
+          items:
+            $ref: "#/components/schemas/ContactEngagement"
+        linksCreated:
+          type: integer
+        linksOpened:
+          type: integer
+        photographs:
+          type: integer
+        photographsSelected:
+          type: integer
+        messagesFromFamily:
+          type: integer
+        obituaryStatus:
+          type: string
+          nullable: true
+        vitalsStatus:
+          type: string
+          nullable: true
+        storefrontStatus:
+          type: string
+          nullable: true
+        timelineOutstanding:
+          type: integer
+        timelineDone:
+          type: integer
+        aftercareEnrolled:
+          type: integer
+        aftercareConsented:
+          type: integer
+        aftercareUnsubscribed:
+          type: integer
+        attention:
+          type: array
+          items:
+            $ref: "#/components/schemas/CaseAttention"
+      required:
+        [
+          caseId,
+          contacts,
+          linksCreated,
+          linksOpened,
+          photographs,
+          photographsSelected,
+          messagesFromFamily,
+          timelineOutstanding,
+          timelineDone,
+          aftercareEnrolled,
+          aftercareConsented,
+          aftercareUnsubscribed,
+          attention,
+        ]
+
+    HomeEngagement:
+      type: object
+      description: |
+        One home's totals. The same computation the platform admin console
+        aggregates across every home -- there is one counting implementation
+        in this codebase and this is its shape.
+      properties:
+        casesOpened:
+          type: integer
+        casesActive:
+          type: integer
+        familyLinksCreated:
+          type: integer
+        familyLinksOpened:
+          type: integer
+        photographs:
+          type: integer
+        aftercareEnrolled:
+          type: integer
+        aftercareConsented:
+          type: integer
+        aftercareDeclined:
+          type: integer
+          description: |
+            Enrolled, never said yes, has not asked to stop. Mostly the
+            family that simply did not answer, which is most of them.
+        aftercareUnsubscribed:
+          type: integer
+        familiesContributing:
+          type: integer
+        messagesFromFamily:
+          type: integer
+        formsCompleted:
+          type: integer
+        obituariesApproved:
+          type: integer
+        storefrontSelections:
+          type: integer
+        slotsOffered:
+          type: integer
+        slotsTaken:
+          type: integer
+      required:
+        [
+          casesOpened,
+          casesActive,
+          familyLinksCreated,
+          familyLinksOpened,
+          photographs,
+          aftercareEnrolled,
+          aftercareConsented,
+          aftercareDeclined,
+          aftercareUnsubscribed,
+          familiesContributing,
+          messagesFromFamily,
+          formsCompleted,
+          obituariesApproved,
+          storefrontSelections,
+          slotsOffered,
+          slotsTaken,
+        ]
+
+    CaseAttentionSummary:
+      type: object
+      properties:
+        caseId:
+          type: integer
+        displayName:
+          type: string
+        status:
+          type: string
+        serviceAt:
+          type: string
+          format: date-time
+          nullable: true
+        attention:
+          type: array
+          items:
+            $ref: "#/components/schemas/CaseAttention"
+      required: [caseId, displayName, status, attention]
+
+    HomeEngagementReport:
+      type: object
+      properties:
+        home:
+          $ref: "#/components/schemas/HomeEngagement"
+        cases:
+          type: array
+          description: Open cases with something worth a look, soonest service first.
+          items:
+            $ref: "#/components/schemas/CaseAttentionSummary"
+      required: [home, cases]
+
+    StatutoryClock:
+      type: object
+      description: |
+        The two dates only a director knows. `custodyAssumed` is true while
+        the date is our proposal -- the moment the case was opened -- rather
+        than something a person confirmed.
+      properties:
+        custodyTakenAt:
+          type: string
+          format: date-time
+          nullable: true
+        custodyAssumed:
+          type: boolean
+        edrsRequestedAt:
+          type: string
+          format: date-time
+          nullable: true
+        confirmedAt:
+          type: string
+          format: date-time
+          nullable: true
+      required: [custodyAssumed]
+
+    StatutoryClockInput:
+      type: object
+      additionalProperties: false
+      properties:
+        custodyTakenAt:
+          type: string
+          format: date-time
+          nullable: true
+        edrsRequestedAt:
+          type: string
+          format: date-time
+          nullable: true
+
+    StatutoryDeadline:
+      type: object
+      properties:
+        id:
+          type: integer
+        caseId:
+          type: integer
+        key:
+          type: string
+        title:
+          type: string
+        description:
+          type: string
+          nullable: true
+        citation:
+          type: string
+          nullable: true
+        anchor:
+          type: string
+          enum: [custody, edrs_request, death, disposition]
+        dueAt:
+          type: string
+          format: date-time
+          nullable: true
+        completedAt:
+          type: string
+          format: date-time
+          nullable: true
+        notApplicableAt:
+          type: string
+          format: date-time
+          nullable: true
+        notApplicableReason:
+          type: string
+          nullable: true
+        standing:
+          type: string
+          enum:
+            [
+              done,
+              not_applicable,
+              before_disposition,
+              no_date_yet,
+              ahead,
+              soon,
+              passed,
+            ]
+        standingLabel:
+          type: string
+          description: |
+            The standing in words, written once here so that every screen says
+            the same sentence and no screen renders it as a number going red.
+      required: [id, caseId, key, title, anchor, standing, standingLabel]
+
+    StatutoryDeadlineUpdate:
+      type: object
+      additionalProperties: false
+      properties:
+        completed:
+          type: boolean
+        notApplicable:
+          type: boolean
+        notApplicableReason:
+          type: string
+          maxLength: 300
+          nullable: true
+
+    StatutorySchedule:
+      type: object
+      properties:
+        clock:
+          $ref: "#/components/schemas/StatutoryClock"
+        deadlines:
+          type: array
+          items:
+            $ref: "#/components/schemas/StatutoryDeadline"
+      required: [clock, deadlines]
+
+    AppointmentSlot:
+      type: object
+      properties:
+        id:
+          type: integer
+        kind:
+          type: string
+          enum: [arrangement, viewing, drop_off, collection, other]
+        label:
+          type: string
+        startsAt:
+          type: string
+          format: date-time
+        durationMinutes:
+          type: integer
+        location:
+          type: string
+          nullable: true
+        takenByContactId:
+          type: integer
+          nullable: true
+        takenByName:
+          type: string
+          nullable: true
+        takenAt:
+          type: string
+          format: date-time
+          nullable: true
+        withdrawnAt:
+          type: string
+          format: date-time
+          nullable: true
+        isMine:
+          type: boolean
+          description: Taken by this case. The one the family is holding.
+      required: [id, kind, label, startsAt, durationMinutes, isMine]
+
+    SlotOfferInput:
+      type: object
+      additionalProperties: false
+      description: |
+        The home defines the options. There is no endpoint that takes a date
+        a family typed, because a date nobody read is how a family ends up
+        outside a locked chapel.
+      properties:
+        slots:
+          type: array
+          minItems: 1
+          maxItems: 20
+          items:
+            type: object
+            additionalProperties: false
+            properties:
+              kind:
+                type: string
+                enum: [arrangement, viewing, drop_off, collection, other]
+              label:
+                type: string
+                minLength: 1
+                maxLength: 120
+              startsAt:
+                type: string
+                format: date-time
+              durationMinutes:
+                type: integer
+                minimum: 5
+                maximum: 480
+              location:
+                type: string
+                maxLength: 200
+                nullable: true
+            required: [label, startsAt]
+      required: [slots]
+
+    SlotNoticeInput:
+      type: object
+      additionalProperties: false
+      properties:
+        contactIds:
+          type: array
+          minItems: 1
+          maxItems: 20
+          items:
+            type: integer
+      required: [contactIds]
+
+    SlotNoticeResult:
+      type: object
+      properties:
+        sent:
+          type: array
+          items:
+            type: object
+            properties:
+              contactId:
+                type: integer
+              name:
+                type: string
+            required: [contactId, name]
+        notSent:
+          type: array
+          description: |
+            Who was not written to, and why, in words a director can act on.
+            Missing consent is the usual reason and the fix is a phone call.
+          items:
+            type: object
+            properties:
+              contactId:
+                type: integer
+              name:
+                type: string
+              reason:
+                type: string
+            required: [contactId, name, reason]
+      required: [sent, notSent]
+
+    MessagingConsentState:
+      type: object
+      properties:
+        contactId:
+          type: integer
+          nullable: true
+        name:
+          type: string
+          nullable: true
+        channel:
+          type: string
+          enum: [sms, email]
+        address:
+          type: string
+        granted:
+          type: boolean
+        grantedAt:
+          type: string
+          format: date-time
+          nullable: true
+        source:
+          type: string
+          nullable: true
+        sourceDetail:
+          type: string
+          nullable: true
+        revokedAt:
+          type: string
+          format: date-time
+          nullable: true
+        revokedReason:
+          type: string
+          nullable: true
+      required: [channel, address, granted]
+
+    MessagingConsentInput:
+      type: object
+      additionalProperties: false
+      properties:
+        contactId:
+          type: integer
+        channel:
+          type: string
+          enum: [sms, email]
+        sourceDetail:
+          type: string
+          maxLength: 300
+          description: |
+            What was actually said, in the director's own words. Shown back to
+            them later, because "we have consent" is not a defence.
+      required: [contactId]
+
+    FamilyMessagingConsentInput:
+      type: object
+      additionalProperties: false
+      properties:
+        consent:
+          type: boolean
+        channel:
+          type: string
+          enum: [sms, email]
+      required: [consent]
+
+    KeepsakePhoto:
+      type: object
+      properties:
+        id:
+          type: integer
+        uploadId:
+          type: integer
+          nullable: true
+        caption:
+          type: string
+          nullable: true
+        selected:
+          type: boolean
+      required: [id, selected]
+
+    KeepsakeDocument:
+      type: object
+      properties:
+        id:
+          type: integer
+        title:
+          type: string
+        kind:
+          type: string
+      required: [id, title, kind]
+
+    KeepsakeCheckIn:
+      type: object
+      properties:
+        id:
+          type: integer
+        dayOffset:
+          type: integer
+        dueAt:
+          type: string
+          format: date-time
+        sentAt:
+          type: string
+          format: date-time
+          nullable: true
+      required: [id, dayOffset, dueAt]
+
+    Keepsake:
+      type: object
+      description: |
+        What is left once everyone has gone home. Built inside this product
+        and never a handoff to another one.
+      properties:
+        phase:
+          type: string
+          enum: [arranging, keeping]
+          description: |
+            `keeping` once the service has happened or the case is closed:
+            the working surfaces recede and this is what the portal shows.
+        displayName:
+          type: string
+        serviceAt:
+          type: string
+          format: date-time
+          nullable: true
+        serviceLocation:
+          type: string
+          nullable: true
+        obituary:
+          type: string
+          nullable: true
+          description: The approved text, or null while it is still a draft.
+        photos:
+          type: array
+          items:
+            $ref: "#/components/schemas/KeepsakePhoto"
+        documents:
+          type: array
+          description: The order of service and anything else shared with the family.
+          items:
+            $ref: "#/components/schemas/KeepsakeDocument"
+        checkIns:
+          type: array
+          items:
+            $ref: "#/components/schemas/KeepsakeCheckIn"
+        checkInsStatus:
+          type: string
+          nullable: true
+          enum: [pending, active, done, null]
+      required: [phase, displayName, photos, documents, checkIns]

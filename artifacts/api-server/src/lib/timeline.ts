@@ -2,11 +2,17 @@ import { and, asc, eq } from "drizzle-orm";
 import {
   db,
   caseDeadlinesTable,
+  caseStatutoryClocksTable,
+  caseStatutoryDeadlinesTable,
   timelineTemplatesTable,
+  vitalStatisticsTable,
+  COLORADO_STATUTORY_DEADLINES,
   DEFAULT_TIMELINE_TEMPLATE,
   describeOffset,
   dueAtFor,
   type Case,
+  type CaseStatutoryClock,
+  type StatutoryDeadlineTemplate,
   type TimelineTemplate,
 } from "@workspace/db";
 
@@ -82,8 +88,19 @@ export async function applyTemplateToCase(
   row: Case,
   now = new Date(),
 ): Promise<ApplyResult> {
-  // Every step is an offset from the service, so without one there is
-  // nothing to measure from.
+  /*
+   * The statutory half first, and it does not wait for a service date.
+   *
+   * This used to return empty the moment `serviceAt` was null, which was
+   * right about the home's own schedule and wrong about the law: Colorado's
+   * 72 hours run from taking custody, not from a funeral nobody has booked
+   * yet. A case opened on the Tuesday with no date set is exactly the case
+   * whose death certificate clock is already running.
+   */
+  await applyStatutoryDeadlines(row, now);
+
+  // The home's own steps are offsets from the service, so without one there
+  // is nothing to measure those from.
   if (!row.serviceAt) return { created: 0, moved: 0, skipped: 0 };
 
   const template = (await templateFor(row.funeralHomeId)).filter(
@@ -189,6 +206,183 @@ export async function shiftTimeline(
   }
 
   return moved;
+}
+
+/* ------------------------------------------------ Colorado's own clock -- */
+
+/**
+ * The clock row for a case, created on first sight.
+ *
+ * Custody is *proposed* as the moment the case was opened rather than left
+ * empty. A home opens the case when it takes the call, and the call is
+ * usually within an hour or two of collecting the body — so the proposal is
+ * right far more often than it is wrong, and `custodyAssumed` says plainly
+ * that it is a proposal. An empty field is the one option that reliably
+ * produces nothing at all, because nobody fills in a form about a deadline
+ * they have not been shown yet.
+ */
+export async function statutoryClockFor(
+  row: Case,
+): Promise<CaseStatutoryClock> {
+  const [existing] = await db
+    .select()
+    .from(caseStatutoryClocksTable)
+    .where(eq(caseStatutoryClocksTable.caseId, row.id))
+    .limit(1);
+
+  if (existing) return existing;
+
+  const [created] = await db
+    .insert(caseStatutoryClocksTable)
+    .values({
+      funeralHomeId: row.funeralHomeId,
+      caseId: row.id,
+      custodyTakenAt: row.createdAt,
+      custodyAssumed: true,
+    })
+    // Two requests landing together on a case nobody has opened before.
+    .onConflictDoNothing({ target: caseStatutoryClocksTable.caseId })
+    .returning();
+
+  if (created) return created;
+
+  const [raced] = await db
+    .select()
+    .from(caseStatutoryClocksTable)
+    .where(eq(caseStatutoryClocksTable.caseId, row.id))
+    .limit(1);
+
+  return raced!;
+}
+
+/** Whether this case is heading for a cremation, as far as anyone has said. */
+async function dispositionIsCremation(caseId: number): Promise<boolean | null> {
+  const [vitals] = await db
+    .select({ dispositionType: vitalStatisticsTable.dispositionType })
+    .from(vitalStatisticsTable)
+    .where(eq(vitalStatisticsTable.caseId, caseId))
+    .limit(1);
+
+  const stated = vitals?.dispositionType?.trim();
+  if (!stated) return null;
+
+  // Free text on the certificate, because that is what the certificate takes.
+  return /cremat/i.test(stated);
+}
+
+function statutoryDueAt(
+  entry: StatutoryDeadlineTemplate,
+  row: Case,
+  clock: CaseStatutoryClock,
+): Date | null {
+  if (entry.offsetHours === null) return null;
+
+  const anchoredAt =
+    entry.anchor === "custody"
+      ? clock.custodyTakenAt
+      : entry.anchor === "edrs_request"
+        ? clock.edrsRequestedAt
+        : entry.anchor === "death"
+          ? row.dateOfDeath
+          : null;
+
+  if (!anchoredAt) return null;
+
+  return new Date(anchoredAt.getTime() + entry.offsetHours * 3_600_000);
+}
+
+/**
+ * Put Colorado's deadlines on a case, and keep them current.
+ *
+ * Idempotent, and called on every read rather than behind a button. These are
+ * not a preference a director opted into — they are the law in the state the
+ * home operates in, and a home that has to press something to be told about
+ * its own 72 hours will be told about them by the registrar instead.
+ *
+ * Completed and dismissed rows are never touched. Everything else has its
+ * date recomputed, so correcting the custody time on the Thursday moves the
+ * certificate deadline with it rather than leaving two numbers that disagree.
+ */
+export async function applyStatutoryDeadlines(
+  row: Case,
+  now = new Date(),
+): Promise<void> {
+  // Somebody arranging their own funeral in advance is alive. None of this
+  // applies to them, and creating it would be grotesque.
+  if (row.kind === "pre_need") return;
+
+  const clock = await statutoryClockFor(row);
+  const cremating = await dispositionIsCremation(row.id);
+
+  const existing = await db
+    .select()
+    .from(caseStatutoryDeadlinesTable)
+    .where(eq(caseStatutoryDeadlinesTable.caseId, row.id));
+
+  const byKey = new Map(existing.map((entry) => [entry.key, entry]));
+
+  for (const entry of COLORADO_STATUTORY_DEADLINES) {
+    const match = byKey.get(entry.key);
+
+    /*
+     * A cremation item on a case nobody has classified yet is created
+     * anyway, and the asymmetry is the whole argument. A cremation
+     * authorization shown on a burial is one line a director dismisses. A
+     * cremation authorization missing on a cremation is a crematory
+     * refusing the body on the morning of the service.
+     *
+     * Once somebody says "burial" on the certificate, it marks itself as not
+     * applying rather than vanishing, so the record still shows it was
+     * considered.
+     */
+    const applies = entry.appliesTo === "all" || cremating !== false;
+
+    if (!applies) {
+      if (match && match.notApplicableAt === null && match.completedAt === null) {
+        await db
+          .update(caseStatutoryDeadlinesTable)
+          .set({
+            notApplicableAt: now,
+            notApplicableReason: "This case is recorded as a burial.",
+            updatedAt: now,
+          })
+          .where(eq(caseStatutoryDeadlinesTable.id, match.id));
+      }
+      continue;
+    }
+
+    const dueAt = statutoryDueAt(entry, row, clock);
+
+    if (!match) {
+      await db
+        .insert(caseStatutoryDeadlinesTable)
+        .values({
+          funeralHomeId: row.funeralHomeId,
+          caseId: row.id,
+          key: entry.key,
+          title: entry.title,
+          description: entry.description,
+          citation: entry.citation,
+          anchor: entry.anchor,
+          dueAt,
+        })
+        .onConflictDoNothing({
+          target: [
+            caseStatutoryDeadlinesTable.caseId,
+            caseStatutoryDeadlinesTable.key,
+          ],
+        });
+      continue;
+    }
+
+    if (match.completedAt !== null || match.notApplicableAt !== null) continue;
+    if (match.dueAt?.getTime() === dueAt?.getTime()) continue;
+
+    await db
+      .update(caseStatutoryDeadlinesTable)
+      .set({ dueAt, updatedAt: now })
+      .where(eq(caseStatutoryDeadlinesTable.id, match.id));
+  }
 }
 
 /** Whether a case has any timeline at all yet. */
