@@ -39,12 +39,24 @@ That means, concretely:
 
 ## Build
 
-**Director side.** Build the catalogue: categories (caskets, urns, keepsakes,
-outer burial containers, flowers, stationery), items with photographs,
-descriptions, itemised prices, availability. Import from a spreadsheet, because
-that is what the home already has. Ships **empty** — we do not invent a
-home's merchandise, for the same reason the vendor directory and hymn library
-ship empty.
+**Director side.** Build the *tooling*, not the catalogue.
+
+Every home loads its own merchandise, at its own prices, under its own
+category names. **We supply none of it and we set no prices.** Not a starter
+catalogue, not suggested pricing, not a "typical" markup, not a default urn.
+Ship it completely empty, exactly as the vendor directory and the hymn library
+ship empty, and for a stronger reason: a home's merchandise and what it charges
+for it are the home's business, its margin and its Funeral Rule disclosure.
+
+So what you build is: categories the home names itself, items with
+photographs, descriptions, itemised prices and availability — all entered by
+the home. Import from a spreadsheet, because that is what the home already has
+sitting in a file, and typing two hundred caskets in by hand is how a director
+decides this software is not worth it.
+
+The only thing we know about a price is which number to print and which number
+to charge. We never suggest one, never mark one up, and never take a cut of
+one.
 
 **Family side.** Browse gently. This is someone choosing an urn for their
 mother, not shopping. No cart badge, no "customers also bought", no urgency, no
@@ -54,9 +66,12 @@ and talk them through on the phone.
 
 ## Constraints
 
-- **The home's goods, the home's margin.** We never sell our own merchandise
-  through a home's portal. Merchandise is how funeral homes survive, and a
-  vendor competing with the selection room does not get installed twice.
+- **The home's goods, the home's prices, the home's margin.** We never sell our
+  own merchandise through a home's portal and never take a percentage of what
+  the home sells. We are paid for the software, monthly, and that is the whole
+  relationship. Merchandise is how funeral homes survive, and a vendor that
+  competes with the selection room — or clips it — does not get installed
+  twice.
 - Payment is **Component 4**. Build the selection, not the transaction. Model
   the data so the Statement of Funeral Goods and Services Selected can be
   generated from it without guessing.
