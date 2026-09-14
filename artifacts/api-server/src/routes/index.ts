@@ -17,6 +17,7 @@ import contactsRouter from "./contacts";
 import photosRouter from "./photos";
 import obituaryRouter from "./obituary";
 import selectionsRouter from "./selections";
+import ordersRouter, { familyStatementRouter } from "./orders";
 import messagesRouter from "./messages";
 import deadlinesRouter from "./deadlines";
 import belongingsRouter from "./belongings";
@@ -88,7 +89,16 @@ router.use(billingWebhookRouter);
  * there is nothing for a handler to check and nothing for a family member to
  * tamper with.
  */
-router.use("/family", familyRateLimit, requireFamilyLink, familyRouter);
+router.use(
+  "/family",
+  familyRateLimit,
+  requireFamilyLink,
+  familyRouter,
+  // Behind the same gate and the same limiter, rather than a second
+  // `router.use("/family", ...)` line — mounting the limiter twice would
+  // count every family request against its ceiling twice over.
+  familyStatementRouter,
+);
 
 /**
  * Everything below requires a staff session. Handlers then scope every query
@@ -108,6 +118,7 @@ router.use(contactsRouter);
 router.use(photosRouter);
 router.use(obituaryRouter);
 router.use(selectionsRouter);
+router.use(ordersRouter);
 router.use(messagesRouter);
 router.use(deadlinesRouter);
 router.use(belongingsRouter);

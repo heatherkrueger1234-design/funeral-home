@@ -34,7 +34,7 @@ export type RenderInput = {
 };
 
 /** Escape for HTML. Everything here is typed by a person. */
-function esc(value: string): string {
+export function esc(value: string): string {
   return value
     .replace(/&/g, "&amp;")
     .replace(/</g, "&lt;")

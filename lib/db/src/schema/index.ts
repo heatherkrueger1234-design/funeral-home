@@ -32,6 +32,10 @@ export * from "./selections";
 /* What the family brings in, and how they should look. */
 export * from "./belongings";
 
+/* What was selected, the statement it adds up to, and where the home — not
+ * this product — takes the money for it. */
+export * from "./orders";
+
 /* The paperwork that holds everything else up. */
 export * from "./vital-statistics";
 
