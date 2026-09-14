@@ -4,6 +4,7 @@ import { requireFamilyLink } from "../middleware/require-family";
 import { familyRateLimit, publicRateLimit } from "../middleware/rate-limit";
 import healthRouter from "./health";
 import authRouter from "./auth";
+import platformAuthRouter from "./platform-auth";
 import tasksRouter from "./tasks";
 import billingRouter, { billingWebhookRouter } from "./billing";
 import familyRouter from "./family";
@@ -45,6 +46,15 @@ const router: IRouter = Router();
 
 router.use(healthRouter);
 router.use(authRouter);
+
+/**
+ * Signing in to the platform console. Above every gate for the same reason
+ * the staff sign-in is: you cannot present a session cookie you do not have
+ * yet. Everything else under `/admin` carries `requirePlatformAdmin`, which
+ * attaches no tenant at all — see `middleware/require-platform-admin.ts` for
+ * why an admin route cannot accidentally be written as a staff one.
+ */
+router.use(platformAuthRouter);
 
 /**
  * The front door. Reachable with no credential at all, and the only place in

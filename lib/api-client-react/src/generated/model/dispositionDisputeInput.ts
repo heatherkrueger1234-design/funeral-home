@@ -18,13 +18,8 @@ Two audiences, two authentication schemes, and the split is load-bearing:
  * OpenAPI spec version: 0.1.0
  */
 
-/**
- * Who they are to the deceased, not what they may do.
- */
-export type FamilyContactRole =
-  (typeof FamilyContactRole)[keyof typeof FamilyContactRole];
-
-export const FamilyContactRole = {
-  next_of_kin: "next_of_kin",
-  contributor: "contributor",
-} as const;
+export interface DispositionDisputeInput {
+  disputed: boolean;
+  /** For the home's own record. Never shown to the family. */
+  note?: string | null;
+}

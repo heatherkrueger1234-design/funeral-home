@@ -19,12 +19,15 @@ Two audiences, two authentication schemes, and the split is load-bearing:
  */
 
 /**
- * Who they are to the deceased, not what they may do.
- */
-export type FamilyContactRole =
-  (typeof FamilyContactRole)[keyof typeof FamilyContactRole];
+ * `authorizing` is deliberately absent. Raising somebody to it is
+recording a legal determination, so it goes through the authority
+endpoint, which requires saying what the determination was.
 
-export const FamilyContactRole = {
-  next_of_kin: "next_of_kin",
-  contributor: "contributor",
+ */
+export type ContactAccessInputAccessLevel =
+  (typeof ContactAccessInputAccessLevel)[keyof typeof ContactAccessInputAccessLevel];
+
+export const ContactAccessInputAccessLevel = {
+  viewing: "viewing",
+  arranging: "arranging",
 } as const;

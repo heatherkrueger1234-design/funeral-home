@@ -19,12 +19,10 @@ Two audiences, two authentication schemes, and the split is load-bearing:
  */
 
 /**
- * Who they are to the deceased, not what they may do.
- */
-export type FamilyContactRole =
-  (typeof FamilyContactRole)[keyof typeof FamilyContactRole];
+ * Shown once, at the moment it is set, and never retrievable again —
+only the hash is kept. The director reads it out or hands it over.
 
-export const FamilyContactRole = {
-  next_of_kin: "next_of_kin",
-  contributor: "contributor",
-} as const;
+ */
+export interface IssuedPassword {
+  password: string;
+}

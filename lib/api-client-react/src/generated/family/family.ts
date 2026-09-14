@@ -46,6 +46,8 @@ import type { CompleteDeadlineInput } from "../model/completeDeadlineInput";
 
 import type { FamilyBelongingUpdate } from "../model/familyBelongingUpdate";
 
+import type { FamilyPasswordInput } from "../model/familyPasswordInput";
+
 import type { FamilyPhotoUpdate } from "../model/familyPhotoUpdate";
 
 import type { FamilyPhotoUploadInput } from "../model/familyPhotoUploadInput";
@@ -2915,3 +2917,96 @@ export function useGetFamilyUpload<
 
   return { ...query, queryKey: queryOptions.queryKey };
 }
+
+/**
+ * Set *after* the link has been followed, never as a wall in front of it.
+A password is required before an authorizing contact can sign anything,
+because a text message can be forwarded and a signature about burying
+somebody should need more than holding that message.
+
+Replacing an existing password requires the current one.
+
+ * @summary Choose a password for this link
+ */
+export const getSetFamilyOwnPasswordUrl = () => {
+  return `/api/family/password`;
+};
+
+export const setFamilyOwnPassword = async (
+  familyPasswordInput: FamilyPasswordInput,
+  options?: RequestInit,
+): Promise<void> => {
+  return customFetch<void>(getSetFamilyOwnPasswordUrl(), {
+    ...options,
+    method: "PUT",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(familyPasswordInput),
+  });
+};
+
+export const getSetFamilyOwnPasswordMutationOptions = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof setFamilyOwnPassword>>,
+    TError,
+    { data: BodyType<FamilyPasswordInput> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof setFamilyOwnPassword>>,
+  TError,
+  { data: BodyType<FamilyPasswordInput> },
+  TContext
+> => {
+  const mutationKey = ["setFamilyOwnPassword"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof setFamilyOwnPassword>>,
+    { data: BodyType<FamilyPasswordInput> }
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return setFamilyOwnPassword(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type SetFamilyOwnPasswordMutationResult = NonNullable<
+  Awaited<ReturnType<typeof setFamilyOwnPassword>>
+>;
+export type SetFamilyOwnPasswordMutationBody = BodyType<FamilyPasswordInput>;
+export type SetFamilyOwnPasswordMutationError = ErrorType<void>;
+
+/**
+ * @summary Choose a password for this link
+ */
+export const useSetFamilyOwnPassword = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof setFamilyOwnPassword>>,
+    TError,
+    { data: BodyType<FamilyPasswordInput> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof setFamilyOwnPassword>>,
+  TError,
+  { data: BodyType<FamilyPasswordInput> },
+  TContext
+> => {
+  return useMutation(getSetFamilyOwnPasswordMutationOptions(options));
+};

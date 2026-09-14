@@ -19,12 +19,14 @@ Two audiences, two authentication schemes, and the split is load-bearing:
  */
 
 /**
- * Who they are to the deceased, not what they may do.
- */
-export type FamilyContactRole =
-  (typeof FamilyContactRole)[keyof typeof FamilyContactRole];
+ * `support` can look but not change. It exists so that helping a
+funeral home does not require the ability to suspend one.
 
-export const FamilyContactRole = {
-  next_of_kin: "next_of_kin",
-  contributor: "contributor",
+ */
+export type PlatformAdminRole =
+  (typeof PlatformAdminRole)[keyof typeof PlatformAdminRole];
+
+export const PlatformAdminRole = {
+  owner: "owner",
+  support: "support",
 } as const;

@@ -19,12 +19,16 @@ Two audiences, two authentication schemes, and the split is load-bearing:
  */
 
 /**
- * Who they are to the deceased, not what they may do.
- */
-export type FamilyContactRole =
-  (typeof FamilyContactRole)[keyof typeof FamilyContactRole];
+ * What they may do. `authorizing` means they hold the right of final
+disposition under the statutory priority order, as determined by a
+director and recorded here — never computed from `relationship`.
 
-export const FamilyContactRole = {
-  next_of_kin: "next_of_kin",
-  contributor: "contributor",
+ */
+export type FamilyContactAccessLevel =
+  (typeof FamilyContactAccessLevel)[keyof typeof FamilyContactAccessLevel];
+
+export const FamilyContactAccessLevel = {
+  viewing: "viewing",
+  arranging: "arranging",
+  authorizing: "authorizing",
 } as const;

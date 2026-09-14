@@ -7,6 +7,10 @@
  * reaches it through a `family_contacts` token rather than an account.
  */
 
+/* Us, above all the tenants. Deliberately its own account, session and
+ * audit trail — see the file for why it is not a flag on `users`. */
+export * from "./platform";
+
 /* The tenant, and the people who work there. */
 export * from "./funeral-homes";
 export * from "./users";

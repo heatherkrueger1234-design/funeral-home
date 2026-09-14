@@ -17,6 +17,7 @@ Two audiences, two authentication schemes, and the split is load-bearing:
 
  * OpenAPI spec version: 0.1.0
  */
+import type { FamilyContactAccessLevel } from "./familyContactAccessLevel";
 import type { FamilyContactRole } from "./familyContactRole";
 
 export interface FamilyContact {
@@ -26,7 +27,23 @@ export interface FamilyContact {
   relationship: string | null;
   phone: string | null;
   email: string | null;
+  /** Who they are to the deceased, not what they may do. */
   role: FamilyContactRole;
+  /** What they may do. `authorizing` means they hold the right of final
+disposition under the statutory priority order, as determined by a
+director and recorded here — never computed from `relationship`.
+ */
+  accessLevel: FamilyContactAccessLevel;
+  /** Which tier of the statutory priority order the determination was
+made under, e.g. `surviving_spouse`. Free text, because the statute
+is amended and a case outlives a deployment.
+ */
+  dispositionTier: string | null;
+  authorityRecordedAt: string | null;
+  /** An authorizing contact cannot sign anything until this is true. A
+forwarded text message is not enough to bury somebody.
+ */
+  hasPassword: boolean;
   canInvite: boolean;
   expiresAt: string;
   revokedAt: string | null;

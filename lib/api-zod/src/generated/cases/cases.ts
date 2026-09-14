@@ -76,6 +76,12 @@ export const ConvertCaseToAtNeedResponse = zod.object({
     .describe(
       "`pre_need` means the person this file is about is still alive and\narranging their own funeral. Every label, every date and every\nline of condolence has to read this first.\n",
     ),
+  dispositionDisputed: zod
+    .boolean()
+    .optional()
+    .describe(
+      "The home knows the right of final disposition is contested. While\ntrue, the portal offers no authorizing actions and says the home is\nconfirming who is arranging the funeral.\n",
+    ),
   decedentFirstName: zod.string(),
   decedentLastName: zod.string(),
   decedentPreferredName: zod.string().nullable(),
@@ -160,6 +166,12 @@ export const GetCasesResponseItem = zod
       .describe(
         "`pre_need` means the person this file is about is still alive and\narranging their own funeral. Every label, every date and every\nline of condolence has to read this first.\n",
       ),
+    dispositionDisputed: zod
+      .boolean()
+      .optional()
+      .describe(
+        "The home knows the right of final disposition is contested. While\ntrue, the portal offers no authorizing actions and says the home is\nconfirming who is arranging the funeral.\n",
+      ),
     decedentFirstName: zod.string(),
     decedentLastName: zod.string(),
     decedentPreferredName: zod.string().nullable(),
@@ -231,6 +243,12 @@ export const GetCaseResponse = zod
       .describe(
         "`pre_need` means the person this file is about is still alive and\narranging their own funeral. Every label, every date and every\nline of condolence has to read this first.\n",
       ),
+    dispositionDisputed: zod
+      .boolean()
+      .optional()
+      .describe(
+        "The home knows the right of final disposition is contested. While\ntrue, the portal offers no authorizing actions and says the home is\nconfirming who is arranging the funeral.\n",
+      ),
     decedentFirstName: zod.string(),
     decedentLastName: zod.string(),
     decedentPreferredName: zod.string().nullable(),
@@ -285,7 +303,26 @@ export const GetCaseResponse = zod
           relationship: zod.string().nullable(),
           phone: zod.string().nullable(),
           email: zod.string().nullable(),
-          role: zod.enum(["next_of_kin", "contributor"]),
+          role: zod
+            .enum(["next_of_kin", "contributor"])
+            .describe("Who they are to the deceased, not what they may do."),
+          accessLevel: zod
+            .enum(["viewing", "arranging", "authorizing"])
+            .describe(
+              "What they may do. `authorizing` means they hold the right of final\ndisposition under the statutory priority order, as determined by a\ndirector and recorded here — never computed from `relationship`.\n",
+            ),
+          dispositionTier: zod
+            .string()
+            .nullable()
+            .describe(
+              "Which tier of the statutory priority order the determination was\nmade under, e.g. `surviving_spouse`. Free text, because the statute\nis amended and a case outlives a deployment.\n",
+            ),
+          authorityRecordedAt: zod.date().nullable(),
+          hasPassword: zod
+            .boolean()
+            .describe(
+              "An authorizing contact cannot sign anything until this is true. A\nforwarded text message is not enough to bury somebody.\n",
+            ),
           canInvite: zod.boolean(),
           expiresAt: zod.date(),
           revokedAt: zod.date().nullable(),
@@ -327,6 +364,12 @@ export const UpdateCaseResponse = zod.object({
     .enum(["at_need", "pre_need"])
     .describe(
       "`pre_need` means the person this file is about is still alive and\narranging their own funeral. Every label, every date and every\nline of condolence has to read this first.\n",
+    ),
+  dispositionDisputed: zod
+    .boolean()
+    .optional()
+    .describe(
+      "The home knows the right of final disposition is contested. While\ntrue, the portal offers no authorizing actions and says the home is\nconfirming who is arranging the funeral.\n",
     ),
   decedentFirstName: zod.string(),
   decedentLastName: zod.string(),
@@ -370,6 +413,12 @@ export const CloseCaseResponse = zod
       .describe(
         "`pre_need` means the person this file is about is still alive and\narranging their own funeral. Every label, every date and every\nline of condolence has to read this first.\n",
       ),
+    dispositionDisputed: zod
+      .boolean()
+      .optional()
+      .describe(
+        "The home knows the right of final disposition is contested. While\ntrue, the portal offers no authorizing actions and says the home is\nconfirming who is arranging the funeral.\n",
+      ),
     decedentFirstName: zod.string(),
     decedentLastName: zod.string(),
     decedentPreferredName: zod.string().nullable(),
@@ -424,7 +473,26 @@ export const CloseCaseResponse = zod
           relationship: zod.string().nullable(),
           phone: zod.string().nullable(),
           email: zod.string().nullable(),
-          role: zod.enum(["next_of_kin", "contributor"]),
+          role: zod
+            .enum(["next_of_kin", "contributor"])
+            .describe("Who they are to the deceased, not what they may do."),
+          accessLevel: zod
+            .enum(["viewing", "arranging", "authorizing"])
+            .describe(
+              "What they may do. `authorizing` means they hold the right of final\ndisposition under the statutory priority order, as determined by a\ndirector and recorded here — never computed from `relationship`.\n",
+            ),
+          dispositionTier: zod
+            .string()
+            .nullable()
+            .describe(
+              "Which tier of the statutory priority order the determination was\nmade under, e.g. `surviving_spouse`. Free text, because the statute\nis amended and a case outlives a deployment.\n",
+            ),
+          authorityRecordedAt: zod.date().nullable(),
+          hasPassword: zod
+            .boolean()
+            .describe(
+              "An authorizing contact cannot sign anything until this is true. A\nforwarded text message is not enough to bury somebody.\n",
+            ),
           canInvite: zod.boolean(),
           expiresAt: zod.date(),
           revokedAt: zod.date().nullable(),
@@ -503,4 +571,62 @@ export const ImportCasesResponse = zod.object({
     }),
   ),
   caseIds: zod.array(zod.number()),
+});
+
+/**
+ * While set, the family portal stops offering authorizing actions and
+says plainly that the home is confirming who is arranging the funeral.
+
+Colorado sends disputes between people of equal priority to the probate
+court, and a third party may decline to act until it has confirmation
+the argument is over. Declining is the safe posture; this makes it the
+automatic one.
+
+ * @summary Mark the right of final disposition as contested
+ */
+export const SetDispositionDisputeParams = zod.object({
+  caseId: zod.coerce.number(),
+});
+
+export const SetDispositionDisputeBody = zod.object({
+  disputed: zod.boolean(),
+  note: zod
+    .string()
+    .nullish()
+    .describe("For the home's own record. Never shown to the family."),
+});
+
+export const SetDispositionDisputeResponse = zod.object({
+  id: zod.number(),
+  kind: zod
+    .enum(["at_need", "pre_need"])
+    .describe(
+      "`pre_need` means the person this file is about is still alive and\narranging their own funeral. Every label, every date and every\nline of condolence has to read this first.\n",
+    ),
+  dispositionDisputed: zod
+    .boolean()
+    .optional()
+    .describe(
+      "The home knows the right of final disposition is contested. While\ntrue, the portal offers no authorizing actions and says the home is\nconfirming who is arranging the funeral.\n",
+    ),
+  decedentFirstName: zod.string(),
+  decedentLastName: zod.string(),
+  decedentPreferredName: zod.string().nullable(),
+  displayName: zod.string(),
+  dateOfBirth: zod.date().nullable(),
+  dateOfDeath: zod.date().nullable(),
+  portraitPhotoId: zod.number().nullable(),
+  referencePhotoId: zod.number().nullable(),
+  serviceAt: zod.date().nullable(),
+  serviceLocation: zod.string().nullable(),
+  serviceNotes: zod.string().nullable(),
+  postalCode: zod
+    .string()
+    .nullable()
+    .describe("Where the family is, for finding anything local to them."),
+  leadDirectorId: zod.number().nullable(),
+  status: zod.enum(["intake", "active", "closed"]),
+  closedAt: zod.date().nullable(),
+  messagesLockAt: zod.date().nullable(),
+  createdAt: zod.date(),
 });

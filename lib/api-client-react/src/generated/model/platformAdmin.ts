@@ -17,14 +17,23 @@ Two audiences, two authentication schemes, and the split is load-bearing:
 
  * OpenAPI spec version: 0.1.0
  */
+import type { PlatformAdminRole } from "./platformAdminRole";
 
 /**
- * Who they are to the deceased, not what they may do.
- */
-export type FamilyContactRole =
-  (typeof FamilyContactRole)[keyof typeof FamilyContactRole];
+ * One of us. Never a funeral home's staff member — a different table, a
+different session and a different cookie, so that neither resolver can
+ever return the other kind of account.
 
-export const FamilyContactRole = {
-  next_of_kin: "next_of_kin",
-  contributor: "contributor",
-} as const;
+ */
+export interface PlatformAdmin {
+  id: number;
+  email: string;
+  displayName: string | null;
+  /** `support` can look but not change. It exists so that helping a
+funeral home does not require the ability to suspend one.
+ */
+  role: PlatformAdminRole;
+  hasPassword: boolean;
+  lastSeenAt: string | null;
+  createdAt: string;
+}

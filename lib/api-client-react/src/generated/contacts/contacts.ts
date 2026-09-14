@@ -28,6 +28,10 @@ import type {
   UseQueryResult,
 } from "@tanstack/react-query";
 
+import type { ContactAccessInput } from "../model/contactAccessInput";
+
+import type { ContactAuthorityInput } from "../model/contactAuthorityInput";
+
 import type { FamilyContact } from "../model/familyContact";
 
 import type { FamilyContactInput } from "../model/familyContactInput";
@@ -35,6 +39,8 @@ import type { FamilyContactInput } from "../model/familyContactInput";
 import type { FamilyContactUpdate } from "../model/familyContactUpdate";
 
 import type { FamilyContactWithLink } from "../model/familyContactWithLink";
+
+import type { IssuedPassword } from "../model/issuedPassword";
 
 import type { SentLink } from "../model/sentLink";
 
@@ -566,4 +572,276 @@ export const useReissueContactLink = <
   TContext
 > => {
   return useMutation(getReissueContactLinkMutationOptions(options));
+};
+/**
+ * Staff only, and never self-selected. `authorizing` additionally
+requires recording which tier of the statutory priority order the
+determination was made under — see the authority endpoint.
+
+ * @summary Set what this person may do
+ */
+export const getSetContactAccessUrl = (contactId: number) => {
+  return `/api/contacts/${contactId}/access`;
+};
+
+export const setContactAccess = async (
+  contactId: number,
+  contactAccessInput: ContactAccessInput,
+  options?: RequestInit,
+): Promise<FamilyContact> => {
+  return customFetch<FamilyContact>(getSetContactAccessUrl(contactId), {
+    ...options,
+    method: "PATCH",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(contactAccessInput),
+  });
+};
+
+export const getSetContactAccessMutationOptions = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof setContactAccess>>,
+    TError,
+    { contactId: number; data: BodyType<ContactAccessInput> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof setContactAccess>>,
+  TError,
+  { contactId: number; data: BodyType<ContactAccessInput> },
+  TContext
+> => {
+  const mutationKey = ["setContactAccess"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof setContactAccess>>,
+    { contactId: number; data: BodyType<ContactAccessInput> }
+  > = (props) => {
+    const { contactId, data } = props ?? {};
+
+    return setContactAccess(contactId, data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type SetContactAccessMutationResult = NonNullable<
+  Awaited<ReturnType<typeof setContactAccess>>
+>;
+export type SetContactAccessMutationBody = BodyType<ContactAccessInput>;
+export type SetContactAccessMutationError = ErrorType<void>;
+
+/**
+ * @summary Set what this person may do
+ */
+export const useSetContactAccess = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof setContactAccess>>,
+    TError,
+    { contactId: number; data: BodyType<ContactAccessInput> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof setContactAccess>>,
+  TError,
+  { contactId: number; data: BodyType<ContactAccessInput> },
+  TContext
+> => {
+  return useMutation(getSetContactAccessMutationOptions(options));
+};
+/**
+ * The director's determination, from documents, written down. **The
+software never works this out.** Inferring the right of final
+disposition from a relationship dropdown would be confidently wrong in
+exactly the cases that end up in front of a probate judge.
+
+Recording this raises the contact to `authorizing`. They still cannot
+sign anything until they have a password.
+
+ * @summary Record who holds the right of final disposition
+ */
+export const getRecordContactAuthorityUrl = (contactId: number) => {
+  return `/api/contacts/${contactId}/authority`;
+};
+
+export const recordContactAuthority = async (
+  contactId: number,
+  contactAuthorityInput: ContactAuthorityInput,
+  options?: RequestInit,
+): Promise<FamilyContact> => {
+  return customFetch<FamilyContact>(getRecordContactAuthorityUrl(contactId), {
+    ...options,
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(contactAuthorityInput),
+  });
+};
+
+export const getRecordContactAuthorityMutationOptions = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof recordContactAuthority>>,
+    TError,
+    { contactId: number; data: BodyType<ContactAuthorityInput> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof recordContactAuthority>>,
+  TError,
+  { contactId: number; data: BodyType<ContactAuthorityInput> },
+  TContext
+> => {
+  const mutationKey = ["recordContactAuthority"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof recordContactAuthority>>,
+    { contactId: number; data: BodyType<ContactAuthorityInput> }
+  > = (props) => {
+    const { contactId, data } = props ?? {};
+
+    return recordContactAuthority(contactId, data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type RecordContactAuthorityMutationResult = NonNullable<
+  Awaited<ReturnType<typeof recordContactAuthority>>
+>;
+export type RecordContactAuthorityMutationBody =
+  BodyType<ContactAuthorityInput>;
+export type RecordContactAuthorityMutationError = ErrorType<void>;
+
+/**
+ * @summary Record who holds the right of final disposition
+ */
+export const useRecordContactAuthority = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof recordContactAuthority>>,
+    TError,
+    { contactId: number; data: BodyType<ContactAuthorityInput> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof recordContactAuthority>>,
+  TError,
+  { contactId: number; data: BodyType<ContactAuthorityInput> },
+  TContext
+> => {
+  return useMutation(getRecordContactAuthorityMutationOptions(options));
+};
+/**
+ * Generates a password the director reads out on the telephone or hands
+over in person, which is how a funeral home already does everything
+else. Returned once and never retrievable again.
+
+ * @summary Set an initial password to hand over
+ */
+export const getSetContactPasswordUrl = (contactId: number) => {
+  return `/api/contacts/${contactId}/password`;
+};
+
+export const setContactPassword = async (
+  contactId: number,
+  options?: RequestInit,
+): Promise<IssuedPassword> => {
+  return customFetch<IssuedPassword>(getSetContactPasswordUrl(contactId), {
+    ...options,
+    method: "POST",
+  });
+};
+
+export const getSetContactPasswordMutationOptions = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof setContactPassword>>,
+    TError,
+    { contactId: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof setContactPassword>>,
+  TError,
+  { contactId: number },
+  TContext
+> => {
+  const mutationKey = ["setContactPassword"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof setContactPassword>>,
+    { contactId: number }
+  > = (props) => {
+    const { contactId } = props ?? {};
+
+    return setContactPassword(contactId, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type SetContactPasswordMutationResult = NonNullable<
+  Awaited<ReturnType<typeof setContactPassword>>
+>;
+
+export type SetContactPasswordMutationError = ErrorType<void>;
+
+/**
+ * @summary Set an initial password to hand over
+ */
+export const useSetContactPassword = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof setContactPassword>>,
+    TError,
+    { contactId: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof setContactPassword>>,
+  TError,
+  { contactId: number },
+  TContext
+> => {
+  return useMutation(getSetContactPasswordMutationOptions(options));
 };

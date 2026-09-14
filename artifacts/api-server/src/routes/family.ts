@@ -42,6 +42,7 @@ import {
   RequestFamilyQuoteBody,
   GetFamilyVendorsQueryParams,
   UpdateFamilyVitalsBody,
+  SetFamilyOwnPasswordBody,
 } from "@workspace/api-zod";
 import {
   assertHasUpdates,
@@ -57,6 +58,8 @@ import {
   familyContact,
   familyHome,
 } from "../middleware/require-family";
+import { setFamilyPassword } from "../middleware/require-family-level";
+import { fakeVerify, hashPassword, verifyPassword } from "../lib/auth";
 import {
   photoUpload,
   photosForCase,
@@ -208,6 +211,38 @@ router.get("/session", async (req, res) => {
 });
 
 /* -------------------------------------------------------------- photos --- */
+
+/* ---------------------------------------------------------- credentials --- */
+
+/**
+ * Choose a password for this link.
+ *
+ * Set *after* the link has been followed, never as a wall in front of it. The
+ * texted link stays the front door, because a registration form is where a
+ * next of kin three days bereaved is lost — but a forwarded text message is
+ * not enough to sign an authorization, so anybody who will be signing needs
+ * one of these first.
+ *
+ * Replacing an existing password requires the current one, so that a
+ * forwarded link cannot be used to lock the real recipient out.
+ */
+router.put("/password", async (req, res) => {
+  const contact = familyContact(req);
+  const body = parseBody(SetFamilyOwnPasswordBody, req.body);
+
+  if (contact.passwordHash !== null) {
+    const current = body.currentPassword ?? "";
+
+    if (!(await verifyPassword(current, contact.passwordHash))) {
+      // Burn comparable CPU either way so timing says nothing.
+      await fakeVerify(current);
+      throw new HttpError(401, "That current password did not match.");
+    }
+  }
+
+  await setFamilyPassword(contact, await hashPassword(body.password));
+  res.status(204).end();
+});
 
 router.get("/photos", async (req, res) => {
   const row = familyCase(req);

@@ -18,13 +18,15 @@ Two audiences, two authentication schemes, and the split is load-bearing:
  * OpenAPI spec version: 0.1.0
  */
 
-/**
- * Who they are to the deceased, not what they may do.
- */
-export type FamilyContactRole =
-  (typeof FamilyContactRole)[keyof typeof FamilyContactRole];
+export interface FamilyPasswordInput {
+  /**
+   * Long enough to be worth having, short enough that somebody can
+choose a passphrase they will actually recall on the worst week of
+their life.
 
-export const FamilyContactRole = {
-  next_of_kin: "next_of_kin",
-  contributor: "contributor",
-} as const;
+   * @minLength 10
+   */
+  password: string;
+  /** Required when replacing an existing password. */
+  currentPassword?: string | null;
+}

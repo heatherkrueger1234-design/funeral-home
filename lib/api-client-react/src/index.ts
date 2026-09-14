@@ -26,6 +26,7 @@ export * from "./generated/intake/intake";
 export * from "./generated/messages/messages";
 export * from "./generated/obituary/obituary";
 export * from "./generated/photos/photos";
+export * from "./generated/platform/platform";
 export * from "./generated/print/print";
 export * from "./generated/public/public";
 export * from "./generated/selections/selections";

@@ -576,7 +576,26 @@ export const GetFamilySessionResponse = zod
       relationship: zod.string().nullable(),
       phone: zod.string().nullable(),
       email: zod.string().nullable(),
-      role: zod.enum(["next_of_kin", "contributor"]),
+      role: zod
+        .enum(["next_of_kin", "contributor"])
+        .describe("Who they are to the deceased, not what they may do."),
+      accessLevel: zod
+        .enum(["viewing", "arranging", "authorizing"])
+        .describe(
+          "What they may do. `authorizing` means they hold the right of final\ndisposition under the statutory priority order, as determined by a\ndirector and recorded here — never computed from `relationship`.\n",
+        ),
+      dispositionTier: zod
+        .string()
+        .nullable()
+        .describe(
+          "Which tier of the statutory priority order the determination was\nmade under, e.g. `surviving_spouse`. Free text, because the statute\nis amended and a case outlives a deployment.\n",
+        ),
+      authorityRecordedAt: zod.date().nullable(),
+      hasPassword: zod
+        .boolean()
+        .describe(
+          "An authorizing contact cannot sign anything until this is true. A\nforwarded text message is not enough to bury somebody.\n",
+        ),
       canInvite: zod.boolean(),
       expiresAt: zod.date(),
       revokedAt: zod.date().nullable(),
@@ -615,6 +634,12 @@ export const GetFamilySessionResponse = zod
         .enum(["at_need", "pre_need"])
         .describe(
           "`pre_need` means the person this file is about is still alive and\narranging their own funeral. Every label, every date and every\nline of condolence has to read this first.\n",
+        ),
+      dispositionDisputed: zod
+        .boolean()
+        .optional()
+        .describe(
+          "The home knows the right of final disposition is contested. While\ntrue, the portal offers no authorizing actions and says the home is\nconfirming who is arranging the funeral.\n",
         ),
       decedentFirstName: zod.string(),
       decedentLastName: zod.string(),
@@ -1194,4 +1219,29 @@ export const SetFamilyAftercareConsentResponse = zod.object({
  */
 export const GetFamilyUploadParams = zod.object({
   uploadId: zod.coerce.number(),
+});
+
+/**
+ * Set *after* the link has been followed, never as a wall in front of it.
+A password is required before an authorizing contact can sign anything,
+because a text message can be forwarded and a signature about burying
+somebody should need more than holding that message.
+
+Replacing an existing password requires the current one.
+
+ * @summary Choose a password for this link
+ */
+export const setFamilyOwnPasswordBodyPasswordMin = 10;
+
+export const SetFamilyOwnPasswordBody = zod.object({
+  password: zod
+    .string()
+    .min(setFamilyOwnPasswordBodyPasswordMin)
+    .describe(
+      "Long enough to be worth having, short enough that somebody can\nchoose a passphrase they will actually recall on the worst week of\ntheir life.\n",
+    ),
+  currentPassword: zod
+    .string()
+    .nullish()
+    .describe("Required when replacing an existing password."),
 });

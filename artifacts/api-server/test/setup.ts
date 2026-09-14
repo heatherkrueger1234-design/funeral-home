@@ -30,6 +30,12 @@ const { authRateLimit, familyRateLimit, publicRateLimit } = await import(
  * looks: sequences that carried over between tests would let a test pass
  * because an id happened to be unique across the whole run rather than
  * because the code scoped its query.
+ *
+ * **Every table goes in this list.** A table left out does not fail loudly —
+ * it survives into the next test, and then into the next run, and eventually
+ * something passes or fails for a reason that has nothing to do with the code
+ * under test. The platform tables at the top are not reachable from
+ * `funeral_homes`, so `CASCADE` never reaches them and they have to be named.
  */
 beforeEach(async () => {
   authRateLimit.reset();
@@ -38,6 +44,9 @@ beforeEach(async () => {
 
   await db.execute(
     sql`TRUNCATE TABLE
+      platform_audit,
+      platform_sessions,
+      platform_admins,
       aftercare_deliveries,
       aftercare_enrollments,
       case_deadlines,

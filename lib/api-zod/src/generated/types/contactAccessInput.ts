@@ -17,14 +17,12 @@ Two audiences, two authentication schemes, and the split is load-bearing:
 
  * OpenAPI spec version: 0.1.0
  */
+import type { ContactAccessInputAccessLevel } from "./contactAccessInputAccessLevel";
 
-/**
- * Who they are to the deceased, not what they may do.
+export interface ContactAccessInput {
+  /** `authorizing` is deliberately absent. Raising somebody to it is
+recording a legal determination, so it goes through the authority
+endpoint, which requires saying what the determination was.
  */
-export type FamilyContactRole =
-  (typeof FamilyContactRole)[keyof typeof FamilyContactRole];
-
-export const FamilyContactRole = {
-  next_of_kin: "next_of_kin",
-  contributor: "contributor",
-} as const;
+  accessLevel: ContactAccessInputAccessLevel;
+}

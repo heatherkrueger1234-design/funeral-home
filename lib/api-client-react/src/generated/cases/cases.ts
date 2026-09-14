@@ -44,6 +44,8 @@ import type { CsvUploadInput } from "../model/csvUploadInput";
 
 import type { DeleteCaseInput } from "../model/deleteCaseInput";
 
+import type { DispositionDisputeInput } from "../model/dispositionDisputeInput";
+
 import type { GetCasesParams } from "../model/getCasesParams";
 
 import type { ImportPreview } from "../model/importPreview";
@@ -966,4 +968,99 @@ export const useImportCases = <
   TContext
 > => {
   return useMutation(getImportCasesMutationOptions(options));
+};
+/**
+ * While set, the family portal stops offering authorizing actions and
+says plainly that the home is confirming who is arranging the funeral.
+
+Colorado sends disputes between people of equal priority to the probate
+court, and a third party may decline to act until it has confirmation
+the argument is over. Declining is the safe posture; this makes it the
+automatic one.
+
+ * @summary Mark the right of final disposition as contested
+ */
+export const getSetDispositionDisputeUrl = (caseId: number) => {
+  return `/api/cases/${caseId}/disposition-dispute`;
+};
+
+export const setDispositionDispute = async (
+  caseId: number,
+  dispositionDisputeInput: DispositionDisputeInput,
+  options?: RequestInit,
+): Promise<Case> => {
+  return customFetch<Case>(getSetDispositionDisputeUrl(caseId), {
+    ...options,
+    method: "PUT",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(dispositionDisputeInput),
+  });
+};
+
+export const getSetDispositionDisputeMutationOptions = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof setDispositionDispute>>,
+    TError,
+    { caseId: number; data: BodyType<DispositionDisputeInput> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof setDispositionDispute>>,
+  TError,
+  { caseId: number; data: BodyType<DispositionDisputeInput> },
+  TContext
+> => {
+  const mutationKey = ["setDispositionDispute"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof setDispositionDispute>>,
+    { caseId: number; data: BodyType<DispositionDisputeInput> }
+  > = (props) => {
+    const { caseId, data } = props ?? {};
+
+    return setDispositionDispute(caseId, data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type SetDispositionDisputeMutationResult = NonNullable<
+  Awaited<ReturnType<typeof setDispositionDispute>>
+>;
+export type SetDispositionDisputeMutationBody =
+  BodyType<DispositionDisputeInput>;
+export type SetDispositionDisputeMutationError = ErrorType<void>;
+
+/**
+ * @summary Mark the right of final disposition as contested
+ */
+export const useSetDispositionDispute = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof setDispositionDispute>>,
+    TError,
+    { caseId: number; data: BodyType<DispositionDisputeInput> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof setDispositionDispute>>,
+  TError,
+  { caseId: number; data: BodyType<DispositionDisputeInput> },
+  TContext
+> => {
+  return useMutation(getSetDispositionDisputeMutationOptions(options));
 };

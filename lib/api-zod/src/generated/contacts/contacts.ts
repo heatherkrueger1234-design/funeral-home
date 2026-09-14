@@ -33,7 +33,26 @@ export const GetCaseContactsResponseItem = zod.object({
   relationship: zod.string().nullable(),
   phone: zod.string().nullable(),
   email: zod.string().nullable(),
-  role: zod.enum(["next_of_kin", "contributor"]),
+  role: zod
+    .enum(["next_of_kin", "contributor"])
+    .describe("Who they are to the deceased, not what they may do."),
+  accessLevel: zod
+    .enum(["viewing", "arranging", "authorizing"])
+    .describe(
+      "What they may do. `authorizing` means they hold the right of final\ndisposition under the statutory priority order, as determined by a\ndirector and recorded here — never computed from `relationship`.\n",
+    ),
+  dispositionTier: zod
+    .string()
+    .nullable()
+    .describe(
+      "Which tier of the statutory priority order the determination was\nmade under, e.g. `surviving_spouse`. Free text, because the statute\nis amended and a case outlives a deployment.\n",
+    ),
+  authorityRecordedAt: zod.date().nullable(),
+  hasPassword: zod
+    .boolean()
+    .describe(
+      "An authorizing contact cannot sign anything until this is true. A\nforwarded text message is not enough to bury somebody.\n",
+    ),
   canInvite: zod.boolean(),
   expiresAt: zod.date(),
   revokedAt: zod.date().nullable(),
@@ -86,7 +105,26 @@ export const UpdateContactResponse = zod.object({
   relationship: zod.string().nullable(),
   phone: zod.string().nullable(),
   email: zod.string().nullable(),
-  role: zod.enum(["next_of_kin", "contributor"]),
+  role: zod
+    .enum(["next_of_kin", "contributor"])
+    .describe("Who they are to the deceased, not what they may do."),
+  accessLevel: zod
+    .enum(["viewing", "arranging", "authorizing"])
+    .describe(
+      "What they may do. `authorizing` means they hold the right of final\ndisposition under the statutory priority order, as determined by a\ndirector and recorded here — never computed from `relationship`.\n",
+    ),
+  dispositionTier: zod
+    .string()
+    .nullable()
+    .describe(
+      "Which tier of the statutory priority order the determination was\nmade under, e.g. `surviving_spouse`. Free text, because the statute\nis amended and a case outlives a deployment.\n",
+    ),
+  authorityRecordedAt: zod.date().nullable(),
+  hasPassword: zod
+    .boolean()
+    .describe(
+      "An authorizing contact cannot sign anything until this is true. A\nforwarded text message is not enough to bury somebody.\n",
+    ),
   canInvite: zod.boolean(),
   expiresAt: zod.date(),
   revokedAt: zod.date().nullable(),
@@ -122,7 +160,26 @@ export const SendContactLinkResponse = zod
     relationship: zod.string().nullable(),
     phone: zod.string().nullable(),
     email: zod.string().nullable(),
-    role: zod.enum(["next_of_kin", "contributor"]),
+    role: zod
+      .enum(["next_of_kin", "contributor"])
+      .describe("Who they are to the deceased, not what they may do."),
+    accessLevel: zod
+      .enum(["viewing", "arranging", "authorizing"])
+      .describe(
+        "What they may do. `authorizing` means they hold the right of final\ndisposition under the statutory priority order, as determined by a\ndirector and recorded here — never computed from `relationship`.\n",
+      ),
+    dispositionTier: zod
+      .string()
+      .nullable()
+      .describe(
+        "Which tier of the statutory priority order the determination was\nmade under, e.g. `surviving_spouse`. Free text, because the statute\nis amended and a case outlives a deployment.\n",
+      ),
+    authorityRecordedAt: zod.date().nullable(),
+    hasPassword: zod
+      .boolean()
+      .describe(
+        "An authorizing contact cannot sign anything until this is true. A\nforwarded text message is not enough to bury somebody.\n",
+      ),
     canInvite: zod.boolean(),
     expiresAt: zod.date(),
     revokedAt: zod.date().nullable(),
@@ -163,7 +220,26 @@ export const ReissueContactLinkResponse = zod
     relationship: zod.string().nullable(),
     phone: zod.string().nullable(),
     email: zod.string().nullable(),
-    role: zod.enum(["next_of_kin", "contributor"]),
+    role: zod
+      .enum(["next_of_kin", "contributor"])
+      .describe("Who they are to the deceased, not what they may do."),
+    accessLevel: zod
+      .enum(["viewing", "arranging", "authorizing"])
+      .describe(
+        "What they may do. `authorizing` means they hold the right of final\ndisposition under the statutory priority order, as determined by a\ndirector and recorded here — never computed from `relationship`.\n",
+      ),
+    dispositionTier: zod
+      .string()
+      .nullable()
+      .describe(
+        "Which tier of the statutory priority order the determination was\nmade under, e.g. `surviving_spouse`. Free text, because the statute\nis amended and a case outlives a deployment.\n",
+      ),
+    authorityRecordedAt: zod.date().nullable(),
+    hasPassword: zod
+      .boolean()
+      .describe(
+        "An authorizing contact cannot sign anything until this is true. A\nforwarded text message is not enough to bury somebody.\n",
+      ),
     canInvite: zod.boolean(),
     expiresAt: zod.date(),
     revokedAt: zod.date().nullable(),
@@ -178,4 +254,136 @@ export const ReissueContactLinkResponse = zod
   )
   .describe(
     "Returned only at the moment a link is minted. `link` is the working\nURL to paste into a text message and is never retrievable again -\nonly its digest is stored.\n",
+  );
+
+/**
+ * Staff only, and never self-selected. `authorizing` additionally
+requires recording which tier of the statutory priority order the
+determination was made under — see the authority endpoint.
+
+ * @summary Set what this person may do
+ */
+export const SetContactAccessParams = zod.object({
+  contactId: zod.coerce.number(),
+});
+
+export const SetContactAccessBody = zod.object({
+  accessLevel: zod
+    .enum(["viewing", "arranging"])
+    .describe(
+      "`authorizing` is deliberately absent. Raising somebody to it is\nrecording a legal determination, so it goes through the authority\nendpoint, which requires saying what the determination was.\n",
+    ),
+});
+
+export const SetContactAccessResponse = zod.object({
+  id: zod.number(),
+  caseId: zod.number(),
+  name: zod.string(),
+  relationship: zod.string().nullable(),
+  phone: zod.string().nullable(),
+  email: zod.string().nullable(),
+  role: zod
+    .enum(["next_of_kin", "contributor"])
+    .describe("Who they are to the deceased, not what they may do."),
+  accessLevel: zod
+    .enum(["viewing", "arranging", "authorizing"])
+    .describe(
+      "What they may do. `authorizing` means they hold the right of final\ndisposition under the statutory priority order, as determined by a\ndirector and recorded here — never computed from `relationship`.\n",
+    ),
+  dispositionTier: zod
+    .string()
+    .nullable()
+    .describe(
+      "Which tier of the statutory priority order the determination was\nmade under, e.g. `surviving_spouse`. Free text, because the statute\nis amended and a case outlives a deployment.\n",
+    ),
+  authorityRecordedAt: zod.date().nullable(),
+  hasPassword: zod
+    .boolean()
+    .describe(
+      "An authorizing contact cannot sign anything until this is true. A\nforwarded text message is not enough to bury somebody.\n",
+    ),
+  canInvite: zod.boolean(),
+  expiresAt: zod.date(),
+  revokedAt: zod.date().nullable(),
+  firstSeenAt: zod.date().nullable(),
+  lastSeenAt: zod.date().nullable(),
+  createdAt: zod.date(),
+});
+
+/**
+ * The director's determination, from documents, written down. **The
+software never works this out.** Inferring the right of final
+disposition from a relationship dropdown would be confidently wrong in
+exactly the cases that end up in front of a probate judge.
+
+Recording this raises the contact to `authorizing`. They still cannot
+sign anything until they have a password.
+
+ * @summary Record who holds the right of final disposition
+ */
+export const RecordContactAuthorityParams = zod.object({
+  contactId: zod.coerce.number(),
+});
+
+export const RecordContactAuthorityBody = zod.object({
+  dispositionTier: zod
+    .string()
+    .min(1)
+    .describe(
+      "Which tier of the statutory priority order this person was found to\nhold, in the director's own words.\n",
+    ),
+});
+
+export const RecordContactAuthorityResponse = zod.object({
+  id: zod.number(),
+  caseId: zod.number(),
+  name: zod.string(),
+  relationship: zod.string().nullable(),
+  phone: zod.string().nullable(),
+  email: zod.string().nullable(),
+  role: zod
+    .enum(["next_of_kin", "contributor"])
+    .describe("Who they are to the deceased, not what they may do."),
+  accessLevel: zod
+    .enum(["viewing", "arranging", "authorizing"])
+    .describe(
+      "What they may do. `authorizing` means they hold the right of final\ndisposition under the statutory priority order, as determined by a\ndirector and recorded here — never computed from `relationship`.\n",
+    ),
+  dispositionTier: zod
+    .string()
+    .nullable()
+    .describe(
+      "Which tier of the statutory priority order the determination was\nmade under, e.g. `surviving_spouse`. Free text, because the statute\nis amended and a case outlives a deployment.\n",
+    ),
+  authorityRecordedAt: zod.date().nullable(),
+  hasPassword: zod
+    .boolean()
+    .describe(
+      "An authorizing contact cannot sign anything until this is true. A\nforwarded text message is not enough to bury somebody.\n",
+    ),
+  canInvite: zod.boolean(),
+  expiresAt: zod.date(),
+  revokedAt: zod.date().nullable(),
+  firstSeenAt: zod.date().nullable(),
+  lastSeenAt: zod.date().nullable(),
+  createdAt: zod.date(),
+});
+
+/**
+ * Generates a password the director reads out on the telephone or hands
+over in person, which is how a funeral home already does everything
+else. Returned once and never retrievable again.
+
+ * @summary Set an initial password to hand over
+ */
+export const SetContactPasswordParams = zod.object({
+  contactId: zod.coerce.number(),
+});
+
+export const SetContactPasswordResponse = zod
+  .object({
+    password: zod.string(),
+  })
+  .describe(
+    "Shown once, at the moment it is set, and never retrievable again —\nonly the hash is kept. The director reads it out or hands it over.\n",
   );
