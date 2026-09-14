@@ -324,7 +324,7 @@ export default function Photos() {
 
                 {photo.uploadedByName &&
                   photo.uploadedByContactId !== session.data?.contact.id && (
-                    <p className="text-xs text-muted-foreground">
+                    <p className="text-sm leading-snug text-muted-foreground">
                       Added by {photo.uploadedByName}
                     </p>
                   )}

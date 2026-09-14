@@ -282,7 +282,7 @@ export function FamilyPanel({ caseId, contacts }: Props) {
               value={email}
               onChange={(event) => setEmail(event.target.value)}
             />
-            <p className="text-xs text-muted-foreground">
+            <p className="text-sm leading-snug text-muted-foreground">
               Needed for the aftercare check-ins later.
             </p>
           </div>

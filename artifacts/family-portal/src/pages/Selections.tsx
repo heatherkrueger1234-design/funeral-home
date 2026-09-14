@@ -124,7 +124,11 @@ export default function Selections() {
                 {items.map((item) => (
                   <li
                     key={item.id}
-                    className="flex items-center gap-3 px-4 py-3"
+                    // A uniform row height. The remove button is a 44px tap
+                    // target and the "Confirmed" badge is not, so without this
+                    // a confirmed hymn sat in a visibly shorter row than the
+                    // one under it.
+                    className="flex min-h-14 items-center gap-3 px-4 py-2"
                   >
                     <span className="min-w-0 flex-1">
                       <span className="block truncate font-medium">
@@ -164,13 +168,27 @@ export default function Selections() {
               </ul>
             )}
 
+            {/*
+              Three controls on one line is fine on a laptop and cramped on a
+              phone, where it squeezed "Somewhere Over the Rainbow" down to
+              "Somewhere Ove". Below `sm` the title takes its own row and the
+              attribution shares the next one with the button.
+            */}
             <div
-              className={`flex gap-2 px-4 py-3 ${
+              className={`flex flex-wrap items-center gap-2 px-4 py-3 ${
                 items.length > 0 ? "border-t border-border" : ""
               }`}
             >
               <Input
                 value={draft.value}
+                // Only the two-field sections need the title on its own row.
+                // Hymns has one field, and pushing its "add" button onto a
+                // second line for no reason looked like a mistake.
+                className={
+                  section.attribution
+                    ? "min-w-0 flex-1 basis-full sm:basis-0"
+                    : "min-w-0 flex-1"
+                }
                 placeholder={section.placeholder}
                 onChange={(event) =>
                   setDrafts((current) => ({
@@ -189,7 +207,7 @@ export default function Selections() {
                 <Input
                   value={draft.attribution}
                   placeholder={section.attribution}
-                  className="max-w-[9rem] shrink"
+                  className="min-w-0 flex-1 basis-0 sm:max-w-[9rem] sm:flex-none"
                   onChange={(event) =>
                     setDrafts((current) => ({
                       ...current,
@@ -211,6 +229,7 @@ export default function Selections() {
                 type="button"
                 variant="outline"
                 size="icon"
+                className="shrink-0"
                 aria-label={`Add to ${section.title}`}
                 disabled={!draft.value.trim()}
                 onClick={submit}

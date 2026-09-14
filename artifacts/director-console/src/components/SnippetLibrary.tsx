@@ -104,7 +104,7 @@ export function SnippetLibrary({ readOnly }: { readOnly: boolean }) {
                       : snippet.body}
                   </p>
                   {snippet.attribution && (
-                    <p className="mt-1 text-xs text-muted-foreground">
+                    <p className="mt-1 text-sm leading-snug text-muted-foreground">
                       — {snippet.attribution}
                     </p>
                   )}

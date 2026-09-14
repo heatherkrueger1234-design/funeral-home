@@ -92,13 +92,18 @@ export default function Timeline() {
               <li
                 key={row.id}
                 className={[
-                  "relative overflow-hidden rounded-xl border bg-card p-4 pl-4 transition-gentle",
+                  // The background is chosen once. Naming two of them and
+                  // hoping the later class wins is how the funeral row
+                  // silently lost its wash: which of `bg-card` and
+                  // `bg-[var(--accent-soft)]` applies is decided by the order
+                  // Tailwind emits them in, not the order they are written.
+                  "relative overflow-hidden rounded-xl border p-4 transition-gentle",
                   "shadow-[var(--elevation-1)]",
                   row.isEvent
                     ? "border-[var(--accent)]/30 bg-[var(--accent-soft)] pl-5"
                     : late
-                      ? "border-[var(--accent)]/40 pl-5"
-                      : "border-border",
+                      ? "border-[var(--accent)]/40 bg-card pl-5"
+                      : "border-border bg-card",
                   done && "opacity-70",
                 ]
                   .filter(Boolean)

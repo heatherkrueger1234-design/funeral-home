@@ -232,7 +232,7 @@ export default function Settings() {
               save({ intakeNotifyEmail: event.target.value.trim() || null })
             }
           />
-          <p className="text-xs text-muted-foreground">
+          <p className="text-sm leading-snug text-muted-foreground">
             Whoever checks email during the day. A request sitting in a queue
             nobody opens is worse than no form at all — the family believes they
             have reached someone.
@@ -272,7 +272,7 @@ export default function Settings() {
               save({ aftercareSenderName: event.target.value.trim() || null })
             }
           />
-          <p className="text-xs text-muted-foreground">
+          <p className="text-sm leading-snug text-muted-foreground">
             "Provided in care with {row.aftercareSenderName?.trim() || row.name}".
             Leave blank to use the home's name.
           </p>
@@ -320,7 +320,7 @@ function PublicPageLink({ slug }: { slug: string }) {
         </Button>
       </div>
       {!origin && (
-        <p className="text-xs text-muted-foreground">
+        <p className="text-sm leading-snug text-muted-foreground">
           Add your family portal&rsquo;s address in front of that path — it is
           the site your families open their texted links on.
         </p>

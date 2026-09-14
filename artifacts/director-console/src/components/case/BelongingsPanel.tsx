@@ -117,7 +117,6 @@ export function BelongingsPanel({ caseId }: { caseId: number }) {
               <div className="flex items-start gap-2">
                 <Input
                   defaultValue={item.description}
-                  className="h-9"
                   onBlur={(event) => {
                     const next = event.target.value.trim();
                     if (!next || next === item.description) return;
@@ -150,7 +149,7 @@ export function BelongingsPanel({ caseId }: { caseId: number }) {
                     })
                   }
                 >
-                  <SelectTrigger className="h-8 w-[8.5rem]">
+                  <SelectTrigger className="w-[8.5rem]">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
@@ -171,7 +170,7 @@ export function BelongingsPanel({ caseId }: { caseId: number }) {
                     })
                   }
                 >
-                  <SelectTrigger className="h-8 w-[9.5rem]">
+                  <SelectTrigger className="w-[9.5rem]">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
@@ -186,7 +185,7 @@ export function BelongingsPanel({ caseId }: { caseId: number }) {
 
               {/* The line that answers "who took the ring in?". */}
               {item.receivedAt && (
-                <p className="text-xs text-muted-foreground">
+                <p className="text-sm leading-snug text-muted-foreground">
                   Taken in {formatWhen(item.receivedAt)}
                   {item.receivedByName ? ` by ${item.receivedByName}` : ""}
                   {item.returnedAt

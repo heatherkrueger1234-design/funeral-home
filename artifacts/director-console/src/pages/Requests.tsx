@@ -195,7 +195,7 @@ export default function Requests() {
                     Dismiss
                   </Button>
                 </div>
-                <p className="mt-2.5 text-xs leading-relaxed text-muted-foreground">
+                <p className="mt-2.5 text-sm leading-snug leading-relaxed text-muted-foreground">
                   Dismissing sends them nothing. If they need telling, tell them
                   yourself.
                 </p>

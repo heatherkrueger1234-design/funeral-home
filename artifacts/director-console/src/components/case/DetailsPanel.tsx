@@ -75,7 +75,7 @@ export function DetailsPanel({
               save({ serviceAt: value ? new Date(value).toISOString() : null });
             }}
           />
-          <p className="text-xs text-muted-foreground">
+          <p className="text-sm leading-snug text-muted-foreground">
             The family is shown this as confirmed. Leave it empty until it is.
           </p>
         </div>
@@ -108,7 +108,7 @@ export function DetailsPanel({
               ))}
             </SelectContent>
           </Select>
-          <p className="text-xs text-muted-foreground">
+          <p className="text-sm leading-snug text-muted-foreground">
             Who the family is told to picture when the portal says "your
             director".
           </p>
@@ -157,7 +157,7 @@ export function DetailsPanel({
               save({ decedentPreferredName: event.target.value.trim() || null })
             }
           />
-          <p className="text-xs text-muted-foreground">
+          <p className="text-sm leading-snug text-muted-foreground">
             Used everywhere the family sees their name.
           </p>
         </div>
@@ -186,7 +186,7 @@ export function DetailsPanel({
               </li>
             ))}
           </ul>
-          <p className="text-xs text-muted-foreground">
+          <p className="text-sm leading-snug text-muted-foreground">
             Signed "{aftercare.data![0]!.brandedAs}". Nothing is sent until a
             family member says yes.
           </p>

@@ -161,7 +161,7 @@ function Studio({
             <div key={slot.key} className="space-y-1.5">
               <Label htmlFor={slot.key}>{slot.label}</Label>
               {slot.hint && (
-                <p className="text-xs text-muted-foreground">{slot.hint}</p>
+                <p className="text-sm leading-snug text-muted-foreground">{slot.hint}</p>
               )}
               <Input
                 id={slot.key}
@@ -180,7 +180,7 @@ function Studio({
           <div key={slot.key} className="space-y-1.5">
             <Label htmlFor={slot.key}>{slot.label}</Label>
             {slot.hint && (
-              <p className="text-xs text-muted-foreground">{slot.hint}</p>
+              <p className="text-sm leading-snug text-muted-foreground">{slot.hint}</p>
             )}
 
             {/* Pick from the home's own list rather than retyping it. */}
@@ -193,7 +193,7 @@ function Studio({
                   if (snippet) save({ [slot.key]: snippet.body });
                 }}
               >
-                <SelectTrigger className="h-8">
+                <SelectTrigger>
                   <SelectValue placeholder="Use one of ours…" />
                 </SelectTrigger>
                 <SelectContent>
@@ -218,7 +218,7 @@ function Studio({
               }}
             />
             {slot.maxLength && (
-              <p className="text-xs text-muted-foreground">
+              <p className="text-sm leading-snug text-muted-foreground">
                 Up to {slot.maxLength} characters fits.
               </p>
             )}

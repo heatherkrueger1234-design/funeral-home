@@ -161,7 +161,7 @@ export function PhotosPanel({
                 <span className="text-muted-foreground">No caption</span>
               )}
             </p>
-            <p className="mb-3 text-xs text-muted-foreground">
+            <p className="mb-3 text-sm leading-snug text-muted-foreground">
               {photo.uploadedByName
                 ? `From ${photo.uploadedByName}`
                 : "Added here"}

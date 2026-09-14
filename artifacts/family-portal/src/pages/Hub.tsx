@@ -248,7 +248,7 @@ export default function Hub() {
           />
         </Group>
 
-        <Group label="The service">
+        <Group label="For the service">
           <Card
             href="/service"
             icon={ListMusic}
@@ -290,7 +290,7 @@ export default function Hub() {
         </Group>
 
         {(!messagesLocked || aftercare?.status === "active") && (
-          <Group label={home.name}>
+          <Group label="Your funeral home">
             {!messagesLocked && (
               <Card
                 href="/messages"

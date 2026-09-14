@@ -237,13 +237,13 @@ export function ImportCases() {
             </div>
 
             {preview.unmapped.length > 0 && (
-              <p className="text-xs text-muted-foreground">
+              <p className="text-sm leading-snug text-muted-foreground">
                 Columns we didn't recognise and ignored:{" "}
                 {preview.unmapped.join(", ")}.
               </p>
             )}
 
-            <p className="text-xs text-muted-foreground">
+            <p className="text-sm leading-snug text-muted-foreground">
               Families are not contacted by importing. You send each link when
               you're ready.
             </p>

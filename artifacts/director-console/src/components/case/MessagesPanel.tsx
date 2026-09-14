@@ -70,7 +70,7 @@ export function MessagesPanel({ caseId }: { caseId: number }) {
               }`}
             >
               <p className="whitespace-pre-wrap break-words">{message.body}</p>
-              <p className="mt-1.5 text-xs text-muted-foreground">
+              <p className="mt-1.5 text-sm leading-snug text-muted-foreground">
                 {message.authorName ?? (fromHome ? "The home" : "The family")}
                 {message.authorTitle ? `, ${message.authorTitle}` : ""} ·{" "}
                 {new Date(message.createdAt).toLocaleString(undefined, {
