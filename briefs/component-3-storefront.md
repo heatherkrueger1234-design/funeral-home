@@ -1,4 +1,4 @@
-# Component 3 — Storefront and catalogue
+# Component 3 — Storefront, catalogue and the statement
 
 **Branch:** `claude/component-3-storefront` → PR into `claude/app-capability-check-mvfn8x`
 **Depends on:** Component 1
@@ -72,14 +72,72 @@ and talk them through on the phone.
   relationship. Merchandise is how funeral homes survive, and a vendor that
   competes with the selection room — or clips it — does not get installed
   twice.
-- Payment is **Component 4**. Build the selection, not the transaction. Model
-  the data so the Statement of Funeral Goods and Services Selected can be
-  generated from it without guessing.
+- **The money is never ours.** See "The statement, and the handoff" below.
 - `pre_need` cases may browse and record a plan. They may **not** pay — see
   Section 4 of `COLORADO.md`.
 
+## The statement, and the handoff to the home
+
+Folded in from what was a separate component, because it comes straight out of
+the catalogue and splitting it would have put a seam through one flow.
+
+**We take no money. At all.** No payment processing, no funds held, no card
+data, no Stripe Connect, no merchant of record, no percentage of what a home
+sells. A family that owes the home money is **linked out to the home's own
+payment page**, at the home's own processor, under the home's own merchant
+account.
+
+Homes have taken money for a century. We are not an improvement on that; we
+would be another thing to reconcile. Linking out also removes money
+transmission questions, PCI scope, chargebacks, and the identity-verification
+wall that connected-account onboarding would otherwise put between a home and
+its first day of use.
+
+The one existing Stripe integration, in `artifacts/api-server/src/lib/billing.ts`,
+is **us charging the home its monthly subscription**. That is the only money in
+this system. Do not extend it to families and do not add a second Stripe
+surface.
+
+Build three things:
+
+1. **The selection record** — what the family chose, at the home's prices, as
+   line items. Draft while they decide; confirmed when the director says so.
+2. **The Statement of Funeral Goods and Services Selected** — the itemised
+   document the Funeral Rule requires a provider to give at the end of an
+   arrangement. Generated from the actual selections, stored against the case,
+   printable and savable by both sides through `lib/print-render.ts`. This is
+   the legal artifact of the whole component. Get it right before anything
+   prettier.
+3. **The handoff** — the home stores its own payment page URL in settings. The
+   family sees their itemised total and a link that says plainly where it goes,
+   alongside the home's other ways of taking payment in the home's own words,
+   because plenty of families will ring up or post a check.
+
+**Say only what is true.** Nothing may imply we processed, received or
+confirmed a payment. We do not know. A director marks a statement settled from
+the home's own books, and that mark is a note about their records, never a
+receipt from us.
+
+No card fields and no bank fields, anywhere. Do not add one "for convenience".
+The payment link must be visibly the home's, with the destination shown — a
+link about money sent to a grieving family is exactly what a scammer imitates,
+so it has to be boring, expected and obviously theirs. If it is missing, tell
+the family to ring the home and give the number rather than showing an error.
+
+**And no pre-need prepayment, by anyone, ever.** Under C.R.S. Title 10 Article
+15 a Colorado preneed contract requires a Division of Insurance licence, a $500
+filing fee, $100,000 of net worth or bond, and 85% of funds in trust — or
+insurance funding instead. A `pre_need` case has no payment path and no payment
+link. The plan is recorded; the money is not discussed.
+
 ## Done when
 
-A director can load a catalogue, a family can browse and select on a phone, the
-GPL/CPL/OBCPL print correctly, declining any item changes the total, and a
-family can record bringing their own urn with no fee anywhere in sight.
+A director can load a catalogue from a spreadsheet, a family can browse and
+select on a phone, the GPL/CPL/OBCPL print correctly, declining any item
+changes the total, a family can record bringing their own urn with no fee
+anywhere in sight, and a confirmed selection produces a correct itemised
+Statement that prints.
+
+Plus two tests that are about what must *not* exist: a `pre_need` case offers
+no payment path in the UI **or** the API, and no code path in this component
+moves money.

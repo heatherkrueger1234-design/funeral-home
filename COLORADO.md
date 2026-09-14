@@ -166,7 +166,7 @@ purposes, and the data-processing agreement says so.
 ---
 
 # Section 3 — Selling goods: the FTC Funeral Rule
-### For Component 3 (storefront and catalogue)
+### For Component 3 (storefront, catalogue and the statement)
 
 The Funeral Rule is federal and binds the **funeral provider** — the home, not
 us. Our obligation is to build a storefront a home can use *without breaking
@@ -219,7 +219,7 @@ correct architecture and this document is where it gets written down.
 ---
 
 # Section 4 — Money, and why almost none of it is ours
-### For Component 4 (the statement, and the handoff to the home)
+### For Component 3 (it now carries the statement too)
 
 ## Do not build pre-need prepayment. This is not a close call.
 

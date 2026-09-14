@@ -46,8 +46,8 @@ another component owns, say so rather than editing it.
 | --- | --- | --- | --- |
 | 1 | Identity, roles, levels, passwords | `lib/db/src/schema/{platform,users,family-contacts,sessions}.ts`, `artifacts/api-server/src/middleware/*`, `artifacts/api-server/src/lib/{auth,platform-auth,family-link}.ts`, `artifacts/api-server/src/routes/{auth,index}.ts`, the spec split | — |
 | 2 | Platform admin console | `artifacts/admin-console/**` (new app), `artifacts/api-server/src/routes/admin.ts`, `lib/api-spec/paths/admin.yaml` | 1 |
-| 3 | Storefront and catalogue | `lib/db/src/schema/{catalogue,storefront}.ts`, `artifacts/api-server/src/routes/catalogue.ts`, `lib/api-spec/paths/catalogue.yaml`, storefront pages in both frontends | 1 |
-| 4 | The statement, and the handoff to the home | `lib/db/src/schema/orders.ts`, `artifacts/api-server/src/routes/orders.ts`, `lib/api-spec/paths/orders.yaml` | 1, 3 |
+| 3 | Storefront, catalogue and the statement | `lib/db/src/schema/{catalogue,storefront,orders}.ts`, `artifacts/api-server/src/routes/{catalogue,orders}.ts`, `lib/api-spec/paths/{catalogue,orders}.yaml`, storefront pages in both frontends | 1 |
+| 4 | Deployment: a real host, TLS, mail, backups, monitoring | `deploy/**`, `docker-compose.yml`, the `Dockerfile`s, `.github/workflows/**`, `DEPLOY.md`, `LAUNCH.md` | nothing — starts immediately |
 | 5 | Forms, policies and documents | `lib/db/src/schema/{forms,policies}.ts`, `artifacts/api-server/src/routes/forms.ts`, `lib/api-spec/paths/forms.yaml` | 1 |
 | 6 | Engagement, dates and aftercare handoff | `lib/db/src/schema/engagement.ts`, `artifacts/api-server/src/routes/engagement.ts`, `lib/api-spec/paths/engagement.yaml`, existing `aftercare.ts` | 1 |
 
