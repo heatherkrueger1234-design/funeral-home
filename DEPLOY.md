@@ -1,7 +1,14 @@
 # Putting this on a host
 
-Four containers: Postgres, the API, and one nginx per front end. A fifth,
-`tools`, is not a server — it is where migrations, backups and restores run.
+Five containers: Postgres, the API, and one nginx per front end — the family
+portal, the director console, and the platform console. A sixth, `tools`, is
+not a server; it is where migrations, backups and restores run. With
+`docker-compose.tls.yml` a seventh, Caddy, terminates TLS in front of them.
+
+The platform console is the one that is not published. It is ours rather than
+a customer's, and a signed-in platform admin can see every home on the
+platform — so the TLS overlay binds it to loopback and it is reached over an
+SSH tunnel. The two customer-facing front ends are what Caddy serves.
 
 **What has actually been verified, and what has not**, because the difference
 matters at 3am:
@@ -10,7 +17,7 @@ matters at 3am:
 | --- | --- |
 | Run, for real | The production esbuild bundle: registration, a case, a family link, a genuine iPhone HEIC uploaded and served back as JPEG, twelve photos zipped into a slideshow pack — all of it through this exact `nginx.conf`, with `nginx -t` passing on the expanded template. |
 | Run, for real | `pnpm deploy --prod --legacy` produces a tree where `sharp`, `heic-decode` and `nodemailer` resolve and `esbuild`, `vitest` and `supertest` do not. |
-| Run, for real | `docker build` for all four images, then `docker compose up`: four containers healthy, migrations applied through `tools`, a home registered and a real iPhone HEIC uploaded and served back through nginx. A full `docker compose restart` left the photograph byte-for-byte identical. |
+| Run, for real | `docker build` for all four images, then `docker compose up`: four containers healthy, migrations applied through `tools`, a home registered and a real iPhone HEIC uploaded and served back through nginx. A full `docker compose restart` left the photograph byte-for-byte identical. **This predates the platform console**, whose image has not been through it — it is the same `Dockerfile.web` with a different `APP`, which is an argument for expecting it to work and not evidence that it does. |
 | Run, for real | **TLS in front, end to end.** Caddy terminating HTTPS, proxying to nginx, nginx to the API. A director signs in over HTTPS and the `Secure` session cookie makes the round trip; an authenticated request succeeds; the plain-HTTP warning stays silent. The same sign-in over plain HTTP was reproduced first, and does exactly what this file warns it does. |
 | Run, for real | **Two proxy hops.** With `TRUST_PROXY_HOPS=2`, twenty-five sign-in attempts each claiming a different `X-Forwarded-For` all shared one rate-limit bucket and got a 429 — the spoof is ignored and the real client is still identified. |
 | Run, for real | **A password reset, delivered.** Real SMTP conversation, message received, link opened over HTTPS, new password set, old password rejected, token refused on reuse. |
@@ -119,7 +126,7 @@ docker compose run --rm tools pnpm --filter @workspace/db run push
 docker compose run --rm tools pnpm --filter @workspace/scripts run load-postal-codes
 
 docker compose up -d
-docker compose ps          # all four should report healthy
+docker compose ps          # all five should report healthy
 ```
 
 The family portal lands on `FAMILY_PORTAL_PORT` (8080), the director console

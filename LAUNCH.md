@@ -159,7 +159,8 @@ Schema first: the API starts without the tables and then every screen 500s.
 The postal codes are the 33,791 ZIP centroids that make "cemeteries near me"
 work; skip them and proximity search returns nothing rather than erroring.
 
-**It worked:** five containers, all reporting healthy, and
+**It worked:** six containers, all reporting healthy — `db`, `api`, the three
+front ends, and `caddy` — and
 
 ```sh
 docker compose logs caddy | grep -i "certificate obtained"
@@ -214,6 +215,32 @@ curl -s https://console.holdingtoday.com/api/healthz
 ```
 
 **It worked:** `"database":true`. `"mail"` will be `false` — step 10 fixes it.
+
+### And the platform console, which has no public door
+
+The two customer-facing front ends are served by Caddy. The platform console —
+ours, where you see every home on the platform — deliberately is not. A
+signed-in platform admin can read every home's cases, so the cost of one
+stolen password there is not one home, it is all of them, and that is not
+worth a public login page.
+
+It is bound to loopback on the host. Reach it through an SSH tunnel:
+
+```sh
+ssh -L 8082:127.0.0.1:8082 root@<host>
+```
+
+then open `http://127.0.0.1:8082` in a browser on your own machine.
+
+**It worked:** the platform sign-in page loads. Browsers treat `127.0.0.1` as
+a secure context, so the `Secure` session cookie is accepted over the tunnel
+with no certificate involved. If sign-in bounces you back to the sign-in page,
+that is the `Secure` cookie being refused — say so rather than working around
+it, because the same symptom on a public host means something different.
+
+There is no platform admin until one is created; a stack with no row in
+`platform_admins` has a console nobody can sign in to, which is the correct
+state to leave it in until you need it.
 
 ---
 
@@ -435,7 +462,7 @@ nginx config, in the built containers:
   signatures. This needed a fix too: the webhook was mounted where the body had
   already been parsed, so it could never have verified a genuine Stripe event.
 
-222 tests, 4 projects typechecking, 3 apps building.
+237 tests, 5 projects typechecking, 4 apps building.
 
 ## Decisions that look like gaps and are not
 
@@ -545,7 +572,7 @@ Ubuntu 24.04.**
 **What it is.** One virtual machine: 4 vCPU, 8 GB RAM, 160 GB SSD. Everything
 runs on it — Postgres, the API, both front ends, Caddy.
 
-**Why that size.** The stack is five containers and a database. 8 GB is
+**Why that size.** The stack is six containers, one of them a database. 8 GB is
 comfortable rather than tight — the image pipeline decodes iPhone HEICs in
 memory, which is the spiky part — and 160 GB holds several homes' photographs
 with room for the nightly dump, which needs roughly twice the database's own
