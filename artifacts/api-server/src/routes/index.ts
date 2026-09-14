@@ -25,6 +25,7 @@ import deadlinesRouter from "./deadlines";
 import belongingsRouter from "./belongings";
 import vendorsRouter from "./vendors";
 import vitalsRouter from "./vitals";
+import formsRouter, { familyFormsRouter } from "./forms";
 import printRouter from "./print";
 import aftercareRouter from "./aftercare";
 import engagementRouter, {
@@ -148,6 +149,7 @@ router.use(
   requireFamilyLink,
   familyRouter,
   familyStorefrontRouter,
+  familyFormsRouter,
   familyEngagementRouter,
 );
 
@@ -176,6 +178,7 @@ router.use(deadlinesRouter);
 router.use(belongingsRouter);
 router.use(vendorsRouter);
 router.use(vitalsRouter);
+router.use(formsRouter);
 router.use(printRouter);
 router.use(aftercareRouter);
 router.use(engagementRouter);

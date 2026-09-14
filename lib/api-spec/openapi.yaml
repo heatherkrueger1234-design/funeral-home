@@ -82,6 +82,12 @@ tags:
       Us, above all the tenants. A separate account, a separate session and a
       separate cookie from any funeral home's staff — see
       `lib/db/src/schema/platform.ts` for why it is not a role on `users`.
+  - name: forms
+    description: |
+      The home's own paperwork: the forms they wrote, the authorizations the
+      statute governs, their versioned policies, and Colorado's 72-hour death
+      certificate clock. We ship no legal form of our own, and we file nothing
+      with anybody.
 
 paths:
   /healthz:
@@ -3684,6 +3690,762 @@ paths:
               schema:
                 $ref: "#/components/schemas/Keepsake"
 
+  # ----------------------------------------------------------------- forms --
+  #
+  # The home's own paperwork, on Colorado's 72-hour clock.
+  #
+  # Two things to hold in your head before reading this section. First, every
+  # form here was written by a funeral home and reviewed by that home's own
+  # counsel — we ship no legal form of our own and generate none. Second, we
+  # do not file anything with anybody: there is no EDRS integration below,
+  # and the certificate record is the director's own note of a filing they
+  # made themselves.
+
+  /forms:
+    get:
+      operationId: getHomeForms
+      tags: [forms]
+      summary: The home's form library
+      parameters:
+        - name: includeRetired
+          in: query
+          required: false
+          schema:
+            type: boolean
+      responses:
+        "200":
+          description: Every form this home has built or uploaded
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/HomeForm"
+    post:
+      operationId: createHomeForm
+      tags: [forms]
+      summary: Add a form, written by the home
+      description: |
+        A form of kind `authorization` is always completed at the
+        `authorizing` level, and the API overwrites anything else sent in
+        `requiredLevel`. A cremation authorization a cousin could sign is not
+        an authorization.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/HomeFormInput"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HomeForm"
+
+  /forms/{formId}:
+    get:
+      operationId: getHomeForm
+      tags: [forms]
+      parameters:
+        - $ref: "#/components/parameters/FormId"
+      responses:
+        "200":
+          description: The form and its boxes
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HomeFormDetail"
+        "404":
+          description: No such form at this home
+    patch:
+      operationId: updateHomeForm
+      tags: [forms]
+      summary: Rename it, retire it, change who may complete it
+      parameters:
+        - $ref: "#/components/parameters/FormId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/HomeFormUpdate"
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HomeForm"
+        "404":
+          description: No such form at this home
+
+  /forms/{formId}/fields:
+    put:
+      operationId: setHomeFormFields
+      tags: [forms]
+      summary: Replace the boxes on a form
+      description: |
+        The whole list at once, because that is how the builder edits it — a
+        box dragged between two others changes three rows, and three requests
+        to move one thing is three chances to leave the form half-saved.
+
+        Answers are stored against a box's `key`, so a key that survives this
+        call keeps what a family already typed. A key that does not survive
+        leaves its answers behind rather than deleting them: nothing in this
+        product deletes what a family wrote, and a home that removed a box by
+        accident gets it back by adding the key again.
+      parameters:
+        - $ref: "#/components/parameters/FormId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/HomeFormFieldsInput"
+      responses:
+        "200":
+          description: The form, with its boxes as they now stand
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HomeFormDetail"
+        "400":
+          description: Two boxes with the same key, or an unknown prefill source
+        "404":
+          description: No such form at this home
+
+  /cases/{caseId}/forms:
+    get:
+      operationId: getCaseForms
+      tags: [forms]
+      summary: The forms on this case, and how far through them the family is
+      parameters:
+        - $ref: "#/components/parameters/CaseId"
+      responses:
+        "200":
+          description: |
+            Ordered with anything feeding the death certificate first. That
+            ordering is the 72-hour clock showing through: what the
+            certificate needs is asked for before what it does not.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/CaseForm"
+    post:
+      operationId: assignCaseForm
+      tags: [forms]
+      summary: Put one of the home's forms on this case
+      parameters:
+        - $ref: "#/components/parameters/CaseId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AssignCaseFormInput"
+      responses:
+        "201":
+          description: Assigned
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CaseForm"
+        "200":
+          description: It was already on this case
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CaseForm"
+        "404":
+          description: No such form at this home
+
+  /cases/{caseId}/forms/{caseFormId}:
+    get:
+      operationId: getCaseForm
+      tags: [forms]
+      summary: One form, with every box, its answer and any note against it
+      parameters:
+        - $ref: "#/components/parameters/CaseId"
+        - $ref: "#/components/parameters/CaseFormId"
+      responses:
+        "200":
+          description: The form as it stands
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CaseFormDetail"
+        "404":
+          description: Not a form on this case
+    patch:
+      operationId: updateCaseForm
+      tags: [forms]
+      summary: Share it with the family, or take it back while it is prepared
+      parameters:
+        - $ref: "#/components/parameters/CaseId"
+        - $ref: "#/components/parameters/CaseFormId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CaseFormUpdate"
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CaseForm"
+        "404":
+          description: Not a form on this case
+
+  /cases/{caseId}/forms/{caseFormId}/answers:
+    put:
+      operationId: setCaseFormAnswers
+      tags: [forms]
+      summary: Fill boxes in on the family's behalf
+      description: |
+        Staff answers are recorded as `staff`, so the family can see which
+        boxes they did not write. Partial by design: only the boxes named are
+        touched, and nothing is refused for being incomplete.
+      parameters:
+        - $ref: "#/components/parameters/CaseId"
+        - $ref: "#/components/parameters/CaseFormId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CaseFormAnswersInput"
+      responses:
+        "200":
+          description: The form as it now stands
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CaseFormDetail"
+        "409":
+          description: It has been signed, and stays as it was signed
+        "404":
+          description: Not a form on this case
+
+  /cases/{caseId}/forms/{caseFormId}/flags:
+    post:
+      operationId: flagCaseFormField
+      tags: [forms]
+      summary: Send one box back, with a note saying what is wrong with it
+      description: |
+        The note lands in the family's form at the blank rather than in a
+        voicemail. Cleared by the box being answered, not by anybody marking
+        it resolved — the director is not the one who knows when it is done.
+      parameters:
+        - $ref: "#/components/parameters/CaseId"
+        - $ref: "#/components/parameters/CaseFormId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CaseFormFlagInput"
+      responses:
+        "200":
+          description: The form, with the note against the box
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CaseFormDetail"
+        "400":
+          description: No box on this form has that key
+        "404":
+          description: Not a form on this case
+
+  /cases/{caseId}/forms/{caseFormId}/render:
+    get:
+      operationId: renderCaseForm
+      tags: [forms]
+      summary: The completed form as a printable page
+      parameters:
+        - $ref: "#/components/parameters/CaseId"
+        - $ref: "#/components/parameters/CaseFormId"
+      responses:
+        "200":
+          description: Self-contained HTML, sized for paper
+          content:
+            text/html:
+              schema:
+                type: string
+        "404":
+          description: Not a form on this case
+
+  /cases/{caseId}/authorizations:
+    get:
+      operationId: getCaseAuthorizations
+      tags: [forms]
+      summary: Every authorization recorded on this case, oldest first
+      parameters:
+        - $ref: "#/components/parameters/CaseId"
+      responses:
+        "200":
+          description: Append-only, so this is the whole history
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/CaseAuthorization"
+    post:
+      operationId: recordCaseAuthorization
+      tags: [forms]
+      summary: Record an authorization that was signed on paper
+      description: |
+        Most of them still are — across a desk, with a pen. This writes down
+        what was signed, under which tier of C.R.S. 15-19-106 the person
+        claimed to act, and who at the home took it.
+
+        Where the tier needs a majority, every consenting person is a separate
+        entry in `consents`. One signature claiming to speak for "a majority
+        of the surviving adult children" is not a majority, and there is no
+        field here for claiming that it is.
+      parameters:
+        - $ref: "#/components/parameters/CaseId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RecordAuthorizationInput"
+      responses:
+        "201":
+          description: Recorded
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CaseAuthorization"
+        "400":
+          description: That form is not an authorization
+        "404":
+          description: Not a form on this case
+
+  /cases/{caseId}/authorizations/{authorizationId}/verify:
+    post:
+      operationId: verifyCaseAuthorization
+      tags: [forms]
+      summary: Record who at the home checked the claim, and what they saw
+      description: |
+        Once. A verification cannot be replaced, because the point of the row
+        is that it is what was recorded at the time. A second look that
+        reaches a different conclusion is a new authorization, not an edit.
+      parameters:
+        - $ref: "#/components/parameters/CaseId"
+        - $ref: "#/components/parameters/AuthorizationId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/VerifyAuthorizationInput"
+      responses:
+        "200":
+          description: Verified
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CaseAuthorization"
+        "409":
+          description: Already verified
+        "404":
+          description: No such authorization on this case
+
+  /cases/{caseId}/authorizations/{authorizationId}/consents:
+    post:
+      operationId: addAuthorizationConsent
+      tags: [forms]
+      summary: Add one more consenting person to a majority tier
+      description: |
+        A home reaches four adult children over two days, not in one sitting.
+        Each name arrives as its own row, with the channel it came through,
+        because a telephone consent is still a consent and a record that
+        cannot say how it was obtained is not much of a record.
+      parameters:
+        - $ref: "#/components/parameters/CaseId"
+        - $ref: "#/components/parameters/AuthorizationId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AddConsentInput"
+      responses:
+        "201":
+          description: Recorded
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CaseAuthorization"
+        "404":
+          description: No such authorization on this case
+
+  /cases/{caseId}/certificate:
+    get:
+      operationId: getDeathCertificateRecord
+      tags: [forms]
+      summary: The 72-hour clock, and what is still outstanding
+      description: |
+        Colorado (SB 23-020) requires a certificate of death to be filed with
+        the State Registrar within 72 hours of assuming custody, and before
+        final disposition. The certifying physician has 72 hours of their own
+        from the EDRS request.
+
+        **We do not integrate with EDRS and we file nothing.** This record is
+        the home's own, and every response carries that sentence in
+        `filingNotice` so that no screen can show this without saying it.
+      parameters:
+        - $ref: "#/components/parameters/CaseId"
+      responses:
+        "200":
+          description: The record, with hours remaining and the blocking boxes
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DeathCertificateRecord"
+    put:
+      operationId: updateDeathCertificateRecord
+      tags: [forms]
+      summary: Record custody, the EDRS request, and the filing the home made
+      parameters:
+        - $ref: "#/components/parameters/CaseId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/DeathCertificateUpdate"
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DeathCertificateRecord"
+
+  /policies:
+    get:
+      operationId: getPolicies
+      tags: [forms]
+      summary: The home's standing documents, and the version now in force
+      responses:
+        "200":
+          description: Policies
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Policy"
+    post:
+      operationId: createPolicy
+      tags: [forms]
+      summary: Add one, written by the home
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PolicyInput"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Policy"
+
+  /policies/{policyId}:
+    patch:
+      operationId: updatePolicy
+      tags: [forms]
+      summary: Rename it, or take it out of the portal
+      parameters:
+        - $ref: "#/components/parameters/PolicyId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PolicyUpdate"
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Policy"
+        "404":
+          description: No such policy at this home
+
+  /policies/{policyId}/versions:
+    get:
+      operationId: getPolicyVersions
+      tags: [forms]
+      summary: Every version, newest first
+      parameters:
+        - $ref: "#/components/parameters/PolicyId"
+      responses:
+        "200":
+          description: Versions
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/PolicyVersion"
+        "404":
+          description: No such policy at this home
+    post:
+      operationId: publishPolicyVersion
+      tags: [forms]
+      summary: Publish new wording
+      description: |
+        A new version rather than an edit. Every family already shown the old
+        one keeps pointing at the words they actually read, which is the only
+        reason a record of what somebody was shown is worth keeping.
+      parameters:
+        - $ref: "#/components/parameters/PolicyId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PolicyVersionInput"
+      responses:
+        "201":
+          description: Published
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PolicyVersion"
+        "404":
+          description: No such policy at this home
+
+  /cases/{caseId}/policies:
+    get:
+      operationId: getCasePolicyDisclosures
+      tags: [forms]
+      summary: What this family was shown, and when
+      parameters:
+        - $ref: "#/components/parameters/CaseId"
+      responses:
+        "200":
+          description: One row per person per version, newest first
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/PolicyDisclosure"
+
+  # -------------------------------------------------- family: their forms --
+  #
+  # Under `/family`, behind the link token, with no case id in any path — the
+  # token already names the case. Note what is *not* here: the 72-hour clock.
+  # A countdown is the right thing to show a director and the wrong thing to
+  # put in front of a widow, so the family surface expresses the same urgency
+  # by asking for the certificate's questions first and saying nothing about
+  # hours.
+
+  /family/forms:
+    get:
+      operationId: getFamilyForms
+      tags: [forms]
+      summary: The forms the home has shared with this family
+      responses:
+        "200":
+          description: |
+            Forms the family may see, certificate ones first. Each says which
+            access level may complete it, so the portal can explain rather
+            than present a box that will be refused.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/CaseForm"
+
+  /family/forms/{caseFormId}:
+    get:
+      operationId: getFamilyForm
+      tags: [forms]
+      summary: One form, arriving already filled in
+      description: |
+        Every box the case already knows the answer to comes back with a
+        `suggested` value. A form that asks a daughter for her mother's date
+        of birth when the case holds it is a defect, not a small one.
+      parameters:
+        - $ref: "#/components/parameters/CaseFormId"
+      responses:
+        "200":
+          description: The form
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CaseFormDetail"
+        "404":
+          description: Not a form shared with this family
+
+  /family/forms/{caseFormId}/answers:
+    put:
+      operationId: setFamilyFormAnswers
+      tags: [forms]
+      summary: Save what they have so far
+      description: |
+        Never refuses a partial save. A form that will not let go of somebody
+        until they have found their mother's maiden name is a form they
+        abandon on a phone at midnight.
+
+        Requires the access level the home set on the form.
+
+        Once an authorization has been signed it stops taking answers: the
+        signature snapshotted the boxes as they stood, and letting them drift
+        afterwards would leave two versions of what was signed.
+      parameters:
+        - $ref: "#/components/parameters/CaseFormId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CaseFormAnswersInput"
+      responses:
+        "200":
+          description: The form as it now stands
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CaseFormDetail"
+        "403":
+          description: This form is above this person's access level
+        "409":
+          description: It has been signed, and stays as it was signed
+        "404":
+          description: Not a form shared with this family
+
+  /family/forms/{caseFormId}/render:
+    get:
+      operationId: renderFamilyForm
+      tags: [forms]
+      summary: Print it, or save it, from the phone in their hand
+      description: |
+        Self-contained HTML with a print stylesheet: no account, no download
+        service, nothing that stops working if we do. Documents about your own
+        mother should not be hostage to a vendor's uptime.
+      parameters:
+        - $ref: "#/components/parameters/CaseFormId"
+      responses:
+        "200":
+          description: The page
+          content:
+            text/html:
+              schema:
+                type: string
+        "404":
+          description: Not a form shared with this family
+
+  /family/forms/{caseFormId}/authorize:
+    post:
+      operationId: authorizeFamilyForm
+      tags: [forms]
+      summary: Sign an authorization
+      description: |
+        Four things are checked before anything is written, and all four are
+        Component 1's `requireFamilyAuthorization`: the person holds the right
+        of final disposition, a director recorded which tier of C.R.S.
+        15-19-106 that was under, they typed their password rather than merely
+        holding a forwarded link, and the case is not marked disputed.
+
+        What is written is append-only and snapshots the answers as they stood
+        at the moment of signing. A correction is a second authorization.
+
+        On a tier that needs a majority, a second authorizing contact signing
+        the same document adds their own consent to the authorization already
+        recorded rather than opening a rival one. Nobody consents on anybody
+        else's behalf here — see `FamilyAuthorizationInput`.
+      parameters:
+        - $ref: "#/components/parameters/CaseFormId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/FamilyAuthorizationInput"
+      responses:
+        "201":
+          description: Recorded
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CaseAuthorization"
+        "400":
+          description: That form is not an authorization
+        "401":
+          description: No password, or the wrong one
+        "403":
+          description: Not the person the home recorded as authorizing
+        "409":
+          description: The home is confirming who is arranging this funeral
+        "404":
+          description: Not a form shared with this family
+
+  /family/policies:
+    get:
+      operationId: getFamilyPolicies
+      tags: [forms]
+      summary: The home's documents, as this person sees them
+      description: |
+        Reading this records that they were shown it, at that moment, in that
+        version. Recording it on the read is the honest option: the fact worth
+        keeping is that the words were in front of them, and that becomes true
+        when the page renders.
+      responses:
+        "200":
+          description: Policies in force, with what this person has been shown
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/FamilyPolicy"
+
+  /family/policies/{versionId}/acknowledge:
+    post:
+      operationId: acknowledgeFamilyPolicy
+      tags: [forms]
+      summary: Confirm they have read it
+      description: |
+        Separate from being shown it, because being shown a privacy notice is
+        not agreeing to it and collapsing the two records a consent nobody
+        gave.
+      parameters:
+        - $ref: "#/components/parameters/PolicyVersionId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AcknowledgePolicyInput"
+      responses:
+        "200":
+          description: Recorded
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FamilyPolicy"
+        "404":
+          description: Not a policy this home has published
+
 
 components:
   parameters:
@@ -3787,6 +4549,36 @@ components:
         type: integer
     StatutoryDeadlineId:
       name: statutoryDeadlineId
+      in: path
+      required: true
+      schema:
+        type: integer
+    FormId:
+      name: formId
+      in: path
+      required: true
+      schema:
+        type: integer
+    CaseFormId:
+      name: caseFormId
+      in: path
+      required: true
+      schema:
+        type: integer
+    AuthorizationId:
+      name: authorizationId
+      in: path
+      required: true
+      schema:
+        type: integer
+    PolicyId:
+      name: policyId
+      in: path
+      required: true
+      schema:
+        type: integer
+    PolicyVersionId:
+      name: versionId
       in: path
       required: true
       schema:
@@ -8087,3 +8879,969 @@ components:
           nullable: true
           enum: [pending, active, done, null]
       required: [phase, displayName, photos, documents, checkIns]
+
+    # ------------------------------------------------------ forms schemas --
+    #
+    # Nothing in here describes a form of ours. `HomeForm` is a home's own
+    # document, named by them, with boxes they wrote; everything else is what
+    # happened to it on one case.
+
+    HomeForm:
+      type: object
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        note:
+          type: string
+          nullable: true
+        kind:
+          type: string
+          enum: [form, authorization]
+        requiredLevel:
+          type: string
+          enum: [viewing, arranging, authorizing]
+          description: |
+            Which access level may complete it. Enforced by the API, not by
+            the portal hiding a button.
+        blocksCertificate:
+          type: boolean
+          description: What this collects feeds the death certificate.
+        attachByDefault:
+          type: boolean
+        inPreNeed:
+          type: boolean
+        sourceUploadId:
+          type: integer
+          nullable: true
+          description: The original document the home uploaded, kept alongside the boxes.
+        position:
+          type: integer
+        fieldCount:
+          type: integer
+        retiredAt:
+          type: string
+          format: date-time
+          nullable: true
+      required:
+        - id
+        - name
+        - note
+        - kind
+        - requiredLevel
+        - blocksCertificate
+        - attachByDefault
+        - inPreNeed
+        - sourceUploadId
+        - position
+        - fieldCount
+        - retiredAt
+
+    HomeFormDetail:
+      allOf:
+        - $ref: "#/components/schemas/HomeForm"
+        - type: object
+          properties:
+            fields:
+              type: array
+              items:
+                $ref: "#/components/schemas/HomeFormField"
+          required: [fields]
+
+    HomeFormField:
+      type: object
+      properties:
+        id:
+          type: integer
+        key:
+          type: string
+        label:
+          type: string
+        kind:
+          type: string
+          enum: [text, textarea, date, number, select, checkbox, signature]
+        options:
+          type: array
+          items:
+            type: string
+        help:
+          type: string
+          nullable: true
+        required:
+          type: boolean
+        onlyFamilyKnows:
+          type: boolean
+          description: |
+            Nobody at the funeral home knows a mother's name before she
+            married. These are the boxes that hold a certificate up.
+        prefillFrom:
+          type: string
+          nullable: true
+          description: Where the answer is derived from, so nobody is asked twice.
+        sensitive:
+          type: boolean
+          description: |
+            Stored encrypted, never read back to the family portal, shown to
+            staff as the last four characters only.
+        position:
+          type: integer
+      required:
+        - id
+        - key
+        - label
+        - kind
+        - options
+        - help
+        - required
+        - onlyFamilyKnows
+        - prefillFrom
+        - sensitive
+        - position
+
+    HomeFormInput:
+      type: object
+      additionalProperties: false
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 200
+        note:
+          type: string
+          maxLength: 500
+          nullable: true
+        kind:
+          type: string
+          enum: [form, authorization]
+        requiredLevel:
+          type: string
+          enum: [viewing, arranging, authorizing]
+        blocksCertificate:
+          type: boolean
+        attachByDefault:
+          type: boolean
+        inPreNeed:
+          type: boolean
+        sourceUploadId:
+          type: integer
+          nullable: true
+      required: [name]
+
+    HomeFormUpdate:
+      type: object
+      additionalProperties: false
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 200
+        note:
+          type: string
+          maxLength: 500
+          nullable: true
+        requiredLevel:
+          type: string
+          enum: [viewing, arranging, authorizing]
+        blocksCertificate:
+          type: boolean
+        attachByDefault:
+          type: boolean
+        inPreNeed:
+          type: boolean
+        sourceUploadId:
+          type: integer
+          nullable: true
+        position:
+          type: integer
+        retired:
+          type: boolean
+          description: Out of the library. Every case that already has it keeps it.
+
+    HomeFormFieldInput:
+      type: object
+      additionalProperties: false
+      properties:
+        key:
+          type: string
+          minLength: 1
+          maxLength: 80
+          pattern: "^[a-zA-Z0-9_.-]+$"
+        label:
+          type: string
+          minLength: 1
+          maxLength: 200
+        kind:
+          type: string
+          enum: [text, textarea, date, number, select, checkbox, signature]
+        options:
+          type: array
+          items:
+            type: string
+            maxLength: 200
+        help:
+          type: string
+          maxLength: 500
+          nullable: true
+        required:
+          type: boolean
+        onlyFamilyKnows:
+          type: boolean
+        prefillFrom:
+          type: string
+          nullable: true
+        sensitive:
+          type: boolean
+      required: [key, label]
+
+    HomeFormFieldsInput:
+      type: object
+      additionalProperties: false
+      properties:
+        fields:
+          type: array
+          maxItems: 200
+          items:
+            $ref: "#/components/schemas/HomeFormFieldInput"
+      required: [fields]
+
+    CaseForm:
+      type: object
+      properties:
+        id:
+          type: integer
+          description: The id of this form *on this case*, not of the home's form.
+        formId:
+          type: integer
+        name:
+          type: string
+        note:
+          type: string
+          nullable: true
+        kind:
+          type: string
+          enum: [form, authorization]
+        requiredLevel:
+          type: string
+          enum: [viewing, arranging, authorizing]
+        blocksCertificate:
+          type: boolean
+        sharedWithFamily:
+          type: boolean
+        sourceUploadId:
+          type: integer
+          nullable: true
+        requiredCount:
+          type: integer
+        answeredCount:
+          type: integer
+          description: How many of the required boxes have something in them.
+        blockingCount:
+          type: integer
+          description: |
+            Required, empty, and only the family can answer them. The short
+            list worth putting in front of somebody, rather than every blank.
+        complete:
+          type: boolean
+        completedAt:
+          type: string
+          format: date-time
+          nullable: true
+        authorizationCount:
+          type: integer
+      required:
+        - id
+        - formId
+        - name
+        - note
+        - kind
+        - requiredLevel
+        - blocksCertificate
+        - sharedWithFamily
+        - sourceUploadId
+        - requiredCount
+        - answeredCount
+        - blockingCount
+        - complete
+        - completedAt
+        - authorizationCount
+
+    CaseFormDetail:
+      allOf:
+        - $ref: "#/components/schemas/CaseForm"
+        - type: object
+          properties:
+            fields:
+              type: array
+              items:
+                $ref: "#/components/schemas/CaseFormField"
+            authorizations:
+              type: array
+              items:
+                $ref: "#/components/schemas/CaseAuthorization"
+          required: [fields, authorizations]
+
+    CaseFormField:
+      type: object
+      properties:
+        key:
+          type: string
+        label:
+          type: string
+        kind:
+          type: string
+          enum: [text, textarea, date, number, select, checkbox, signature]
+        options:
+          type: array
+          items:
+            type: string
+        help:
+          type: string
+          nullable: true
+        required:
+          type: boolean
+        onlyFamilyKnows:
+          type: boolean
+        sensitive:
+          type: boolean
+        prefillFrom:
+          type: string
+          nullable: true
+        value:
+          type: string
+          nullable: true
+          description: |
+            What is in the box. Null on a sensitive box: the family never
+            reads one back, and staff get `masked` instead.
+        masked:
+          type: string
+          nullable: true
+          description: The last four characters of a sensitive answer. Staff only.
+        hasValue:
+          type: boolean
+        suggested:
+          type: string
+          nullable: true
+          description: |
+            Derived from what the case already knows, for a box nobody has
+            answered yet. Shown already filled and editable.
+        source:
+          type: string
+          enum: [family, self, staff]
+          nullable: true
+          description: |
+            `self` means the person answered it themselves, before they died.
+            Worth showing: it is the difference between a family trusting a
+            form that is already correct and wondering who typed it.
+        answeredAt:
+          type: string
+          format: date-time
+          nullable: true
+        note:
+          type: string
+          nullable: true
+          description: What a director said about this box, in their own words.
+      required:
+        - key
+        - label
+        - kind
+        - options
+        - help
+        - required
+        - onlyFamilyKnows
+        - sensitive
+        - prefillFrom
+        - value
+        - masked
+        - hasValue
+        - suggested
+        - source
+        - answeredAt
+        - note
+
+    CaseFormAnswerInput:
+      type: object
+      additionalProperties: false
+      properties:
+        fieldKey:
+          type: string
+          minLength: 1
+          maxLength: 80
+        value:
+          type: string
+          maxLength: 8000
+      required: [fieldKey, value]
+
+    CaseFormAnswersInput:
+      type: object
+      additionalProperties: false
+      properties:
+        answers:
+          type: array
+          maxItems: 200
+          items:
+            $ref: "#/components/schemas/CaseFormAnswerInput"
+      required: [answers]
+
+    AssignCaseFormInput:
+      type: object
+      additionalProperties: false
+      properties:
+        formId:
+          type: integer
+        sharedWithFamily:
+          type: boolean
+      required: [formId]
+
+    CaseFormUpdate:
+      type: object
+      additionalProperties: false
+      properties:
+        sharedWithFamily:
+          type: boolean
+      required: [sharedWithFamily]
+
+    CaseFormFlagInput:
+      type: object
+      additionalProperties: false
+      properties:
+        fieldKey:
+          type: string
+          minLength: 1
+          maxLength: 80
+        note:
+          type: string
+          minLength: 1
+          maxLength: 500
+      required: [fieldKey, note]
+
+    CaseAuthorization:
+      type: object
+      description: |
+        Append-only. Nothing here is edited after it is written; a correction
+        is a second authorization.
+      properties:
+        id:
+          type: integer
+        caseFormId:
+          type: integer
+        formId:
+          type: integer
+        formName:
+          type: string
+        claimedTier:
+          type: string
+          description: |
+            The tier of C.R.S. 15-19-106 the signer claimed, as the home
+            recorded it. Free text, because the statute is amended and a case
+            outlives a deployment.
+        requiresMajority:
+          type: boolean
+        tierMemberCount:
+          type: integer
+          nullable: true
+          description: |
+            How many people the *home determined* are in that tier. Never
+            computed here, and nothing is refused on it.
+        consentCount:
+          type: integer
+        majorityRecorded:
+          type: boolean
+          nullable: true
+          description: |
+            Null while nobody has said how many people are in the tier. Shown,
+            never enforced — the software does not refuse a cremation because
+            it counted to two.
+        signedName:
+          type: string
+        signedRelationship:
+          type: string
+          nullable: true
+        signedAt:
+          type: string
+          format: date-time
+        signedByContactId:
+          type: integer
+          nullable: true
+        recordedByName:
+          type: string
+          nullable: true
+          description: Who at the home wrote it down, when it was signed on paper.
+        verifiedByName:
+          type: string
+          nullable: true
+        verifiedAt:
+          type: string
+          format: date-time
+          nullable: true
+        verificationNote:
+          type: string
+          nullable: true
+        consents:
+          type: array
+          items:
+            $ref: "#/components/schemas/AuthorizationConsent"
+      required:
+        - id
+        - caseFormId
+        - formId
+        - formName
+        - claimedTier
+        - requiresMajority
+        - tierMemberCount
+        - consentCount
+        - majorityRecorded
+        - signedName
+        - signedRelationship
+        - signedAt
+        - signedByContactId
+        - recordedByName
+        - verifiedByName
+        - verifiedAt
+        - verificationNote
+        - consents
+
+    AuthorizationConsent:
+      type: object
+      properties:
+        id:
+          type: integer
+        personName:
+          type: string
+        relationship:
+          type: string
+          nullable: true
+        channel:
+          type: string
+          enum: [portal, in_person, telephone, email, paper]
+        consentedAt:
+          type: string
+          format: date-time
+        recordedByName:
+          type: string
+          nullable: true
+      required: [id, personName, relationship, channel, consentedAt, recordedByName]
+
+    ConsentInput:
+      type: object
+      additionalProperties: false
+      properties:
+        personName:
+          type: string
+          minLength: 1
+          maxLength: 200
+        relationship:
+          type: string
+          maxLength: 120
+          nullable: true
+        channel:
+          type: string
+          enum: [portal, in_person, telephone, email, paper]
+        consentedAt:
+          type: string
+          format: date-time
+      required: [personName]
+
+    AddConsentInput:
+      allOf:
+        - $ref: "#/components/schemas/ConsentInput"
+
+    RecordAuthorizationInput:
+      type: object
+      additionalProperties: false
+      properties:
+        caseFormId:
+          type: integer
+        claimedTier:
+          type: string
+          minLength: 1
+          maxLength: 120
+        tierMemberCount:
+          type: integer
+          minimum: 1
+          maximum: 50
+          nullable: true
+        signedName:
+          type: string
+          minLength: 1
+          maxLength: 200
+        signedRelationship:
+          type: string
+          maxLength: 120
+          nullable: true
+        signedAt:
+          type: string
+          format: date-time
+        consents:
+          type: array
+          maxItems: 50
+          items:
+            $ref: "#/components/schemas/ConsentInput"
+      required: [caseFormId, claimedTier, signedName]
+
+    FamilyAuthorizationInput:
+      type: object
+      additionalProperties: false
+      description: |
+        Deliberately short. Two things a family member cannot do here:
+
+        Claim a tier. The standing is the one the funeral home recorded
+        against this person, from documents, and `family-contacts.ts` says at
+        length why an app that let somebody choose it would be wrong in
+        exactly the cases that end up in front of a judge.
+
+        Consent on somebody else's behalf. A daughter typing "my brother
+        agreed" is her assertion, not her brother's consent — which is the
+        very thing the majority rule exists to prevent. Every other
+        consenting person either signs here themselves or is recorded by the
+        home, with the channel it came through.
+      properties:
+        password:
+          type: string
+          minLength: 1
+          maxLength: 200
+        signedName:
+          type: string
+          minLength: 1
+          maxLength: 200
+        signedRelationship:
+          type: string
+          maxLength: 120
+          nullable: true
+      required: [password, signedName]
+
+    VerifyAuthorizationInput:
+      type: object
+      additionalProperties: false
+      properties:
+        verificationNote:
+          type: string
+          minLength: 1
+          maxLength: 500
+          description: What they saw — a marriage certificate, a court order.
+      required: [verificationNote]
+
+    DeathCertificateRecord:
+      type: object
+      properties:
+        custodyTakenAt:
+          type: string
+          format: date-time
+          nullable: true
+          description: |
+            When the home took custody. The start of the 72 hours, and not the
+            date of death: a person released by the coroner on a Tuesday
+            starts this clock on Tuesday.
+        dueAt:
+          type: string
+          format: date-time
+          nullable: true
+        hoursRemaining:
+          type: number
+          nullable: true
+          description: Negative once it has passed. Shown to directors, never to families.
+        edrsRequestedAt:
+          type: string
+          format: date-time
+          nullable: true
+        certificationDueAt:
+          type: string
+          format: date-time
+          nullable: true
+          description: The certifying physician's own 72 hours.
+        certifyingProvider:
+          type: string
+          nullable: true
+        filedAt:
+          type: string
+          format: date-time
+          nullable: true
+        filedByName:
+          type: string
+          nullable: true
+        stateFileNumber:
+          type: string
+          nullable: true
+        notes:
+          type: string
+          nullable: true
+        filingNotice:
+          type: string
+          description: |
+            The sentence every screen showing this record has to carry. It is
+            returned rather than written into each client so that no surface
+            can render the clock without it.
+        outstanding:
+          type: array
+          description: The boxes only the family can answer that are still empty.
+          items:
+            $ref: "#/components/schemas/OutstandingFormFields"
+      required:
+        - custodyTakenAt
+        - dueAt
+        - hoursRemaining
+        - edrsRequestedAt
+        - certificationDueAt
+        - certifyingProvider
+        - filedAt
+        - filedByName
+        - stateFileNumber
+        - notes
+        - filingNotice
+        - outstanding
+
+    OutstandingFormFields:
+      type: object
+      properties:
+        caseFormId:
+          type: integer
+        formName:
+          type: string
+        fields:
+          type: array
+          items:
+            type: object
+            properties:
+              key:
+                type: string
+              label:
+                type: string
+            required: [key, label]
+      required: [caseFormId, formName, fields]
+
+    DeathCertificateUpdate:
+      type: object
+      additionalProperties: false
+      properties:
+        custodyTakenAt:
+          type: string
+          format: date-time
+          nullable: true
+        edrsRequestedAt:
+          type: string
+          format: date-time
+          nullable: true
+        certifyingProvider:
+          type: string
+          maxLength: 200
+          nullable: true
+        filed:
+          type: boolean
+          description: |
+            Ticked by the director once *they* have filed it, in the state's
+            own system. Nothing here files anything.
+        stateFileNumber:
+          type: string
+          maxLength: 120
+          nullable: true
+        notes:
+          type: string
+          maxLength: 4000
+          nullable: true
+
+    Policy:
+      type: object
+      properties:
+        id:
+          type: integer
+        kind:
+          type: string
+          enum: [price_disclosure, privacy, terms, other]
+        title:
+          type: string
+        note:
+          type: string
+          nullable: true
+        position:
+          type: integer
+        retiredAt:
+          type: string
+          format: date-time
+          nullable: true
+        versionCount:
+          type: integer
+        currentVersion:
+          allOf:
+            - $ref: "#/components/schemas/PolicyVersion"
+          nullable: true
+      required: [id, kind, title, note, position, retiredAt, versionCount, currentVersion]
+
+    PolicyVersion:
+      type: object
+      description: Immutable once published. New wording is a new version.
+      properties:
+        id:
+          type: integer
+        policyId:
+          type: integer
+        version:
+          type: integer
+        body:
+          type: string
+        summary:
+          type: string
+          nullable: true
+        sourceUploadId:
+          type: integer
+          nullable: true
+        publishedAt:
+          type: string
+          format: date-time
+        publishedByName:
+          type: string
+          nullable: true
+      required: [id, policyId, version, body, summary, sourceUploadId, publishedAt, publishedByName]
+
+    PolicyInput:
+      type: object
+      additionalProperties: false
+      properties:
+        kind:
+          type: string
+          enum: [price_disclosure, privacy, terms, other]
+        title:
+          type: string
+          minLength: 1
+          maxLength: 200
+        note:
+          type: string
+          maxLength: 500
+          nullable: true
+        body:
+          type: string
+          maxLength: 100000
+          description: The first version's wording. Published as version 1.
+        sourceUploadId:
+          type: integer
+          nullable: true
+      required: [title, body]
+
+    PolicyUpdate:
+      type: object
+      additionalProperties: false
+      properties:
+        title:
+          type: string
+          minLength: 1
+          maxLength: 200
+        note:
+          type: string
+          maxLength: 500
+          nullable: true
+        position:
+          type: integer
+        retired:
+          type: boolean
+
+    PolicyVersionInput:
+      type: object
+      additionalProperties: false
+      properties:
+        body:
+          type: string
+          minLength: 1
+          maxLength: 100000
+        summary:
+          type: string
+          maxLength: 500
+          nullable: true
+        sourceUploadId:
+          type: integer
+          nullable: true
+      required: [body]
+
+    PolicyDisclosure:
+      type: object
+      properties:
+        id:
+          type: integer
+        contactId:
+          type: integer
+        contactName:
+          type: string
+        policyId:
+          type: integer
+        policyTitle:
+          type: string
+        versionId:
+          type: integer
+        version:
+          type: integer
+        shownAt:
+          type: string
+          format: date-time
+        acknowledgedAt:
+          type: string
+          format: date-time
+          nullable: true
+        acknowledgedName:
+          type: string
+          nullable: true
+      required:
+        - id
+        - contactId
+        - contactName
+        - policyId
+        - policyTitle
+        - versionId
+        - version
+        - shownAt
+        - acknowledgedAt
+        - acknowledgedName
+
+    FamilyPolicy:
+      type: object
+      properties:
+        id:
+          type: integer
+        kind:
+          type: string
+          enum: [price_disclosure, privacy, terms, other]
+        title:
+          type: string
+        note:
+          type: string
+          nullable: true
+        versionId:
+          type: integer
+        version:
+          type: integer
+        body:
+          type: string
+        sourceUploadId:
+          type: integer
+          nullable: true
+        publishedAt:
+          type: string
+          format: date-time
+        shownAt:
+          type: string
+          format: date-time
+          nullable: true
+        acknowledgedAt:
+          type: string
+          format: date-time
+          nullable: true
+      required:
+        - id
+        - kind
+        - title
+        - note
+        - versionId
+        - version
+        - body
+        - sourceUploadId
+        - publishedAt
+        - shownAt
+        - acknowledgedAt
+
+    AcknowledgePolicyInput:
+      type: object
+      additionalProperties: false
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 200
+          description: Typed by them, kept verbatim.
+      required: [name]

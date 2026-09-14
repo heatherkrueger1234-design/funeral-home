@@ -22,6 +22,7 @@ export * from "./generated/contacts/contacts";
 export * from "./generated/deadlines/deadlines";
 export * from "./generated/engagement/engagement";
 export * from "./generated/family/family";
+export * from "./generated/forms/forms";
 export * from "./generated/health/health";
 export * from "./generated/home/home";
 export * from "./generated/intake/intake";

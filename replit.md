@@ -458,6 +458,78 @@ placeholder. Component 6 owns how engagement is computed; when it lands, that
 function's body becomes a call to theirs and its shape stays. Do not add
 cleverness to it in the meantime — two definitions of "engaged" is worse than
 none.
+## Forms, authorizations and the 72-hour clock
+
+`lib/db/src/schema/{forms,policies}.ts`,
+`artifacts/api-server/src/routes/forms.ts`, the `forms` tag in the spec, a
+`Paperwork` page in the portal and a `Paperwork` tab on a case.
+
+**We ship no legal form of our own and we file nothing with anybody.** Both
+halves are product decisions rather than gaps. A national vendor shipping its
+own cremation authorization hands every home it sells to a liability and hands
+every family a document nobody's counsel has read; and there is no EDRS
+integration here, so the certificate record is the director's own note of a
+filing they made themselves. `filingNotice` is returned by the API rather than
+written into each client, so no screen can show the clock without also saying
+who files it.
+
+### The clock
+
+Colorado's SB 23-020 replaced the old five-day window: a certificate of death
+must be filed within **72 hours of assuming custody**, and the certifying
+physician has 72 hours of their own from the EDRS request.
+`death_certificate_filings` anchors on custody rather than on the death,
+because a person released by the coroner on a Tuesday starts the clock on
+Tuesday.
+
+That deadline is the ordering principle rather than a countdown. A form marked
+`blocksCertificate` sorts first everywhere, and the boxes that hold a
+certificate up are the ones marked `onlyFamilyKnows` — required, empty, and
+unanswerable by anyone at the home. The family surface carries no clock at
+all: a countdown is right for a director and wrong for a widow, and
+`forms.test.ts` asserts that nothing on the wire to a family carries one.
+
+### Authorizations are not forms
+
+An authorization is its own record, append-only, holding the tier of C.R.S.
+15-19-106 the signer claimed, who at the home verified it and what they saw,
+and a snapshot of the answers as they stood when it was signed. Once signed it
+stops taking answers — from either side — because two versions of what was
+signed is worse than one.
+
+Where the tier needs a majority (adult children, parents, siblings) every
+consenting person is a separate row, with the channel it came through. Nobody
+consents on anybody else's behalf: the portal records only the signer's own
+consent, and the home records the rest as it reaches them. Whether a majority
+has been recorded is *shown* and never enforced — the software does not refuse
+a cremation because it counted to two.
+
+The gate is Component 1's, used rather than reimplemented.
+`requireFamilyAuthorization` is mounted in front of the only route that
+records an authorization; a form's `requiredLevel` is compared with `atLeast`.
+A form above a contact's level is not in their list, does not answer to a
+guessed id, and refuses their answers.
+
+### Arriving filled
+
+A box names a `prefillFrom` source and the case supplies it, so no form asks a
+daughter for her mother's date of birth on a case that already holds it. A
+suggestion is never written as an answer — a box nobody has looked at has to
+keep reading as outstanding. Sensitive boxes are encrypted at rest, never read
+back to the portal, and shown to staff as their last four characters, which is
+the posture `vital-statistics.ts` takes with a social security number.
+
+Everything completed renders as a self-contained print sheet the family can
+open, print and save from their own phone with no account. Documents about
+your own mother should not be hostage to a vendor's uptime.
+
+### Policies
+
+Versioned, and versions are immutable: new wording is a new version, so a
+family who read the old one still points at the words they read. Opening the
+portal's document list records that this person was shown that version, which
+is kept separate from their confirming they have read it — being shown a
+privacy notice is not agreeing to one.
 
 ## Relationship to Memory-Haven
 

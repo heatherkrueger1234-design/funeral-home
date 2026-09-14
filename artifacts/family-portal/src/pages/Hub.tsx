@@ -5,6 +5,7 @@ import {
   useGetFamilyStorefront,
   useGetFamilySession,
   useGetFamilyDeadlines,
+  useGetFamilyForms,
 } from "@workspace/api-client-react";
 import {
   Images,
@@ -13,6 +14,7 @@ import {
   Flower2,
   Shirt,
   ClipboardList,
+  ClipboardSignature,
   FileCheck,
   MapPin,
   CalendarClock,
@@ -81,6 +83,7 @@ export default function Hub() {
   const session = useGetFamilySession();
   const deadlines = useGetFamilyDeadlines();
   const storefront = useGetFamilyStorefront();
+  const paperwork = useGetFamilyForms();
 
   if (!session.data) return null;
 
@@ -104,6 +107,13 @@ export default function Hub() {
   // is the family's own note of where they got to; a badge would be a shop.
   const chosenCount = (storefront.data?.selection.lines ?? []).filter(
     (line) => line.kind !== "package_adjustment",
+  ).length;
+
+  // Offered only once the home has actually put a form on this case. A card
+  // that opens onto "nothing here yet" is a card that should not be there.
+  const forms = paperwork.data ?? [];
+  const formsOutstanding = forms.filter(
+    (form) => !form.complete && form.requiredCount > 0,
   ).length;
 
   // The soonest thing that is actually due. One is useful; a list of five on
@@ -198,6 +208,20 @@ export default function Hub() {
           title="Details for the certificate"
           detail="What the state needs before it can be issued"
         />
+        {forms.length > 0 && (
+          <Card
+            href="/paperwork"
+            icon={ClipboardSignature}
+            title="Paperwork"
+            detail={
+              formsOutstanding === 0
+                ? `${home.name}'s own forms, and copies to keep`
+                : formsOutstanding === 1
+                  ? "One form still needs you"
+                  : `${formsOutstanding} forms still need you`
+            }
+          />
+        )}
         <Card
           href="/belongings"
           icon={Shirt}
