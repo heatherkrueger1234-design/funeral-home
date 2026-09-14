@@ -22,13 +22,18 @@ export function SignIn({ onSignedIn }: { onSignedIn: () => void }) {
   });
 
   return (
-    <div className="mx-auto flex min-h-screen max-w-md items-center px-6">
-      <Card className="w-full">
-        <h1 className="font-display text-2xl">Holding Today</h1>
-        <p className="mt-1 mb-6 text-sm text-[var(--muted-foreground)]">
-          The platform console.
-        </p>
+    <div className="mx-auto grid min-h-dvh max-w-sm place-items-center px-6 py-12">
+      <div className="w-full">
+        <header className="mb-7 text-center">
+          <h1 className="font-display text-[1.75rem] leading-tight">
+            Holding Today
+          </h1>
+          <p className="mt-1.5 text-sm text-[var(--muted-foreground)]">
+            The platform console.
+          </p>
+        </header>
 
+        <Card className="w-full shadow-[var(--elevation-2)]">
         <form
           className="flex flex-col gap-5"
           onSubmit={(event) => {
@@ -55,11 +60,17 @@ export function SignIn({ onSignedIn }: { onSignedIn: () => void }) {
               signIn.error instanceof Error ? signIn.error.message : undefined
             }
           />
-          <Button type="submit" variant="primary" disabled={signIn.isPending}>
+          <Button
+            type="submit"
+            variant="primary"
+            className="mt-1 w-full"
+            disabled={signIn.isPending}
+          >
             {signIn.isPending ? "Signing in…" : "Sign in"}
           </Button>
         </form>
-      </Card>
+        </Card>
+      </div>
     </div>
   );
 }

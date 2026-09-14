@@ -153,8 +153,8 @@ export default function Hub() {
           {voice.heading(deceased.displayName)}
         </h1>
         {serviceWhen ? (
-          <div className="mt-4 rounded-xl border border-[var(--accent)]/25 bg-[var(--accent-soft)] px-4 py-3.5">
-            <p className="eyebrow mb-1 text-[var(--accent-deep)]/70">
+          <div className="mt-4 rounded-xl border border-[var(--accent)]/30 bg-[var(--accent-soft)] px-4 py-4 shadow-[var(--elevation-1)]">
+            <p className="eyebrow mb-1.5 text-[var(--accent-deep)]/75">
               The service
             </p>
             <p className="font-display text-lg leading-snug text-[var(--accent-deep)]">

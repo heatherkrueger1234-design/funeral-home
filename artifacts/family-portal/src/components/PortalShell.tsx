@@ -224,14 +224,26 @@ export function PortalShell({ children }: { children: ReactNode }) {
           <hr className="mb-5 border-0 border-t border-border" />
           <a
             href={`tel:${home.urgentPhone.replace(/[^\d+]/g, "")}`}
-            className="lift flex items-center justify-center gap-2.5 rounded-xl border border-border bg-card px-4 py-3.5 text-sm text-muted-foreground no-underline shadow-[var(--elevation-1)] transition-gentle hover:border-[var(--accent)] hover:text-foreground"
+            className="lift flex items-center gap-3 rounded-xl border border-border bg-card px-4 py-3.5
+                       no-underline shadow-[var(--elevation-1)] transition-gentle
+                       hover:border-[var(--accent)]"
           >
-            <span className="grid size-7 shrink-0 place-items-center rounded-full bg-[var(--accent-soft)] text-[var(--accent-deep)]">
-              <Phone className="size-3.5" />
+            <span className="grid size-9 shrink-0 place-items-center rounded-full bg-[var(--accent-soft)] text-[var(--accent-deep)]">
+              <Phone className="size-4" strokeWidth={1.75} />
             </span>
-            If you need someone now, call{" "}
-            <span className="font-semibold text-foreground tabular">
-              {home.urgentPhone}
+            {/*
+              Two lines, not one. Centred on a single line this wrapped at
+              phone width into "call" on one row and half a telephone number
+              on the next — which is the one piece of text on this product
+              that has to be readable at a glance in the dark.
+            */}
+            <span className="min-w-0">
+              <span className="block text-sm text-muted-foreground">
+                If you need someone now
+              </span>
+              <span className="tabular block font-semibold text-foreground">
+                {home.urgentPhone}
+              </span>
             </span>
           </a>
         </footer>

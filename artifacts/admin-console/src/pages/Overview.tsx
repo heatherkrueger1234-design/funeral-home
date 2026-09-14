@@ -46,7 +46,7 @@ export function Overview() {
   return (
     <div className="flex flex-col gap-8">
       <div>
-        <h1 className="font-display text-2xl">Overview</h1>
+        <h1 className="font-display text-2xl leading-tight">Overview</h1>
         <p className="mt-1 text-[var(--muted-foreground)]">
           {homes.homes === 0
             ? "No homes yet."
@@ -56,7 +56,7 @@ export function Overview() {
 
       <Card>
         <CardTitle>Across every home</CardTitle>
-        <div className="grid grid-cols-2 gap-6 sm:grid-cols-4">
+        <div className="grid grid-cols-2 gap-x-6 gap-y-7 sm:grid-cols-4 sm:divide-x sm:divide-[var(--border)] sm:gap-x-0 sm:[&>*]:px-6 sm:[&>*:first-child]:pl-0 sm:[&>*:last-child]:pr-0">
           <Stat label="Cases opened" value={engagement.casesOpened} />
           <Stat
             label="Family links opened"
@@ -107,7 +107,7 @@ function Attention({
   return (
     <section>
       <h2 className="font-display text-lg">Worth a look</h2>
-      <p className="mt-1 mb-4 max-w-prose text-sm text-[var(--muted-foreground)]">
+      <p className="mb-5 mt-1 max-w-prose text-sm leading-relaxed text-[var(--muted-foreground)]">
         Colorado licensure is due 1 January 2027, and an establishment that
         changes its services has thirty days to file an amended registration.
         These are the homes with something on either clock.
@@ -129,7 +129,7 @@ function Attention({
               <CardTitle>
                 <Link
                   href={`/homes/${home.id}`}
-                  className="inline-flex items-center gap-2 hover:underline"
+                  className="inline-flex items-center gap-2 no-underline hover:underline"
                 >
                   <Swatch color={home.accentColor} name={home.name} />
                   <span className="break-words">{home.name}</span>
@@ -143,7 +143,7 @@ function Attention({
           ))}
 
           {notStarted.length > 0 && (
-            <p className="max-w-prose text-sm text-[var(--muted-foreground)]">
+            <p className="max-w-prose rounded-xl border border-[var(--border)] bg-[var(--sunken)] p-5 text-sm leading-relaxed text-[var(--muted-foreground)]">
               {notStarted.length === 1
                 ? "One home has no licensure recorded yet: "
                 : `${notStarted.length} homes have no licensure recorded yet: `}

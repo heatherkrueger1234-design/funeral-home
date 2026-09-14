@@ -26,7 +26,7 @@ export function Audit() {
   return (
     <div className="flex flex-col gap-6">
       <div>
-        <h1 className="font-display text-2xl">Access log</h1>
+        <h1 className="font-display text-2xl leading-tight">Access log</h1>
         <p className="mt-1 max-w-prose text-[var(--muted-foreground)]">
           Every read across a home's boundary, and every change made from this
           console. Nothing about a family or a decedent is recorded here — a
@@ -45,22 +45,22 @@ export function Audit() {
           detail="The first time anyone opens a home from this console, it will appear here."
         />
       ) : (
-        <Card className="p-0">
+        <Card className="overflow-hidden p-0">
           <div className="overflow-x-auto">
             <table className="w-full min-w-[46rem] text-left">
-              <thead className="text-sm text-[var(--muted-foreground)]">
-                <tr className="border-b border-[var(--border)]">
-                  <th scope="col" className="px-4 py-3 font-medium">When</th>
-                  <th scope="col" className="px-4 py-3 font-medium">Who</th>
-                  <th scope="col" className="px-4 py-3 font-medium">What</th>
-                  <th scope="col" className="px-4 py-3 font-medium">Home</th>
+              <thead>
+                <tr className="border-b border-[var(--border-strong)] bg-[var(--sunken)]">
+                  <th scope="col" className="eyebrow px-4 py-2.5">When</th>
+                  <th scope="col" className="eyebrow px-4 py-2.5">Who</th>
+                  <th scope="col" className="eyebrow px-4 py-2.5">What</th>
+                  <th scope="col" className="eyebrow px-4 py-2.5">Home</th>
                 </tr>
               </thead>
               <tbody>
                 {query.data.map((entry) => (
                   <tr
                     key={entry.id}
-                    className="border-b border-[var(--border)] last:border-0"
+                    className="border-b border-[var(--border)] transition-colors duration-150 last:border-0 hover:bg-[var(--sunken)]"
                   >
                     <td className="tabular px-4 py-3 text-sm whitespace-nowrap">
                       {formatDateTime(entry.createdAt)}
@@ -81,7 +81,7 @@ export function Audit() {
                       {entry.subjectHomeId ? (
                         <Link
                           href={`/homes/${entry.subjectHomeId}`}
-                          className="hover:underline"
+                          className="no-underline hover:underline"
                         >
                           {entry.subjectHomeName ?? `#${entry.subjectHomeId}`}
                         </Link>

@@ -27,14 +27,15 @@ export function Button({
         // 44px minimum: half of everything here is eventually done on a
         // laptop trackpad in a hotel lobby.
         "inline-flex min-h-11 items-center justify-center gap-2 rounded-md px-4",
-        "text-sm font-semibold transition-colors duration-150 ease-out",
-        "disabled:cursor-not-allowed disabled:opacity-50",
+        "text-sm font-semibold select-none active:translate-y-[0.5px]",
+        "transition-[color,background-color,border-color,box-shadow,transform] duration-200 ease-[cubic-bezier(0.2,0.6,0.3,1)]",
+        "disabled:cursor-not-allowed disabled:opacity-45 disabled:active:translate-y-0",
         variant === "primary" &&
-          "bg-[var(--accent)] text-white hover:bg-[var(--accent-deep)]",
+          "bg-[var(--accent)] text-white shadow-[var(--elevation-1)] hover:bg-[var(--accent-deep)] hover:shadow-[var(--elevation-2)] active:shadow-[var(--elevation-1)]",
         variant === "quiet" &&
-          "border border-[var(--border)] bg-[var(--card)] hover:bg-[var(--muted)]",
+          "border border-[var(--border-strong)] bg-[var(--card)] shadow-[var(--elevation-1)] hover:border-[var(--accent)] hover:bg-[var(--sunken)]",
         variant === "plain" &&
-          "px-2 text-[var(--muted-foreground)] hover:text-[var(--foreground)]",
+          "px-2 text-[var(--muted-foreground)] hover:bg-[var(--muted)] hover:text-[var(--foreground)]",
         variant === "destructive" &&
           "border border-[var(--destructive)] text-[var(--destructive)] hover:bg-[var(--destructive)] hover:text-white",
         className,
@@ -53,8 +54,8 @@ export function Card({
   return (
     <section
       className={cn(
-        "rounded-lg border border-[var(--border)] bg-[var(--card)] p-6",
-        "shadow-[0_1px_2px_rgba(31,36,33,0.04)]",
+        "rounded-xl border border-[var(--border)] bg-[var(--card)] p-6",
+        "shadow-[var(--elevation-1)]",
         className,
       )}
     >
@@ -71,7 +72,7 @@ export function CardTitle({
   action?: ReactNode;
 }) {
   return (
-    <header className="mb-4 flex items-baseline justify-between gap-4">
+    <header className="mb-5 flex flex-wrap items-baseline justify-between gap-x-4 gap-y-2">
       <h2 className="font-display text-lg">{children}</h2>
       {action}
     </header>
@@ -105,9 +106,17 @@ export function Field({ label, hint, problem, className, ...props }: FieldProps)
         aria-describedby={hint || problem ? hintId : undefined}
         aria-invalid={problem ? true : undefined}
         className={cn(
-          "min-h-11 rounded-md border border-[var(--border)] bg-white px-3",
-          "text-base placeholder:text-[var(--muted-foreground)]",
-          problem && "border-[var(--notice)]",
+          // The same well the other two applications use: inset hairline
+          // rather than a drop shadow, and a focus state you cannot miss.
+          "min-h-11 rounded-md border border-[var(--border-strong)] bg-white px-3",
+          "text-base placeholder:text-[var(--muted-foreground)]/70",
+          "shadow-[inset_0_1px_2px_rgb(40_34_24/0.04)]",
+          "transition-[border-color,box-shadow] duration-200 ease-[cubic-bezier(0.2,0.6,0.3,1)]",
+          "hover:border-[color-mix(in_oklab,var(--accent)_35%,var(--border-strong))]",
+          "focus-visible:outline-none focus-visible:border-[var(--accent)]",
+          "focus-visible:shadow-[0_0_0_3px_color-mix(in_oklab,var(--accent)_16%,transparent)]",
+          problem &&
+            "border-[var(--notice)] focus-visible:border-[var(--notice)] focus-visible:shadow-[0_0_0_3px_color-mix(in_oklab,var(--notice)_16%,transparent)]",
           className,
         )}
       />
@@ -141,7 +150,14 @@ export function Select({
       <select
         {...(props as object)}
         id={id}
-        className="min-h-11 rounded-md border border-[var(--border)] bg-white px-3 text-base"
+        className={cn(
+          "min-h-11 rounded-md border border-[var(--border-strong)] bg-white px-3 text-base",
+          "shadow-[inset_0_1px_2px_rgb(40_34_24/0.04)]",
+          "transition-[border-color,box-shadow] duration-200 ease-[cubic-bezier(0.2,0.6,0.3,1)]",
+          "hover:border-[color-mix(in_oklab,var(--accent)_35%,var(--border-strong))]",
+          "focus-visible:outline-none focus-visible:border-[var(--accent)]",
+          "focus-visible:shadow-[0_0_0_3px_color-mix(in_oklab,var(--accent)_16%,transparent)]",
+        )}
       >
         {children}
       </select>
@@ -172,7 +188,10 @@ export function LoadingRows({ rows = 4 }: { rows?: number }) {
   return (
     <div className="flex flex-col gap-3" role="status" aria-label="Loading">
       {Array.from({ length: rows }, (_, index) => (
-        <Skeleton key={index} className="h-14 w-full" />
+        <Skeleton
+          key={index}
+          className="h-14 w-full border border-[var(--border)] bg-[var(--muted)]/50"
+        />
       ))}
     </div>
   );
@@ -192,9 +211,9 @@ export function EmptyState({
   action?: ReactNode;
 }) {
   return (
-    <div className="flex flex-col items-start gap-3 rounded-md bg-[var(--muted)] p-6">
+    <div className="flex flex-col items-start gap-3 rounded-xl border border-[var(--border)] bg-[var(--sunken)] p-6">
       <h3 className="font-display text-base">{title}</h3>
-      <p className="max-w-prose text-sm text-[var(--muted-foreground)]">
+      <p className="max-w-prose text-sm leading-relaxed text-[var(--muted-foreground)]">
         {detail}
       </p>
       {action}
@@ -216,9 +235,9 @@ export function ErrorState({
       : "Please check your connection.";
 
   return (
-    <div className="flex flex-col items-start gap-3 rounded-md border border-[var(--notice)] bg-[var(--notice-soft)] p-6">
+    <div className="flex flex-col items-start gap-3 rounded-xl border border-[var(--notice)]/35 bg-[var(--notice-soft)] p-6">
       <h3 className="font-display text-base">That didn't load</h3>
-      <p className="max-w-prose text-sm">{message}</p>
+      <p className="max-w-prose text-sm leading-relaxed">{message}</p>
       {onRetry && (
         <Button onClick={onRetry} variant="quiet">
           Try again
@@ -265,17 +284,38 @@ export function Stat({
   of?: number;
 }) {
   return (
-    <div className="flex flex-col gap-0.5">
-      <span className="tabular text-2xl">
+    <div className="flex flex-col gap-1">
+      {/*
+        The number in the serif, at the size a printed report would set it.
+        The label under it rather than over it, because the eye should land on
+        the figure and then be told what it counts.
+      */}
+      <span className="tabular font-display text-[1.75rem] leading-none">
         {value.toLocaleString("en-US")}
         {of !== undefined && (
-          <span className="text-base text-[var(--muted-foreground)]">
+          <span className="text-lg text-[var(--muted-foreground)]">
             {" "}
             of {of.toLocaleString("en-US")}
           </span>
         )}
       </span>
-      <span className="text-sm text-[var(--muted-foreground)]">{label}</span>
+      <span className="text-sm leading-snug text-[var(--muted-foreground)]">
+        {label}
+      </span>
+    </div>
+  );
+}
+
+/**
+ * A hairline with a name on it — the same section marker the other two
+ * applications use, so a heading means the same thing at the staff door as it
+ * does in a family's portal.
+ */
+export function Divider({ label }: { label: string }) {
+  return (
+    <div className="flex items-center gap-3">
+      <h2 className="eyebrow">{label}</h2>
+      <span className="h-px flex-1 bg-[var(--border)]" aria-hidden />
     </div>
   );
 }
