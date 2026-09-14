@@ -42,9 +42,26 @@ export const timelineTemplatesTable = pgTable(
     description: text("description"),
 
     /**
-     * Minutes relative to the service. Negative is before it, which is where
-     * almost everything lives; positive is for the few things that follow,
-     * like collecting the flowers.
+     * What the offset is counted from.
+     *
+     * `service` is the original and still the common case: "photographs in,
+     * four days before the funeral". `opened` counts from the moment the home
+     * took the person into its care, and exists because plenty of a home's
+     * standard schedule has nothing to do with the funeral date — "clothing
+     * within 48 hours of us collecting her" is a promise about the care of a
+     * body, and pinning it to a service date that may not be set for another
+     * three days gets it wrong in both directions.
+     *
+     * A schedule mixes the two freely, and the family sees one merged list in
+     * date order.
+     */
+    anchor: text("anchor").notNull().default("service"),
+
+    /**
+     * Minutes relative to whichever anchor. Negative is before it, which is
+     * where almost everything on a service anchor lives; positive is normal
+     * on an `opened` anchor and is also for the few things that follow a
+     * funeral, like collecting the flowers.
      */
     offsetMinutes: integer("offset_minutes").notNull(),
 
@@ -70,6 +87,10 @@ export const timelineTemplatesTable = pgTable(
     ),
   ],
 );
+
+/** What an offset is measured from. See the `anchor` column. */
+export const TIMELINE_ANCHORS = ["service", "opened"] as const;
+export type TimelineAnchor = (typeof TIMELINE_ANCHORS)[number];
 
 const DAY = 24 * 60;
 
@@ -131,17 +152,35 @@ export type InsertTimelineTemplate = z.infer<
 >;
 export type TimelineTemplate = typeof timelineTemplatesTable.$inferSelect;
 
-/** Where an entry falls for a given service date. */
+/**
+ * Where an entry falls, given both dates a case can be measured from.
+ *
+ * Returns null only when the anchor this entry needs does not exist yet — a
+ * service-anchored step on a case with no service date. That is a real state
+ * (a home opens a file the morning of a death and sets the funeral two days
+ * later), and it is deliberately not faked by falling back to the other
+ * anchor: a family told the wrong date is worse off than a family told
+ * nothing, and the timeline simply builds itself the moment the date lands.
+ */
 export function dueAtFor(
-  template: Pick<TimelineTemplate, "offsetMinutes">,
-  serviceAt: Date,
-): Date {
-  return new Date(serviceAt.getTime() + template.offsetMinutes * 60_000);
+  template: Pick<TimelineTemplate, "offsetMinutes"> & { anchor?: string | null },
+  serviceAt: Date | null,
+  openedAt?: Date | null,
+): Date | null {
+  const base = (template.anchor ?? "service") === "opened" ? openedAt ?? null : serviceAt;
+  if (!base) return null;
+  return new Date(base.getTime() + template.offsetMinutes * 60_000);
 }
 
-/** "3 days before", for the settings screen. */
-export function describeOffset(offsetMinutes: number): string {
-  if (offsetMinutes === 0) return "On the day";
+/** "3 days before the service", for the settings screen. */
+export function describeOffset(
+  offsetMinutes: number,
+  anchor: string = "service",
+): string {
+  const from = anchor === "opened" ? " we open the file" : " the service";
+  if (offsetMinutes === 0) {
+    return anchor === "opened" ? "The day we open the file" : "On the day";
+  }
 
   const before = offsetMinutes < 0;
   const total = Math.abs(offsetMinutes);
@@ -152,5 +191,5 @@ export function describeOffset(offsetMinutes: number): string {
   if (days > 0) parts.push(`${days} day${days === 1 ? "" : "s"}`);
   if (hours > 0) parts.push(`${hours} hour${hours === 1 ? "" : "s"}`);
 
-  return `${parts.join(" ") || "0 hours"} ${before ? "before" : "after"}`;
+  return `${parts.join(" ") || "0 hours"} ${before ? "before" : "after"}${from}`;
 }

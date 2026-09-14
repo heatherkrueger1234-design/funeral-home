@@ -51,3 +51,15 @@ export * from "./aftercare";
 
 /* And what is left when a home erases a case on request. */
 export * from "./deletions";
+
+/* The home's own paperwork, filled in on a phone. */
+export * from "./forms";
+
+/* What the home sells, and the ground it owns. */
+export * from "./storefront";
+
+/* Times the home has open, and a family taking one. */
+export * from "./scheduling";
+
+/* What somebody leaves behind on purpose: recordings, letters, sealed notes. */
+export * from "./preneed";

@@ -45,7 +45,8 @@ export function toTemplateJson(row: TimelineTemplate) {
     title: row.title,
     description: row.description,
     offsetMinutes: row.offsetMinutes,
-    offsetLabel: describeOffset(row.offsetMinutes),
+    offsetLabel: describeOffset(row.offsetMinutes, row.anchor),
+    anchor: row.anchor,
     isEvent: row.isEvent,
     enabled: row.enabled,
     position: row.position,
@@ -82,10 +83,12 @@ export async function applyTemplateToCase(
   row: Case,
   now = new Date(),
 ): Promise<ApplyResult> {
-  // Every step is an offset from the service, so without one there is
-  // nothing to measure from.
-  if (!row.serviceAt) return { created: 0, moved: 0, skipped: 0 };
-
+  /*
+   * A step measured from the service needs a service date; a step measured
+   * from the day the file opened never does. So this no longer refuses the
+   * whole build when there is no funeral yet — it builds what it can, and
+   * `dueAtFor` returns null for the rest until the date lands.
+   */
   const template = (await templateFor(row.funeralHomeId)).filter(
     (entry) => entry.enabled,
   );
@@ -108,7 +111,15 @@ export async function applyTemplateToCase(
   const result: ApplyResult = { created: 0, moved: 0, skipped: 0 };
 
   for (const [index, entry] of template.entries()) {
-    const dueAt = dueAtFor(entry, row.serviceAt);
+    const dueAt = dueAtFor(entry, row.serviceAt, row.createdAt);
+
+    // No anchor for this one yet. Skip it rather than guess: it appears by
+    // itself the moment the missing date is set.
+    if (!dueAt) {
+      result.skipped += 1;
+      continue;
+    }
+
     const match = byTitle.get(entry.title.trim().toLowerCase());
 
     if (!match) {
