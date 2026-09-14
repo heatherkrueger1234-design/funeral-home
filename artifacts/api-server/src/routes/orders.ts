@@ -200,6 +200,14 @@ router.get("/payment-handoff", async (req, res) => {
 router.put("/payment-handoff", async (req, res) => {
   const home = tenant(req);
   const user = currentUser(req);
+
+  // Where the home's money is collected is the owner's call, the same as the
+  // branding and the office hours next to it. An employee's account being
+  // borrowed is the most ordinary way a payment link gets swapped.
+  if (user.role !== "owner") {
+    throw badRequest("Only an owner can change where payments are taken.");
+  }
+
   const values = assertHasUpdates(parseBody(HandoffBody, req.body));
 
   const url = values.paymentPageUrl?.trim() || null;

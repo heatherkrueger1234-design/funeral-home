@@ -37,7 +37,12 @@ async function draftFor(
     .send({})
     .expect(201);
 
-  return res.body as { id: number; status: string; version: number };
+  return res.body as {
+    id: number;
+    status: string;
+    version: number;
+    lines: Array<{ id: number; description: string }>;
+  };
 }
 
 describe("the statement of funeral goods and services selected", () => {
@@ -302,6 +307,38 @@ describe("the handoff to the home's own payment page", () => {
     expect(res.body.payment.url).toBe("https://www.nightingaleandsons.com/pay");
     expect(res.body.payment.host).toBe("nightingaleandsons.com");
     expect(res.body.payment.otherWaysToPay).toContain("check");
+  });
+
+  it("lets only an owner change where the money goes", async () => {
+    const owner = await signUpHome();
+
+    const invited = await owner.agent
+      .post("/api/home/staff")
+      .send({ email: "helper@example.com", role: "staff" })
+      .expect(201);
+
+    const token = String(invited.body.inviteLink).split("token=")[1]!;
+    const request = (await import("supertest")).default;
+    const app = (await import("../src/app")).default;
+
+    const agent = request.agent(app);
+    await agent
+      .post("/api/auth/reset-password")
+      .send({ token: decodeURIComponent(token), password: "another-long-pass" })
+      .expect(204);
+    await agent
+      .post("/api/auth/login")
+      .send({ email: "helper@example.com", password: "another-long-pass" })
+      .expect(200);
+
+    // Swapping the payment link is the highest-value thing anybody could do
+    // with a borrowed staff account, so it sits with the owner.
+    await agent
+      .put("/api/payment-handoff")
+      .send({ paymentPageUrl: "https://not-the-home.example.com/pay" })
+      .expect(400);
+
+    await agent.get("/api/payment-handoff").expect(200);
   });
 
   it("refuses a link that is not a plain https address on a website", async () => {

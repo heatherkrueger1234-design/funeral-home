@@ -21,6 +21,7 @@ import Belongings from "@/pages/Belongings";
 import Local from "@/pages/Local";
 import Vitals from "@/pages/Vitals";
 import Proofs from "@/pages/Proofs";
+import Statement from "@/pages/Statement";
 import Start from "@/pages/Start";
 import NotFound from "@/pages/NotFound";
 
@@ -100,6 +101,7 @@ export default function App() {
               <Route path="/local" component={Local} />
               <Route path="/certificate" component={Vitals} />
               <Route path="/proofs" component={Proofs} />
+              <Route path="/statement" component={Statement} />
               <Route component={NotFound} />
             </Switch>
           </PortalShell>

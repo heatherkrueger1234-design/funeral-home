@@ -202,6 +202,61 @@ that actually stops new cases.
 New homes get a 30-day trial, dated from registration so "when does this end"
 has an answer from the first minute.
 
+**That subscription is the only money in this system**, and the next section is
+why.
+
+## The statement, and why we never touch the family's money
+
+The product processes no payments, holds no funds, stores no card or bank
+detail and takes no percentage of anything a home sells. There is no Stripe
+Connect, no merchant-of-record question, no split and no escrow. A family that
+owes a funeral home money is linked out to **the home's own payment page**, at
+the home's own processor, under the home's own merchant account.
+
+Every instinct in software pushes the other way, so the reasoning is written
+down rather than left to be re-derived:
+
+- Homes have taken money for a century — cards, checks, insurance assignments,
+  payment plans. We are not an improvement on that; we would be a second thing
+  to reconcile.
+- Routing funds on a home's behalf raises money transmission questions in every
+  state we sell into. Linking out raises none.
+- No card data means no PCI scope. No connected accounts means no identity
+  verification wall standing between a home and its first useful day.
+- Chargebacks, refunds and disputes stay with the home, which is where the
+  relationship and the bookkeeping already are.
+
+What we *do* produce is the **Statement of Funeral Goods and Services
+Selected** — the itemised document the FTC Funeral Rule requires a provider to
+give at the end of an arrangement. `lib/db/src/schema/orders.ts` holds it,
+`routes/orders.ts` serves it and `lib/statement-render.ts` prints it, on the
+home's letterhead and with no mark of ours on it, because the provider is the
+home and we are a software vendor.
+
+Three things are load-bearing and should not be traded away:
+
+- **Confirming freezes it.** A change afterwards is a revision that supersedes
+  the old one. A document already handed to a family is evidence, and evidence
+  that can be quietly rewritten is not evidence.
+- **A third-party casket or urn carries no price and no fee.** The Funeral Rule
+  forbids refusing one and forbids charging to handle it, so the `family_provided`
+  kind has no price field the API will accept. Do not add one "for convenience".
+- **Settled is a note about the home's books, never a receipt from us.** We do
+  not process the payment and are never told when one is made. No sentence
+  anywhere may say "paid" or "payment received".
+
+**A `pre_need` case has no statement, no total and no payment link**, in the
+UI or the API. Under C.R.S. Title 10, Article 15 a Colorado preneed contract
+needs a Division of Insurance licence, a $500 filing fee, $100,000 of net worth
+or a bond, and 85% of the money in trust — or insurance funding instead. There
+are exactly two lawful funding methods and neither is a hyperlink. The plan is
+recorded here; the money is arranged under the home's own licence, elsewhere.
+See `COLORADO.md` section 4.
+
+`test/statement.test.ts` asserts the two absences: that a pre-need case offers
+no payment path, and that no file in this component names a processor, stores a
+card or bank detail, or reaches the subscription billing module.
+
 ## Tests
 
 `artifacts/api-server/test` runs against a real Postgres with no mocks, because

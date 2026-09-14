@@ -3,6 +3,7 @@ import { Link } from "wouter";
 import {
   useGetFamilySession,
   useGetFamilyDeadlines,
+  useFamilyStatement,
 } from "@workspace/api-client-react";
 import {
   Images,
@@ -15,6 +16,7 @@ import {
   CalendarClock,
   MessageCircle,
   HeartHandshake,
+  ReceiptText,
   ChevronRight,
 } from "lucide-react";
 
@@ -77,6 +79,7 @@ function Card({ href, icon: Icon, title, detail, badge }: CardProps) {
 export default function Hub() {
   const session = useGetFamilySession();
   const deadlines = useGetFamilyDeadlines();
+  const statement = useFamilyStatement();
 
   if (!session.data) return null;
 
@@ -212,6 +215,23 @@ export default function Hub() {
           title="Local help"
           detail="Headstones, cemeteries, and who to ask"
         />
+        {/*
+          Only once the director has confirmed it, and never on a pre-need
+          file — the API returns nothing in both cases, so there is nothing
+          here to get wrong.
+
+          The total is deliberately not on this card. Somebody opening the
+          portal to look at photographs of their mother should not be met by
+          the bill; it is one tap away, waiting, for when they are ready.
+        */}
+        {statement.data?.statement && (
+          <Card
+            href="/statement"
+            icon={ReceiptText}
+            title="The statement"
+            detail={`What you chose, itemised by ${home.name}`}
+          />
+        )}
         <Card
           href="/timeline"
           icon={CalendarClock}

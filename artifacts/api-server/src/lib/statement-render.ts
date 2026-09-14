@@ -138,19 +138,20 @@ function settledBlock(input: StatementRenderInput): string {
 /**
  * How to pay, in the home's words, pointing at the home's own page.
  *
- * No total is repeated here and no button is drawn. A family reads the figure
- * once, above, and then reads where to take it — which is out of this product
- * altogether, to the processor the home has always used.
+ * Written in the first person, unlike the portal, because this sheet goes out
+ * on the home's letterhead and is the home speaking. No total is repeated here
+ * and no button is drawn: a family reads the figure once, above, and then
+ * reads where to take it — which is out of this product altogether, to the
+ * processor the home has always used.
  */
 function handoffBlock(input: StatementRenderInput): string {
-  const { handoff, home } = input;
+  const { handoff } = input;
 
   const parts: string[] = [];
 
   if (handoff.url !== null) {
-    const host = handoff.host ?? handoff.url;
     parts.push(
-      `<p>Online, on ${esc(home.name)}'s own website: <span class="url">${esc(handoff.url)}</span> (${esc(host)})</p>`,
+      `<p>Online, at <span class="url">${esc(handoff.url)}</span></p>`,
     );
   }
 
@@ -160,7 +161,7 @@ function handoffBlock(input: StatementRenderInput): string {
 
   if (handoff.phone) {
     parts.push(
-      `<p>Or telephone ${esc(home.name)} on ${esc(handoff.phone)} and they will take it from there.</p>`,
+      `<p>Or telephone us on ${esc(handoff.phone)} and we will take it from there.</p>`,
     );
   }
 
