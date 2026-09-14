@@ -47,6 +47,11 @@ services:
       #   pnpm --filter @workspace/scripts run generate-encryption-key
       ENCRYPTION_KEY: ${ENCRYPTION_KEY:?set ENCRYPTION_KEY in .env}
       LOG_LEVEL: ${LOG_LEVEL:-info}
+      # One proxy in front by default: the nginx in this file. Raised to 2 by
+      # docker-compose.tls.yml, which puts a TLS terminator in front of that
+      # nginx. Both req.secure and the rate limiter's idea of the client
+      # address depend on this matching reality.
+      TRUST_PROXY_HOPS: ${TRUST_PROXY_HOPS:-1}
       # The two apps are same-origin with their own API through nginx, so no
       # cross-origin request needs allowing. Left settable for a separate dev
       # server pointed at this stack.

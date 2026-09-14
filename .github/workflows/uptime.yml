@@ -1,0 +1,116 @@
+# Is it up, and is the certificate still good — asked from somewhere that is
+# not the host.
+#
+# deploy/monitor.sh watches the things only something inside the host can see.
+# It cannot report the host being down, because it goes down with it. This is
+# the other half: a check that runs on GitHub's machines, so a dead host
+# produces a failed run rather than silence.
+#
+# GitHub's scheduler is best-effort and drifts by several minutes under load,
+# which is fine for what this is: a pilot with a handful of homes, where the
+# question is "has it been down for half an hour" rather than "was there a
+# blip". A home with a service on Thursday deserves a real uptime provider;
+# this costs nothing and is a great deal better than nobody looking.
+#
+# Needs two repository variables (not secrets — these are public hostnames):
+#   FAMILY_DOMAIN, CONSOLE_DOMAIN
+# and optionally one secret:
+#   ALERT_WEBHOOK — the same webhook deploy/monitor.sh pages. Without it a
+#   failure only shows as a red run and an email to whoever is watching the
+#   repository, which is weaker but not nothing.
+name: Uptime
+
+on:
+  schedule:
+    - cron: "*/15 * * * *"
+  workflow_dispatch:
+
+concurrency:
+  group: uptime
+  cancel-in-progress: true
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check both front ends and their certificates
+        env:
+          FAMILY_DOMAIN: ${{ vars.FAMILY_DOMAIN }}
+          CONSOLE_DOMAIN: ${{ vars.CONSOLE_DOMAIN }}
+          # Below this many days left, say so while there is still time to fix
+          # it by hand. Caddy renews at 30 days, so 14 means "renewal has been
+          # failing for a fortnight" rather than "renewal has not happened".
+          MIN_CERT_DAYS: "14"
+          ALERT_WEBHOOK: ${{ secrets.ALERT_WEBHOOK }}
+        run: |
+          set -uo pipefail
+          problems=()
+
+          if [ -z "${FAMILY_DOMAIN:-}" ] || [ -z "${CONSOLE_DOMAIN:-}" ]; then
+            echo "Set the FAMILY_DOMAIN and CONSOLE_DOMAIN repository variables." >&2
+            exit 1
+          fi
+
+          check() {
+            local name="$1" host="$2" path="$3"
+
+            # --fail so a 5xx is a failure; no --insecure, because a
+            # certificate this rejects is exactly what we are looking for.
+            local code
+            code="$(curl --silent --show-error --max-time 25 \
+                      --output /dev/null --write-out '%{http_code}' \
+                      "https://${host}${path}" 2>&1)" || code="unreachable"
+
+            if [ "$code" != "200" ]; then
+              problems+=("${name} (${host}${path}) answered ${code}")
+              return
+            fi
+            echo "  ${name}: 200"
+          }
+
+          cert_days() {
+            local host="$1"
+            local end
+            end="$(echo | openssl s_client -servername "$host" -connect "${host}:443" 2>/dev/null \
+                   | openssl x509 -noout -enddate 2>/dev/null | cut -d= -f2)"
+            if [ -z "$end" ]; then
+              problems+=("${host}: could not read a certificate at all")
+              return
+            fi
+            local days=$(( ( $(date -d "$end" +%s) - $(date +%s) ) / 86400 ))
+            echo "  ${host}: certificate expires in ${days} days"
+            if [ "$days" -lt "${MIN_CERT_DAYS}" ]; then
+              problems+=("${host}: certificate expires in ${days} days — renewal is not working")
+            fi
+          }
+
+          # /healthz on the web containers says nginx is serving. /api/healthz
+          # says the API and Postgres are both alive. Both, because either one
+          # alone is a portal that looks up and does nothing.
+          check "family portal"   "$FAMILY_DOMAIN"  "/healthz"
+          check "family API"      "$FAMILY_DOMAIN"  "/api/healthz"
+          check "director console" "$CONSOLE_DOMAIN" "/healthz"
+          check "console API"     "$CONSOLE_DOMAIN" "/api/healthz"
+          cert_days "$FAMILY_DOMAIN"
+          cert_days "$CONSOLE_DOMAIN"
+
+          if [ "${#problems[@]}" -eq 0 ]; then
+            echo "All good."
+            exit 0
+          fi
+
+          printf 'PROBLEM: %s\n' "${problems[@]}" >&2
+          {
+            echo "### Holding Today is not well"
+            printf -- '- %s\n' "${problems[@]}"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+          if [ -n "${ALERT_WEBHOOK:-}" ]; then
+            text="$(printf 'Holding Today uptime check failed:\n'; printf -- '• %s\n' "${problems[@]}")"
+            body="$(printf '%s' "$text" | python3 -c 'import json,sys; t=sys.stdin.read(); print(json.dumps({"text":t,"summary":t,"source":"holding-today-uptime","severity":"critical"}))')"
+            curl --silent --show-error --max-time 30 -X POST "$ALERT_WEBHOOK" \
+              -H 'Content-Type: application/json' -d "$body" \
+              || echo "Could not reach the alert webhook either." >&2
+          fi
+
+          exit 1

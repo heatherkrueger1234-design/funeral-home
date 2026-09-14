@@ -109,6 +109,97 @@ describe("the Stripe webhook", () => {
       .send({ type: "customer.subscription.updated" })
       .expect(400);
   });
+
+  /*
+   * And the other half, which is the half that was missing.
+   *
+   * Every assertion above passes just as happily against a webhook that
+   * rejects *everything*, and for a long time that is exactly what this one
+   * did: it was mounted after `express.json()`, so it never saw the raw bytes
+   * and no genuine Stripe event could verify. Nothing failed, no test went
+   * red, and the only symptom would have been subscriptions that silently
+   * never changed state.
+   *
+   * So: sign an event the way Stripe signs it, and require that it is
+   * accepted and acted on.
+   */
+  async function postSignedEvent(body: unknown) {
+    const { createHmac } = await import("node:crypto");
+    const payload = JSON.stringify(body);
+    const timestamp = Math.floor(Date.now() / 1000);
+    const signature = createHmac("sha256", process.env["STRIPE_WEBHOOK_SECRET"]!)
+      .update(`${timestamp}.${payload}`)
+      .digest("hex");
+
+    return request(app)
+      .post("/api/billing/webhook")
+      .set("Stripe-Signature", `t=${timestamp},v1=${signature}`)
+      .set("Content-Type", "application/json")
+      // `.send(string)` so supertest transmits these exact bytes rather than
+      // re-serialising an object, which is the whole point of the test.
+      .send(payload);
+  }
+
+  it("accepts a correctly signed event and applies it", async () => {
+    const staff = await signUpHome();
+
+    await postSignedEvent({
+      id: "evt_test",
+      type: "customer.subscription.updated",
+      data: {
+        object: {
+          id: "sub_test",
+          status: "canceled",
+          metadata: { funeralHomeId: String(staff.homeId) },
+          customer: "cus_test",
+        },
+      },
+    }).expect(200);
+
+    const [home] = await db
+      .select()
+      .from(funeralHomesTable)
+      .where(eq(funeralHomesTable.id, staff.homeId))
+      .limit(1);
+
+    expect(home!.subscriptionStatus).toBe("canceled");
+
+    // And the gate that status controls actually closed.
+    await staff.agent
+      .post("/api/cases")
+      .send({ decedentFirstName: "Ada", decedentLastName: "Lovelace", kind: "at_need" })
+      .expect(402);
+  });
+
+  it("keeps past_due working, because a card is not a funeral", async () => {
+    const staff = await signUpHome();
+
+    await postSignedEvent({
+      id: "evt_test_2",
+      type: "customer.subscription.updated",
+      data: {
+        object: {
+          id: "sub_test_2",
+          status: "past_due",
+          metadata: { funeralHomeId: String(staff.homeId) },
+          customer: "cus_test_2",
+        },
+      },
+    }).expect(200);
+
+    const [home] = await db
+      .select()
+      .from(funeralHomesTable)
+      .where(eq(funeralHomesTable.id, staff.homeId))
+      .limit(1);
+
+    expect(home!.subscriptionStatus).toBe("past_due");
+
+    await staff.agent
+      .post("/api/cases")
+      .send({ decedentFirstName: "Grace", decedentLastName: "Hopper", kind: "at_need" })
+      .expect(201);
+  });
 });
 
 describe("mounting", () => {

@@ -1,0 +1,48 @@
+# The same TLS path as deploy/Caddyfile, with a certificate Caddy signs itself.
+#
+# For rehearsing the chain on a host that has no public domain yet. Everything
+# that actually breaks about TLS here is proxy wiring rather than the
+# certificate: whether the Secure session cookie survives the round trip,
+# whether X-Forwarded-Proto reaches the API intact through two proxies, and
+# whether X-Forwarded-For still names the real client. All of that is
+# identical under a self-signed certificate, and none of it needs DNS.
+#
+#   docker compose -f docker-compose.yml -f docker-compose.tls.yml \
+#                  -f docker-compose.tls-internal.yml up -d
+#
+# Then add to /etc/hosts:
+#   127.0.0.1 family.staging.localhost console.staging.localhost
+#
+# What this does NOT rehearse is issuance: that DNS resolves, that port 80 is
+# reachable from the internet, and that Let's Encrypt will answer. Those only
+# get proven by pointing a real domain at a real host. Do this first anyway --
+# it is the half that fails quietly.
+
+{
+	# No ACME at all. Caddy mints its own CA and signs from it.
+	local_certs
+}
+
+(common) {
+	encode gzip
+
+	header {
+		Strict-Transport-Security "max-age=31536000; includeSubDomains"
+		-Server
+	}
+
+	reverse_proxy {args[0]} {
+		transport http {
+			read_timeout 600s
+			write_timeout 600s
+		}
+	}
+}
+
+{$FAMILY_DOMAIN} {
+	import common family-portal:80
+}
+
+{$CONSOLE_DOMAIN} {
+	import common director-console:80
+}

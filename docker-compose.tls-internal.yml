@@ -1,0 +1,20 @@
+# Rehearse the TLS chain without a public domain. Layer it on top of
+# docker-compose.tls.yml:
+#
+#   docker compose -f docker-compose.yml -f docker-compose.tls.yml \
+#                  -f docker-compose.tls-internal.yml up -d
+#
+# Swaps the Let's Encrypt Caddyfile for one that signs its own certificates,
+# so the proxy wiring can be proven before DNS exists. Everything else -- two
+# proxy hops, X-Forwarded-Proto, the Secure cookie round trip -- behaves
+# exactly as it will in production. Never use this on a host a real family
+# reaches: the certificate will not be trusted by their phone.
+services:
+  caddy:
+    environment:
+      FAMILY_DOMAIN: ${FAMILY_DOMAIN:-family.staging.localhost}
+      CONSOLE_DOMAIN: ${CONSOLE_DOMAIN:-console.staging.localhost}
+      # Unused here, but docker-compose.tls.yml requires them to be set.
+      ACME_EMAIL: ${ACME_EMAIL:-nobody@example.invalid}
+    volumes:
+      - ./deploy/Caddyfile.internal:/etc/caddy/Caddyfile:ro
