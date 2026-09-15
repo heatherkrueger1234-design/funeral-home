@@ -56,17 +56,31 @@ function whenLabel(value: string | Date): string {
   return `${dayFormat.format(date)}, ${timeFormat.format(date)}`;
 }
 
-/** "3 days ago", "in 2 days". Plain words, because that is how it is said. */
+/**
+ * "3 days ago", "in 2 days". Plain words, because that is how it is said.
+ *
+ * The sign is never dropped. An earlier version answered "within the hour"
+ * for anything inside sixty minutes either way, which put "within the hour"
+ * against rows in a list headed **Past due** — a director reading that has
+ * been told the opposite of the truth about something that has already
+ * slipped, on the one screen whose whole job is to be believed.
+ */
 function relative(value: string | Date): string {
   const ms = asDate(value).getTime() - Date.now();
+  const past = ms < 0;
   const days = Math.round(ms / 86_400_000);
 
-  if (Math.abs(ms) < 3_600_000) return "within the hour";
-  if (days === 0) return ms < 0 ? "earlier today" : "later today";
+  if (Math.abs(ms) < 60_000) return "now";
+  if (Math.abs(ms) < 3_600_000) {
+    const minutes = Math.max(1, Math.round(Math.abs(ms) / 60_000));
+    const unit = `${minutes} min`;
+    return past ? `${unit} ago` : `in ${unit}`;
+  }
+  if (days === 0) return past ? "earlier today" : "later today";
   if (days === 1) return "tomorrow";
   if (days === -1) return "yesterday";
 
-  return days < 0 ? `${-days} days ago` : `in ${days} days`;
+  return past ? `${-days} days ago` : `in ${days} days`;
 }
 
 /** The row shape every list on this screen uses. */

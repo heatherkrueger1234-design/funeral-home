@@ -41,6 +41,22 @@ router.post("/cases/:caseId/service-offers", async (req, res) => {
   await assertUnanswered(row.id);
 
   /*
+   * A time that has already gone is a typo, not an offer — a director typing
+   * last year on a date field, which is one keystroke. Refused here rather
+   * than at the point of choosing, because by then it is in front of a
+   * family as something they are being asked to agree to.
+   *
+   * Deliberately only on the way in. `confirm` below takes no date at all and
+   * still works on a time that has since passed, because recording what a
+   * family already agreed to is a different act from proposing it, and a
+   * director catching up on paperwork after the service must still be able
+   * to say which one was taken.
+   */
+  if (values.startsAt.getTime() <= Date.now()) {
+    throw badRequest("That time has already passed. Check the date.");
+  }
+
+  /*
    * A ceiling, and a low one. Three dates is a decision; eight is a form to
    * fill in, and the family it is hardest on is the one this feature exists
    * for — people who cannot hold a schedule in their head this week.

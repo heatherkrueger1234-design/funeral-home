@@ -1,5 +1,5 @@
 import { Router, type IRouter } from "express";
-import { and, asc, desc, eq, gt, gte, inArray, isNull, lt, lte, ne, sql } from "drizzle-orm";
+import { and, asc, desc, eq, gt, gte, isNull, lt, lte, ne, or, sql } from "drizzle-orm";
 import {
   db,
   caseDeadlinesTable,
@@ -37,6 +37,28 @@ const DUE_SOON_DAYS = 3;
 const SERVICES_AHEAD_DAYS = 7;
 /** A list entry is a glance, not the message. */
 const PREVIEW_LENGTH = 140;
+
+/**
+ * Threads the home can still write on.
+ *
+ * `messagesLockAt` is null until a case closes, and in the fortnight between
+ * closing and locking both sides can still speak — so this is deliberately
+ * "not locked" rather than "not closed". A director who closes a file on
+ * Tuesday can still answer the question that arrives on Wednesday, and the
+ * counts should say so.
+ */
+const unlockedThread = (now: Date) =>
+  or(isNull(casesTable.messagesLockAt), gt(casesTable.messagesLockAt, now));
+/**
+ * How many conversations the inbox will hand back.
+ *
+ * Unbounded, this is the one screen in the console that grows without limit:
+ * a home three years in has a thread per family it has ever served, and this
+ * is opened every morning. Fifty is far past what anyone scrolls, and the
+ * ordering puts everyone who is actually waiting above everyone who is not,
+ * so nothing that needs an answer falls off the end.
+ */
+export const INBOX_LIMIT = 50;
 
 router.get("/home/dashboard", async (req, res) => {
   const home = tenant(req);
@@ -118,7 +140,7 @@ router.get("/home/dashboard", async (req, res) => {
       .orderBy(asc(casesTable.createdAt))
       .limit(LIST_LIMIT),
 
-    deadlineWindow(home.id, { before: now }),
+    deadlineWindow(home.id, { before: now, newestFirst: true }),
     deadlineWindow(home.id, { from: now, before: soon }),
 
     /*
@@ -134,6 +156,7 @@ router.get("/home/dashboard", async (req, res) => {
         cases: sql<number>`count(distinct ${caseMessagesTable.caseId})::int`,
       })
       .from(caseMessagesTable)
+      .innerJoin(casesTable, eq(casesTable.id, caseMessagesTable.caseId))
       .where(
         and(
           eq(caseMessagesTable.funeralHomeId, home.id),
@@ -141,6 +164,17 @@ router.get("/home/dashboard", async (req, res) => {
           // Written by the family: the home's own unread messages are
           // unread by the family, which is not the home's problem.
           isNull(caseMessagesTable.authorUserId),
+          /*
+           * And on a thread the home could still answer.
+           *
+           * A locked thread accepts nothing from either side, so a message
+           * sitting unread behind one is not a family waiting on a reply —
+           * it is a family who cannot be replied to. Counting it puts a
+           * number on this screen that no amount of work will ever clear,
+           * pointing at an inbox row with no reply box, which is how a
+           * director learns to stop believing the tile.
+           */
+          unlockedThread(now),
         ),
       ),
 
@@ -197,7 +231,7 @@ router.get("/home/dashboard", async (req, res) => {
  */
 async function deadlineWindow(
   funeralHomeId: number,
-  window: { from?: Date; before: Date },
+  window: { from?: Date; before: Date; newestFirst?: boolean },
 ) {
   const rows = await db
     .select({
@@ -222,7 +256,23 @@ async function deadlineWindow(
         window.from ? gt(caseDeadlinesTable.dueAt, window.from) : undefined,
       ),
     )
-    .orderBy(asc(caseDeadlinesTable.dueAt))
+    /*
+     * Overdue comes back most recently slipped first; what is coming comes
+     * back soonest first. Both are "the ones a director can still do
+     * something about", and for the overdue list that is the opposite
+     * direction from the obvious one.
+     *
+     * Oldest-first with a cap of eight is a list that never changes. A home
+     * with one case left open from two years ago — which is every home,
+     * because closing a file is the step people forget — would have its eight
+     * slots filled by that case permanently, and this week's slipped
+     * photographs would never appear at all.
+     */
+    .orderBy(
+      window.newestFirst
+        ? desc(caseDeadlinesTable.dueAt)
+        : asc(caseDeadlinesTable.dueAt),
+    )
     .limit(LIST_LIMIT);
 
   return rows.map((row) => ({
@@ -291,7 +341,8 @@ router.get("/home/inbox", async (req, res) => {
     .from(latest)
     .innerJoin(caseMessagesTable, eq(caseMessagesTable.id, latest.lastId))
     .innerJoin(casesTable, eq(casesTable.id, latest.caseId))
-    .orderBy(desc(latest.unread), desc(caseMessagesTable.createdAt));
+    .orderBy(desc(latest.unread), desc(caseMessagesTable.createdAt))
+    .limit(INBOX_LIMIT);
 
   res.json(
     rows.map((row) => ({

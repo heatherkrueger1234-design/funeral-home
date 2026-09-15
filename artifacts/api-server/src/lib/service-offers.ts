@@ -1,4 +1,4 @@
-import { and, asc, eq, isNotNull, isNull, sql } from "drizzle-orm";
+import { and, asc, eq, isNotNull, isNull, ne, sql } from "drizzle-orm";
 import {
   db,
   caseServiceOffersTable,
@@ -90,10 +90,42 @@ export async function chosenOffer(
 }
 
 /**
+ * Whether this family still has a question in front of them.
+ *
+ * Three things have to be true, and the third is the one that was missed
+ * first time round. Times were offered; nobody picked one; and *the date is
+ * still open* — because the ordinary ending is not a tap at all. The family
+ * rings, the director types the time onto the case, and the offers sit there
+ * unanswered forever. Without the `serviceAt` clause the hub goes on asking a
+ * family to choose a date that is already printed on their order of service,
+ * and the dashboard goes on reporting them as a family who has not got back
+ * to you.
+ *
+ * A closed case is settled by definition, whatever its columns say.
+ *
+ * This is the definition. `casesAwaitingChoice` below is the same sentence in
+ * SQL, and the two must not drift: the director's tile and the family's hub
+ * disagreeing about whether anything is outstanding is worse than neither
+ * saying anything.
+ */
+export function isAwaitingChoice(
+  row: Pick<Case, "status" | "serviceAt">,
+  openOffers: number,
+  chosen: CaseServiceOffer | undefined,
+): boolean {
+  if (row.status === "closed") return false;
+  if (row.serviceAt !== null) return false;
+  if (chosen !== undefined) return false;
+
+  return openOffers > 0;
+}
+
+/**
  * Cases where the home has asked and nobody has answered.
  *
  * One row per case rather than per offer — a case with three unanswered
- * times is one family who has not got back to you, not three.
+ * times is one family who has not got back to you, not three. The predicate
+ * is `isAwaitingChoice` above, in SQL.
  */
 export async function casesAwaitingChoice(
   funeralHomeId: number,
@@ -101,7 +133,14 @@ export async function casesAwaitingChoice(
   const rows = await db
     .select({ caseId: caseServiceOffersTable.caseId })
     .from(caseServiceOffersTable)
-    .where(eq(caseServiceOffersTable.funeralHomeId, funeralHomeId))
+    .innerJoin(casesTable, eq(casesTable.id, caseServiceOffersTable.caseId))
+    .where(
+      and(
+        eq(caseServiceOffersTable.funeralHomeId, funeralHomeId),
+        ne(casesTable.status, "closed"),
+        isNull(casesTable.serviceAt),
+      ),
+    )
     .groupBy(caseServiceOffersTable.caseId)
     .having(
       sql`count(*) filter (where ${caseServiceOffersTable.chosenAt} is not null) = 0`,

@@ -120,8 +120,14 @@ export function ConsoleShell({ children }: { children: ReactNode }) {
       retry: 1,
     },
   });
+  /*
+   * Families the home can still answer. A locked thread takes nothing from
+   * either side, so an unread message behind one is not a badge anybody can
+   * clear — and a number that never goes down is a number people stop
+   * reading. The dashboard tile counts the same way.
+   */
   const unanswered = (inbox.data ?? []).filter(
-    (row) => row.unreadFromFamily > 0,
+    (row) => row.unreadFromFamily > 0 && !row.locked,
   ).length;
 
   const logout = useLogout({

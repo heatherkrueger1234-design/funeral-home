@@ -172,6 +172,31 @@ function asHttpError(err: unknown): HttpError | null {
     );
   }
 
+  /*
+   * 22P02 is `invalid_text_representation` — Postgres refusing a value that
+   * cannot be read as the column's type at all. In practice that is almost
+   * always a fraction arriving where a whole number belongs: `1.5` days,
+   * `2.5` photographs, `12.7` cents.
+   *
+   * It reaches here because the generated validators say `number()` wherever
+   * the spec says `integer` — OpenAPI's `integer` does not survive into a
+   * zod `.int()`, and that is true of every integer field in this API rather
+   * than any one of them. Mapping the SQLSTATE fixes all of them at once and
+   * keeps working for the next field somebody adds, which a rule written out
+   * field by field would not.
+   *
+   * The status is the whole point. A client that sent a bad number must not
+   * be told the server broke: it reads as an outage, it fills the logs with
+   * stack traces that look like a fault here, and nobody can then tell a real
+   * one apart from a typo in a form.
+   */
+  if (code === "22P02") {
+    return new HttpError(
+      400,
+      "One of those values was not in a form we can store — a whole number was expected. Please check it and try again.",
+    );
+  }
+
   return null;
 }
 

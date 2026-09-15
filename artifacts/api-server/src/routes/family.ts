@@ -59,6 +59,7 @@ import { publicHome } from "../lib/storefront";
 import {
   chooseOffer,
   chosenOffer,
+  isAwaitingChoice,
   offersForCase,
   openOfferCount,
 } from "../lib/service-offers";
@@ -213,7 +214,7 @@ router.get("/session", async (req, res) => {
      * the home cannot confirm is holding up the florist, the printer and
      * the church, so the hub puts this above all of it.
      */
-    awaitingServiceChoice: openOffers > 0 && settled === undefined,
+    awaitingServiceChoice: isAwaitingChoice(row, openOffers, settled),
     aftercare: aftercare[0]
       ? {
           ...aftercare[0],
@@ -1067,6 +1068,20 @@ router.post("/service-offers/:offerId/choose", async (req, res) => {
   const home = familyHome(req);
   const contact = familyContact(req);
   const offerId = parseId(req.params.offerId);
+
+  /*
+   * A closed case is over. The link stays live for a fortnight after the
+   * service so a family can still look at the photographs, and a tab left
+   * open on this screen through the funeral itself must not be able to
+   * rewrite the date of a service that has already happened and rebuild a
+   * timeline behind it.
+   */
+  if (row.status === "closed") {
+    throw new HttpError(
+      409,
+      "This service is settled. Please ring the funeral home if something needs to change.",
+    );
+  }
 
   await chooseOffer(row, offerId, { contactId: contact.id });
 

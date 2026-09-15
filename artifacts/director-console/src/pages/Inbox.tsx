@@ -63,8 +63,11 @@ export default function Inbox() {
   if (inbox.isPending) return <Loading rows={4} />;
 
   const rows = inbox.data ?? [];
-  const waiting = rows.filter((row) => row.unreadFromFamily > 0);
-  const rest = rows.filter((row) => row.unreadFromFamily === 0);
+  // Waiting means the home can still do something about it. A locked thread
+  // drops to the lower group however much is unread behind it, because there
+  // is no reply box on it to act with.
+  const waiting = rows.filter((row) => row.unreadFromFamily > 0 && !row.locked);
+  const rest = rows.filter((row) => !waiting.includes(row));
 
   return (
     <div className="space-y-6">

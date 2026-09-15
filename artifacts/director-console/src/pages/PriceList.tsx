@@ -30,16 +30,42 @@ import { Lock, Plus, Tag, Trash2 } from "lucide-react";
  * it says plainly, every time, that nobody outside the office can reach this.
  */
 
-/** "2495" or "2,495.00" typed by a person, to cents. Null when they meant nothing. */
-function toCents(raw: string): number | null {
-  const cleaned = raw.replace(/[^0-9.]/g, "");
-  if (!cleaned) return null;
+/**
+ * What a person typed into a price box, read as one of three things.
+ *
+ * The third case is why this is not a `number | null`. "Blank" and
+ * "unreadable" both used to come back as null, so a director who fat-fingered
+ * a letter into a price saw the number silently disappear on blur — a
+ * deletion, caused by a typo, with no undo and nothing on screen to say it
+ * had happened. Blank is a real answer and means "this line has no number";
+ * an unreadable value is not an answer at all and must leave the price alone.
+ */
+type TypedAmount =
+  | { kind: "blank" }
+  | { kind: "cents"; cents: number }
+  | { kind: "unreadable" };
+
+function readAmount(raw: string): TypedAmount {
+  const trimmed = raw.trim();
+  if (!trimmed) return { kind: "blank" };
+
+  // Currency symbols, thousands separators and stray spaces are how people
+  // actually type money, and none of them make a figure unreadable.
+  const cleaned = trimmed.replace(/[$,\s]/g, "");
+  if (!/^\d*\.?\d*$/.test(cleaned) || cleaned === "." || cleaned === "") {
+    return { kind: "unreadable" };
+  }
 
   const value = Number(cleaned);
-  if (!Number.isFinite(value) || value < 0) return null;
+  if (!Number.isFinite(value) || value < 0) return { kind: "unreadable" };
 
-  return Math.round(value * 100);
+  // Whole cents: the column is an integer, and half a cent is not a price.
+  return { kind: "cents", cents: Math.round(value * 100) };
 }
+
+/** What the box should show for an amount, so a rejected edit can go back. */
+const amountText = (amountCents: number | null) =>
+  amountCents === null ? "" : (amountCents / 100).toFixed(2);
 
 export default function PriceList() {
   const queryClient = useQueryClient();
@@ -74,6 +100,7 @@ export default function PriceList() {
 
   const newCategory = category.trim() || categories[0] || "Services";
   const newLabel = label.trim();
+  const typed = readAmount(amount);
 
   return (
     <div className="max-w-2xl space-y-6">
@@ -168,7 +195,11 @@ export default function PriceList() {
               data: {
                 category: newCategory,
                 label: newLabel,
-                amountCents: toCents(amount),
+                // An unreadable figure adds the line without one rather than
+                // refusing the whole thing; the label is the part that took
+                // thought, and the price is editable in place next to it.
+                amountCents:
+                  typed.kind === "cents" ? typed.cents : null,
               },
             })
           }
@@ -206,12 +237,21 @@ function PriceRow({ row, onChanged }: { row: PriceItem; onChanged: () => void })
         <Input
           inputMode="decimal"
           className="sm:w-32 text-right tabular-nums"
-          defaultValue={
-            row.amountCents === null ? "" : (row.amountCents / 100).toFixed(2)
-          }
+          defaultValue={amountText(row.amountCents)}
           placeholder="—"
+          aria-label={`Price for ${row.label}`}
           onBlur={(event) => {
-            const cents = toCents(event.target.value);
+            const typed = readAmount(event.target.value);
+
+            // Put the old figure back rather than saving nothing over it.
+            // Silently blanking a casket price because somebody leaned on a
+            // key is the one thing this box must not do.
+            if (typed.kind === "unreadable") {
+              event.target.value = amountText(row.amountCents);
+              return;
+            }
+
+            const cents = typed.kind === "blank" ? null : typed.cents;
             if (cents !== row.amountCents) {
               update.mutate({ itemId: row.id, data: { amountCents: cents } });
             }

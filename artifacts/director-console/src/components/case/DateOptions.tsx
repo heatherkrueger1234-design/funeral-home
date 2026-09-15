@@ -51,14 +51,22 @@ const timeFormat = new Intl.DateTimeFormat(undefined, {
 const asDate = (value: string | Date) =>
   value instanceof Date ? value : new Date(value);
 
-/** For a `datetime-local` input, which wants local wall time with no zone. */
+/** `datetime-local` wants local wall time with no zone, to the minute. */
+function toLocalInput(when: Date): string {
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `${when.getFullYear()}-${pad(when.getMonth() + 1)}-${pad(when.getDate())}T${pad(when.getHours())}:${pad(when.getMinutes())}`;
+}
+
+/** The floor on the picker. Nothing already past is on offer. */
+const localNow = () => toLocalInput(new Date());
+
+/** Three days out at eleven, which is where most of these land anyway. */
 function defaultOfferTime(): string {
   const when = new Date();
   when.setDate(when.getDate() + 3);
   when.setHours(11, 0, 0, 0);
 
-  const pad = (n: number) => String(n).padStart(2, "0");
-  return `${when.getFullYear()}-${pad(when.getMonth() + 1)}-${pad(when.getDate())}T${pad(when.getHours())}:${pad(when.getMinutes())}`;
+  return toLocalInput(when);
 }
 
 export function DateOptions({ caseId }: { caseId: number }) {
@@ -213,6 +221,10 @@ export function DateOptions({ caseId }: { caseId: number }) {
                   <Input
                     id="offerAt"
                     type="datetime-local"
+                    // The server refuses a time that has already gone; the
+                    // picker should not offer one in the first place, so a
+                    // mistyped year is caught before it becomes a toast.
+                    min={localNow()}
                     value={startsAt}
                     onChange={(event) => setStartsAt(event.target.value)}
                   />
