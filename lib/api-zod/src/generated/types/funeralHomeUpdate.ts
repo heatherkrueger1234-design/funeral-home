@@ -44,4 +44,18 @@ export interface FuneralHomeUpdate {
   intakeEnabled?: boolean;
   intakeNotifyEmail?: string | null;
   aftercareSenderName?: string | null;
+  /** @maxLength 160 */
+  storefrontHeadline?: string | null;
+  /** @maxLength 4000 */
+  storefrontAbout?: string | null;
+  /**
+   * @minimum 1
+   * @maximum 365
+   */
+  messageLockDays?: number;
+  /**
+   * @minimum 1
+   * @maximum 500
+   */
+  slideshowTarget?: number;
 }

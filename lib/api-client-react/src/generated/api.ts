@@ -47,6 +47,7 @@ import type {
   CasePhoto,
   CaseSummary,
   CaseUpdate,
+  ChosenService,
   CompleteDeadlineInput,
   ComposeObituaryInput,
   ConvertToAtNeedInput,
@@ -62,6 +63,7 @@ import type {
   FamilyPhotoUpdate,
   FamilyPhotoUploadInput,
   FamilyPreparationUpdate,
+  FamilyServiceOffers,
   FamilySession,
   ForgotPasswordInput,
   FuneralHome,
@@ -72,8 +74,13 @@ import type {
   GetSnippetsParams,
   GetVendorsParams,
   HealthStatus,
+  HomeDashboard,
+  HomePolicy,
+  HomePolicyInput,
+  HomePolicyUpdate,
   ImportPreview,
   ImportResult,
+  InboxEntry,
   IntakeReceipt,
   IntakeRequest,
   IntakeRequestInput,
@@ -95,6 +102,9 @@ import type {
   PostalCodeResult,
   Preparation,
   PreparationUpdate,
+  PriceItem,
+  PriceItemInput,
+  PriceItemUpdate,
   PrintItem,
   PrintItemInput,
   PrintItemUpdate,
@@ -107,6 +117,8 @@ import type {
   SelectionInput,
   SelectionUpdate,
   SentLink,
+  ServiceOffer,
+  ServiceOfferInput,
   ServiceSelection,
   Snippet,
   SnippetInput,
@@ -1950,6 +1962,1382 @@ export const useDeleteTimelineTemplate = <
   TContext
 > => {
   return useMutation(getDeleteTimelineTemplateMutationOptions(options));
+};
+
+/**
+ * One read for the landing screen. Nothing here is new information:
+every number on it is reachable a page at a time. What it adds is
+that a director opening the console at eight in the morning does not
+have to visit four screens to discover that a family answered at
+midnight and a service is tomorrow.
+
+Scoped to the signed-in staff member's own home, like everything
+below the session gate.
+
+ * @summary The home's master page - what needs answering today
+ */
+export const getGetHomeDashboardUrl = () => {
+  return `/api/home/dashboard`;
+};
+
+export const getHomeDashboard = async (
+  options?: RequestInit,
+): Promise<HomeDashboard> => {
+  return customFetch<HomeDashboard>(getGetHomeDashboardUrl(), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getGetHomeDashboardQueryKey = () => {
+  return [`/api/home/dashboard`] as const;
+};
+
+export const getGetHomeDashboardQueryOptions = <
+  TData = Awaited<ReturnType<typeof getHomeDashboard>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof getHomeDashboard>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getGetHomeDashboardQueryKey();
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof getHomeDashboard>>
+  > = ({ signal }) => getHomeDashboard({ signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof getHomeDashboard>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type GetHomeDashboardQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getHomeDashboard>>
+>;
+export type GetHomeDashboardQueryError = ErrorType<unknown>;
+
+/**
+ * @summary The home's master page - what needs answering today
+ */
+
+export function useGetHomeDashboard<
+  TData = Awaited<ReturnType<typeof getHomeDashboard>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof getHomeDashboard>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getGetHomeDashboardQueryOptions(options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * The cross-case view of the one-thread-per-case rule. A director
+working four funerals had no way to see that the Okonkwo family wrote
+at midnight except by opening the Okonkwo case.
+
+Replying is deliberately not here. A reply goes to
+`POST /cases/{caseId}/messages`, which is the single place a message
+can be written, the single place the out-of-hours stamp is applied,
+and the single place the fortnight lock is enforced.
+
+ * @summary Every family conversation, the ones waiting first
+ */
+export const getGetHomeInboxUrl = () => {
+  return `/api/home/inbox`;
+};
+
+export const getHomeInbox = async (
+  options?: RequestInit,
+): Promise<InboxEntry[]> => {
+  return customFetch<InboxEntry[]>(getGetHomeInboxUrl(), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getGetHomeInboxQueryKey = () => {
+  return [`/api/home/inbox`] as const;
+};
+
+export const getGetHomeInboxQueryOptions = <
+  TData = Awaited<ReturnType<typeof getHomeInbox>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof getHomeInbox>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getGetHomeInboxQueryKey();
+
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof getHomeInbox>>> = ({
+    signal,
+  }) => getHomeInbox({ signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof getHomeInbox>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type GetHomeInboxQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getHomeInbox>>
+>;
+export type GetHomeInboxQueryError = ErrorType<unknown>;
+
+/**
+ * @summary Every family conversation, the ones waiting first
+ */
+
+export function useGetHomeInbox<
+  TData = Awaited<ReturnType<typeof getHomeInbox>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof getHomeInbox>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getGetHomeInboxQueryOptions(options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary The times offered to this family
+ */
+export const getGetServiceOffersUrl = (caseId: number) => {
+  return `/api/cases/${caseId}/service-offers`;
+};
+
+export const getServiceOffers = async (
+  caseId: number,
+  options?: RequestInit,
+): Promise<ServiceOffer[]> => {
+  return customFetch<ServiceOffer[]>(getGetServiceOffersUrl(caseId), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getGetServiceOffersQueryKey = (caseId: number) => {
+  return [`/api/cases/${caseId}/service-offers`] as const;
+};
+
+export const getGetServiceOffersQueryOptions = <
+  TData = Awaited<ReturnType<typeof getServiceOffers>>,
+  TError = ErrorType<unknown>,
+>(
+  caseId: number,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getServiceOffers>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey =
+    queryOptions?.queryKey ?? getGetServiceOffersQueryKey(caseId);
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof getServiceOffers>>
+  > = ({ signal }) => getServiceOffers(caseId, { signal, ...requestOptions });
+
+  return {
+    queryKey,
+    queryFn,
+    enabled: !!caseId,
+    ...queryOptions,
+  } as UseQueryOptions<
+    Awaited<ReturnType<typeof getServiceOffers>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type GetServiceOffersQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getServiceOffers>>
+>;
+export type GetServiceOffersQueryError = ErrorType<unknown>;
+
+/**
+ * @summary The times offered to this family
+ */
+
+export function useGetServiceOffers<
+  TData = Awaited<ReturnType<typeof getServiceOffers>>,
+  TError = ErrorType<unknown>,
+>(
+  caseId: number,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getServiceOffers>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getGetServiceOffersQueryOptions(caseId, options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * A time the home has already confirmed it can do. This endpoint knows
+nothing about whether the church is free - it records what the
+director would otherwise have said on the telephone.
+
+Refused once the family has chosen, because a list that grows after
+an answer is a list somebody will answer twice.
+
+ * @summary Offer the family a time
+ */
+export const getCreateServiceOfferUrl = (caseId: number) => {
+  return `/api/cases/${caseId}/service-offers`;
+};
+
+export const createServiceOffer = async (
+  caseId: number,
+  serviceOfferInput: ServiceOfferInput,
+  options?: RequestInit,
+): Promise<ServiceOffer> => {
+  return customFetch<ServiceOffer>(getCreateServiceOfferUrl(caseId), {
+    ...options,
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(serviceOfferInput),
+  });
+};
+
+export const getCreateServiceOfferMutationOptions = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof createServiceOffer>>,
+    TError,
+    { caseId: number; data: BodyType<ServiceOfferInput> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof createServiceOffer>>,
+  TError,
+  { caseId: number; data: BodyType<ServiceOfferInput> },
+  TContext
+> => {
+  const mutationKey = ["createServiceOffer"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof createServiceOffer>>,
+    { caseId: number; data: BodyType<ServiceOfferInput> }
+  > = (props) => {
+    const { caseId, data } = props ?? {};
+
+    return createServiceOffer(caseId, data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type CreateServiceOfferMutationResult = NonNullable<
+  Awaited<ReturnType<typeof createServiceOffer>>
+>;
+export type CreateServiceOfferMutationBody = BodyType<ServiceOfferInput>;
+export type CreateServiceOfferMutationError = ErrorType<void>;
+
+/**
+ * @summary Offer the family a time
+ */
+export const useCreateServiceOffer = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof createServiceOffer>>,
+    TError,
+    { caseId: number; data: BodyType<ServiceOfferInput> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof createServiceOffer>>,
+  TError,
+  { caseId: number; data: BodyType<ServiceOfferInput> },
+  TContext
+> => {
+  return useMutation(getCreateServiceOfferMutationOptions(options));
+};
+
+/**
+ * For the family who rang instead of tapping, which is most of them
+over sixty. Identical in effect to the family choosing it themselves:
+the service date is set and the home's standard schedule is applied.
+
+ * @summary Record that the family picked this one
+ */
+export const getConfirmServiceOfferUrl = (caseId: number, offerId: number) => {
+  return `/api/cases/${caseId}/service-offers/${offerId}/confirm`;
+};
+
+export const confirmServiceOffer = async (
+  caseId: number,
+  offerId: number,
+  options?: RequestInit,
+): Promise<ChosenService> => {
+  return customFetch<ChosenService>(
+    getConfirmServiceOfferUrl(caseId, offerId),
+    {
+      ...options,
+      method: "POST",
+    },
+  );
+};
+
+export const getConfirmServiceOfferMutationOptions = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof confirmServiceOffer>>,
+    TError,
+    { caseId: number; offerId: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof confirmServiceOffer>>,
+  TError,
+  { caseId: number; offerId: number },
+  TContext
+> => {
+  const mutationKey = ["confirmServiceOffer"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof confirmServiceOffer>>,
+    { caseId: number; offerId: number }
+  > = (props) => {
+    const { caseId, offerId } = props ?? {};
+
+    return confirmServiceOffer(caseId, offerId, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type ConfirmServiceOfferMutationResult = NonNullable<
+  Awaited<ReturnType<typeof confirmServiceOffer>>
+>;
+
+export type ConfirmServiceOfferMutationError = ErrorType<void>;
+
+/**
+ * @summary Record that the family picked this one
+ */
+export const useConfirmServiceOffer = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof confirmServiceOffer>>,
+    TError,
+    { caseId: number; offerId: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof confirmServiceOffer>>,
+  TError,
+  { caseId: number; offerId: number },
+  TContext
+> => {
+  return useMutation(getConfirmServiceOfferMutationOptions(options));
+};
+
+/**
+ * Refused once it is the chosen one. Deleting the family's answer out
+from under them would leave a case with a service date that no longer
+traces to anything, and a family who believes they have settled it.
+
+ * @summary Withdraw an offered time
+ */
+export const getDeleteServiceOfferUrl = (offerId: number) => {
+  return `/api/service-offers/${offerId}`;
+};
+
+export const deleteServiceOffer = async (
+  offerId: number,
+  options?: RequestInit,
+): Promise<void> => {
+  return customFetch<void>(getDeleteServiceOfferUrl(offerId), {
+    ...options,
+    method: "DELETE",
+  });
+};
+
+export const getDeleteServiceOfferMutationOptions = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof deleteServiceOffer>>,
+    TError,
+    { offerId: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof deleteServiceOffer>>,
+  TError,
+  { offerId: number },
+  TContext
+> => {
+  const mutationKey = ["deleteServiceOffer"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof deleteServiceOffer>>,
+    { offerId: number }
+  > = (props) => {
+    const { offerId } = props ?? {};
+
+    return deleteServiceOffer(offerId, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type DeleteServiceOfferMutationResult = NonNullable<
+  Awaited<ReturnType<typeof deleteServiceOffer>>
+>;
+
+export type DeleteServiceOfferMutationError = ErrorType<void>;
+
+/**
+ * @summary Withdraw an offered time
+ */
+export const useDeleteServiceOffer = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof deleteServiceOffer>>,
+    TError,
+    { offerId: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof deleteServiceOffer>>,
+  TError,
+  { offerId: number },
+  TContext
+> => {
+  return useMutation(getDeleteServiceOfferMutationOptions(options));
+};
+
+/**
+ * @summary The times the home can do, and which one was picked
+ */
+export const getGetFamilyServiceOffersUrl = () => {
+  return `/api/family/service-offers`;
+};
+
+export const getFamilyServiceOffers = async (
+  options?: RequestInit,
+): Promise<FamilyServiceOffers> => {
+  return customFetch<FamilyServiceOffers>(getGetFamilyServiceOffersUrl(), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getGetFamilyServiceOffersQueryKey = () => {
+  return [`/api/family/service-offers`] as const;
+};
+
+export const getGetFamilyServiceOffersQueryOptions = <
+  TData = Awaited<ReturnType<typeof getFamilyServiceOffers>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof getFamilyServiceOffers>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey =
+    queryOptions?.queryKey ?? getGetFamilyServiceOffersQueryKey();
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof getFamilyServiceOffers>>
+  > = ({ signal }) => getFamilyServiceOffers({ signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof getFamilyServiceOffers>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type GetFamilyServiceOffersQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getFamilyServiceOffers>>
+>;
+export type GetFamilyServiceOffersQueryError = ErrorType<unknown>;
+
+/**
+ * @summary The times the home can do, and which one was picked
+ */
+
+export function useGetFamilyServiceOffers<
+  TData = Awaited<ReturnType<typeof getFamilyServiceOffers>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof getFamilyServiceOffers>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getGetFamilyServiceOffersQueryOptions(options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * The one place a family sets a date on anything. Choosing writes the
+service date and builds the timeline from the home's standard
+schedule, so a family who answers at eleven at night has a dated list
+at eleven at night.
+
+A second choice is refused rather than applied. Two people in the
+same kitchen tapping two different times must not move a funeral, and
+changing an agreed time is a telephone call to the home, not a tap.
+
+ * @summary Pick one
+ */
+export const getChooseFamilyServiceOfferUrl = (offerId: number) => {
+  return `/api/family/service-offers/${offerId}/choose`;
+};
+
+export const chooseFamilyServiceOffer = async (
+  offerId: number,
+  options?: RequestInit,
+): Promise<FamilyServiceOffers> => {
+  return customFetch<FamilyServiceOffers>(
+    getChooseFamilyServiceOfferUrl(offerId),
+    {
+      ...options,
+      method: "POST",
+    },
+  );
+};
+
+export const getChooseFamilyServiceOfferMutationOptions = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof chooseFamilyServiceOffer>>,
+    TError,
+    { offerId: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof chooseFamilyServiceOffer>>,
+  TError,
+  { offerId: number },
+  TContext
+> => {
+  const mutationKey = ["chooseFamilyServiceOffer"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof chooseFamilyServiceOffer>>,
+    { offerId: number }
+  > = (props) => {
+    const { offerId } = props ?? {};
+
+    return chooseFamilyServiceOffer(offerId, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type ChooseFamilyServiceOfferMutationResult = NonNullable<
+  Awaited<ReturnType<typeof chooseFamilyServiceOffer>>
+>;
+
+export type ChooseFamilyServiceOfferMutationError = ErrorType<void>;
+
+/**
+ * @summary Pick one
+ */
+export const useChooseFamilyServiceOffer = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof chooseFamilyServiceOffer>>,
+    TError,
+    { offerId: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof chooseFamilyServiceOffer>>,
+  TError,
+  { offerId: number },
+  TContext
+> => {
+  return useMutation(getChooseFamilyServiceOfferMutationOptions(options));
+};
+
+/**
+ * Staff see drafts as well as published sections. The public page and
+the family portal see only the published ones.
+
+ * @summary What the home says the same way every time
+ */
+export const getGetHomePoliciesUrl = () => {
+  return `/api/home/policies`;
+};
+
+export const getHomePolicies = async (
+  options?: RequestInit,
+): Promise<HomePolicy[]> => {
+  return customFetch<HomePolicy[]>(getGetHomePoliciesUrl(), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getGetHomePoliciesQueryKey = () => {
+  return [`/api/home/policies`] as const;
+};
+
+export const getGetHomePoliciesQueryOptions = <
+  TData = Awaited<ReturnType<typeof getHomePolicies>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof getHomePolicies>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getGetHomePoliciesQueryKey();
+
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof getHomePolicies>>> = ({
+    signal,
+  }) => getHomePolicies({ signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof getHomePolicies>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type GetHomePoliciesQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getHomePolicies>>
+>;
+export type GetHomePoliciesQueryError = ErrorType<unknown>;
+
+/**
+ * @summary What the home says the same way every time
+ */
+
+export function useGetHomePolicies<
+  TData = Awaited<ReturnType<typeof getHomePolicies>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof getHomePolicies>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getGetHomePoliciesQueryOptions(options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary Add a section
+ */
+export const getCreateHomePolicyUrl = () => {
+  return `/api/home/policies`;
+};
+
+export const createHomePolicy = async (
+  homePolicyInput: HomePolicyInput,
+  options?: RequestInit,
+): Promise<HomePolicy> => {
+  return customFetch<HomePolicy>(getCreateHomePolicyUrl(), {
+    ...options,
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(homePolicyInput),
+  });
+};
+
+export const getCreateHomePolicyMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof createHomePolicy>>,
+    TError,
+    { data: BodyType<HomePolicyInput> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof createHomePolicy>>,
+  TError,
+  { data: BodyType<HomePolicyInput> },
+  TContext
+> => {
+  const mutationKey = ["createHomePolicy"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof createHomePolicy>>,
+    { data: BodyType<HomePolicyInput> }
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return createHomePolicy(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type CreateHomePolicyMutationResult = NonNullable<
+  Awaited<ReturnType<typeof createHomePolicy>>
+>;
+export type CreateHomePolicyMutationBody = BodyType<HomePolicyInput>;
+export type CreateHomePolicyMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Add a section
+ */
+export const useCreateHomePolicy = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof createHomePolicy>>,
+    TError,
+    { data: BodyType<HomePolicyInput> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof createHomePolicy>>,
+  TError,
+  { data: BodyType<HomePolicyInput> },
+  TContext
+> => {
+  return useMutation(getCreateHomePolicyMutationOptions(options));
+};
+
+/**
+ * @summary Edit a section, or publish it
+ */
+export const getUpdateHomePolicyUrl = (policyId: number) => {
+  return `/api/policies/${policyId}`;
+};
+
+export const updateHomePolicy = async (
+  policyId: number,
+  homePolicyUpdate: HomePolicyUpdate,
+  options?: RequestInit,
+): Promise<HomePolicy> => {
+  return customFetch<HomePolicy>(getUpdateHomePolicyUrl(policyId), {
+    ...options,
+    method: "PUT",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(homePolicyUpdate),
+  });
+};
+
+export const getUpdateHomePolicyMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof updateHomePolicy>>,
+    TError,
+    { policyId: number; data: BodyType<HomePolicyUpdate> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof updateHomePolicy>>,
+  TError,
+  { policyId: number; data: BodyType<HomePolicyUpdate> },
+  TContext
+> => {
+  const mutationKey = ["updateHomePolicy"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof updateHomePolicy>>,
+    { policyId: number; data: BodyType<HomePolicyUpdate> }
+  > = (props) => {
+    const { policyId, data } = props ?? {};
+
+    return updateHomePolicy(policyId, data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type UpdateHomePolicyMutationResult = NonNullable<
+  Awaited<ReturnType<typeof updateHomePolicy>>
+>;
+export type UpdateHomePolicyMutationBody = BodyType<HomePolicyUpdate>;
+export type UpdateHomePolicyMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Edit a section, or publish it
+ */
+export const useUpdateHomePolicy = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof updateHomePolicy>>,
+    TError,
+    { policyId: number; data: BodyType<HomePolicyUpdate> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof updateHomePolicy>>,
+  TError,
+  { policyId: number; data: BodyType<HomePolicyUpdate> },
+  TContext
+> => {
+  return useMutation(getUpdateHomePolicyMutationOptions(options));
+};
+
+/**
+ * @summary Remove a section
+ */
+export const getDeleteHomePolicyUrl = (policyId: number) => {
+  return `/api/policies/${policyId}`;
+};
+
+export const deleteHomePolicy = async (
+  policyId: number,
+  options?: RequestInit,
+): Promise<void> => {
+  return customFetch<void>(getDeleteHomePolicyUrl(policyId), {
+    ...options,
+    method: "DELETE",
+  });
+};
+
+export const getDeleteHomePolicyMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof deleteHomePolicy>>,
+    TError,
+    { policyId: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof deleteHomePolicy>>,
+  TError,
+  { policyId: number },
+  TContext
+> => {
+  const mutationKey = ["deleteHomePolicy"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof deleteHomePolicy>>,
+    { policyId: number }
+  > = (props) => {
+    const { policyId } = props ?? {};
+
+    return deleteHomePolicy(policyId, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type DeleteHomePolicyMutationResult = NonNullable<
+  Awaited<ReturnType<typeof deleteHomePolicy>>
+>;
+
+export type DeleteHomePolicyMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Remove a section
+ */
+export const useDeleteHomePolicy = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof deleteHomePolicy>>,
+    TError,
+    { policyId: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof deleteHomePolicy>>,
+  TError,
+  { policyId: number },
+  TContext
+> => {
+  return useMutation(getDeleteHomePolicyMutationOptions(options));
+};
+
+/**
+ * Staff-only, and that is a rule rather than a default. These numbers
+are never returned by a family route or a public one - the FTC
+Funeral Rule governs how a funeral provider discloses prices, and a
+national SaaS publishing a home's numbers off a text box would be
+handing that home a compliance problem. This is the crib sheet a
+director has open at a kitchen table, nothing more.
+
+ * @summary The home's own prices, for the home's own staff
+ */
+export const getGetPriceListUrl = () => {
+  return `/api/home/price-list`;
+};
+
+export const getPriceList = async (
+  options?: RequestInit,
+): Promise<PriceItem[]> => {
+  return customFetch<PriceItem[]>(getGetPriceListUrl(), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getGetPriceListQueryKey = () => {
+  return [`/api/home/price-list`] as const;
+};
+
+export const getGetPriceListQueryOptions = <
+  TData = Awaited<ReturnType<typeof getPriceList>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof getPriceList>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getGetPriceListQueryKey();
+
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof getPriceList>>> = ({
+    signal,
+  }) => getPriceList({ signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof getPriceList>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type GetPriceListQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getPriceList>>
+>;
+export type GetPriceListQueryError = ErrorType<unknown>;
+
+/**
+ * @summary The home's own prices, for the home's own staff
+ */
+
+export function useGetPriceList<
+  TData = Awaited<ReturnType<typeof getPriceList>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof getPriceList>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getGetPriceListQueryOptions(options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary Add a line
+ */
+export const getCreatePriceItemUrl = () => {
+  return `/api/home/price-list`;
+};
+
+export const createPriceItem = async (
+  priceItemInput: PriceItemInput,
+  options?: RequestInit,
+): Promise<PriceItem> => {
+  return customFetch<PriceItem>(getCreatePriceItemUrl(), {
+    ...options,
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(priceItemInput),
+  });
+};
+
+export const getCreatePriceItemMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof createPriceItem>>,
+    TError,
+    { data: BodyType<PriceItemInput> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof createPriceItem>>,
+  TError,
+  { data: BodyType<PriceItemInput> },
+  TContext
+> => {
+  const mutationKey = ["createPriceItem"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof createPriceItem>>,
+    { data: BodyType<PriceItemInput> }
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return createPriceItem(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type CreatePriceItemMutationResult = NonNullable<
+  Awaited<ReturnType<typeof createPriceItem>>
+>;
+export type CreatePriceItemMutationBody = BodyType<PriceItemInput>;
+export type CreatePriceItemMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Add a line
+ */
+export const useCreatePriceItem = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof createPriceItem>>,
+    TError,
+    { data: BodyType<PriceItemInput> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof createPriceItem>>,
+  TError,
+  { data: BodyType<PriceItemInput> },
+  TContext
+> => {
+  return useMutation(getCreatePriceItemMutationOptions(options));
+};
+
+/**
+ * @summary Change a line, or take it off the sheet
+ */
+export const getUpdatePriceItemUrl = (itemId: number) => {
+  return `/api/price-items/${itemId}`;
+};
+
+export const updatePriceItem = async (
+  itemId: number,
+  priceItemUpdate: PriceItemUpdate,
+  options?: RequestInit,
+): Promise<PriceItem> => {
+  return customFetch<PriceItem>(getUpdatePriceItemUrl(itemId), {
+    ...options,
+    method: "PUT",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(priceItemUpdate),
+  });
+};
+
+export const getUpdatePriceItemMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof updatePriceItem>>,
+    TError,
+    { itemId: number; data: BodyType<PriceItemUpdate> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof updatePriceItem>>,
+  TError,
+  { itemId: number; data: BodyType<PriceItemUpdate> },
+  TContext
+> => {
+  const mutationKey = ["updatePriceItem"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof updatePriceItem>>,
+    { itemId: number; data: BodyType<PriceItemUpdate> }
+  > = (props) => {
+    const { itemId, data } = props ?? {};
+
+    return updatePriceItem(itemId, data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type UpdatePriceItemMutationResult = NonNullable<
+  Awaited<ReturnType<typeof updatePriceItem>>
+>;
+export type UpdatePriceItemMutationBody = BodyType<PriceItemUpdate>;
+export type UpdatePriceItemMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Change a line, or take it off the sheet
+ */
+export const useUpdatePriceItem = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof updatePriceItem>>,
+    TError,
+    { itemId: number; data: BodyType<PriceItemUpdate> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof updatePriceItem>>,
+  TError,
+  { itemId: number; data: BodyType<PriceItemUpdate> },
+  TContext
+> => {
+  return useMutation(getUpdatePriceItemMutationOptions(options));
+};
+
+/**
+ * @summary Delete a line
+ */
+export const getDeletePriceItemUrl = (itemId: number) => {
+  return `/api/price-items/${itemId}`;
+};
+
+export const deletePriceItem = async (
+  itemId: number,
+  options?: RequestInit,
+): Promise<void> => {
+  return customFetch<void>(getDeletePriceItemUrl(itemId), {
+    ...options,
+    method: "DELETE",
+  });
+};
+
+export const getDeletePriceItemMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof deletePriceItem>>,
+    TError,
+    { itemId: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof deletePriceItem>>,
+  TError,
+  { itemId: number },
+  TContext
+> => {
+  const mutationKey = ["deletePriceItem"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof deletePriceItem>>,
+    { itemId: number }
+  > = (props) => {
+    const { itemId } = props ?? {};
+
+    return deletePriceItem(itemId, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type DeletePriceItemMutationResult = NonNullable<
+  Awaited<ReturnType<typeof deletePriceItem>>
+>;
+
+export type DeletePriceItemMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Delete a line
+ */
+export const useDeletePriceItem = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof deletePriceItem>>,
+    TError,
+    { itemId: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof deletePriceItem>>,
+  TError,
+  { itemId: number },
+  TContext
+> => {
+  return useMutation(getDeletePriceItemMutationOptions(options));
 };
 
 /**

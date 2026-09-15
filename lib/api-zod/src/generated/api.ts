@@ -70,6 +70,29 @@ export const GetPublicHomeResponse = zod
     officeOpensMinute: zod.number(),
     officeClosesMinute: zod.number(),
     timezone: zod.string(),
+    storefrontHeadline: zod
+      .string()
+      .nullable()
+      .describe(
+        "One line above the form on the public page. What a family needs\noff it is that they have the right place and that a person will\nanswer - not that the home is compassionate, which every home\nsays.\n",
+      ),
+    storefrontAbout: zod
+      .string()
+      .nullable()
+      .describe("A paragraph or two under it. Both may be blank."),
+    policies: zod
+      .array(
+        zod
+          .object({
+            id: zod.number(),
+            title: zod.string(),
+            body: zod.string(),
+          })
+          .describe("A published policy section, as anyone may read it."),
+      )
+      .describe(
+        "The home's published policy sections. Drafts are absent, and so\nis any hint that there are drafts. Prices are absent too, and\nthat is not an oversight - see `\/home\/price-list`.\n",
+      ),
   })
   .describe("The home as a family may see it - branding and how to reach it.");
 
@@ -199,6 +222,26 @@ export const LoginResponse = zod.object({
         "Where a request lands. Falls back to the owner's address, because\na form that fills a queue nobody opens is worse than no form -\nthe family believes they have reached someone.\n",
       ),
     aftercareSenderName: zod.string().nullish(),
+    storefrontHeadline: zod
+      .string()
+      .nullish()
+      .describe(
+        "One line above the form on the public page. What a family needs\noff it is that they have the right place and that a person will\nanswer - not that the home is compassionate, which every home\nsays.\n",
+      ),
+    storefrontAbout: zod
+      .string()
+      .nullish()
+      .describe("A paragraph or two under it. Both may be blank."),
+    messageLockDays: zod
+      .number()
+      .describe(
+        "How long the case chat stays open after the service. Read when a\ncase closes, so shortening it never slams a live conversation\nshut mid-sentence.\n",
+      ),
+    slideshowTarget: zod
+      .number()
+      .describe(
+        "How many photographs the home asks a family to pick. Shown as a\ntarget, never enforced.\n",
+      ),
     subscriptionStatus: zod.enum(["trial", "active", "past_due", "canceled"]),
     trialEndsAt: zod.date().nullish(),
   }),
@@ -245,6 +288,26 @@ export const GetCurrentUserResponse = zod.object({
         "Where a request lands. Falls back to the owner's address, because\na form that fills a queue nobody opens is worse than no form -\nthe family believes they have reached someone.\n",
       ),
     aftercareSenderName: zod.string().nullish(),
+    storefrontHeadline: zod
+      .string()
+      .nullish()
+      .describe(
+        "One line above the form on the public page. What a family needs\noff it is that they have the right place and that a person will\nanswer - not that the home is compassionate, which every home\nsays.\n",
+      ),
+    storefrontAbout: zod
+      .string()
+      .nullish()
+      .describe("A paragraph or two under it. Both may be blank."),
+    messageLockDays: zod
+      .number()
+      .describe(
+        "How long the case chat stays open after the service. Read when a\ncase closes, so shortening it never slams a live conversation\nshut mid-sentence.\n",
+      ),
+    slideshowTarget: zod
+      .number()
+      .describe(
+        "How many photographs the home asks a family to pick. Shown as a\ntarget, never enforced.\n",
+      ),
     subscriptionStatus: zod.enum(["trial", "active", "past_due", "canceled"]),
     trialEndsAt: zod.date().nullish(),
   }),
@@ -299,6 +362,26 @@ export const GetHomeResponse = zod.object({
       "Where a request lands. Falls back to the owner's address, because\na form that fills a queue nobody opens is worse than no form -\nthe family believes they have reached someone.\n",
     ),
   aftercareSenderName: zod.string().nullish(),
+  storefrontHeadline: zod
+    .string()
+    .nullish()
+    .describe(
+      "One line above the form on the public page. What a family needs\noff it is that they have the right place and that a person will\nanswer - not that the home is compassionate, which every home\nsays.\n",
+    ),
+  storefrontAbout: zod
+    .string()
+    .nullish()
+    .describe("A paragraph or two under it. Both may be blank."),
+  messageLockDays: zod
+    .number()
+    .describe(
+      "How long the case chat stays open after the service. Read when a\ncase closes, so shortening it never slams a live conversation\nshut mid-sentence.\n",
+    ),
+  slideshowTarget: zod
+    .number()
+    .describe(
+      "How many photographs the home asks a family to pick. Shown as a\ntarget, never enforced.\n",
+    ),
   subscriptionStatus: zod.enum(["trial", "active", "past_due", "canceled"]),
   trialEndsAt: zod.date().nullish(),
 });
@@ -311,6 +394,14 @@ export const updateHomeBodyOfficeOpensMinuteMax = 1439;
 
 export const updateHomeBodyOfficeClosesMinuteMin = 0;
 export const updateHomeBodyOfficeClosesMinuteMax = 1439;
+
+export const updateHomeBodyStorefrontHeadlineMax = 160;
+
+export const updateHomeBodyStorefrontAboutMax = 4000;
+
+export const updateHomeBodyMessageLockDaysMax = 365;
+
+export const updateHomeBodySlideshowTargetMax = 500;
 
 export const UpdateHomeBody = zod.object({
   name: zod.string().optional(),
@@ -338,6 +429,21 @@ export const UpdateHomeBody = zod.object({
   intakeEnabled: zod.boolean().optional(),
   intakeNotifyEmail: zod.string().nullish(),
   aftercareSenderName: zod.string().nullish(),
+  storefrontHeadline: zod
+    .string()
+    .max(updateHomeBodyStorefrontHeadlineMax)
+    .nullish(),
+  storefrontAbout: zod.string().max(updateHomeBodyStorefrontAboutMax).nullish(),
+  messageLockDays: zod
+    .number()
+    .min(1)
+    .max(updateHomeBodyMessageLockDaysMax)
+    .optional(),
+  slideshowTarget: zod
+    .number()
+    .min(1)
+    .max(updateHomeBodySlideshowTargetMax)
+    .optional(),
 });
 
 export const UpdateHomeResponse = zod.object({
@@ -369,6 +475,26 @@ export const UpdateHomeResponse = zod.object({
       "Where a request lands. Falls back to the owner's address, because\na form that fills a queue nobody opens is worse than no form -\nthe family believes they have reached someone.\n",
     ),
   aftercareSenderName: zod.string().nullish(),
+  storefrontHeadline: zod
+    .string()
+    .nullish()
+    .describe(
+      "One line above the form on the public page. What a family needs\noff it is that they have the right place and that a person will\nanswer - not that the home is compassionate, which every home\nsays.\n",
+    ),
+  storefrontAbout: zod
+    .string()
+    .nullish()
+    .describe("A paragraph or two under it. Both may be blank."),
+  messageLockDays: zod
+    .number()
+    .describe(
+      "How long the case chat stays open after the service. Read when a\ncase closes, so shortening it never slams a live conversation\nshut mid-sentence.\n",
+    ),
+  slideshowTarget: zod
+    .number()
+    .describe(
+      "How many photographs the home asks a family to pick. Shown as a\ntarget, never enforced.\n",
+    ),
   subscriptionStatus: zod.enum(["trial", "active", "past_due", "canceled"]),
   trialEndsAt: zod.date().nullish(),
 });
@@ -570,6 +696,541 @@ export const UpdateTimelineTemplateResponse = zod.object({
  */
 export const DeleteTimelineTemplateParams = zod.object({
   templateId: zod.coerce.number(),
+});
+
+/**
+ * One read for the landing screen. Nothing here is new information:
+every number on it is reachable a page at a time. What it adds is
+that a director opening the console at eight in the morning does not
+have to visit four screens to discover that a family answered at
+midnight and a service is tomorrow.
+
+Scoped to the signed-in staff member's own home, like everything
+below the session gate.
+
+ * @summary The home's master page - what needs answering today
+ */
+export const GetHomeDashboardResponse = zod
+  .object({
+    homeName: zod.string(),
+    openCases: zod
+      .number()
+      .describe("Cases not yet closed. The size of what is being carried."),
+    servicesThisWeek: zod
+      .array(
+        zod.object({
+          caseId: zod.number(),
+          decedentName: zod.string(),
+          kind: zod.enum(["at_need", "pre_need"]),
+          serviceAt: zod.date(),
+          serviceLocation: zod.string().nullable(),
+        }),
+      )
+      .describe("Services in the next seven days, soonest first."),
+    awaitingServiceDate: zod
+      .array(
+        zod.object({
+          caseId: zod.number(),
+          decedentName: zod.string(),
+          kind: zod
+            .enum(["at_need", "pre_need"])
+            .describe(
+              "Read this before writing any sentence about the person. A\n`pre_need` subject is alive and arranging their own funeral.\n",
+            ),
+          openedAt: zod.date(),
+        }),
+      )
+      .describe(
+        "Active cases with no service date at all. These are the ones\nwhere nothing is due yet because nothing can be dated - the\nstandard schedule measures from the service, so a case without\none has an empty timeline and a family being told nothing.\n",
+      ),
+    overdue: zod
+      .array(
+        zod.object({
+          id: zod.number(),
+          caseId: zod.number(),
+          decedentName: zod.string(),
+          title: zod.string(),
+          dueAt: zod.date(),
+          isEvent: zod.boolean(),
+        }),
+      )
+      .describe("Past due, not done. Across every open case."),
+    dueSoon: zod
+      .array(
+        zod.object({
+          id: zod.number(),
+          caseId: zod.number(),
+          decedentName: zod.string(),
+          title: zod.string(),
+          dueAt: zod.date(),
+          isEvent: zod.boolean(),
+        }),
+      )
+      .describe("Due in the next three days."),
+    unansweredMessages: zod
+      .number()
+      .describe("Messages from families nobody at the home has read."),
+    casesWaitingOnReply: zod
+      .number()
+      .describe("How many separate families those are sitting in."),
+    pendingRequests: zod
+      .number()
+      .describe("Requests off the public page waiting for a director."),
+    offersAwaitingChoice: zod
+      .number()
+      .describe(
+        "Cases where the home has offered times and nobody has picked.",
+      ),
+  })
+  .describe(
+    "The landing screen, in one read. Counts and the few rows behind them -\nnever the whole case list, because a home three years in has hundreds\nand a dashboard that loads them all stops being a dashboard.\n",
+  );
+
+/**
+ * The cross-case view of the one-thread-per-case rule. A director
+working four funerals had no way to see that the Okonkwo family wrote
+at midnight except by opening the Okonkwo case.
+
+Replying is deliberately not here. A reply goes to
+`POST /cases/{caseId}/messages`, which is the single place a message
+can be written, the single place the out-of-hours stamp is applied,
+and the single place the fortnight lock is enforced.
+
+ * @summary Every family conversation, the ones waiting first
+ */
+export const GetHomeInboxResponseItem = zod
+  .object({
+    caseId: zod.number(),
+    decedentName: zod.string(),
+    kind: zod.enum(["at_need", "pre_need"]),
+    lastMessageBody: zod
+      .string()
+      .describe("Trimmed for a list. The thread has the whole thing."),
+    lastMessageAt: zod.date(),
+    lastMessageFrom: zod.enum(["home", "family"]),
+    unreadFromFamily: zod
+      .number()
+      .describe(
+        "How many the home has not opened. This is what sorts the list:\nsomebody waiting comes before somebody who was answered.\n",
+      ),
+    sentOutsideOfficeHours: zod
+      .boolean()
+      .describe(
+        "Whether the latest family message arrived outside the home's\nhours. Not a reason to reply at 2am - it is context for a\ndirector reading at eight.\n",
+      ),
+    locked: zod
+      .boolean()
+      .describe("The fortnight after the service has passed, for both sides."),
+  })
+  .describe("One case's conversation, summarised.");
+export const GetHomeInboxResponse = zod.array(GetHomeInboxResponseItem);
+
+/**
+ * @summary The times offered to this family
+ */
+export const GetServiceOffersParams = zod.object({
+  caseId: zod.coerce.number(),
+});
+
+export const GetServiceOffersResponseItem = zod
+  .object({
+    id: zod.number(),
+    caseId: zod.number(),
+    startsAt: zod.date(),
+    location: zod.string().nullable(),
+    note: zod.string().nullable(),
+    position: zod.number(),
+    chosenAt: zod.date().nullable(),
+    chosenByName: zod
+      .string()
+      .nullable()
+      .describe(
+        "Who answered, when it was the family. Null when the home\nconfirmed it on their behalf, which is what a telephone call\nlooks like from here.\n",
+      ),
+  })
+  .describe(
+    "A time the home has confirmed it can do, waiting on the family.\n",
+  );
+export const GetServiceOffersResponse = zod.array(GetServiceOffersResponseItem);
+
+/**
+ * A time the home has already confirmed it can do. This endpoint knows
+nothing about whether the church is free - it records what the
+director would otherwise have said on the telephone.
+
+Refused once the family has chosen, because a list that grows after
+an answer is a list somebody will answer twice.
+
+ * @summary Offer the family a time
+ */
+export const CreateServiceOfferParams = zod.object({
+  caseId: zod.coerce.number(),
+});
+
+export const createServiceOfferBodyLocationMax = 200;
+
+export const createServiceOfferBodyNoteMax = 400;
+
+export const CreateServiceOfferBody = zod.object({
+  startsAt: zod.coerce.date(),
+  location: zod.string().max(createServiceOfferBodyLocationMax).nullish(),
+  note: zod.string().max(createServiceOfferBodyNoteMax).nullish(),
+});
+
+/**
+ * For the family who rang instead of tapping, which is most of them
+over sixty. Identical in effect to the family choosing it themselves:
+the service date is set and the home's standard schedule is applied.
+
+ * @summary Record that the family picked this one
+ */
+export const ConfirmServiceOfferParams = zod.object({
+  caseId: zod.coerce.number(),
+  offerId: zod.coerce.number(),
+});
+
+export const ConfirmServiceOfferResponse = zod
+  .object({
+    offer: zod
+      .object({
+        id: zod.number(),
+        caseId: zod.number(),
+        startsAt: zod.date(),
+        location: zod.string().nullable(),
+        note: zod.string().nullable(),
+        position: zod.number(),
+        chosenAt: zod.date().nullable(),
+        chosenByName: zod
+          .string()
+          .nullable()
+          .describe(
+            "Who answered, when it was the family. Null when the home\nconfirmed it on their behalf, which is what a telephone call\nlooks like from here.\n",
+          ),
+      })
+      .describe(
+        "A time the home has confirmed it can do, waiting on the family.\n",
+      ),
+    serviceAt: zod.date(),
+    scheduleCreated: zod
+      .number()
+      .describe("Timeline entries added from the home's standard schedule."),
+    scheduleMoved: zod
+      .number()
+      .describe("Entries that already existed and were moved to fit."),
+  })
+  .describe(
+    "What choosing did, so the console can say it rather than imply it.",
+  );
+
+/**
+ * Refused once it is the chosen one. Deleting the family's answer out
+from under them would leave a case with a service date that no longer
+traces to anything, and a family who believes they have settled it.
+
+ * @summary Withdraw an offered time
+ */
+export const DeleteServiceOfferParams = zod.object({
+  offerId: zod.coerce.number(),
+});
+
+/**
+ * @summary The times the home can do, and which one was picked
+ */
+export const GetFamilyServiceOffersResponse = zod
+  .object({
+    offers: zod.array(
+      zod
+        .object({
+          id: zod.number(),
+          caseId: zod.number(),
+          startsAt: zod.date(),
+          location: zod.string().nullable(),
+          note: zod.string().nullable(),
+          position: zod.number(),
+          chosenAt: zod.date().nullable(),
+          chosenByName: zod
+            .string()
+            .nullable()
+            .describe(
+              "Who answered, when it was the family. Null when the home\nconfirmed it on their behalf, which is what a telephone call\nlooks like from here.\n",
+            ),
+        })
+        .describe(
+          "A time the home has confirmed it can do, waiting on the family.\n",
+        ),
+    ),
+    chosenOfferId: zod.number().nullable(),
+    serviceAt: zod
+      .date()
+      .nullable()
+      .describe(
+        "The confirmed time, which may have been set by the home without\nany offer at all. A family shown this has nothing left to answer.\n",
+      ),
+    serviceLocation: zod.string().nullable(),
+    homePhone: zod
+      .string()
+      .nullable()
+      .describe(
+        "Shown beside a settled choice, because the way to change an\nagreed funeral time is to speak to a person.\n",
+      ),
+  })
+  .describe(
+    "The choice as the family sees it. `chosenOfferId` null with a\nnon-empty `offers` is the only state that asks them for anything.\n",
+  );
+
+/**
+ * The one place a family sets a date on anything. Choosing writes the
+service date and builds the timeline from the home's standard
+schedule, so a family who answers at eleven at night has a dated list
+at eleven at night.
+
+A second choice is refused rather than applied. Two people in the
+same kitchen tapping two different times must not move a funeral, and
+changing an agreed time is a telephone call to the home, not a tap.
+
+ * @summary Pick one
+ */
+export const ChooseFamilyServiceOfferParams = zod.object({
+  offerId: zod.coerce.number(),
+});
+
+export const ChooseFamilyServiceOfferResponse = zod
+  .object({
+    offers: zod.array(
+      zod
+        .object({
+          id: zod.number(),
+          caseId: zod.number(),
+          startsAt: zod.date(),
+          location: zod.string().nullable(),
+          note: zod.string().nullable(),
+          position: zod.number(),
+          chosenAt: zod.date().nullable(),
+          chosenByName: zod
+            .string()
+            .nullable()
+            .describe(
+              "Who answered, when it was the family. Null when the home\nconfirmed it on their behalf, which is what a telephone call\nlooks like from here.\n",
+            ),
+        })
+        .describe(
+          "A time the home has confirmed it can do, waiting on the family.\n",
+        ),
+    ),
+    chosenOfferId: zod.number().nullable(),
+    serviceAt: zod
+      .date()
+      .nullable()
+      .describe(
+        "The confirmed time, which may have been set by the home without\nany offer at all. A family shown this has nothing left to answer.\n",
+      ),
+    serviceLocation: zod.string().nullable(),
+    homePhone: zod
+      .string()
+      .nullable()
+      .describe(
+        "Shown beside a settled choice, because the way to change an\nagreed funeral time is to speak to a person.\n",
+      ),
+  })
+  .describe(
+    "The choice as the family sees it. `chosenOfferId` null with a\nnon-empty `offers` is the only state that asks them for anything.\n",
+  );
+
+/**
+ * Staff see drafts as well as published sections. The public page and
+the family portal see only the published ones.
+
+ * @summary What the home says the same way every time
+ */
+export const GetHomePoliciesResponseItem = zod
+  .object({
+    id: zod.number(),
+    title: zod.string(),
+    body: zod.string(),
+    position: zod.number(),
+    published: zod
+      .boolean()
+      .describe("False is a draft. Staff see it; nobody else does."),
+  })
+  .describe(
+    "A section of the home's own words. Words only - nothing here changes\nwhat the software does.\n",
+  );
+export const GetHomePoliciesResponse = zod.array(GetHomePoliciesResponseItem);
+
+/**
+ * @summary Add a section
+ */
+export const createHomePolicyBodyTitleMax = 120;
+
+export const createHomePolicyBodyBodyMax = 4000;
+
+export const CreateHomePolicyBody = zod.object({
+  title: zod.string().min(1).max(createHomePolicyBodyTitleMax),
+  body: zod.string().min(1).max(createHomePolicyBodyBodyMax),
+  published: zod.boolean().optional(),
+});
+
+/**
+ * @summary Edit a section, or publish it
+ */
+export const UpdateHomePolicyParams = zod.object({
+  policyId: zod.coerce.number(),
+});
+
+export const updateHomePolicyBodyTitleMax = 120;
+
+export const updateHomePolicyBodyBodyMax = 4000;
+
+export const updateHomePolicyBodyPositionMin = 0;
+
+export const UpdateHomePolicyBody = zod.object({
+  title: zod.string().min(1).max(updateHomePolicyBodyTitleMax).optional(),
+  body: zod.string().min(1).max(updateHomePolicyBodyBodyMax).optional(),
+  position: zod.number().min(updateHomePolicyBodyPositionMin).optional(),
+  published: zod.boolean().optional(),
+});
+
+export const UpdateHomePolicyResponse = zod
+  .object({
+    id: zod.number(),
+    title: zod.string(),
+    body: zod.string(),
+    position: zod.number(),
+    published: zod
+      .boolean()
+      .describe("False is a draft. Staff see it; nobody else does."),
+  })
+  .describe(
+    "A section of the home's own words. Words only - nothing here changes\nwhat the software does.\n",
+  );
+
+/**
+ * @summary Remove a section
+ */
+export const DeleteHomePolicyParams = zod.object({
+  policyId: zod.coerce.number(),
+});
+
+/**
+ * Staff-only, and that is a rule rather than a default. These numbers
+are never returned by a family route or a public one - the FTC
+Funeral Rule governs how a funeral provider discloses prices, and a
+national SaaS publishing a home's numbers off a text box would be
+handing that home a compliance problem. This is the crib sheet a
+director has open at a kitchen table, nothing more.
+
+ * @summary The home's own prices, for the home's own staff
+ */
+export const GetPriceListResponseItem = zod
+  .object({
+    id: zod.number(),
+    category: zod.string(),
+    label: zod.string(),
+    amountCents: zod
+      .number()
+      .nullable()
+      .describe(
+        "Null means there is no number - flowers at market, a cemetery's\nown fee. The note carries the reason.\n",
+      ),
+    amountLabel: zod
+      .string()
+      .nullable()
+      .describe(
+        "The amount already formatted, so two clients cannot round it differently.",
+      ),
+    note: zod.string().nullable(),
+    position: zod.number(),
+    enabled: zod.boolean(),
+  })
+  .describe(
+    "One line of the home's staff-only crib sheet. Never returned by a\nfamily or public endpoint - see the `\/home\/price-list` description.\n",
+  );
+export const GetPriceListResponse = zod.array(GetPriceListResponseItem);
+
+/**
+ * @summary Add a line
+ */
+export const createPriceItemBodyCategoryMax = 80;
+
+export const createPriceItemBodyLabelMax = 160;
+
+export const createPriceItemBodyAmountCentsMin = 0;
+export const createPriceItemBodyAmountCentsMax = 100000000;
+
+export const createPriceItemBodyNoteMax = 200;
+
+export const CreatePriceItemBody = zod.object({
+  category: zod.string().min(1).max(createPriceItemBodyCategoryMax),
+  label: zod.string().min(1).max(createPriceItemBodyLabelMax),
+  amountCents: zod
+    .number()
+    .min(createPriceItemBodyAmountCentsMin)
+    .max(createPriceItemBodyAmountCentsMax)
+    .nullish(),
+  note: zod.string().max(createPriceItemBodyNoteMax).nullish(),
+});
+
+/**
+ * @summary Change a line, or take it off the sheet
+ */
+export const UpdatePriceItemParams = zod.object({
+  itemId: zod.coerce.number(),
+});
+
+export const updatePriceItemBodyCategoryMax = 80;
+
+export const updatePriceItemBodyLabelMax = 160;
+
+export const updatePriceItemBodyAmountCentsMin = 0;
+export const updatePriceItemBodyAmountCentsMax = 100000000;
+
+export const updatePriceItemBodyNoteMax = 200;
+
+export const updatePriceItemBodyPositionMin = 0;
+
+export const UpdatePriceItemBody = zod.object({
+  category: zod.string().min(1).max(updatePriceItemBodyCategoryMax).optional(),
+  label: zod.string().min(1).max(updatePriceItemBodyLabelMax).optional(),
+  amountCents: zod
+    .number()
+    .min(updatePriceItemBodyAmountCentsMin)
+    .max(updatePriceItemBodyAmountCentsMax)
+    .nullish(),
+  note: zod.string().max(updatePriceItemBodyNoteMax).nullish(),
+  position: zod.number().min(updatePriceItemBodyPositionMin).optional(),
+  enabled: zod.boolean().optional(),
+});
+
+export const UpdatePriceItemResponse = zod
+  .object({
+    id: zod.number(),
+    category: zod.string(),
+    label: zod.string(),
+    amountCents: zod
+      .number()
+      .nullable()
+      .describe(
+        "Null means there is no number - flowers at market, a cemetery's\nown fee. The note carries the reason.\n",
+      ),
+    amountLabel: zod
+      .string()
+      .nullable()
+      .describe(
+        "The amount already formatted, so two clients cannot round it differently.",
+      ),
+    note: zod.string().nullable(),
+    position: zod.number(),
+    enabled: zod.boolean(),
+  })
+  .describe(
+    "One line of the home's staff-only crib sheet. Never returned by a\nfamily or public endpoint - see the `\/home\/price-list` description.\n",
+  );
+
+/**
+ * @summary Delete a line
+ */
+export const DeletePriceItemParams = zod.object({
+  itemId: zod.coerce.number(),
 });
 
 /**
@@ -3387,6 +4048,29 @@ export const GetFamilySessionResponse = zod
         officeOpensMinute: zod.number(),
         officeClosesMinute: zod.number(),
         timezone: zod.string(),
+        storefrontHeadline: zod
+          .string()
+          .nullable()
+          .describe(
+            "One line above the form on the public page. What a family needs\noff it is that they have the right place and that a person will\nanswer - not that the home is compassionate, which every home\nsays.\n",
+          ),
+        storefrontAbout: zod
+          .string()
+          .nullable()
+          .describe("A paragraph or two under it. Both may be blank."),
+        policies: zod
+          .array(
+            zod
+              .object({
+                id: zod.number(),
+                title: zod.string(),
+                body: zod.string(),
+              })
+              .describe("A published policy section, as anyone may read it."),
+          )
+          .describe(
+            "The home's published policy sections. Drafts are absent, and so\nis any hint that there are drafts. Prices are absent too, and\nthat is not an oversight - see `\/home\/price-list`.\n",
+          ),
       })
       .describe(
         "The home as a family may see it - branding and how to reach it.",
@@ -3438,6 +4122,11 @@ export const GetFamilySessionResponse = zod
     outstandingDeadlines: zod.number(),
     unreadMessages: zod.number(),
     messagesLocked: zod.boolean(),
+    awaitingServiceChoice: zod
+      .boolean()
+      .describe(
+        "The home has offered times and nobody has picked one. The single\nthing on this screen that somebody else is waiting on, so the\nportal puts it above everything else.\n",
+      ),
     aftercare: zod.union([
       zod.object({
         id: zod.number(),

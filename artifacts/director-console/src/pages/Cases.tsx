@@ -28,7 +28,7 @@ import {
   TriangleAlert,
 } from "lucide-react";
 import { ImportCases } from "@/components/ImportCases";
-import { SetupChecklist, TrialBanner } from "@/components/SetupChecklist";
+import { TrialBanner } from "@/components/SetupChecklist";
 import { Empty, Loading, PageHeader } from "@/components/page";
 
 /**
@@ -154,8 +154,9 @@ export default function Cases() {
 
   return (
     <div className="space-y-6">
+      {/* The setup checklist moved to the landing page; the trial notice
+          stays because this is where a director tries to open a case. */}
       <TrialBanner />
-      <SetupChecklist />
 
       <PageHeader
         title={showClosed ? "Closed cases" : "Cases"}

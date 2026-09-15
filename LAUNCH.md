@@ -60,11 +60,18 @@ production esbuild bundle, through the real nginx config:
 
 These were chosen, and the reasoning is in the code next to them:
 
-- **No price list, no invoices, no contracts.** The FTC Funeral Rule governs
-  how prices are disclosed, and every state's pre-need statute differs. A
-  national SaaS generating that paperwork would be selling homes a compliance
+- **No published price list, no invoices, no contracts.** The FTC Funeral Rule
+  governs how prices are disclosed, and every state's pre-need statute differs.
+  A national SaaS generating that paperwork would be selling homes a compliance
   problem. This holds the collaboration with the family; the home's own systems
-  hold the sale.
+  hold the sale. A home *can* keep a staff-only price sheet, and the line is
+  drawn hard: no family route and no public route reads it, and
+  `price-list.test.ts` fails the build if one ever does.
+- **Offered service times are offers, not bookings.** A home can put two or
+  three times in front of a family and let them pick, and picking sets the
+  service date and builds the timeline off it. What the product never claims
+  is that the slot is held: churches and cemeteries keep their own calendars,
+  and only times the director has already confirmed belong in the list.
 - **No automatic deletion of case data, ever.** Retention is set by state law
   and by the home's insurer. A default that purged at 36 months would destroy
   records a home is obliged to keep. See `RETENTION.md`.

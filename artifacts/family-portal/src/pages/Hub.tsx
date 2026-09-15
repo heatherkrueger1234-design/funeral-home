@@ -126,6 +126,7 @@ export default function Hub() {
     outstandingDeadlines,
     unreadMessages,
     messagesLocked,
+    awaitingServiceChoice,
     aftercare,
   } = session.data;
 
@@ -177,6 +178,36 @@ export default function Hub() {
           </p>
         )}
       </section>
+
+      {/*
+        Above the aftercare question and above what is due, because it is the
+        only thing on this screen that other people are waiting on. Every
+        other card here can sit until the family is ready; a date the home
+        cannot confirm is holding up the church, the printer and the florist.
+      */}
+      {awaitingServiceChoice && (
+        <section className="relative overflow-hidden rounded-xl border border-border bg-card px-4 py-4 pl-5 shadow-[var(--elevation-1)]">
+          {/* The same rule down the edge that marks what is due next. This is
+              the one card on the screen that somebody else is waiting on. */}
+          <span
+            aria-hidden
+            className="absolute inset-y-0 left-0 w-1 bg-[var(--accent)]"
+          />
+          <p className="eyebrow mb-1">The date</p>
+          <p className="font-semibold">
+            {home.name} can offer you a choice of times
+          </p>
+          <p className="mt-1 text-sm text-muted-foreground">
+            Whichever suits your family. There is no better answer.
+          </p>
+          <Link
+            href="/service-time"
+            className="mt-3 inline-block text-sm font-semibold text-[var(--accent-deep)] decoration-[var(--accent)]/40 underline-offset-4 hover:decoration-[var(--accent)]"
+          >
+            See the times
+          </Link>
+        </section>
+      )}
 
       {/*
         Asked once, at the top, and only while it is undecided. A consent

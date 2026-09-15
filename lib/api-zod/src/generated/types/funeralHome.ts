@@ -46,6 +46,23 @@ the family believes they have reached someone.
  */
   intakeNotifyEmail?: string | null;
   aftercareSenderName?: string | null;
+  /** One line above the form on the public page. What a family needs
+off it is that they have the right place and that a person will
+answer - not that the home is compassionate, which every home
+says.
+ */
+  storefrontHeadline?: string | null;
+  /** A paragraph or two under it. Both may be blank. */
+  storefrontAbout?: string | null;
+  /** How long the case chat stays open after the service. Read when a
+case closes, so shortening it never slams a live conversation
+shut mid-sentence.
+ */
+  messageLockDays: number;
+  /** How many photographs the home asks a family to pick. Shown as a
+target, never enforced.
+ */
+  slideshowTarget: number;
   subscriptionStatus: FuneralHomeSubscriptionStatus;
   trialEndsAt?: Date | null;
 }

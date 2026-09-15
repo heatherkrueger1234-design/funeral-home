@@ -34,6 +34,7 @@ import {
 import { currentUser } from "../middleware/require-auth";
 import { createPasswordReset, normaliseEmail, PASSWORD_RESET_TTL_MS } from "../lib/auth";
 import { seedTimelineTemplate } from "../lib/timeline";
+import { seedPolicyPrompts } from "../lib/storefront";
 import { logger } from "../lib/logger";
 
 /**
@@ -559,6 +560,11 @@ router.post("/admin/homes", async (req, res) => {
       .returning();
 
     await seedTimelineTemplate(created!.id, tx);
+
+    // A home Heather opens gets exactly what a home that signed itself up
+    // gets. Seeding in one place and not the other is how two kinds of
+    // customer quietly diverge.
+    await seedPolicyPrompts(created!.id, tx);
 
     // No password, ever, from here. The owner sets one through the ordinary
     // single-use link, the same as any other invited colleague — a platform

@@ -16,6 +16,10 @@ import {
 } from "@/lib/session";
 import { ConsoleShell } from "@/components/ConsoleShell";
 import SignIn from "@/pages/SignIn";
+import Dashboard from "@/pages/Dashboard";
+import Inbox from "@/pages/Inbox";
+import Storefront from "@/pages/Storefront";
+import PriceList from "@/pages/PriceList";
 import Cases from "@/pages/Cases";
 import CaseDetail from "@/pages/CaseDetail";
 import Settings from "@/pages/Settings";
@@ -69,10 +73,20 @@ function Routes() {
   return (
     <ConsoleShell>
       <Switch>
-        <Route path="/" component={Cases} />
+        {/*
+          The home's own page is the landing screen, and the case list moved
+          one click away. A director arriving in the morning needs to know
+          what is waiting on them before they need a list of everyone they
+          have ever buried.
+        */}
+        <Route path="/" component={Dashboard} />
+        <Route path="/cases" component={Cases} />
         <Route path="/cases/:caseId" component={CaseDetail} />
+        <Route path="/inbox" component={Inbox} />
         <Route path="/requests" component={Requests} />
         <Route path="/vendors" component={Vendors} />
+        <Route path="/storefront" component={Storefront} />
+        <Route path="/prices" component={PriceList} />
         <Route path="/settings" component={Settings} />
         <Route component={NotFound} />
       </Switch>

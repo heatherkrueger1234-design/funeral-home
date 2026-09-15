@@ -17,6 +17,7 @@ Two audiences, two authentication schemes, and the split is load-bearing:
 
  * OpenAPI spec version: 0.1.0
  */
+import type { PublicHomePolicy } from "./publicHomePolicy";
 
 /**
  * The home as a family may see it - branding and how to reach it.
@@ -40,4 +41,17 @@ call. Show the number instead of the request form.
   officeOpensMinute: number;
   officeClosesMinute: number;
   timezone: string;
+  /** One line above the form on the public page. What a family needs
+off it is that they have the right place and that a person will
+answer - not that the home is compassionate, which every home
+says.
+ */
+  storefrontHeadline: string | null;
+  /** A paragraph or two under it. Both may be blank. */
+  storefrontAbout: string | null;
+  /** The home's published policy sections. Drafts are absent, and so
+is any hint that there are drafts. Prices are absent too, and
+that is not an oversight - see `/home/price-list`.
+ */
+  policies: PublicHomePolicy[];
 }
