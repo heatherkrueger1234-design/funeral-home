@@ -1,0 +1,17 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    /*
+     * DOM as well as node. A spec file runs in node, but the callback inside
+     * `page.evaluate` is serialised and run in the browser — so one file
+     * legitimately needs both sets of globals, and without `DOM` the
+     * clipboard assertions do not compile.
+     */
+    "lib": ["ES2023", "DOM", "DOM.Iterable"],
+    "types": ["node"],
+    "noEmit": true,
+    "module": "ESNext",
+    "moduleResolution": "Bundler"
+  },
+  "include": ["**/*.ts"]
+}

@@ -61,3 +61,10 @@ Thumbs.db
 # everything anyone has written here; they must never reach the repo.
 /backups/
 *.sql.partial
+
+# Playwright's own output: traces and screenshots from a failed end-to-end
+# run, and the HTML report. Useful for ten minutes, never worth committing.
+test-results/
+playwright-report/
+blob-report/
+.playwright/

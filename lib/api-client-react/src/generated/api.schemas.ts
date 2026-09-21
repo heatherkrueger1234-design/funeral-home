@@ -1503,6 +1503,13 @@ export interface PostalCodeResult {
   recognised: boolean;
 }
 
+export interface RevealedSocialSecurityNumber {
+  /** Nine digits, unformatted, exactly as the family gave it. */
+  socialSecurityNumber: string;
+  revealedAt: string;
+  revealedByName: string | null;
+}
+
 export type CaseMemoryKind =
   (typeof CaseMemoryKind)[keyof typeof CaseMemoryKind];
 
@@ -1866,6 +1873,13 @@ is never returned by the API, to either side.
   staffNotes: string | null;
   /** Fields still needed before a certificate can be filed. */
   missingForFiling: string[];
+  /** When a member of staff last asked to see the social security
+number in full. Null until somebody has. Shown to staff, and to
+the family too -- if we are going to hold the number, the people
+it belongs to are entitled to know it was looked at.
+ */
+  ssnRevealedAt: string | null;
+  ssnRevealedByName: string | null;
 }
 
 export interface VitalsFamilyUpdate {

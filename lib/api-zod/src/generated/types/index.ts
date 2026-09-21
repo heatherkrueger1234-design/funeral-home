@@ -168,6 +168,7 @@ export * from "./quoteUpdate";
 export * from "./quoteUpdateStatus";
 export * from "./registerInput";
 export * from "./resetPasswordInput";
+export * from "./revealedSocialSecurityNumber";
 export * from "./selectionInput";
 export * from "./selectionInputKind";
 export * from "./selectionUpdate";

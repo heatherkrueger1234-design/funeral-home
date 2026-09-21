@@ -2114,6 +2114,42 @@ export const GetPhotoPackParams = zod.object({
 });
 
 /**
+ * The one place in this API that returns a social security number.
+
+It exists because the alternative was worse. The number is masked
+everywhere else -- in the vitals payload both surfaces read, in the
+case export, in every log line -- which was right for the family
+portal and wrong for the people who have to type it into the state's
+system. With no way to read it back, a home that had already been
+given the number had to telephone a bereaved family and ask for it a
+second time.
+
+Deliberately a POST with no parameters in the URL. A GET would put
+"social-security-number" in browser history, in the proxy's access
+log and in any intermediary's cache keyed on the path, and the one
+thing this endpoint must not do is leave a trail of where the number
+lives. It is never included in a list, a search or the archive.
+
+Every call stamps `ssnRevealedAt` and `ssnRevealedByUserId` on the
+row. That is a record rather than a control: anyone who can open the
+case can call this. What it buys is that a home can answer "who at
+your office has seen my mother's number" with a name and a date.
+
+ * @summary Show the social security number in full, once, and record who asked
+ */
+export const RevealSocialSecurityNumberParams = zod.object({
+  caseId: zod.coerce.number(),
+});
+
+export const RevealSocialSecurityNumberResponse = zod.object({
+  socialSecurityNumber: zod
+    .string()
+    .describe("Nine digits, unformatted, exactly as the family gave it."),
+  revealedAt: zod.date(),
+  revealedByName: zod.string().nullable(),
+});
+
+/**
  * @summary What the family remembered, and what was said
  */
 export const GetCaseMemoriesParams = zod.object({
@@ -2788,6 +2824,13 @@ export const GetVitalsResponse = zod
     missingForFiling: zod
       .array(zod.string())
       .describe("Fields still needed before a certificate can be filed."),
+    ssnRevealedAt: zod
+      .date()
+      .nullable()
+      .describe(
+        "When a member of staff last asked to see the social security\nnumber in full. Null until somebody has. Shown to staff, and to\nthe family too -- if we are going to hold the number, the people\nit belongs to are entitled to know it was looked at.\n",
+      ),
+    ssnRevealedByName: zod.string().nullable(),
   })
   .describe(
     "Everything the death certificate asks for. Free text throughout,\nbecause the fields vary across more than fifty registration\njurisdictions and a dropdown missing the true answer produces a\nconfident wrong one.\n",
@@ -2910,6 +2953,13 @@ export const UpdateVitalsResponse = zod
     missingForFiling: zod
       .array(zod.string())
       .describe("Fields still needed before a certificate can be filed."),
+    ssnRevealedAt: zod
+      .date()
+      .nullable()
+      .describe(
+        "When a member of staff last asked to see the social security\nnumber in full. Null until somebody has. Shown to staff, and to\nthe family too -- if we are going to hold the number, the people\nit belongs to are entitled to know it was looked at.\n",
+      ),
+    ssnRevealedByName: zod.string().nullable(),
   })
   .describe(
     "Everything the death certificate asks for. Free text throughout,\nbecause the fields vary across more than fifty registration\njurisdictions and a dropdown missing the true answer produces a\nconfident wrong one.\n",
@@ -2975,6 +3025,13 @@ export const GetFamilyVitalsResponse = zod
     missingForFiling: zod
       .array(zod.string())
       .describe("Fields still needed before a certificate can be filed."),
+    ssnRevealedAt: zod
+      .date()
+      .nullable()
+      .describe(
+        "When a member of staff last asked to see the social security\nnumber in full. Null until somebody has. Shown to staff, and to\nthe family too -- if we are going to hold the number, the people\nit belongs to are entitled to know it was looked at.\n",
+      ),
+    ssnRevealedByName: zod.string().nullable(),
   })
   .describe(
     "Everything the death certificate asks for. Free text throughout,\nbecause the fields vary across more than fifty registration\njurisdictions and a dropdown missing the true answer produces a\nconfident wrong one.\n",
@@ -3086,6 +3143,13 @@ export const UpdateFamilyVitalsResponse = zod
     missingForFiling: zod
       .array(zod.string())
       .describe("Fields still needed before a certificate can be filed."),
+    ssnRevealedAt: zod
+      .date()
+      .nullable()
+      .describe(
+        "When a member of staff last asked to see the social security\nnumber in full. Null until somebody has. Shown to staff, and to\nthe family too -- if we are going to hold the number, the people\nit belongs to are entitled to know it was looked at.\n",
+      ),
+    ssnRevealedByName: zod.string().nullable(),
   })
   .describe(
     "Everything the death certificate asks for. Free text throughout,\nbecause the fields vary across more than fifty registration\njurisdictions and a dropdown missing the true answer produces a\nconfident wrong one.\n",
@@ -3151,6 +3215,13 @@ export const SubmitFamilyVitalsResponse = zod
     missingForFiling: zod
       .array(zod.string())
       .describe("Fields still needed before a certificate can be filed."),
+    ssnRevealedAt: zod
+      .date()
+      .nullable()
+      .describe(
+        "When a member of staff last asked to see the social security\nnumber in full. Null until somebody has. Shown to staff, and to\nthe family too -- if we are going to hold the number, the people\nit belongs to are entitled to know it was looked at.\n",
+      ),
+    ssnRevealedByName: zod.string().nullable(),
   })
   .describe(
     "Everything the death certificate asks for. Free text throughout,\nbecause the fields vary across more than fifty registration\njurisdictions and a dropdown missing the true answer produces a\nconfident wrong one.\n",

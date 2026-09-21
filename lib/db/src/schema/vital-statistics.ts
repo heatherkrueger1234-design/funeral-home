@@ -45,6 +45,14 @@ import { funeralHomesTable } from "./funeral-homes";
  * security number, so that column is encrypted at rest with the same key as
  * uploaded files — see `crypto.ts` — and is never returned to the family
  * portal once written.
+ *
+ * It is returned to *staff*, but only when one of them asks for it by name
+ * and only on its own endpoint. That distinction was missing for a while and
+ * the number was write-only to everybody, which meant a family handed over
+ * the most sensitive thing they own, were told it was needed before a
+ * certificate could be issued, and then the home had to telephone and ask
+ * for it again. Masking it from the people who need it to file does not
+ * protect anybody; it just moves the number onto a sticky note.
  */
 export const vitalStatisticsTable = pgTable(
   "vital_statistics",
@@ -164,6 +172,20 @@ export const vitalStatisticsTable = pgTable(
 
     /** Staff notes: what still needs a document, what the registrar queried. */
     staffNotes: text("staff_notes"),
+
+    /**
+     * The last time a member of staff asked to see the social security
+     * number in full, and who asked.
+     *
+     * Not a security control — anyone who can open this case can press the
+     * button — but a record, and the difference matters. The number is
+     * needed exactly once, to type into the state's system, and a column
+     * that says which of six people looked at it on which morning is what
+     * turns "somebody at the funeral home has my mother's SSN" from an
+     * assumption into something a home can answer.
+     */
+    ssnRevealedAt: timestamp("ssn_revealed_at"),
+    ssnRevealedByUserId: integer("ssn_revealed_by_user_id"),
 
     createdAt: timestamp("created_at").notNull().defaultNow(),
     updatedAt: timestamp("updated_at").notNull().defaultNow(),

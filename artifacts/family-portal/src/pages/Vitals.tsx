@@ -11,7 +11,7 @@ import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { useToast } from "@/hooks/use-toast";
-import { Check, Lock, ShieldCheck } from "lucide-react";
+import { Check, Eye, Lock, ShieldCheck } from "lucide-react";
 import { Loading, PageHeader } from "@/components/page";
 
 /**
@@ -271,12 +271,20 @@ export default function Vitals() {
           </span>
           Social security number
         </h2>
+        {/*
+          This paragraph used to say that nobody could read the number back,
+          including the funeral home. That was true and it was the bug: the
+          number was write-only, so a home that needed it to file had to
+          telephone and ask for it again. It can now be read by the home,
+          once, on purpose — and the honest thing is to say so here rather
+          than let a family believe a promise the software stopped keeping.
+        */}
         <p className="text-sm leading-relaxed text-muted-foreground">
-          Required on the certificate. It is stored encrypted, and once you
-          save it nobody — including you on this page — can read it back; the
-          funeral home sees only the last four digits to check it against
-          their paperwork. That means it cannot be read off this page if your
-          phone is left on a table.
+          Required on the certificate. It is stored encrypted and cannot be
+          read back on this page, so it is not sitting on your phone if you
+          leave it on a table. The funeral home can see it in full when they
+          come to type it into the state's system — and when they do, their
+          name and the date appear here.
         </p>
 
         {vitals.data.hasSocialSecurityNumber ? (
@@ -285,6 +293,33 @@ export default function Vitals() {
             {!locked && " Type a new one below to replace it."}
           </p>
         ) : null}
+
+        {vitals.data.ssnRevealedAt && (
+          <p className="flex items-start gap-2 rounded-lg bg-white/60 px-3 py-2.5 text-sm leading-relaxed">
+            <Eye
+              className="mt-0.5 size-4 shrink-0 text-[var(--accent-deep)]"
+              strokeWidth={1.75}
+              aria-hidden
+            />
+            <span>
+              Shown in full to{" "}
+              <span className="font-semibold">
+                {vitals.data.ssnRevealedByName ?? "someone at the funeral home"}
+              </span>{" "}
+              on{" "}
+              <time dateTime={String(vitals.data.ssnRevealedAt)}>
+                {new Date(vitals.data.ssnRevealedAt).toLocaleString(undefined, {
+                  weekday: "long",
+                  day: "numeric",
+                  month: "long",
+                  hour: "numeric",
+                  minute: "2-digit",
+                })}
+              </time>
+              . If that looks wrong to you, ring them.
+            </span>
+          </p>
+        )}
 
         {!locked && (
           <div className="flex gap-2">

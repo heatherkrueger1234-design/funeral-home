@@ -79,4 +79,11 @@ is never returned by the API, to either side.
   staffNotes: string | null;
   /** Fields still needed before a certificate can be filed. */
   missingForFiling: string[];
+  /** When a member of staff last asked to see the social security
+number in full. Null until somebody has. Shown to staff, and to
+the family too -- if we are going to hold the number, the people
+it belongs to are entitled to know it was looked at.
+ */
+  ssnRevealedAt: Date | null;
+  ssnRevealedByName: string | null;
 }

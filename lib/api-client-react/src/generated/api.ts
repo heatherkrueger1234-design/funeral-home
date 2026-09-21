@@ -119,6 +119,7 @@ import type {
   QuoteUpdate,
   RegisterInput,
   ResetPasswordInput,
+  RevealedSocialSecurityNumber,
   SelectionInput,
   SelectionUpdate,
   SentLink,
@@ -5492,6 +5493,114 @@ export function useGetPhotoPack<
 
   return { ...query, queryKey: queryOptions.queryKey };
 }
+
+/**
+ * The one place in this API that returns a social security number.
+
+It exists because the alternative was worse. The number is masked
+everywhere else -- in the vitals payload both surfaces read, in the
+case export, in every log line -- which was right for the family
+portal and wrong for the people who have to type it into the state's
+system. With no way to read it back, a home that had already been
+given the number had to telephone a bereaved family and ask for it a
+second time.
+
+Deliberately a POST with no parameters in the URL. A GET would put
+"social-security-number" in browser history, in the proxy's access
+log and in any intermediary's cache keyed on the path, and the one
+thing this endpoint must not do is leave a trail of where the number
+lives. It is never included in a list, a search or the archive.
+
+Every call stamps `ssnRevealedAt` and `ssnRevealedByUserId` on the
+row. That is a record rather than a control: anyone who can open the
+case can call this. What it buys is that a home can answer "who at
+your office has seen my mother's number" with a name and a date.
+
+ * @summary Show the social security number in full, once, and record who asked
+ */
+export const getRevealSocialSecurityNumberUrl = (caseId: number) => {
+  return `/api/cases/${caseId}/vitals/social-security-number`;
+};
+
+export const revealSocialSecurityNumber = async (
+  caseId: number,
+  options?: RequestInit,
+): Promise<RevealedSocialSecurityNumber> => {
+  return customFetch<RevealedSocialSecurityNumber>(
+    getRevealSocialSecurityNumberUrl(caseId),
+    {
+      ...options,
+      method: "POST",
+    },
+  );
+};
+
+export const getRevealSocialSecurityNumberMutationOptions = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof revealSocialSecurityNumber>>,
+    TError,
+    { caseId: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof revealSocialSecurityNumber>>,
+  TError,
+  { caseId: number },
+  TContext
+> => {
+  const mutationKey = ["revealSocialSecurityNumber"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof revealSocialSecurityNumber>>,
+    { caseId: number }
+  > = (props) => {
+    const { caseId } = props ?? {};
+
+    return revealSocialSecurityNumber(caseId, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type RevealSocialSecurityNumberMutationResult = NonNullable<
+  Awaited<ReturnType<typeof revealSocialSecurityNumber>>
+>;
+
+export type RevealSocialSecurityNumberMutationError = ErrorType<void>;
+
+/**
+ * @summary Show the social security number in full, once, and record who asked
+ */
+export const useRevealSocialSecurityNumber = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof revealSocialSecurityNumber>>,
+    TError,
+    { caseId: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof revealSocialSecurityNumber>>,
+  TError,
+  { caseId: number },
+  TContext
+> => {
+  return useMutation(getRevealSocialSecurityNumberMutationOptions(options));
+};
 
 /**
  * @summary What the family remembered, and what was said

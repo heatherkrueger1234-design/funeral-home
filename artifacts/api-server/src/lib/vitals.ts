@@ -109,7 +109,15 @@ export function encryptSsn(value: string | null | undefined): string | null {
   return encrypt(digits);
 }
 
-function readSsn(stored: string | null): string | null {
+/**
+ * The stored number, in full.
+ *
+ * Exported for exactly one caller — the reveal endpoint. Everything else in
+ * this file that touches an SSN masks it, and that asymmetry is the point:
+ * there should be one place in the codebase where the real number leaves the
+ * database, and it should be greppable.
+ */
+export function readSsn(stored: string | null): string | null {
   if (!stored) return null;
 
   try {
@@ -138,22 +146,27 @@ export function missingForFiling(row: VitalStatistics): string[] {
 export async function toVitalsJson(row: VitalStatistics) {
   const ssn = readSsn(row.socialSecurityNumber);
 
-  let verifiedByName: string | null = null;
+  const nameOf = async (userId: number | null): Promise<string | null> => {
+    if (userId === null) return null;
 
-  if (row.verifiedByUserId !== null) {
     const [user] = await db
       .select({ displayName: usersTable.displayName })
       .from(usersTable)
-      .where(eq(usersTable.id, row.verifiedByUserId))
+      .where(eq(usersTable.id, userId))
       .limit(1);
-    verifiedByName = user?.displayName ?? null;
-  }
+
+    return user?.displayName ?? null;
+  };
+
+  const verifiedByName = await nameOf(row.verifiedByUserId);
+  const ssnRevealedByName = await nameOf(row.ssnRevealedByUserId);
 
   const {
     id,
     funeralHomeId,
     socialSecurityNumber,
     verifiedByUserId,
+    ssnRevealedByUserId,
     createdAt,
     updatedAt,
     ...rest
@@ -162,15 +175,24 @@ export async function toVitalsJson(row: VitalStatistics) {
   void funeralHomeId;
   void socialSecurityNumber;
   void verifiedByUserId;
+  void ssnRevealedByUserId;
   void createdAt;
   void updatedAt;
 
   return {
     ...rest,
-    // Never the number itself, to either side.
+    /*
+     * Never the number itself, on this payload, to either side. Staff who
+     * need it in full ask for it on its own endpoint, which says who asked
+     * — and `ssnRevealedAt` below is that answer coming back, shown to the
+     * family as well as to the home. If we are going to hold somebody's
+     * social security number, they are entitled to see that it was looked
+     * at without having to ask a human.
+     */
     socialSecurityNumberMasked: maskSsn(ssn),
     hasSocialSecurityNumber: ssn !== null,
     verifiedByName,
+    ssnRevealedByName,
     missingForFiling: missingForFiling(row),
   };
 }

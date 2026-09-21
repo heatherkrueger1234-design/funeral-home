@@ -64,3 +64,21 @@ jobs:
           # server and the base path, neither of which matters to a build.
           PORT: 3000
           BASE_PATH: /
+
+      # After the build, deliberately: the end-to-end suite runs against the
+      # bundles that were just produced rather than a dev server, because the
+      # two bugs it exists to catch both lived in the gap between a browser
+      # and an API that answered correctly when asked correctly.
+      - name: Install a browser for the end-to-end suite
+        run: pnpm --filter @workspace/e2e exec playwright install --with-deps chromium
+
+      - name: End-to-end
+        run: pnpm run test:e2e
+
+      - name: Keep the traces from a failed end-to-end run
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-traces
+          path: artifacts/e2e/test-results/
+          retention-days: 7
