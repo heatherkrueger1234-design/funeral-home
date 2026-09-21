@@ -14,6 +14,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Guidance, Point } from "@/components/Guidance";
+import { Circumstances } from "@/components/Circumstances";
 import { Divider, Empty, Loading, PageHeader } from "@/components/page";
 import { voiceFor } from "@/lib/voice";
 import { useToast } from "@/hooks/use-toast";
@@ -330,6 +331,20 @@ export default function Memories() {
           That happens at a great many funerals and it has never once been the
           thing anybody remembered afterwards.
         </p>
+      </Guidance>
+
+      {/*
+        The same block the obituary page carries, and deliberately on both.
+        Whichever of the two screens a family opens first is the one where
+        they get stuck, and it is not predictable which.
+      */}
+      <Guidance title="If you don't know what to say">
+        <p>
+          Some deaths are harder to write about than others, and nobody has
+          done this before. Open whichever of these is yours — nothing is
+          recorded, and nothing here is a rule.
+        </p>
+        <Circumstances />
       </Guidance>
       </div>
 

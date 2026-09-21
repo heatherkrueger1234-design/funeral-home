@@ -10,6 +10,7 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Lock, Plus, X } from "lucide-react";
 import { Loading, PageHeader } from "@/components/page";
+import { MusicSuggestions } from "@/components/MusicSuggestions";
 
 /**
  * Hymns, readings, music, and the names of whoever will carry.
@@ -74,6 +75,15 @@ export default function Selections() {
   if (selections.isPending) return <Loading rows={4} />;
 
   const rows = selections.data ?? [];
+
+  /*
+   * Matched on the title alone, lower-cased. A family who typed "amazing
+   * grace" themselves and then opens the suggestions should see it already
+   * ticked rather than be offered it again — and matching on the title is
+   * enough, because nobody has two different things called Amazing Grace on
+   * one order of service.
+   */
+  const chosen = new Set(rows.map((row) => row.value.trim().toLowerCase()));
 
   return (
     <div className="space-y-8">
@@ -240,6 +250,25 @@ export default function Selections() {
           </section>
         );
       })}
+
+      {/*
+        After the lists rather than before them. A family who already knows
+        what they want should not have to scroll past eight suggestions to
+        type it in, and one who does not will keep going until they find
+        something — which is what this is for.
+      */}
+      <MusicSuggestions
+        chosen={chosen}
+        onAdd={(song) =>
+          add.mutate({
+            data: {
+              kind: song.kind,
+              value: song.value,
+              attribution: song.attribution,
+            },
+          })
+        }
+      />
     </div>
   );
 }

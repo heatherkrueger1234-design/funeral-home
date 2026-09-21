@@ -29,6 +29,17 @@ bytes survive), the obituary as named fields rather than a blank box, and the
 hymns, readings and pallbearers as short lists. This replaces a director's
 inbox holding forty attachments from six addresses.
 
+Two things sit alongside those lists for the families who freeze in front of
+them. **Music by feeling rather than by title** — pick whether this is an
+organ and everybody standing up, or a send-off somebody would have laughed
+at, and the suggestions follow; most families take one and bring two of their
+own. And **what to say when what happened is hard to say**: a suicide, an
+overdose, a homicide, a stillbirth, a man nobody in the family liked. Nothing
+about the death is asked for or stored to decide which applies — the family
+opens what is theirs. The suicide and overdose entries follow safe-messaging
+practice, which is why they offer the choice to name it and never the method
+or the because.
+
 **2. What people actually say about them.** The obituary form asks named
 questions and gets named answers, which is right — but its one open field is
 labelled "their life", and a blank box is what the rest of the form exists to

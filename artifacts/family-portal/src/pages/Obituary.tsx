@@ -15,6 +15,8 @@ import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
 import { Check, Lock } from "lucide-react";
 import { Divider, Loading, PageHeader } from "@/components/page";
+import { Guidance } from "@/components/Guidance";
+import { Circumstances } from "@/components/Circumstances";
 
 /**
  * The obituary, as a form rather than a blank page.
@@ -128,6 +130,23 @@ export default function Obituary() {
           Saved
         </p>
       )}
+
+      {/*
+        Closed, and one line tall until somebody opens it. A family whose
+        death needs no explaining should not have to scroll past a list of
+        the ways a death can be hard; a family whose does should find it
+        here, at two in the morning, without having to ask anybody.
+      */}
+      <div className="no-print">
+        <Guidance title="If you don't know what to say">
+          <p>
+            Some deaths are harder to write about than others, and nobody has
+            done this before. Open whichever of these is yours — nothing is
+            recorded, and nothing here is a rule.
+          </p>
+          <Circumstances />
+        </Guidance>
+      </div>
 
       {locked && (
         <p className="flex items-start gap-2.5 rounded-xl border border-border bg-[var(--sunken)] px-4 py-3.5 text-sm leading-relaxed text-muted-foreground">
