@@ -87,4 +87,33 @@ describe("the aftercare loop closes", () => {
     const session = await asFamily(token).get("/api/family/session").expect(200);
     expect(session.body.aftercare.status).toBe("done");
   });
+
+  it("refuses to re-enrol someone who already said no", async () => {
+    const staff = await signUpHome();
+    const row = await createCase(staff, {
+      serviceAt: new Date(Date.now() - 2 * DAY).toISOString(),
+    });
+    const { token } = await inviteFamily(staff, row.id, {
+      email: "anne@example.com",
+    });
+
+    await staff.agent.post(`/api/cases/${row.id}/close`).expect(200);
+
+    await asFamily(token)
+      .post("/api/family/aftercare")
+      .send({ consent: false })
+      .expect(200);
+
+    // A replayed request, a stale tab, or a direct call against the family
+    // token must not undo a decline — the UI hiding the option afterwards is
+    // not the thing actually enforcing "no is final".
+    await asFamily(token)
+      .post("/api/family/aftercare")
+      .send({ consent: true })
+      .expect(400);
+
+    const session = await asFamily(token).get("/api/family/session").expect(200);
+    expect(session.body.aftercare.status).toBe("done");
+    expect(session.body.aftercare.unsubscribedAt).not.toBeNull();
+  });
 });

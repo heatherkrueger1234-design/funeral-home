@@ -98,7 +98,7 @@ export default function Photos() {
       if (file.size > MAX_UPLOAD_BYTES) {
         toast({
           title: `"${file.name}" is too large`,
-          description: "Photographs need to be under 15 MB.",
+          description: `Photographs need to be under ${Math.floor(MAX_UPLOAD_BYTES / (1024 * 1024))} MB.`,
           variant: "destructive",
         });
         continue;
@@ -265,6 +265,13 @@ export default function Photos() {
                     type="button"
                     variant={photo.selected ? "default" : "outline"}
                     size="sm"
+                    // The whole selection list is replaced on every toggle
+                    // (see `toggle` above), computed from the last-fetched
+                    // list. Tapping a second photo before this one's request
+                    // round-trips would build its payload from the same
+                    // stale list and silently overwrite this choice, so the
+                    // button is disabled until the refetch it triggers lands.
+                    disabled={setSelection.isPending}
                     onClick={() => toggle(photo.id)}
                   >
                     <Check className="size-4" />

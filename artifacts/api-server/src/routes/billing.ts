@@ -36,13 +36,23 @@ export const billingWebhookRouter: IRouter = Router();
 const router: IRouter = Router();
 
 /**
- * The webhook, mounted before the session gate and before the JSON body
- * parser.
+ * The webhook.
  *
  * Stripe signs the exact bytes it sent, so the signature can only be checked
  * against a raw body — `express.json()` would have already turned it into an
  * object and thrown the original away. This is the one route in the codebase
  * that needs the raw buffer, which is why it carries its own parser.
+ *
+ * That only works because `billingWebhookRouter` is mounted directly on the
+ * `app` in `app.ts`, *ahead of* the global `express.json()` there. body-parser
+ * does not re-read a request stream it has already consumed, so mounting this
+ * router anywhere behind that global parser — including inside the staff
+ * `router` below, which is itself mounted after it — makes `express.raw()`
+ * below a silent no-op: `req.body` arrives as an already-parsed object, the
+ * signature can never be recomputed correctly, and every real webhook is
+ * rejected. This bit the app once already; see `test/billing.test.ts`'s
+ * "accepts a correctly signed event" test, which is the regression check for
+ * exactly that.
  *
  * Unauthenticated by necessity: Stripe has no session. The signature is the
  * only thing between a stranger and marking their own home as paid, so a
@@ -61,9 +71,10 @@ billingWebhookRouter.post(
       throw new HttpError(400, "Signature verification failed.");
     }
 
-    const { type, data } = event as {
+    const { type, data, created } = event as {
       type: string;
       data: { object: Record<string, unknown> };
+      created: number;
     };
 
     // Only the events that change whether the app should let a home work.
@@ -73,7 +84,7 @@ billingWebhookRouter.post(
       type === "customer.subscription.updated" ||
       type === "customer.subscription.deleted"
     ) {
-      await applySubscription(data.object as never);
+      await applySubscription(data.object as never, new Date(created * 1000));
     } else {
       logger.debug({ type }, "Ignoring a Stripe event we do not act on");
     }

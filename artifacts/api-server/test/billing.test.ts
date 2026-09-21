@@ -1,11 +1,50 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it } from "vitest";
 import request from "supertest";
+import { createHmac } from "node:crypto";
 import { eq } from "drizzle-orm";
 import app from "../src/app";
 import { db, funeralHomesTable } from "@workspace/db";
 import { createCase, signUpHome } from "./helpers";
 
 const DAY = 24 * 60 * 60 * 1000;
+
+afterEach(() => {
+  delete process.env["STRIPE_WEBHOOK_SECRET"];
+});
+
+/** Sign a Stripe event body the way Stripe actually does, for test use only. */
+function signedWebhook(secret: string, body: Record<string, unknown>) {
+  const payload = JSON.stringify(body);
+  const timestamp = Math.floor(Date.now() / 1000);
+  const signature = createHmac("sha256", secret)
+    .update(`${timestamp}.${payload}`)
+    .digest("hex");
+
+  return {
+    payload,
+    header: `t=${timestamp},v1=${signature}`,
+  };
+}
+
+function subscriptionEvent(
+  type: string,
+  homeId: number,
+  status: string,
+  createdAt: number,
+) {
+  return {
+    id: `evt_${Math.random().toString(36).slice(2)}`,
+    type,
+    created: createdAt,
+    data: {
+      object: {
+        id: "sub_test",
+        status,
+        metadata: { funeralHomeId: String(homeId) },
+      },
+    },
+  };
+}
 
 /**
  * Billing, and the one thing it is allowed to stop.
@@ -108,6 +147,90 @@ describe("the Stripe webhook", () => {
       .set("Stripe-Signature", "t=1,v1=deadbeef")
       .send({ type: "customer.subscription.updated" })
       .expect(400);
+  });
+
+  /**
+   * A real signature, computed the way Stripe computes one, over the exact
+   * bytes sent. This is the case the "refuses anything it cannot verify"
+   * test above cannot catch: a webhook route reached *after* the global JSON
+   * parser has already consumed the request stream turns `express.raw()`
+   * into a no-op, so `req.body` is a parsed object rather than the original
+   * buffer — every real signature then fails to verify too, not just bad
+   * ones, and a home that actually pays never gets marked as paying.
+   */
+  it("accepts a correctly signed event and applies it", async () => {
+    process.env["STRIPE_WEBHOOK_SECRET"] = "whsec_test_secret";
+    const staff = await signUpHome();
+
+    const { payload, header } = signedWebhook(
+      "whsec_test_secret",
+      subscriptionEvent(
+        "customer.subscription.updated",
+        staff.homeId,
+        "active",
+        Math.floor(Date.now() / 1000),
+      ),
+    );
+
+    await request(app)
+      .post("/api/billing/webhook")
+      .set("Content-Type", "application/json")
+      .set("Stripe-Signature", header)
+      .send(payload)
+      .expect(200);
+
+    const [home] = await db
+      .select()
+      .from(funeralHomesTable)
+      .where(eq(funeralHomesTable.id, staff.homeId));
+    expect(home!.subscriptionStatus).toBe("active");
+  });
+
+  it("does not let an event delivered out of order move the status backwards", async () => {
+    process.env["STRIPE_WEBHOOK_SECRET"] = "whsec_test_secret";
+    const staff = await signUpHome();
+    const now = Math.floor(Date.now() / 1000);
+
+    // The cancellation was created *after* the stale update, but Stripe
+    // delivers it first.
+    const deleted = signedWebhook(
+      "whsec_test_secret",
+      subscriptionEvent(
+        "customer.subscription.deleted",
+        staff.homeId,
+        "canceled",
+        now,
+      ),
+    );
+    const staleUpdate = signedWebhook(
+      "whsec_test_secret",
+      subscriptionEvent(
+        "customer.subscription.updated",
+        staff.homeId,
+        "active",
+        now - 60,
+      ),
+    );
+
+    await request(app)
+      .post("/api/billing/webhook")
+      .set("Content-Type", "application/json")
+      .set("Stripe-Signature", deleted.header)
+      .send(deleted.payload)
+      .expect(200);
+
+    await request(app)
+      .post("/api/billing/webhook")
+      .set("Content-Type", "application/json")
+      .set("Stripe-Signature", staleUpdate.header)
+      .send(staleUpdate.payload)
+      .expect(200);
+
+    const [home] = await db
+      .select()
+      .from(funeralHomesTable)
+      .where(eq(funeralHomesTable.id, staff.homeId));
+    expect(home!.subscriptionStatus).toBe("canceled");
   });
 });
 

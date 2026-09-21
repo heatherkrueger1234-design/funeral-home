@@ -4,6 +4,7 @@ import cookieParser from "cookie-parser";
 import helmet from "helmet";
 import pinoHttp from "pino-http";
 import router from "./routes";
+import { billingWebhookRouter } from "./routes/billing";
 import { logger } from "./lib/logger";
 import { errorHandler, notFoundHandler } from "./lib/http";
 import { corsOptions } from "./lib/cors";
@@ -50,6 +51,14 @@ app.use(
   }),
 );
 app.use(cors(corsOptions()));
+
+// Stripe signs the exact bytes it sent, so this must be reachable before the
+// global body parsers below consume the request stream. body-parser will not
+// re-read a body that has already been read, so mounting this any later —
+// even inside a sub-router — makes its own `express.raw()` a silent no-op and
+// every legitimate webhook fails signature verification.
+app.use("/api", billingWebhookRouter);
+
 app.use(express.json({ limit: BODY_LIMIT }));
 app.use(express.urlencoded({ extended: true, limit: BODY_LIMIT }));
 app.use(cookieParser());

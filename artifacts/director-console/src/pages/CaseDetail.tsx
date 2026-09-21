@@ -137,14 +137,7 @@ export default function CaseDetail() {
 
       <Tabs value={tab} onValueChange={setTab}>
         <TabsList>
-          <TabsTrigger value="family">
-            Family
-            {detail.unreadFamilyMessages > 0 && (
-              <span className="tabular rounded-full bg-[var(--accent)] px-1.5 py-0.5 text-xs font-semibold text-white">
-                {detail.unreadFamilyMessages}
-              </span>
-            )}
-          </TabsTrigger>
+          <TabsTrigger value="family">Family</TabsTrigger>
           <TabsTrigger value="photos">Photographs ({detail.photoCount})</TabsTrigger>
           <TabsTrigger value="vitals">Certificate</TabsTrigger>
           <TabsTrigger value="belongings">Belongings</TabsTrigger>
@@ -159,7 +152,14 @@ export default function CaseDetail() {
               </span>
             )}
           </TabsTrigger>
-          <TabsTrigger value="messages">Messages</TabsTrigger>
+          <TabsTrigger value="messages">
+            Messages
+            {detail.unreadFamilyMessages > 0 && (
+              <span className="tabular rounded-full bg-[var(--accent)] px-1.5 py-0.5 text-xs font-semibold text-white">
+                {detail.unreadFamilyMessages}
+              </span>
+            )}
+          </TabsTrigger>
           <TabsTrigger value="details">Details</TabsTrigger>
           <TabsTrigger value="data">Data</TabsTrigger>
         </TabsList>

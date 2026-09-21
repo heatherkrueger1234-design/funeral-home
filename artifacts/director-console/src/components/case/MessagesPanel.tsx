@@ -5,6 +5,8 @@ import {
   usePostCaseMessage,
   getGetCaseMessagesQueryKey,
   getGetCaseQueryKey,
+  getGetCasesQueryKey,
+  getGetHomeDashboardQueryKey,
 } from "@workspace/api-client-react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
@@ -32,6 +34,16 @@ export function MessagesPanel({ caseId }: { caseId: number }) {
         });
         void queryClient.invalidateQueries({
           queryKey: getGetCaseQueryKey(caseId),
+        });
+        // Replying here is the same action as replying from the Inbox, and
+        // must clear the same "waiting on a reply" signals — otherwise the
+        // dashboard tile and the cases list only catch up on their next
+        // poll or refocus.
+        void queryClient.invalidateQueries({
+          queryKey: getGetHomeDashboardQueryKey(),
+        });
+        void queryClient.invalidateQueries({
+          queryKey: getGetCasesQueryKey(),
         });
       },
     },
