@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useRoute } from "wouter";
+import { Link, useRoute } from "wouter";
 import { useQueryClient } from "@tanstack/react-query";
 import {
   useGetCase,
@@ -33,7 +33,21 @@ import { PrintPanel } from "@/components/case/PrintPanel";
 import { DetailsPanel } from "@/components/case/DetailsPanel";
 import { CaseData } from "@/components/CaseData";
 import { Empty, Loading } from "@/components/page";
-import { FileQuestion } from "lucide-react";
+import { ArrowLeft, CalendarX, FileQuestion } from "lucide-react";
+
+/** "Sat 26 Sep, 4:51 pm" — the day of the week is half of how a date is read here. */
+const serviceFormat = new Intl.DateTimeFormat(undefined, {
+  weekday: "short",
+  day: "numeric",
+  month: "short",
+  hour: "numeric",
+  minute: "2-digit",
+});
+
+function serviceLabel(value: string | Date): string {
+  const date = value instanceof Date ? value : new Date(value);
+  return Number.isNaN(date.getTime()) ? "—" : serviceFormat.format(date);
+}
 
 export default function CaseDetail() {
   const [, params] = useRoute("/cases/:caseId");
@@ -78,6 +92,25 @@ export default function CaseDetail() {
 
   return (
     <div className="space-y-6">
+      {/*
+        The way back. A case is the one screen in the console reached from a
+        list rather than from the bar across the top, and it was the one
+        screen with nothing on it that led back to that list — the nav's
+        "Cases" does the job, but only for somebody who has worked out that a
+        case counts as being inside it.
+      */}
+      <Link
+        href="/cases"
+        className="group inline-flex items-center gap-1.5 rounded-md text-sm text-muted-foreground
+                   no-underline transition-colors duration-200 hover:text-foreground"
+      >
+        <ArrowLeft
+          className="size-4 transition-transform duration-200 ease-[cubic-bezier(0.2,0.6,0.3,1)] group-hover:-translate-x-0.5"
+          strokeWidth={1.75}
+        />
+        All cases
+      </Link>
+
       <header className="flex flex-wrap items-start gap-4">
         <div className="min-w-0 flex-1">
           <h1 className="font-display text-[1.75rem] leading-tight">
@@ -107,6 +140,45 @@ export default function CaseDetail() {
               ? ` · ${detail.leadDirector.displayName}`
               : ""}
           </p>
+
+          {/*
+            The service, in the header, where it is read rather than looked
+            for.
+
+            Everything on this page hangs off this one date: the standard
+            schedule is written as offsets from it, the thread locks a
+            fortnight after it, and the printer and the church are waiting on
+            it. It was reachable — two tabs along, under Service — which meant
+            a director answering "when is Mrs Hale's funeral?" on the
+            telephone had to go and find it on the screen already open in
+            front of them.
+
+            Its absence is worth as much ink as its presence, and gets it.
+            The master page lists a case with no service date as the quietest
+            way this product fails; this is that same fact, said on the case
+            itself instead of only about it.
+          */}
+          {!closed &&
+            (detail.serviceAt ? (
+              <p className="mt-2 text-sm">
+                <span className="eyebrow mr-2">Service</span>
+                <span className="tabular font-semibold">
+                  {serviceLabel(detail.serviceAt)}
+                </span>
+                {detail.serviceLocation && (
+                  <span className="text-muted-foreground">
+                    {" · "}
+                    {detail.serviceLocation}
+                  </span>
+                )}
+              </p>
+            ) : (
+              <p className="mt-2 inline-flex items-center gap-1.5 rounded-full border border-[var(--notice)]/30
+                            bg-[var(--notice-soft)] px-2.5 py-1 text-xs font-semibold text-[var(--notice)]">
+                <CalendarX className="size-3.5" strokeWidth={2} aria-hidden />
+                No service date — the timeline is empty until there is one
+              </p>
+            ))}
         </div>
 
         {!closed && (

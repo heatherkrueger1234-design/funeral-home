@@ -167,6 +167,35 @@ a[href]:not([class*="no-underline"]) {
   transition-timing-function: var(--ease-gentle);
 }
 
+/*
+ * A strip that scrolls sideways, and says so.
+ *
+ * A case carries eleven tabs. They are set as one ruled row that scrolls
+ * rather than as three ragged rows of pills, which is right — but the
+ * scrollbar is hidden, and a hidden scrollbar on a bar that is one tab too
+ * wide for the window is a tab nobody knows exists. On a thirteen-inch
+ * laptop that was Details and Data: two panels of a case, reachable only by
+ * a director who happened to try dragging a row that gave no sign of moving.
+ *
+ * Four background layers and no JavaScript. The two `local` layers are
+ * opaque and travel with the content; the two `scroll` layers are soft
+ * shadows pinned to the element's edges. While the strip sits at one end its
+ * own cover is parked over that shadow and hides it, so a shadow appears at
+ * exactly the edge there is more to see past, and disappears when there
+ * is not.
+ */
+.scroll-hint-x {
+  background-image:
+    linear-gradient(to right, var(--background), transparent),
+    linear-gradient(to left, var(--background), transparent),
+    linear-gradient(to right, rgb(40 34 24 / 0.13), transparent),
+    linear-gradient(to left, rgb(40 34 24 / 0.13), transparent);
+  background-position: left center, right center, left center, right center;
+  background-repeat: no-repeat;
+  background-size: 28px 100%, 28px 100%, 14px 100%, 14px 100%;
+  background-attachment: local, local, scroll, scroll;
+}
+
 @media (hover: hover) {
   .lift:hover {
     box-shadow: var(--elevation-2);

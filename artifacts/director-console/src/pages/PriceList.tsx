@@ -103,7 +103,7 @@ export default function PriceList() {
   const typed = readAmount(amount);
 
   return (
-    <div className="max-w-2xl space-y-6">
+    <div className="mx-auto w-full max-w-2xl space-y-6">
       <PageHeader title="Prices">
         What you charge, so whoever is sitting with a family can answer
         without ringing the office.

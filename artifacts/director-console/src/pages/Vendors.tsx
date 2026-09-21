@@ -22,7 +22,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
-import { Contact, Loader2, MapPin, Plus, Search, Star, Trash2 } from "lucide-react";
+import { Contact, MapPin, Plus, Search, Star, Trash2 } from "lucide-react";
 import { Empty, Loading, LoadingLines, PageHeader } from "@/components/page";
 
 /**

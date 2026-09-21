@@ -30,6 +30,10 @@ const TabsList = React.forwardRef<
       // The rule runs the full width of the bar, under the tabs and past the
       // last one, the way a printed table rules its header.
       "[scrollbar-width:none] [&::-webkit-scrollbar]:hidden",
+      // The scrollbar is hidden, so the bar has to say for itself when it
+      // runs past the window: a soft shadow appears at whichever edge has
+      // more tabs behind it. See `.scroll-hint-x` in index.css.
+      "scroll-hint-x",
       className
     )}
     {...props}
