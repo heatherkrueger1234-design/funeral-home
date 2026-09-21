@@ -5,7 +5,24 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
     <title>Holding Today — platform</title>
+    <meta
+      name="description"
+      content="The platform console: the homes on this deployment, their licensure, and what has been read across tenants."
+    />
     <meta name="robots" content="noindex, nofollow" />
+
+    <meta name="theme-color" content="#14332e" />
+
+    <!--
+      This console's stylesheet asks Google Fonts for Lora and Source Sans 3,
+      exactly as the other two do. Without these the browser only discovers
+      that on parsing the CSS, which costs a DNS lookup and a TLS handshake
+      before a single letter can be set — and the screen is blank until it
+      finishes. Two lines, and they were only ever missing here because this
+      file was written last.
+    -->
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   </head>
   <body>
     <div id="root"></div>

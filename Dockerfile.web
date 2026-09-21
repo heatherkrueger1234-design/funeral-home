@@ -66,6 +66,9 @@ ENV NGINX_RESOLVER=127.0.0.11
 ENV NGINX_API_ORIGIN=http://api:4311
 
 COPY deploy/nginx.conf.template /etc/nginx/templates/default.conf.template
+# Not a template: it holds no NGINX_ variables, and the locations that
+# include it need it at a fixed path rather than an expanded one.
+COPY deploy/security-headers.conf /etc/nginx/snippets/security-headers.conf
 COPY --from=build /site /usr/share/nginx/html
 
 EXPOSE 80

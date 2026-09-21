@@ -58,7 +58,7 @@ export default function Settings() {
   const save = (data: Record<string, unknown>) => update.mutate({ data: data as never });
 
   return (
-    <div className="max-w-2xl space-y-7">
+    <div className="mx-auto w-full max-w-2xl space-y-7">
       <PageHeader title="Settings">
         {readOnly
         ? "Only an owner can change these."

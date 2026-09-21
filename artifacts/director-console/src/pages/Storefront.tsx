@@ -59,7 +59,7 @@ export default function Storefront() {
     update.mutate({ data: data as never });
 
   return (
-    <div className="max-w-2xl space-y-8">
+    <div className="mx-auto w-full max-w-2xl space-y-8">
       <PageHeader title="Your page">
         {readOnly
           ? "Only an owner can change what the home publishes."

@@ -7,13 +7,13 @@ import {
 } from "@workspace/api-client-react";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Check, X } from "lucide-react";
+import { ArrowRight } from "lucide-react";
 
 /**
  * What a new home sees instead of an empty console.
  *
  * The trial dies quietly when a director signs up, lands on a blank case
- * list, and cannot tell what they are supposed to do first. Six steps,
+ * list, and cannot tell what they are supposed to do first. Seven steps,
  * ordered by what unblocks the most — open a case and text a family before
  * fiddling with colours, because that is the part families notice and the
  * part that proves the thing works.
@@ -22,7 +22,16 @@ import { Check, X } from "lucide-react";
  * the work is done, so it is never a second chore.
  */
 
-/** Where each step actually happens. */
+/**
+ * Where each step actually happens.
+ *
+ * Every step in `ONBOARDING_STEPS` needs an entry. `public` had none, so the
+ * one instruction on this list that a director cannot possibly guess — go and
+ * find the address of your own page and put it on your website — was the one
+ * step with no way through to the screen that holds the address. It is on
+ * the storefront page, beside a Copy button, which is exactly where somebody
+ * following this list wants to be sent.
+ */
 const DESTINATIONS: Record<string, string> = {
   case: "/",
   family: "/",
@@ -30,6 +39,7 @@ const DESTINATIONS: Record<string, string> = {
   hours: "/settings",
   schedule: "/settings",
   staff: "/settings",
+  public: "/storefront",
 };
 
 export function SetupChecklist() {
@@ -48,7 +58,7 @@ export function SetupChecklist() {
   const remaining = billing.data.onboarding.filter((step) => !step.done);
 
   return (
-    <section className="rounded-xl border border-[var(--accent)]/25 bg-[var(--accent-soft)] p-5">
+    <section className="max-w-2xl rounded-xl border border-[var(--accent)]/25 bg-[var(--accent-soft)] p-5">
       <div className="mb-4 flex flex-wrap items-baseline gap-x-3 gap-y-1">
         <h2 className="font-display text-lg text-[var(--accent-deep)]">
           Getting set up
@@ -59,44 +69,70 @@ export function SetupChecklist() {
         </span>
       </div>
 
-      <ul className="space-y-1">
-        {billing.data.onboarding.map((step) => (
-          <li
-            key={step.key}
-            className="flex items-start gap-3 rounded-lg px-2 py-2 -mx-2 transition-colors duration-200 hover:bg-white/50"
-          >
-            <Checkbox
-              className="mt-0.5"
-              checked={step.done}
-              aria-label={step.title}
-              onCheckedChange={(checked) =>
-                update.mutate({ data: { step: step.key, done: checked === true } })
-              }
-            />
-            <span className="min-w-0 flex-1">
-              <span
-                className={
-                  step.done
-                    ? "text-muted-foreground line-through decoration-muted-foreground/50"
-                    : "font-semibold"
-                }
-              >
-                {step.title}
-              </span>
-              {!step.done && (
-                <span className="mt-0.5 block text-sm leading-snug text-muted-foreground">
-                  {step.detail}
-                </span>
-              )}
-            </span>
+      {/*
+        Held to a reading measure rather than allowed to fill the console.
 
-            {!step.done && DESTINATIONS[step.key] && (
-              <Button asChild variant="ghost" size="sm" className="shrink-0">
-                <Link href={DESTINATIONS[step.key]!}>Go</Link>
-              </Button>
-            )}
-          </li>
-        ))}
+        Every row used to run the full width of the page, which on a laptop
+        put "Go" the better part of a thousand pixels to the right of the
+        sentence it belonged to — two separate things to look at instead of
+        one instruction. The step is now a single line the eye crosses in one
+        go, with its own destination at the end of it, and the panel stops
+        where the text does instead of ruling off the whole screen.
+      */}
+      <ul className="space-y-0.5">
+        {billing.data.onboarding.map((step) => {
+          const destination = DESTINATIONS[step.key];
+
+          return (
+            <li key={step.key} className="flex items-start gap-3 -mx-2 px-2 py-1.5">
+              <Checkbox
+                className="mt-1"
+                checked={step.done}
+                aria-label={step.title}
+                onCheckedChange={(checked) =>
+                  update.mutate({ data: { step: step.key, done: checked === true } })
+                }
+              />
+
+              <span className="min-w-0 flex-1">
+                {step.done ? (
+                  <span className="text-muted-foreground line-through decoration-muted-foreground/50">
+                    {step.title}
+                  </span>
+                ) : destination ? (
+                  /*
+                    The title is the link. A director reading "Set your office
+                    hours" should be able to act on it by pressing the words
+                    they just read, rather than tracking across to a button
+                    that repeats nothing about which step it belongs to.
+                  */
+                  <Link
+                    href={destination}
+                    className="group inline-flex items-baseline gap-1 font-semibold text-foreground no-underline
+                               decoration-[var(--accent)]/40 underline-offset-4 hover:underline"
+                  >
+                    {step.title}
+                    <ArrowRight
+                      className="size-3.5 shrink-0 translate-y-px text-[var(--accent)] opacity-0
+                                 transition-[opacity,transform] duration-200 ease-[cubic-bezier(0.2,0.6,0.3,1)]
+                                 group-hover:translate-x-0.5 group-hover:opacity-100"
+                      strokeWidth={2}
+                      aria-hidden
+                    />
+                  </Link>
+                ) : (
+                  <span className="font-semibold">{step.title}</span>
+                )}
+
+                {!step.done && (
+                  <span className="mt-0.5 block text-sm leading-snug text-muted-foreground">
+                    {step.detail}
+                  </span>
+                )}
+              </span>
+            </li>
+          );
+        })}
       </ul>
     </section>
   );

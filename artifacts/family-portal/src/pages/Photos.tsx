@@ -17,8 +17,9 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
-import { Check, Images, Loader2, Scissors, Star, Trash2, Upload } from "lucide-react";
+import { Check, Eye, Images, Loader2, Scissors, Star, Trash2, Upload } from "lucide-react";
 import { Empty, Loading, PageHeader } from "@/components/page";
+import { AuthedImage } from "@/components/AuthedImage";
 
 /**
  * The photo bin.
@@ -227,10 +228,9 @@ export default function Photos() {
                 the two reads as a mess however good the photographs are.
               */}
               <div className="relative size-24 shrink-0">
-                <img
-                  src={`/api/family/uploads/${photo.uploadId}`}
-                  alt={photo.caption ?? ""}
-                  loading="lazy"
+                <AuthedImage
+                  uploadId={photo.uploadId}
+                  alt={photo.caption ?? "Photograph"}
                   className="size-full rounded-lg bg-muted object-cover ring-1 ring-inset ring-black/5"
                 />
                 {photo.isPortrait && (
@@ -297,6 +297,12 @@ export default function Photos() {
                   {/*
                     Asked for plainly, because the alternative is the director
                     ringing a daughter to ask how her mother wore her hair.
+
+                    It carries an icon like its neighbours for a reason that
+                    is not decoration: alone in a row of buttons, a bare
+                    sentence stops reading as something you can press and
+                    starts reading as a caption about the photograph above
+                    it. Three toggles, three marks, one row.
                   */}
                   <Button
                     type="button"
@@ -306,19 +312,32 @@ export default function Photos() {
                       setReference.mutate({ data: { photoId: photo.id } })
                     }
                   >
+                    <Eye
+                      className="size-4"
+                      strokeWidth={photo.isReference ? 2.25 : 2}
+                    />
                     {photo.isReference
                       ? "Shows how they looked"
-                      : "This is how they looked"}
+                      : "How they looked"}
                   </Button>
 
-                  {/* Only what this person added — see the API's own rule. */}
+                  {/*
+                    Only what this person added — see the API's own rule.
+
+                    Pushed to the far end of the row rather than sitting
+                    fourth in a run of four. The three before it choose what a
+                    photograph is *for* and are meant to be tried; this one
+                    throws it away. Putting a gap between them is the whole of
+                    the protection a list like this needs, and more than a
+                    confirmation dialog on every tap would be worth.
+                  */}
                   {photo.uploadedByContactId ===
                     session.data?.contact.id && (
                     <Button
                       type="button"
                       variant="ghost"
                       size="sm"
-                      className="text-muted-foreground"
+                      className="ml-auto text-muted-foreground hover:text-[var(--destructive)]"
                       onClick={() =>
                         removePhoto.mutate({ photoId: photo.id })
                       }

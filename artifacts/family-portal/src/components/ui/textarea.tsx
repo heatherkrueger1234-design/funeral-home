@@ -15,6 +15,12 @@ const Textarea = React.forwardRef<
     <textarea
       className={cn(
         "flex min-h-28 w-full rounded-md border border-[var(--border-strong)] bg-[var(--card)]",
+        // Taller, never wider. The default lets the corner grip be dragged
+        // sideways, and a box dragged past the card it sits in pushes the
+        // whole column out and leaves a horizontal scrollbar under a page
+        // that is meant to read like a printed sheet. Vertical is the axis
+        // anybody actually wants for a long obituary anyway.
+        "resize-y",
         "px-3 py-2.5 text-base leading-relaxed",
         "shadow-[inset_0_1px_2px_rgb(40_34_24/0.04)]",
         "transition-[border-color,box-shadow] duration-200 ease-[cubic-bezier(0.2,0.6,0.3,1)]",

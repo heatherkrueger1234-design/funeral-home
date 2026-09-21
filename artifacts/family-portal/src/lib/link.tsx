@@ -48,9 +48,60 @@ function writeStored(token: string | null): void {
 
 /** The token in `/f/<token>`, if this is a link arrival. */
 function tokenFromUrl(): string | null {
+  if (typeof window === "undefined") return null;
+
   const match = /^\/f\/([^/?#]+)/.exec(window.location.pathname);
   return match?.[1] ? decodeURIComponent(match[1]) : null;
 }
+
+/**
+ * The link this device is using: the URL's if this is an arrival, else the
+ * kept one.
+ *
+ * Runs at module scope, which is the whole point (see below) and is also the
+ * reason `tokenFromUrl` checks for a window first. This is a browser-only
+ * app and always will be, but an import that reaches for `window` while the
+ * module is still evaluating fails in a way that names neither the file nor
+ * the reason — so the one line that makes it a null instead of a crash is
+ * worth having before somebody adds the first test that renders a page.
+ */
+function resolveToken(): string | null {
+  const fromUrl = tokenFromUrl();
+
+  if (fromUrl) {
+    writeStored(fromUrl);
+    return fromUrl;
+  }
+
+  return readStored();
+}
+
+/*
+ * The credential is registered with the API client here, at module scope,
+ * and that placement is load-bearing rather than tidy-minded.
+ *
+ * It used to be registered from an effect inside `LinkProvider`, which is
+ * where it looks like it belongs and is a tick too late. React runs a
+ * child's effects before its parent's, so the query that `PortalShell`
+ * mounts fired *before* the provider above it had installed the getter —
+ * and the opening request of every single cold load went out with no
+ * `Authorization` header at all. The server did the only correct thing with
+ * an unauthenticated request and returned 401.
+ *
+ * It recovered on the automatic retry, so it looked like nothing worse than
+ * a slow first paint. What it actually was: a wasted round trip on every
+ * load, on a phone on mobile data; two rate-limiter slots spent to open one
+ * page; and — the part that matters — a family one dropped retry away from
+ * being told "This link has expired. Please ask the funeral home to send you
+ * a new one" about a link that was working perfectly. That sentence is the
+ * single most expensive thing this portal can say to someone, and it must
+ * never be said because of our own ordering.
+ *
+ * A module-scope getter cannot lose that race: the bundle has evaluated
+ * before React renders anything at all.
+ */
+let activeToken: string | null = resolveToken();
+setAuthTokenGetter(() => activeToken);
 
 type LinkState = {
   token: string | null;
@@ -61,16 +112,7 @@ type LinkState = {
 const LinkContext = createContext<LinkState | null>(null);
 
 export function LinkProvider({ children }: { children: ReactNode }) {
-  const [token, setToken] = useState<string | null>(() => {
-    const fromUrl = tokenFromUrl();
-
-    if (fromUrl) {
-      writeStored(fromUrl);
-      return fromUrl;
-    }
-
-    return readStored();
-  });
+  const [token, setToken] = useState<string | null>(activeToken);
 
   // Get the token out of the address bar as soon as React has it.
   useEffect(() => {
@@ -79,18 +121,15 @@ export function LinkProvider({ children }: { children: ReactNode }) {
     }
   }, []);
 
-  // The generated API client attaches this as `Authorization: Bearer <token>`
-  // on every request, including the multipart photo upload.
-  useEffect(() => {
-    setAuthTokenGetter(() => token);
-    return () => setAuthTokenGetter(null);
-  }, [token]);
-
   const value = useMemo<LinkState>(
     () => ({
       token,
       forget: () => {
         writeStored(null);
+        // Cleared before the re-render, not after it, so nothing that is
+        // still mounted can fire one last request with a token the family
+        // has just asked this device to forget.
+        activeToken = null;
         setToken(null);
       },
     }),
