@@ -49,11 +49,11 @@ export function PageHeader({
  */
 export function Loading({ rows = 3 }: { rows?: number }) {
   return (
-    <div className="animate-pulse space-y-3" role="status" aria-label="Loading">
+    <div className="space-y-3" role="status" aria-label="Loading">
       {Array.from({ length: rows }, (_, index) => (
         <div
           key={index}
-          className="h-20 rounded-xl border border-border bg-[var(--muted)]/50"
+          className="shimmer h-20 rounded-xl border border-border bg-[var(--muted)]/50"
         />
       ))}
     </div>

@@ -62,7 +62,7 @@ function Card({ href, icon: Icon, title, detail, badge }: CardProps) {
   return (
     <Link
       href={href}
-      className="lift group flex items-center gap-4 rounded-xl border border-border bg-card px-4 py-4
+      className="lift press group flex items-center gap-4 rounded-xl border border-border bg-card px-4 py-4
                  no-underline shadow-[var(--elevation-1)] transition-gentle
                  hover:border-[color-mix(in_oklab,var(--accent)_45%,var(--border))]"
     >

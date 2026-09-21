@@ -292,7 +292,7 @@ export default function Dashboard() {
       */}
       <Link
         href="/storefront"
-        className="lift group mt-2 flex items-center gap-4 rounded-xl border border-border bg-card
+        className="lift press group mt-2 flex items-center gap-4 rounded-xl border border-border bg-card
                    px-4 py-3.5 no-underline shadow-[var(--elevation-1)] transition-gentle
                    hover:border-[var(--accent)]"
       >

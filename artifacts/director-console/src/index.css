@@ -70,7 +70,18 @@
 
   /* Replaced at runtime by the home's own colour. */
   --accent: #1f4e46;
-  --accent-soft: #eef3f1;
+  /*
+   * Derived from the paper, not from white, and that is the whole difference
+   * between a tint and a grey.
+   *
+   * Mixed into white this resolved to oklab(0.914 -0.007 -0.00006) — a `b`
+   * channel of essentially zero, which is to say no warmth at all. Every
+   * other surface in this product sits on the warm side, so a wash with the
+   * yellow taken out of it read as cold grey next to them however much
+   * colour was in the mix. Mixing into `--background` keeps the tint on the
+   * same axis as the page it sits on.
+   */
+  --accent-soft: color-mix(in oklab, var(--accent) 13%, var(--background));
   --accent-deep: #14332e;
 
   /*
@@ -109,6 +120,27 @@ body {
   -moz-osx-font-smoothing: grayscale;
   text-rendering: optimizeLegibility;
   overflow-x: hidden;
+}
+
+/*
+ * Paper with a little light on it.
+ *
+ * A single flat fill is what a wireframe looks like. This is the same colour
+ * with a very slight warm lift towards the top of the page — the way a sheet
+ * on a desk is brighter nearer the window — and it is two or three percent of
+ * luminance, which is under the threshold of being seen and over the
+ * threshold of being felt. It is painted on `body` rather than on a wrapper
+ * so it does not scroll, and the print block below overrides it to flat
+ * white because a printer has its own light.
+ */
+body {
+  background-color: var(--background);
+  background-image: radial-gradient(
+    120% 60% at 50% -10%,
+    color-mix(in oklab, var(--card) 55%, var(--background)) 0%,
+    transparent 70%
+  );
+  background-attachment: fixed;
 }
 
 html {
@@ -200,6 +232,122 @@ a[href]:not([class*="no-underline"]) {
   .lift:hover {
     box-shadow: var(--elevation-2);
     transform: translateY(-1px);
+  }
+}
+
+/* ------------------------------------------------------------------ life --
+ *
+ * What follows is the difference between a screen that is correct and one
+ * that feels made. None of it is decoration for its own sake and none of it
+ * is allowed to be noticed on purpose — this is a product people open on the
+ * worst week of their lives, and anything that draws attention to the
+ * software is taking attention from the person who died.
+ *
+ * The rules it is held to: nothing moves more than eight pixels, nothing
+ * takes longer than a third of a second, nothing bounces, nothing loops
+ * forever except where something is genuinely still loading, and every
+ * single thing here switches off under `prefers-reduced-motion`.
+ */
+
+/*
+ * Arrival. A page rises a few pixels into place rather than appearing, which
+ * is the whole of what makes a native app feel unlike a web page.
+ *
+ * `both` so the first frame is already the "from" state: without it there is
+ * one frame of fully-opaque content before the animation starts, which reads
+ * as a flicker on a slow phone.
+ */
+@keyframes rise {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+.rise {
+  animation: rise 280ms var(--ease-gentle) both;
+}
+
+/*
+ * Children of a rising container follow it in, a few milliseconds apart.
+ * Capped at six: past that the last card is arriving late enough to be
+ * noticed as waiting, and the effect stops being grace and starts being a
+ * delay.
+ */
+.rise-children > * {
+  animation: rise 280ms var(--ease-gentle) both;
+}
+.rise-children > *:nth-child(1) { animation-delay: 0ms; }
+.rise-children > *:nth-child(2) { animation-delay: 35ms; }
+.rise-children > *:nth-child(3) { animation-delay: 70ms; }
+.rise-children > *:nth-child(4) { animation-delay: 105ms; }
+.rise-children > *:nth-child(5) { animation-delay: 140ms; }
+.rise-children > *:nth-child(n + 6) { animation-delay: 170ms; }
+
+/*
+ * A skeleton that breathes rather than blinks.
+ *
+ * `animate-pulse` fades a block in and out, which at a glance looks like
+ * something failing to load. A sheen travelling across it reads as work in
+ * progress, which is what is actually true — and it is set in the paper's
+ * own warmth rather than in white, so it looks like light moving over card
+ * stock instead of a loading bar from a different website.
+ */
+@keyframes sheen {
+  from { background-position: 200% 0; }
+  to { background-position: -100% 0; }
+}
+
+.shimmer {
+  background-image: linear-gradient(
+    100deg,
+    transparent 20%,
+    color-mix(in oklab, var(--card) 70%, transparent) 40%,
+    color-mix(in oklab, var(--card) 70%, transparent) 55%,
+    transparent 75%
+  );
+  background-size: 200% 100%;
+  background-repeat: no-repeat;
+  animation: sheen 1.8s var(--ease-gentle) infinite;
+}
+
+/*
+ * The one press that should feel like a press.
+ *
+ * Buttons give a single pixel of travel and come back. It is below the
+ * threshold anybody would describe, and it is the difference between a
+ * control that acknowledges a finger and one that does not.
+ */
+.press {
+  transition:
+    transform 120ms var(--ease-gentle),
+    box-shadow 200ms var(--ease-gentle),
+    background-color 200ms var(--ease-gentle),
+    border-color 200ms var(--ease-gentle),
+    color 200ms var(--ease-gentle);
+}
+
+.press:active:not(:disabled) {
+  transform: translateY(1px);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .rise,
+  .rise-children > * {
+    animation: none !important;
+  }
+
+  .shimmer {
+    animation: none;
+    background-image: none;
+  }
+
+  .press:active:not(:disabled) {
+    transform: none;
   }
 }
 

@@ -223,7 +223,10 @@ export function ConsoleShell({ children }: { children: ReactNode }) {
         </div>
       </header>
 
-      <main className="mx-auto w-full max-w-5xl flex-1 px-5 py-7">{children}</main>
+      {/* Keyed on the path, so each screen rises into place. */}
+      <main key={location} className="rise mx-auto w-full max-w-5xl flex-1 px-5 py-7">
+        {children}
+      </main>
     </div>
   );
 }

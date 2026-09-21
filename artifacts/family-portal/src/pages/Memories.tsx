@@ -368,8 +368,8 @@ export default function Memories() {
                 key={prompt}
                 type="button"
                 onClick={() => setWriting({ prompt })}
-                className="lift rounded-full border border-border bg-card px-3.5 py-2 text-left text-sm
-                           shadow-[var(--elevation-1)] transition-gentle
+                className="lift press rounded-full border border-border bg-card px-3.5 py-2 text-left text-sm
+                           shadow-[var(--elevation-1)]
                            hover:border-[var(--accent)] hover:text-[var(--accent-deep)]"
               >
                 {prompt}

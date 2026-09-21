@@ -189,7 +189,7 @@ export function MusicSuggestions({
               type="button"
               aria-expanded={live}
               onClick={() => setOpen(live ? null : entry.key)}
-              className={`rounded-full border px-3.5 py-2 text-sm font-semibold transition-gentle ${
+              className={`press rounded-full border px-3.5 py-2 text-sm font-semibold ${
                 live
                   ? "border-[var(--accent)] bg-[var(--accent-soft)] text-[var(--accent-deep)]"
                   : "border-border text-muted-foreground hover:border-[var(--accent)]/50 hover:text-foreground"
@@ -223,7 +223,7 @@ export function MusicSuggestions({
                         attribution: song.by ?? null,
                       })
                     }
-                    className={`group flex w-full items-center gap-3 rounded-lg border px-3 py-2.5 text-left transition-gentle ${
+                    className={`press group flex w-full items-center gap-3 rounded-lg border px-3 py-2.5 text-left ${
                       already
                         ? "cursor-default border-[var(--accent)]/30 bg-[var(--accent-soft)]"
                         : "border-border hover:border-[var(--accent)] hover:bg-[var(--sunken)]"

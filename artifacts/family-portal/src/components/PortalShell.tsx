@@ -25,10 +25,17 @@ function useBrandColor(accent: string | undefined) {
 
     const root = document.documentElement;
     root.style.setProperty("--accent", accent);
-    // A soft wash and a deeper shade, derived so a home only has to give one
-    // colour. Mixed in oklab so a mid-tone brand colour does not produce a
-    // muddy tint the way naive RGB blending does.
-    root.style.setProperty("--accent-soft", `color-mix(in oklab, ${accent} 10%, white)`);
+    /*
+     * A soft wash and a deeper shade, derived so a home only has to give one
+     * colour. Mixed in oklab so a mid-tone brand colour does not produce a
+     * muddy tint the way naive RGB blending does — and mixed into the paper
+     * rather than into white, because white takes all the warmth out and
+     * leaves a wash that reads as grey against every other surface here.
+     */
+    root.style.setProperty(
+      "--accent-soft",
+      `color-mix(in oklab, ${accent} 13%, var(--background))`,
+    );
     root.style.setProperty("--accent-deep", `color-mix(in oklab, ${accent} 80%, black)`);
 
     /*
@@ -120,14 +127,14 @@ function FullScreen({ children }: { children: ReactNode }) {
 function Waiting() {
   return (
     <div className="mx-auto w-full max-w-2xl px-5 py-10" role="status" aria-label="Loading">
-      <div className="animate-pulse space-y-6">
+      <div className="space-y-6">
         <div className="space-y-2.5">
-          <div className="h-7 w-2/3 rounded-md bg-[var(--muted)]" />
-          <div className="h-4 w-1/2 rounded-md bg-[var(--muted)]/70" />
+          <div className="shimmer h-7 w-2/3 rounded-md bg-[var(--muted)]" />
+          <div className="shimmer h-4 w-1/2 rounded-md bg-[var(--muted)]/70" />
         </div>
         <div className="space-y-3">
           {[0, 1, 2, 3].map((row) => (
-            <div key={row} className="h-16 rounded-xl bg-[var(--muted)]/60" />
+            <div key={row} className="shimmer h-16 rounded-xl bg-[var(--muted)]/60" />
           ))}
         </div>
       </div>
@@ -238,7 +245,8 @@ export function PortalShell({ children }: { children: ReactNode }) {
         like.
       */}
       <header
-        className="no-print sticky top-0 z-30 text-white shadow-[0_1px_0_rgb(0_0_0/0.06),0_6px_16px_-12px_rgb(40_34_24/0.5)]"
+        className="no-print sticky top-0 z-30 text-white
+                   shadow-[inset_0_-1px_0_rgb(255_255_255/0.12),0_1px_0_rgb(0_0_0/0.06),0_6px_16px_-12px_rgb(40_34_24/0.5)]"
         style={{
           background:
             "linear-gradient(170deg, var(--accent-deep) 0%, var(--accent) 65%)",
@@ -277,7 +285,16 @@ export function PortalShell({ children }: { children: ReactNode }) {
         </div>
       )}
 
-      <main className="mx-auto w-full max-w-2xl flex-1 px-5 pb-10 pt-6">
+      {/*
+        Keyed on the path so it remounts, which is what replays the arrival
+        animation on every screen rather than only on the first one. The
+        children swap on navigation regardless; this makes the frame they
+        arrive in swap with them.
+      */}
+      <main
+        key={location}
+        className="rise mx-auto w-full max-w-2xl flex-1 px-5 pb-10 pt-6"
+      >
         {children}
       </main>
 

@@ -41,11 +41,11 @@ export function PageHeader({
  */
 export function Loading({ rows = 3 }: { rows?: number }) {
   return (
-    <div className="animate-pulse space-y-2.5" role="status" aria-label="Loading">
+    <div className="space-y-2.5" role="status" aria-label="Loading">
       {Array.from({ length: rows }, (_, index) => (
         <div
           key={index}
-          className="h-16 rounded-xl border border-border bg-[var(--muted)]/50"
+          className="shimmer h-16 rounded-xl border border-border bg-[var(--muted)]/50"
         />
       ))}
     </div>
@@ -55,11 +55,11 @@ export function Loading({ rows = 3 }: { rows?: number }) {
 /** A single short bar, for a panel that holds a paragraph rather than a list. */
 export function LoadingLines({ lines = 3 }: { lines?: number }) {
   return (
-    <div className="animate-pulse space-y-2.5" role="status" aria-label="Loading">
+    <div className="space-y-2.5" role="status" aria-label="Loading">
       {Array.from({ length: lines }, (_, index) => (
         <div
           key={index}
-          className="h-4 rounded bg-[var(--muted)]"
+          className="shimmer h-4 rounded bg-[var(--muted)]"
           style={{ width: `${100 - index * 12}%` }}
         />
       ))}
