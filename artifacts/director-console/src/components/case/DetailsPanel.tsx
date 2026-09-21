@@ -5,6 +5,8 @@ import {
   useGetAftercare,
   getGetCaseQueryKey,
   getGetCasesQueryKey,
+  getGetDeadlinesQueryKey,
+  getGetHomeDashboardQueryKey,
   type CaseDetail,
 } from "@workspace/api-client-react";
 import { Input } from "@/components/ui/input";
@@ -53,6 +55,17 @@ export function DetailsPanel({
           queryKey: getGetCaseQueryKey(caseId),
         });
         void queryClient.invalidateQueries({ queryKey: getGetCasesQueryKey() });
+        // Setting the service date from here builds the timeline exactly
+        // like choosing an offered time does (see DateOptions' `refresh`),
+        // so it has to invalidate the same queries — otherwise the timeline
+        // tab and the dashboard's "no date yet" / "this week" sections keep
+        // showing stale data until their next poll.
+        void queryClient.invalidateQueries({
+          queryKey: getGetDeadlinesQueryKey(caseId),
+        });
+        void queryClient.invalidateQueries({
+          queryKey: getGetHomeDashboardQueryKey(),
+        });
       },
     },
   });

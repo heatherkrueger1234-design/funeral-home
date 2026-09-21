@@ -272,7 +272,11 @@ export default function Local() {
                     )}
                   </span>
                   <span className="tabular shrink-0 font-semibold">
-                    ${(quote.quotedAmountCents! / 100).toLocaleString()}
+                    $
+                    {(quote.quotedAmountCents! / 100).toLocaleString(undefined, {
+                      minimumFractionDigits: 2,
+                      maximumFractionDigits: 2,
+                    })}
                   </span>
                 </li>
               ))}

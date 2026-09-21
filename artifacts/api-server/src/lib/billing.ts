@@ -155,9 +155,18 @@ function mapStatus(stripeStatus: string): string {
  * Finds the home by the metadata we set at checkout, falling back to the
  * customer id — the fallback matters because a subscription changed from
  * Stripe's dashboard, rather than through checkout, carries no metadata.
+ *
+ * `eventCreatedAt` is the *webhook event's* own timestamp, not anything on
+ * the subscription object. Stripe does not guarantee delivery order, so an
+ * event that was queued earlier can arrive after a later one; applying
+ * whichever lands last could un-cancel a home that has already cancelled. An
+ * incoming event older than the last one actually applied is dropped rather
+ * than applied, so events may arrive out of order without the state ever
+ * moving backwards.
  */
 export async function applySubscription(
   subscription: StripeSubscription,
+  eventCreatedAt: Date,
 ): Promise<boolean> {
   const byMetadata = Number(subscription.metadata?.funeralHomeId);
 
@@ -183,6 +192,14 @@ export async function applySubscription(
     return false;
   }
 
+  if (home.stripeEventCreatedAt && home.stripeEventCreatedAt >= eventCreatedAt) {
+    logger.warn(
+      { funeralHomeId: home.id, subscription: subscription.id },
+      "Ignoring a Stripe event older than the one already applied",
+    );
+    return true;
+  }
+
   await db
     .update(funeralHomesTable)
     .set({
@@ -191,6 +208,7 @@ export async function applySubscription(
       currentPeriodEndsAt: subscription.current_period_end
         ? new Date(subscription.current_period_end * 1000)
         : null,
+      stripeEventCreatedAt: eventCreatedAt,
       updatedAt: new Date(),
     })
     .where(eq(funeralHomesTable.id, home.id));

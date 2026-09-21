@@ -1180,6 +1180,15 @@ router.post("/aftercare", async (req, res) => {
     "There is no aftercare on this case yet.",
   );
 
+  // "No" is final. Without this, a replayed request, a stale tab still
+  // holding a "Yes, please" button, or a direct call against the family
+  // token could set `unsubscribedAt` back to null and re-enrol someone who
+  // has already said no — exactly what the comment above promises never
+  // happens.
+  if (values.consent && found.unsubscribedAt !== null) {
+    throw badRequest("This family already declined and cannot be re-enrolled.");
+  }
+
   const now = new Date();
 
   const [updated] = await db

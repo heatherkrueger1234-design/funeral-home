@@ -73,6 +73,12 @@ export default function Requests() {
           name: created.displayName ?? "the family",
         });
       },
+      // A second director accepting the same request gets a 409 here. The
+      // global error toast already explains why; without this, the row
+      // itself stayed on screen looking untouched, with both buttons still
+      // enabled — inviting a repeat click on a request that is already
+      // spoken for. Refreshing clears it from the pending queue.
+      onError: refresh,
     },
   });
 
