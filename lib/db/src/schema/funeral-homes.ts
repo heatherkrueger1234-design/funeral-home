@@ -9,6 +9,7 @@ import {
 } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
+import { homeGroupsTable } from "./home-groups";
 
 /**
  * How long after the service the case chat stays open, for a home that has
@@ -202,6 +203,36 @@ export const funeralHomesTable = pgTable(
     stripeSubscriptionId: text("stripe_subscription_id"),
     /** When the paid period ends. Set from Stripe, never calculated here. */
     currentPeriodEndsAt: timestamp("current_period_ends_at"),
+
+    /**
+     * Which add-ons this home is entitled to, as a comma-separated list of
+     * keys. Same shape as `onboardingDone` above, and for the same reason:
+     * the set will change as the product does, and a boolean column per
+     * add-on is the sort of friction that stops anyone adding one.
+     *
+     * Written by the Stripe webhook from the subscription's line items, so
+     * this is a cache of what was bought rather than a second opinion about
+     * it. Note what is still absent: no price, no amount, no quantity. What
+     * was paid stays in Stripe. See `plans.ts`.
+     */
+    entitlements: text("entitlements").notNull().default(""),
+
+    /**
+     * The group this location belongs to, if it belongs to one.
+     *
+     * Null is the ordinary case -- a single home that pays its own bill.
+     * When it is set, the group's subscription is the one that counts, and
+     * the webhook writes the group's status and entitlements down onto this
+     * row. Nothing at request time joins to the group, which is deliberate:
+     * see `home-groups.ts`.
+     *
+     * `set null` on delete, emphatically. A group row is a billing
+     * arrangement; removing one must release forty funeral homes, never
+     * cascade into deleting them.
+     */
+    groupId: integer("group_id").references(() => homeGroupsTable.id, {
+      onDelete: "set null",
+    }),
 
     /**
      * Which setup steps the home has finished.

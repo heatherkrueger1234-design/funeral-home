@@ -3,6 +3,7 @@ import { timingSafeEqual } from "node:crypto";
 import { runAftercare } from "@workspace/mailer/aftercare";
 import { HttpError } from "../lib/http";
 import { logger } from "../lib/logger";
+import { runCaseMetering } from "../lib/metering";
 
 /**
  * Scheduled work, triggered over HTTP.
@@ -63,6 +64,29 @@ router.post("/tasks/aftercare", async (req, res) => {
   const result = await runAftercare({ dryRun });
 
   logger.info({ ...result }, "Aftercare run finished");
+
+  res.json(result);
+});
+
+/**
+ * Report counted funerals to Stripe's meter.
+ *
+ * Same posture as the aftercare run, and separate from it on purpose: a
+ * broken meter must not stop the grief check-ins going out, and a mail
+ * outage must not stop the month being invoiced. One job failing should
+ * page somebody about one thing.
+ *
+ * Safe to run as often as you like. The rows carry an identifier Stripe
+ * deduplicates on, so the worst a double trigger does is waste a request.
+ */
+router.post("/tasks/usage", async (req, res) => {
+  assertAuthorised(req.headers.authorization);
+
+  const dryRun = req.query["dryRun"] === "1" || req.query["dryRun"] === "true";
+
+  const result = await runCaseMetering({ dryRun });
+
+  logger.info({ ...result }, "Case metering run finished");
 
   res.json(result);
 });

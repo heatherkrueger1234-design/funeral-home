@@ -7,7 +7,10 @@
  * reaches it through a `family_contacts` token rather than an account.
  */
 
-/* The tenant, and the people who work there. */
+/* The tenant, and the people who work there. A group, where there is one,
+ * sits above the tenant and carries only the contract — never a way to read
+ * across it. */
+export * from "./home-groups";
 export * from "./funeral-homes";
 export * from "./users";
 export * from "./sessions";
@@ -49,6 +52,10 @@ export * from "./service-offers";
  * preference. */
 export * from "./policies";
 export * from "./price-list";
+
+/* What we charge the home, and the standing refusal to charge the family.
+ * `plans.ts` is the file that argues the second one. */
+export * from "./plans";
 
 /* The local network a home can point a family at. */
 export * from "./vendors";

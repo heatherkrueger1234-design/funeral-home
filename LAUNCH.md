@@ -7,10 +7,15 @@ what is supposed to work. Dated at the last commit on
 ## The one-line answer
 
 **Ready for a supervised pilot with a handful of funeral homes. Not ready to
-sell unattended.** The product works end to end, the data is safe, and the
-whole stack now builds and runs in containers. What is missing is operational:
-it has never run on a real host with real TLS, real mail, or a real payment,
-and no real family has ever used it.
+sell unattended, and not ready to bill anybody today.** The product works end
+to end, the data is safe, and the whole stack builds and runs in containers.
+What is missing is operational: it has never run on a real host with real TLS,
+real mail, or a real payment, and no real family has ever used it.
+
+The pricing model — base subscription, per-funeral metering, the aftercare
+add-on and group contracts — is built and tested, but no price exists in
+Stripe and no live charge has ever been taken. `PRICING.md` has the five-step
+checklist, and step five is deciding the numbers.
 
 ## What has been proven by running it
 
@@ -39,7 +44,7 @@ production esbuild bundle, through the real nginx config:
   containers restores and verifies. A full restart leaves the photograph
   byte-for-byte identical.
 
-163 tests, 4 projects typechecking, 3 apps building.
+254 tests, 4 projects typechecking, 3 apps building.
 
 ## What is not ready
 
@@ -50,6 +55,9 @@ production esbuild bundle, through the real nginx config:
 | **No real family has ever used the family portal.** Every test is synthetic. | **High** | One pilot home, one real case, watch what happens. |
 | **Email and SMS are unconfigured.** Password resets, aftercare and intake alerts are written to the log instead of sent. | **High** | SMTP credentials and a Twilio number. |
 | **Stripe has never taken a real payment.** The webhook signature check is tested; a live charge is not. | **High** | Test-mode keys, one real subscription cycle. |
+| **No prices exist in Stripe.** The per-case meter, the aftercare add-on and the group contract are all built and tested against a stubbed Stripe; none of them has a price behind it. Until `STRIPE_PRICE_ID_CASE` and `STRIPE_CASE_METER_EVENT` are set, every home is invoiced for a flat subscription and nothing says so. | **High** | Five environment variables and one test-mode cycle. `PRICING.md` has the checklist. |
+| **The usage reporter has never run on a schedule.** Same failure the aftercare job had for most of this product's life: the thing that turns work into revenue does nothing until something triggers it. | **High** | Set `TASK_SECRET` and schedule `usage.yml`. |
+| **Groups have no console.** The API is complete — create, move locations, consolidated checkout, all audited — but the admin console has no screen for it, so a group is set up with curl. | Medium | A page in Component 2. Fine for the first one or two groups, which will be set up by hand anyway. |
 | **One API instance, one Postgres, no replication.** | Medium | Fine for a pilot. Not fine at fifty homes. |
 | **Uploads live in Postgres.** Encrypted, correct, and the wrong long-term home for gigabytes of photographs. | Medium | Object storage, when a home's database gets uncomfortable. |
 | **Backups land on the same host** until somebody copies them off. | Medium | An offsite copy job. `DEPLOY.md` has the command. |
@@ -60,6 +68,15 @@ production esbuild bundle, through the real nginx config:
 
 These were chosen, and the reasoning is in the code next to them:
 
+- **The family is never charged for anything.** Not for the obituary, not for
+  the slideshow assembled from photographs they uploaded themselves, not after
+  the home cancels. This is the most frequently re-proposed change to the
+  product and `PRICING.md` argues it out in full; `no-family-charges.test.ts`
+  fails the build if it ever stops being true.
+- **A home billed per funeral is billed once per funeral, and never for a
+  pre-need file.** Counting happens locally when the case opens and is
+  reported to Stripe later, so no director ever waits on `api.stripe.com` to
+  open a file for a family on their way in.
 - **No published price list, no invoices, no contracts.** The FTC Funeral Rule
   governs how prices are disclosed, and every state's pre-need statute differs.
   A national SaaS generating that paperwork would be selling homes a compliance
@@ -94,6 +111,9 @@ These were chosen, and the reasoning is in the code next to them:
    reset it without someone reading the server log.
 4. Set `TASK_SECRET` and schedule the aftercare job. It is the feature the
    subscription is really for, and it does nothing until something triggers it.
+   Schedule the usage job (`usage.yml`) in the same sitting, for the same
+   reason: it is the thing that turns funerals into revenue, and it is equally
+   silent when nothing calls it.
 5. Take one backup, then run `verify-backup` and watch it restore.
 6. Generate `ENCRYPTION_KEY` and **put a copy somewhere that is not the host
    and not the backup.** Losing it loses every photograph.
