@@ -295,6 +295,104 @@ and one it merely happens to obey today. `assertNoExtraKeys` in
 `artifacts/api-server/src/lib/storefront.ts` puts it back. If orval ever
 learns to emit `.strict()`, delete it.
 
+## Engagement, Colorado's clock, offered times and the aftercare handoff
+
+Four things in one component, because they are the same problem seen from four
+angles: this product's whole relationship with a family after the director
+closes the laptop is a handful of messages and a handful of dates, and every
+one of them is either legally timed or legally consented.
+
+### Counting happens once
+
+`artifacts/api-server/src/lib/engagement.ts` is the only place in this codebase
+that counts anything, and two audiences read the result.
+
+`engagementForCase` answers the director's question — "did that text land, and
+is this family stuck?" It returns who has opened their link, who is
+contributing, what is outstanding, and an `attention` list of plain sentences
+about what has not happened yet. `engagementForHomes` answers the platform
+admin's — "are these homes getting value?" — and is the shape the admin console
+renders, per home and summed across all of them.
+
+**Nothing in either ranks a family.** No score, no percentage, no league table,
+and no column that could become one. A family that has not uploaded photographs
+of their mother is not failing at anything; they are three days bereaved. The
+director gets a sentence they can read out on the telephone, and that is all.
+
+### Colorado's deadlines apply themselves
+
+`COLORADO_STATUTORY_DEADLINES` in `lib/db/src/schema/engagement.ts` carries the
+state's real clock: the certificate of death filed within 72 hours of taking
+custody and before disposition, medical certification within 72 hours of the
+EDRS request, embalming or refrigeration once 24 hours have passed since the
+death, and the disposition permit and cremation authorization before a
+cremation. They are built on read rather than behind a button — a home that has
+to press something to be told about its own 72 hours gets told about them by
+the registrar instead — and the only thing a director does is confirm the two
+dates nothing can derive: when custody was taken, and when the EDRS request
+went out. Until they do, custody is proposed as the moment the case was opened
+and `custodyAssumed` says plainly that it is a proposal.
+
+They live in `case_statutory_deadlines` rather than on `case_deadlines`, and
+the reason is the family. `case_deadlines` is the timeline a widow reads on her
+own page; "File the certificate of death — 72 hours" is the home's legal
+obligation, not her homework, and putting it there would both alarm her and
+inflate the count of what she still has to do with paperwork that was never
+hers. Nothing about any of this is rendered in red, as a countdown, or as
+anything other than a sentence — `describeStanding` writes that sentence once
+so every screen says the same one.
+
+### The home offers times, the family picks
+
+`appointment_slots` is deliberately not a calendar. The home already owns one,
+and synchronising with it is a different product with a different failure mode.
+This holds the handful of windows a director chose to offer this week. A family
+takes one with a conditional update, so two daughters tapping the same eleven
+o'clock produce one booking and one "somebody took that one first" rather than
+two families in the same room. A slot the home takes back is withdrawn rather
+than deleted, so the family holding it is told instead of watching it vanish.
+
+There is no endpoint anywhere that accepts a date a family typed. A date nobody
+read is how a family ends up outside a locked chapel.
+
+### Consent, and the one door out
+
+The TCPA carries statutory damages per message. So consent is a row with a
+timestamp and a source — `messaging_consents` — never a boolean on a contact,
+and `sendConsentedSms` in `artifacts/api-server/src/lib/consent.ts` is the only
+function in this component that texts. It reads consent at send time rather
+than at queue time, names the home in the message, and carries the way out.
+`test/engagement.test.ts` proves a new sending path refuses without it.
+
+Consent is keyed on the address rather than on the contact, because contacts
+are per-case and a person is not: a stop sent during her father's funeral in
+March has to still be honoured during her mother's in November. `revokedAt` is
+final — no screen re-grants it, a director's console cannot toggle it, and
+`recordConsent` refuses outright for a revoked address. The way back is a
+telephone call to the home, which is how a funeral home does everything else.
+
+STOP arrives at `POST /api/sms/inbound`, above every gate like the Stripe
+webhook and for the same reason — a carrier has no session — and guarded by
+Twilio's own request signature instead. A deployment with no `TWILIO_AUTH_TOKEN`
+refuses the endpoint outright rather than accepting unsigned requests. A stop is
+honoured across every message type, the aftercare check-ins included, and
+across every home rather than only the one that sent the message: over-revoking
+costs a home one message it wanted to send, and under-revoking costs it 500
+dollars a message.
+
+### The aftercare handoff
+
+After the service the working surfaces recede and what is left is what the
+family keeps: the photographs, the obituary as it was published, the order of
+service, and the check-ins still to come. `GET /api/family/keepsake` returns
+that, with a `phase` of `arranging` or `keeping`. Nothing is deleted and
+nothing is locked — the family can still open every screen — they simply stop
+being the first thing on the page.
+
+**Built inside this product.** It is not a handoff to another application and
+must not quietly become one; see `Remember-Me/README.md` for why that
+separation is load-bearing.
+
 ## Tests
 
 `artifacts/api-server/test` runs against a real Postgres with no mocks, because
