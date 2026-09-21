@@ -44,6 +44,8 @@ beforeEach(async () => {
       home_licensure,
       aftercare_deliveries,
       aftercare_enrollments,
+      memory_entries,
+      memory_books,
       case_deadlines,
       case_messages,
       case_photos,

@@ -94,6 +94,38 @@ describe("the family is never charged", () => {
     }
   });
 
+  it("gives them the memory book free, which is where the fee would go", async () => {
+    const staff = await signUpHome();
+    const row = await createCase(staff);
+    const { token } = await inviteFamily(staff, row.id);
+    const family = asFamily(token);
+
+    await family
+      .post("/api/family/memory-book/entries")
+      .send({ body: "She answered the telephone as though it were an emergency." })
+      .expect(201);
+
+    /*
+     * The printed keepsake is the most sellable thing this product makes
+     * and the obvious place for a "buy the bound copy" button, so it is
+     * named here rather than left to the blanket check above. It is
+     * assembled out of photographs the family uploaded of their own mother
+     * and words they wrote themselves; `schema/plans.ts` argues the rest.
+     */
+    const book = await family.get("/api/family/memory-book").expect(200);
+    const rendered = await family.get("/api/family/memory-book/render").expect(200);
+
+    expect(JSON.stringify(book.body)).not.toMatch(
+      /amountCents|priceCents|checkoutUrl|"(price|total|amount|fee)"\s*:/i,
+    );
+    expect(rendered.text).not.toMatch(/\$[0-9]/);
+    expect(rendered.text).toMatch(/as though it were an emergency/);
+
+    // No watermark, no sample, no "preview" edition. The family's copy is
+    // the copy.
+    expect(rendered.text.toLowerCase()).not.toMatch(/watermark|sample copy|preview only/);
+  });
+
   it("still gives them everything after the home has stopped paying", async () => {
     const staff = await signUpHome();
     const row = await createCase(staff);

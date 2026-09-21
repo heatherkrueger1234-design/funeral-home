@@ -21,6 +21,7 @@ import {
   toPublicFamilyContact,
   toStaffSignature,
   decedentDisplayName,
+  memoryEntriesTable,
   MAX_PHOTOS_PER_CASE,
 } from "@workspace/db";
 import {
@@ -41,6 +42,15 @@ import {
   GetFamilyVendorsQueryParams,
   UpdateFamilyVitalsBody,
 } from "@workspace/api-zod";
+import {
+  assertPhotoBelongs,
+  bookIsOpen,
+  loadOrCreateBook,
+  memoryEntryInputSchema,
+  nextMemoryPosition,
+  renderBookFor,
+  toBookJson,
+} from "./memory-book";
 import {
   assertHasUpdates,
   badRequest,
@@ -1206,6 +1216,224 @@ router.post("/aftercare", async (req, res) => {
       deliveries: [],
     },
   );
+});
+
+
+/* --------------------------------------------------------- memory book --- */
+
+/**
+ * The family's side of the memory book, and the reason the feature exists.
+ *
+ * The grief check-ins arrive at thirty, sixty and ninety days and on the
+ * anniversary, and each one now asks whether anything has come back to
+ * them. This is where the answer goes. By the year mark there is a book
+ * with the photographs already in it, because the photographs have been in
+ * here since the funeral.
+ *
+ * Everything below is free, and stays free after the home has cancelled.
+ * The book is assembled out of pictures this family uploaded of their own
+ * mother and words they wrote themselves; `schema/plans.ts` sets out why
+ * charging them for it is the one revenue line this product refuses, and
+ * `no-family-charges.test.ts` fails the build if it ever grows one.
+ */
+
+router.get("/memory-book", async (req, res) => {
+  const row = familyCase(req);
+  const contact = familyContact(req);
+  const book = await loadOrCreateBook(row.id, row.funeralHomeId);
+
+  const entries = await db
+    .select()
+    .from(memoryEntriesTable)
+    .where(
+      and(
+        eq(memoryEntriesTable.caseId, row.id),
+        eq(memoryEntriesTable.funeralHomeId, row.funeralHomeId),
+      ),
+    )
+    .orderBy(asc(memoryEntriesTable.position), asc(memoryEntriesTable.id));
+
+  /*
+   * A family member sees what is in the book, plus their own entries even
+   * if the home has taken one out.
+   *
+   * Their own is deliberate. Somebody who writes a memory and then cannot
+   * find it concludes the software lost it and writes it again; showing it
+   * to them, marked, is the honest version. What they are not shown is
+   * `excludedReason`, which is a note between the home and itself.
+   */
+  const visible = entries.filter(
+    (entry) => entry.includedInBook || entry.authorContactId === contact.id,
+  );
+
+  res.json({
+    ...toBookJson(book),
+    entries: visible.map((entry) => ({
+      id: entry.id,
+      authorName: entry.authorName,
+      body: entry.body,
+      whenText: entry.whenText,
+      photoId: entry.photoId,
+      includedInBook: entry.includedInBook,
+      /** Whether this one is theirs to edit. */
+      mine: entry.authorContactId === contact.id,
+      createdAt: entry.createdAt,
+    })),
+  });
+});
+
+/**
+ * Add a memory.
+ *
+ * `authorName` is not taken from the request. It is the contact's own name
+ * as the home recorded it, snapshotted at this moment — so nobody can sign
+ * somebody else's name to a paragraph in a family's keepsake, and a later
+ * correction to the contact record cannot rewrite what was printed.
+ */
+router.post("/memory-book/entries", async (req, res) => {
+  const row = familyCase(req);
+  const contact = familyContact(req);
+  const book = await loadOrCreateBook(row.id, row.funeralHomeId);
+
+  if (!bookIsOpen(book)) {
+    throw new HttpError(
+      409,
+      "This book has been closed for printing. Tell the funeral home if there is something you would still like to add.",
+    );
+  }
+
+  const values = parseBody(memoryEntryInputSchema, req.body);
+  await assertPhotoBelongs(values.photoId, row.id, row.funeralHomeId);
+
+  const [created] = await db
+    .insert(memoryEntriesTable)
+    .values({
+      funeralHomeId: row.funeralHomeId,
+      caseId: row.id,
+      authorName: contact.name,
+      authorSide: "family",
+      authorContactId: contact.id,
+      body: values.body,
+      whenText: values.whenText ?? null,
+      photoId: values.photoId ?? null,
+      position: await nextMemoryPosition(row.id),
+    })
+    .returning();
+
+  res.status(201).json({
+    id: created!.id,
+    authorName: created!.authorName,
+    body: created!.body,
+    whenText: created!.whenText,
+    photoId: created!.photoId,
+    includedInBook: created!.includedInBook,
+    mine: true,
+    createdAt: created!.createdAt,
+  });
+});
+
+/** Their own entry, and only their own. */
+async function loadOwnEntry(
+  entryId: number,
+  caseId: number,
+  contactId: number,
+) {
+  const [entry] = await db
+    .select()
+    .from(memoryEntriesTable)
+    .where(
+      and(
+        eq(memoryEntriesTable.id, entryId),
+        eq(memoryEntriesTable.caseId, caseId),
+        // Not "and then check who wrote it" — the predicate is the check.
+        // A relative editing another relative's memory of their mother is
+        // not a thing this should be one forgotten `if` away from.
+        eq(memoryEntriesTable.authorContactId, contactId),
+      ),
+    )
+    .limit(1);
+
+  return requireRow(entry, "That memory could not be found.");
+}
+
+router.put("/memory-book/entries/:entryId", async (req, res) => {
+  const row = familyCase(req);
+  const contact = familyContact(req);
+  const book = await loadOrCreateBook(row.id, row.funeralHomeId);
+
+  const entry = await loadOwnEntry(
+    parseId(req.params.entryId),
+    row.id,
+    contact.id,
+  );
+
+  if (!bookIsOpen(book)) {
+    throw new HttpError(
+      409,
+      "This book has been closed for printing, so it can no longer be changed here.",
+    );
+  }
+
+  const values = assertHasUpdates(parseBody(memoryEntryInputSchema.partial(), req.body));
+  await assertPhotoBelongs(values.photoId, row.id, row.funeralHomeId);
+
+  const [updated] = await db
+    .update(memoryEntriesTable)
+    .set({ ...values, updatedAt: new Date() })
+    .where(eq(memoryEntriesTable.id, entry.id))
+    .returning();
+
+  res.json({
+    id: updated!.id,
+    authorName: updated!.authorName,
+    body: updated!.body,
+    whenText: updated!.whenText,
+    photoId: updated!.photoId,
+    includedInBook: updated!.includedInBook,
+    mine: true,
+    createdAt: updated!.createdAt,
+  });
+});
+
+/**
+ * Take their own memory back out.
+ *
+ * A real delete, unlike the home's exclude. Somebody who wrote something at
+ * two in the morning six weeks after their mother died and wants it gone is
+ * entitled to have it gone, not flagged.
+ */
+router.delete("/memory-book/entries/:entryId", async (req, res) => {
+  const row = familyCase(req);
+  const contact = familyContact(req);
+
+  const entry = await loadOwnEntry(
+    parseId(req.params.entryId),
+    row.id,
+    contact.id,
+  );
+
+  await db.delete(memoryEntriesTable).where(eq(memoryEntriesTable.id, entry.id));
+
+  res.status(204).end();
+});
+
+/**
+ * Their copy of the book.
+ *
+ * Byte for byte the same document the funeral home prints — one renderer,
+ * no watermark, no preview edition, and no page missing. That is enforced
+ * by there being one function rather than by anybody remembering.
+ */
+router.get("/memory-book/render", async (req, res) => {
+  const row = familyCase(req);
+  const home = familyHome(req);
+
+  const html = await renderBookFor({ case: row, home });
+
+  res.setHeader("Content-Type", "text/html; charset=utf-8");
+  res.setHeader("X-Content-Type-Options", "nosniff");
+  res.setHeader("Cache-Control", "private, no-store");
+  res.send(html);
 });
 
 /* ------------------------------------------------------------- uploads --- */

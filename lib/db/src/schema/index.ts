@@ -63,6 +63,11 @@ export * from "./vendors";
 /* After everyone goes home. */
 export * from "./aftercare";
 
+/* And what the year afterwards is supposed to produce: a book the family
+ * keeps, assembled out of the photographs and the words they already gave
+ * us. Free to them, and erased with the case. */
+export * from "./memories";
+
 /* And what is left when a home erases a case on request. */
 export * from "./deletions";
 

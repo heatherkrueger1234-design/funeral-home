@@ -12,7 +12,7 @@ it says so.
 | Per funeral served | The funeral home | Stripe, metered (`STRIPE_PRICE_ID_CASE`) |
 | Grief aftercare | The funeral home | Stripe (`STRIPE_PRICE_ID_AFTERCARE`) |
 | Group contract | The group, one invoice | Stripe, against the group's customer |
-| The obituary and the slideshow | **Nobody. Free to the family, for ever.** | — |
+| The obituary, the slideshow and the memory book | **Nobody. Free to the family, for ever.** | — |
 
 **No price appears anywhere in this repository.** Not the base rate, not the
 per-case rate. The application stores a count of funerals and a set of
@@ -136,8 +136,16 @@ It is not built, and it should not be:
    at the top of the page — not to us — which makes the careful version also
    the commercially correct one, exactly as it was for aftercare consent.
 
-So the obituary and the photograph pack are free to the family for ever,
-including after the home has cancelled, been suspended, or left.
+The memory book built over the aftercare year is the same answer and the
+sharpest version of the question, because it is the most sellable thing this
+product makes: a bound keepsake, finished on the anniversary, with the
+family's own words in it. It is free to them, it prints from the same
+renderer the funeral home uses with no watermark and no missing page, and it
+keeps printing after the home has cancelled.
+
+So the obituary, the photograph pack and the memory book are free to the
+family for ever, including after the home has cancelled, been suspended, or
+left.
 `no-family-charges.test.ts` fails the build if that stops being true: it
 asserts that the family and public routers never so much as import the billing
 code, and that a family whose funeral home has been cancelled *and* suspended

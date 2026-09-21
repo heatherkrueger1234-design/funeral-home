@@ -28,6 +28,7 @@ import vendorsRouter from "./vendors";
 import vitalsRouter from "./vitals";
 import printRouter from "./print";
 import aftercareRouter from "./aftercare";
+import memoryBookRouter from "./memory-book";
 import uploadsRouter from "./uploads";
 import adminRouter from "./admin";
 
@@ -129,6 +130,7 @@ router.use(vendorsRouter);
 router.use(vitalsRouter);
 router.use(printRouter);
 router.use(aftercareRouter);
+router.use(memoryBookRouter);
 router.use(uploadsRouter);
 
 /**
