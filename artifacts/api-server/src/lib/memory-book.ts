@@ -6,13 +6,17 @@ import {
   familyContactsTable,
   memoryBooksTable,
   memoryEntriesTable,
+  lifeChaptersTable,
   obituaryDraftsTable,
   uploadsTable,
+  ageInYear,
   decedentDisplayName,
   MEMORY_BOOK_MAX_PHOTOS,
   MEMORY_BOOK_IMAGE_BUDGET_BYTES,
   type Case,
+  type CasePhoto,
   type FuneralHome,
+  type LifeChapter,
   type MemoryBook,
   type MemoryEntry,
 } from "@workspace/db";
@@ -72,11 +76,31 @@ export function bookIsFull(embeddedCount: number, bytesSpent: number): boolean {
 export type BookPhoto = {
   id: number;
   caption: string | null;
+  /** "1974 · aged 36", or just the year, or empty. Built once, here. */
+  dateline: string;
   dataUri: string;
 };
 
 export type BookMemory = MemoryEntry & {
   photo: BookPhoto | null;
+};
+
+export type BookChapter = LifeChapter & {
+  photo: BookPhoto | null;
+  /** "1961" or "1961–1990". Empty when the chapter carries no years. */
+  years: string;
+};
+
+/** The day itself, assembled from the case and the book's own fields. */
+export type BookCelebration = {
+  when: string | null;
+  where: string | null;
+  serviceOrder: string | null;
+  music: string | null;
+  bearers: string | null;
+  reception: string | null;
+  /** False when nobody filled any of it in, so the page is skipped. */
+  any: boolean;
 };
 
 export type BookContents = {
@@ -85,8 +109,14 @@ export type BookContents = {
   home: FuneralHome;
   coverPhoto: BookPhoto | null;
   obituary: string | null;
+  chapters: BookChapter[];
+  /** The life, in the order it was lived where anybody dated it. */
   photos: BookPhoto[];
+  celebration: BookCelebration;
+  eulogies: BookMemory[];
   memories: BookMemory[];
+  /** Taken at the funeral. Printed at the back, with the day. */
+  servicePhotos: BookPhoto[];
   /** True when a photograph was left out to keep the file openable. */
   photosTruncated: boolean;
   /** Roughly the finished file size, in bytes. */
@@ -156,6 +186,56 @@ function obituaryText(row: {
   return text && text.length > 0 ? text : null;
 }
 
+/** "1974 · aged 36", "1974", or nothing at all. */
+function datelineFor(photo: CasePhoto, row: Case): string {
+  if (photo.takenYear === null) return "";
+
+  const age = ageInYear(row.dateOfBirth, photo.takenYear);
+  return age === null
+    ? String(photo.takenYear)
+    : `${photo.takenYear} · aged ${age}`;
+}
+
+/** "1961", "1961–1990", or nothing. */
+function yearsFor(chapter: LifeChapter): string {
+  if (chapter.startYear === null) return "";
+  if (chapter.endYear === null || chapter.endYear === chapter.startYear) {
+    return String(chapter.startYear);
+  }
+  return `${chapter.startYear}–${chapter.endYear}`;
+}
+
+/**
+ * The life, in the order it was lived.
+ *
+ * Dated photographs first, oldest to newest; undated ones after, in the
+ * order the family put them in. That fallback is the important half: a book
+ * whose photographs nobody has dated comes out in exactly the order it
+ * always did, so the progression is something a home opts into by typing
+ * years, never something that silently reshuffles a family's arrangement
+ * because one picture got a date on it.
+ *
+ * Undated photographs sort to the back rather than the front for the same
+ * reason an undated chapter does — an unplaced picture is a loose end, not
+ * a beginning.
+ */
+function inLifeOrder(photos: CasePhoto[]): CasePhoto[] {
+  const dated = photos
+    .filter((photo) => photo.takenYear !== null)
+    .sort(
+      (a, b) =>
+        a.takenYear! - b.takenYear! ||
+        a.position - b.position ||
+        a.id - b.id,
+    );
+
+  const undated = photos
+    .filter((photo) => photo.takenYear === null)
+    .sort((a, b) => a.position - b.position || a.id - b.id);
+
+  return [...dated, ...undated];
+}
+
 export async function loadBookContents(options: {
   book: MemoryBook;
   case: Case;
@@ -170,7 +250,7 @@ export async function loadBookContents(options: {
     .where(eq(obituaryDraftsTable.caseId, row.id))
     .limit(1);
 
-  const memoryRows = await db
+  const entryRows = await db
     .select()
     .from(memoryEntriesTable)
     .where(
@@ -184,12 +264,45 @@ export async function loadBookContents(options: {
     )
     .orderBy(asc(memoryEntriesTable.position), asc(memoryEntriesTable.id));
 
+  const eulogyRows = book.includeEulogies
+    ? entryRows.filter((entry) => entry.kind === "eulogy")
+    : [];
+  const memoryRows = entryRows.filter((entry) => entry.kind !== "eulogy");
+
+  /*
+   * Chapters by year, position only as a tiebreak. A life story written by
+   * six relatives over nine months arrives in no order at all, and the
+   * decade is the one thing everybody already agrees on.
+   */
+  const chapterRows = book.includeLifeStory
+    ? (
+        await db
+          .select()
+          .from(lifeChaptersTable)
+          .where(
+            and(
+              eq(lifeChaptersTable.caseId, row.id),
+              eq(lifeChaptersTable.funeralHomeId, home.id),
+              eq(lifeChaptersTable.includedInBook, true),
+            ),
+          )
+      ).sort(
+        (a, b) =>
+          // Undated chapters to the end: a loose note is a footnote, not a
+          // prologue.
+          (a.startYear ?? Number.MAX_SAFE_INTEGER) -
+            (b.startYear ?? Number.MAX_SAFE_INTEGER) ||
+          a.position - b.position ||
+          a.id - b.id,
+      )
+    : [];
+
   /*
    * The selection, not the bin -- the same rule the photo pack follows. A
    * family may have uploaded four hundred photographs and chosen fifty;
-   * the fifty are the ones they wanted people to see, already in order.
+   * the fifty are the ones they wanted people to see.
    */
-  const plateRows = book.includePhotos
+  const selected = book.includePhotos
     ? await db
         .select()
         .from(casePhotosTable)
@@ -201,39 +314,53 @@ export async function loadBookContents(options: {
             eq(casePhotosTable.selected, true),
           ),
         )
-        .orderBy(asc(casePhotosTable.position), asc(casePhotosTable.id))
+    : [];
+
+  const lifeRows = inLifeOrder(
+    selected.filter((photo) => !photo.takenAtService),
+  );
+
+  const serviceRows = book.includeServicePhotos
+    ? selected
+        .filter((photo) => photo.takenAtService)
+        .sort((a, b) => a.position - b.position || a.id - b.id)
     : [];
 
   /*
    * Everything the book might want a picture of, in the order it would be
-   * missed if it were dropped: the cover first, then the photograph
-   * somebody attached to their own memory, then the plates.
+   * missed if it were dropped: the cover, then the pictures somebody
+   * deliberately attached to a chapter or to their own words, then the
+   * life plates, then the day.
    *
    * The order matters because of the budget below. A book that ran out of
    * room and dropped the cover, or dropped the snapshot a grandchild chose
    * to go with their paragraph, would have dropped exactly the wrong ones.
    */
   const portraitId = row.portraitPhotoId;
-  const memoryPhotoIds = memoryRows
+
+  const attached = [...chapterRows, ...eulogyRows, ...memoryRows]
     .map((entry) => entry.photoId)
     .filter((id): id is number => id !== null);
 
   const priority: number[] = [];
   for (const id of [
     ...(portraitId === null ? [] : [portraitId]),
-    ...memoryPhotoIds,
-    ...plateRows.map((photo) => photo.id),
+    ...attached,
+    ...lifeRows.map((photo) => photo.id),
+    ...serviceRows.map((photo) => photo.id),
   ]) {
     if (!priority.includes(id)) priority.push(id);
   }
 
   /*
-   * Look them all up in one query. The plates are already loaded, but the
-   * cover and a memory's photograph need not be in the selection at all --
-   * a home that chose a formal portrait for the prayer card and snapshots
-   * for the screen has done something sensible.
+   * Look them all up in one query. The cover and an attached photograph
+   * need not be in the selection at all -- a home that chose a formal
+   * portrait for the prayer card and snapshots for the screen has done
+   * something sensible.
    */
-  const known = new Map(plateRows.map((photo) => [photo.id, photo]));
+  const known = new Map(
+    [...lifeRows, ...serviceRows].map((photo) => [photo.id, photo]),
+  );
   const missing = priority.filter((id) => !known.has(id));
 
   if (missing.length > 0) {
@@ -281,31 +408,58 @@ export async function loadBookContents(options: {
     embedded.set(photo.id, {
       id: photo.id,
       caption: photo.caption,
+      dateline: datelineFor(photo, row),
       dataUri,
     });
   }
 
-  const coverPhoto =
-    portraitId === null ? null : (embedded.get(portraitId) ?? null);
+  const plate = (photo: CasePhoto) => embedded.get(photo.id);
+  const withPhoto = <T extends { photoId: number | null }>(entry: T) => ({
+    ...entry,
+    photo: entry.photoId ? (embedded.get(entry.photoId) ?? null) : null,
+  });
+
+  const celebration: BookCelebration = {
+    when: book.includeCelebration ? formatServiceWhen(row, home) : null,
+    where: book.includeCelebration ? row.serviceLocation : null,
+    serviceOrder: book.includeCelebration ? book.serviceOrder : null,
+    music: book.includeCelebration ? book.music : null,
+    bearers: book.includeCelebration ? book.bearers : null,
+    reception: book.includeCelebration ? book.reception : null,
+    any: false,
+  };
+  celebration.any = [
+    celebration.when,
+    celebration.where,
+    celebration.serviceOrder,
+    celebration.music,
+    celebration.bearers,
+    celebration.reception,
+  ].some((value) => value !== null && value.trim() !== "");
 
   return {
     book,
     case: row,
     home,
-    coverPhoto,
+    coverPhoto: portraitId === null ? null : (embedded.get(portraitId) ?? null),
     obituary: book.includeObituary ? obituaryText(obituaryRow) : null,
+    chapters: chapterRows.map((chapter) => ({
+      ...withPhoto(chapter),
+      years: yearsFor(chapter),
+    })),
     // The cover is not repeated in the plates: a book that opens with the
     // same picture twice looks like a mistake, because it usually is one.
-    photos: plateRows
+    photos: lifeRows
       .filter((photo) => photo.id !== portraitId)
-      .map((photo) => embedded.get(photo.id))
+      .map(plate)
       .filter((photo): photo is BookPhoto => photo !== undefined),
-    memories: memoryRows.map((entry) => ({
-      ...entry,
-      photo: entry.photoId ? (embedded.get(entry.photoId) ?? null) : null,
-    })),
+    celebration,
+    eulogies: eulogyRows.map(withPhoto),
+    memories: memoryRows.map(withPhoto),
+    servicePhotos: serviceRows
+      .map(plate)
+      .filter((photo): photo is BookPhoto => photo !== undefined),
     photosTruncated: dropped,
-    /** Roughly how big the finished file is, for the director's warning. */
     approximateBytes: spent,
   };
 }
@@ -351,6 +505,42 @@ function formatDates(row: Case): string {
 
   if (born && died) return `${born} — ${died}`;
   return died;
+}
+
+/**
+ * "Tuesday, February 3, 2026 at 11:00 AM", or nothing.
+ *
+ * Rendered in **the home's** timezone, which is the only one that is ever
+ * right: the service happened at eleven in the morning in Pueblo, and a
+ * book that says six in the evening because the server is on UTC is
+ * printing a fact about the day that is simply false — in the one document
+ * a family will still have in thirty years.
+ */
+function formatServiceWhen(row: Case, home: FuneralHome): string | null {
+  if (!row.serviceAt) return null;
+
+  try {
+    return row.serviceAt.toLocaleString("en-US", {
+      weekday: "long",
+      day: "numeric",
+      month: "long",
+      year: "numeric",
+      hour: "numeric",
+      minute: "2-digit",
+      timeZone: home.timezone,
+    });
+  } catch {
+    // A timezone the runtime does not know is a misconfigured home, not a
+    // reason to fail printing a book. Fall back to the date without a
+    // claim about the hour.
+    return row.serviceAt.toLocaleDateString("en-US", {
+      weekday: "long",
+      day: "numeric",
+      month: "long",
+      year: "numeric",
+      timeZone: "UTC",
+    });
+  }
 }
 
 function page(contents: string, className = ""): string {
@@ -405,24 +595,112 @@ export function renderMemoryBook(contents: BookContents): string {
     );
   }
 
-  /* Plates. One photograph to a page, with whatever the family captioned it. */
+  /*
+   * Her life, in the order it happened.
+   *
+   * A divider only when there is something behind it. Every section below
+   * works this way: an empty one prints nothing at all rather than a
+   * heading over a blank page, which is what lets all the switches default
+   * to on without costing a home that is not using them anything.
+   */
+  if (contents.chapters.length > 0) {
+    pages.push(page(`<h2 class="divider">Her life</h2>`, "page--divider"));
+
+    for (const chapter of contents.chapters) {
+      pages.push(
+        page(
+          `${chapter.years ? `<p class="years">${esc(chapter.years)}</p>` : ""}
+           ${chapter.title ? `<h3>${esc(chapter.title)}</h3>` : ""}
+           ${
+             chapter.photo
+               ? `<div class="memory-photo"><img src="${chapter.photo.dataUri}" alt=""></div>`
+               : ""
+           }
+           ${chapter.body ? `<div class="prose">${paragraphs(chapter.body)}</div>` : ""}`,
+          "page--chapter",
+        ),
+      );
+    }
+  }
+
+  /*
+   * Plates: one photograph to a page, with whatever the family captioned
+   * it and — where somebody typed a year — how old she was in it. The
+   * second line is the whole point of dating them: "1974, aged 36" is the
+   * caption a family wants and cannot work out forty times over.
+   */
   for (const photo of contents.photos) {
     pages.push(
       page(
         `<figure>
            <img src="${photo.dataUri}" alt="">
-           ${photo.caption ? `<figcaption>${esc(photo.caption)}</figcaption>` : ""}
+           ${
+             photo.caption || photo.dateline
+               ? `<figcaption>
+                    ${photo.caption ? esc(photo.caption) : ""}
+                    ${photo.dateline ? `<span class="dateline">${esc(photo.dateline)}</span>` : ""}
+                  </figcaption>`
+               : ""
+           }
          </figure>`,
         "page--plate",
       ),
     );
   }
 
+  /* The day itself. */
+  if (contents.celebration.any) {
+    const line = (label: string, value: string | null) =>
+      value && value.trim()
+        ? `<div class="detail"><dt>${esc(label)}</dt><dd>${paragraphs(value.trim())}</dd></div>`
+        : "";
+
+    pages.push(
+      page(
+        `<h2>A celebration of her life</h2>
+         <dl class="details">
+           ${line("When", contents.celebration.when)}
+           ${line("Where", contents.celebration.where)}
+           ${line("The order of the day", contents.celebration.serviceOrder)}
+           ${line("Music", contents.celebration.music)}
+           ${line("Carried by", contents.celebration.bearers)}
+           ${line("Afterwards", contents.celebration.reception)}
+         </dl>`,
+        "page--celebration",
+      ),
+    );
+  }
+
+  /*
+   * Eulogies: what somebody stood up and read.
+   *
+   * These are the one thing in the book allowed to run over a page. A
+   * eulogy is fifteen hundred words and breaking it into fixed pages would
+   * either cut it mid-sentence or shrink it to six point; `page--flow`
+   * lets it take the pages it needs.
+   */
+  if (contents.eulogies.length > 0) {
+    pages.push(page(`<h2 class="divider">Eulogies</h2>`, "page--divider"));
+
+    for (const eulogy of contents.eulogies) {
+      pages.push(
+        page(
+          `<h3>Read by ${esc(eulogy.authorName)}</h3>
+           ${
+             eulogy.photo
+               ? `<div class="memory-photo"><img src="${eulogy.photo.dataUri}" alt=""></div>`
+               : ""
+           }
+           <div class="prose">${paragraphs(eulogy.body)}</div>`,
+          "page--eulogy page--flow",
+        ),
+      );
+    }
+  }
+
   /* The memories. */
   if (contents.memories.length > 0) {
-    pages.push(
-      page(`<h2 class="divider">Memories</h2>`, "page--divider"),
-    );
+    pages.push(page(`<h2 class="divider">Memories</h2>`, "page--divider"));
 
     for (const memory of contents.memories) {
       const attribution = [
@@ -442,6 +720,23 @@ export function renderMemoryBook(contents: BookContents): string {
            <div class="prose">${paragraphs(memory.body)}</div>
            <p class="attribution">${attribution}</p>`,
           "page--memory",
+        ),
+      );
+    }
+  }
+
+  /* Photographs from the day. */
+  if (contents.servicePhotos.length > 0) {
+    pages.push(page(`<h2 class="divider">The day</h2>`, "page--divider"));
+
+    for (const photo of contents.servicePhotos) {
+      pages.push(
+        page(
+          `<figure>
+             <img src="${photo.dataUri}" alt="">
+             ${photo.caption ? `<figcaption>${esc(photo.caption)}</figcaption>` : ""}
+           </figure>`,
+          "page--plate",
         ),
       );
     }
@@ -584,6 +879,63 @@ export function renderMemoryBook(contents: BookContents): string {
     border-bottom: 1px solid var(--accent);
     padding: 0.12in 0.3in;
   }
+
+  h3 {
+    font-size: 13pt;
+    font-weight: 600;
+    margin: 0 0 0.14in;
+  }
+
+  /* The year a chapter covers, set above its title like a dateline. */
+  .years {
+    font-size: 9.5pt;
+    letter-spacing: .1em;
+    color: var(--accent);
+    margin: 0 0 0.06in;
+  }
+
+  .page--chapter, .page--eulogy, .page--celebration {
+    justify-content: flex-start;
+  }
+
+  /*
+   * A eulogy is fifteen hundred words and will not fit a half-letter page.
+   * Letting it flow is the only honest option: breaking it at a fixed page
+   * would cut it mid-sentence, and shrinking it to fit would set somebody's
+   * eulogy for their mother in six point.
+   */
+  .page--flow {
+    height: auto;
+    min-height: ${PAGE_HEIGHT}in;
+    break-inside: auto;
+    page-break-inside: auto;
+  }
+
+  /* The year and age under a photograph, below the family's own caption. */
+  .dateline {
+    display: block;
+    margin-top: 0.03in;
+    font-style: normal;
+    letter-spacing: .06em;
+    color: #777;
+    font-size: 8.5pt;
+  }
+
+  .details { width: 100%; text-align: left; margin: 0; }
+
+  .detail + .detail { margin-top: 0.16in; }
+
+  .details dt {
+    font-size: 8.5pt;
+    letter-spacing: .09em;
+    text-transform: uppercase;
+    color: var(--accent);
+    margin-bottom: 0.03in;
+  }
+
+  .details dd { margin: 0; }
+
+  .details dd p { margin: 0 0 0.06in; }
 
   .colophon { font-size: 9.5pt; color: #666; margin: 0; }
 

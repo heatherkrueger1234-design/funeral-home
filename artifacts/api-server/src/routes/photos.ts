@@ -26,6 +26,7 @@ import { photosForCase, setSelection, toPhotoJson } from "../lib/media";
 import { decryptBuffer } from "@workspace/db/crypto";
 import { ZipWriter } from "../lib/zip";
 import { loadCase } from "./cases";
+import { PhotoDatingBody } from "./memory-book";
 
 const router: IRouter = Router();
 
@@ -137,7 +138,12 @@ router.put("/cases/:caseId/photos/order", async (req, res) => {
 router.patch("/photos/:photoId", async (req, res) => {
   const home = tenant(req);
   const existing = await loadPhoto(req, req.params.photoId);
-  const values = assertHasUpdates(parseBody(UpdatePhotoBody, req.body));
+  // `takenYear` and `takenAtService` are parsed separately: the generated
+  // body is regenerated from `openapi.yaml` and does not carry them yet.
+  const values = assertHasUpdates({
+    ...parseBody(UpdatePhotoBody, req.body),
+    ...PhotoDatingBody.parse(req.body ?? {}),
+  });
 
   const [updated] = await db
     .update(casePhotosTable)

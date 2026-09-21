@@ -22,6 +22,7 @@ import {
   toStaffSignature,
   decedentDisplayName,
   memoryEntriesTable,
+  lifeChaptersTable,
   MAX_PHOTOS_PER_CASE,
 } from "@workspace/db";
 import {
@@ -46,8 +47,15 @@ import {
   assertPhotoBelongs,
   bookIsOpen,
   loadOrCreateBook,
+  assertSaneYears,
+  lifeChapterInputSchema,
+  lifeChapterUpdateSchema,
   memoryEntryInputSchema,
+  memoryEntryUpdateSchema,
+  nextChapterPosition,
   nextMemoryPosition,
+  PhotoDatingBody,
+  toChapterJson,
   renderBookFor,
   toBookJson,
 } from "./memory-book";
@@ -337,7 +345,15 @@ async function loadFamilyPhoto(req: Parameters<typeof familyCase>[0] & { params:
 router.patch("/photos/:photoId", async (req, res) => {
   const row = familyCase(req);
   const photo = await loadFamilyPhoto(req as never);
-  const values = assertHasUpdates(parseBody(UpdateFamilyPhotoBody, req.body));
+  /*
+   * The family dates their own photographs, and they are the only people
+   * who can: a director has never seen the back of the print. This is what
+   * makes the age progression in the memory book possible at all.
+   */
+  const values = assertHasUpdates({
+    ...parseBody(UpdateFamilyPhotoBody, req.body),
+    ...PhotoDatingBody.parse(req.body ?? {}),
+  });
 
   const [updated] = await db
     .update(casePhotosTable)
@@ -1266,10 +1282,31 @@ router.get("/memory-book", async (req, res) => {
     (entry) => entry.includedInBook || entry.authorContactId === contact.id,
   );
 
+  const chapters = await db
+    .select()
+    .from(lifeChaptersTable)
+    .where(
+      and(
+        eq(lifeChaptersTable.caseId, row.id),
+        eq(lifeChaptersTable.funeralHomeId, row.funeralHomeId),
+      ),
+    )
+    .orderBy(asc(lifeChaptersTable.startYear), asc(lifeChaptersTable.position));
+
   res.json({
     ...toBookJson(book),
+    chapters: chapters
+      .filter(
+        (chapter) =>
+          chapter.includedInBook || chapter.authorContactId === contact.id,
+      )
+      .map((chapter) => ({
+        ...toChapterJson(chapter),
+        mine: chapter.authorContactId === contact.id,
+      })),
     entries: visible.map((entry) => ({
       id: entry.id,
+      kind: entry.kind,
       authorName: entry.authorName,
       body: entry.body,
       whenText: entry.whenText,
@@ -1313,6 +1350,9 @@ router.post("/memory-book/entries", async (req, res) => {
       authorName: contact.name,
       authorSide: "family",
       authorContactId: contact.id,
+      // A relative who read at the service can send what they read; it
+      // prints with the day rather than with the memories.
+      kind: values.kind ?? "memory",
       body: values.body,
       whenText: values.whenText ?? null,
       photoId: values.photoId ?? null,
@@ -1322,6 +1362,7 @@ router.post("/memory-book/entries", async (req, res) => {
 
   res.status(201).json({
     id: created!.id,
+    kind: created!.kind,
     authorName: created!.authorName,
     body: created!.body,
     whenText: created!.whenText,
@@ -1374,7 +1415,7 @@ router.put("/memory-book/entries/:entryId", async (req, res) => {
     );
   }
 
-  const values = assertHasUpdates(parseBody(memoryEntryInputSchema.partial(), req.body));
+  const values = assertHasUpdates(parseBody(memoryEntryUpdateSchema, req.body));
   await assertPhotoBelongs(values.photoId, row.id, row.funeralHomeId);
 
   const [updated] = await db
@@ -1385,6 +1426,7 @@ router.put("/memory-book/entries/:entryId", async (req, res) => {
 
   res.json({
     id: updated!.id,
+    kind: updated!.kind,
     authorName: updated!.authorName,
     body: updated!.body,
     whenText: updated!.whenText,
@@ -1434,6 +1476,134 @@ router.get("/memory-book/render", async (req, res) => {
   res.setHeader("X-Content-Type-Options", "nosniff");
   res.setHeader("Cache-Control", "private, no-store");
   res.send(html);
+});
+
+
+/**
+ * The family writing their own life story, a chapter at a time.
+ *
+ * This is the part the aftercare year is for. Nobody sits down the week
+ * after their mother dies and writes where she was born; over nine months,
+ * prompted four times, a family between them will write most of it.
+ *
+ * A chapter is not signed in the book — see the schema — so unlike a memory
+ * there is no attribution to get right here. The author is recorded all the
+ * same, because a director asked "who wrote this, it is wrong" needs an
+ * answer.
+ */
+
+router.post("/memory-book/chapters", async (req, res) => {
+  const row = familyCase(req);
+  const contact = familyContact(req);
+  const book = await loadOrCreateBook(row.id, row.funeralHomeId);
+
+  if (!bookIsOpen(book)) {
+    throw new HttpError(
+      409,
+      "This book has been closed for printing. Tell the funeral home if there is something you would still like to add.",
+    );
+  }
+
+  const values = parseBody(lifeChapterInputSchema, req.body);
+  assertSaneYears(values);
+  await assertPhotoBelongs(values.photoId, row.id, row.funeralHomeId);
+
+  const [created] = await db
+    .insert(lifeChaptersTable)
+    .values({
+      funeralHomeId: row.funeralHomeId,
+      caseId: row.id,
+      title: values.title ?? null,
+      body: values.body ?? null,
+      startYear: values.startYear ?? null,
+      endYear: values.endYear ?? null,
+      photoId: values.photoId ?? null,
+      authorName: contact.name,
+      authorSide: "family",
+      authorContactId: contact.id,
+      position: await nextChapterPosition(row.id),
+    })
+    .returning();
+
+  res.status(201).json({ ...toChapterJson(created!), mine: true });
+});
+
+/**
+ * Their own chapter, and only their own.
+ *
+ * A softer rule than it looks: a life story is collectively written, so two
+ * relatives will inevitably want to correct each other's dates. They can —
+ * by adding a chapter, or by telling the home, which can edit anything.
+ * What is not allowed is one relative silently overwriting another's
+ * account of their mother's life, which is a different thing entirely.
+ */
+async function loadOwnChapter(
+  chapterId: number,
+  caseId: number,
+  contactId: number,
+) {
+  const [chapter] = await db
+    .select()
+    .from(lifeChaptersTable)
+    .where(
+      and(
+        eq(lifeChaptersTable.id, chapterId),
+        eq(lifeChaptersTable.caseId, caseId),
+        eq(lifeChaptersTable.authorContactId, contactId),
+      ),
+    )
+    .limit(1);
+
+  return requireRow(chapter, "That chapter could not be found.");
+}
+
+router.put("/memory-book/chapters/:chapterId", async (req, res) => {
+  const row = familyCase(req);
+  const contact = familyContact(req);
+  const book = await loadOrCreateBook(row.id, row.funeralHomeId);
+
+  const chapter = await loadOwnChapter(
+    parseId(req.params.chapterId),
+    row.id,
+    contact.id,
+  );
+
+  if (!bookIsOpen(book)) {
+    throw new HttpError(
+      409,
+      "This book has been closed for printing, so it can no longer be changed here.",
+    );
+  }
+
+  const values = assertHasUpdates(parseBody(lifeChapterUpdateSchema, req.body));
+  assertSaneYears({
+    startYear: values.startYear ?? chapter.startYear,
+    endYear: values.endYear ?? chapter.endYear,
+  });
+  await assertPhotoBelongs(values.photoId, row.id, row.funeralHomeId);
+
+  const [updated] = await db
+    .update(lifeChaptersTable)
+    .set({ ...values, updatedAt: new Date() })
+    .where(eq(lifeChaptersTable.id, chapter.id))
+    .returning();
+
+  res.json({ ...toChapterJson(updated!), mine: true });
+});
+
+router.delete("/memory-book/chapters/:chapterId", async (req, res) => {
+  const row = familyCase(req);
+  const contact = familyContact(req);
+
+  const chapter = await loadOwnChapter(
+    parseId(req.params.chapterId),
+    row.id,
+    contact.id,
+  );
+
+  await db.delete(lifeChaptersTable).where(eq(lifeChaptersTable.id, chapter.id));
+
+  res.status(204).end();
 });
 
 /* ------------------------------------------------------------- uploads --- */

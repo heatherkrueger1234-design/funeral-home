@@ -45,7 +45,7 @@ Credentials and working state, none of which is case content:
 | Family links | 90 days from issue, extended while a memory book is open | Long enough for the arrangement and the aftermath, short enough that a forwarded text stops working eventually. Re-issuing is one click and kills the old one. See the note below on the extension. |
 | The case message thread | Locks 14 days after the service | Not deleted — locked. The thread stays readable forever; what stops is new messages, which is the promise that this tool ends the endless thread. |
 | Intake requests | Kept until reviewed, then kept | They are a record of somebody asking. Declining one does not erase it. |
-| Memory books and their entries | Never expire | They are case content and follow the case. Closing a book stops new entries; it deletes nothing and hides nothing. |
+| Memory books, life stories, eulogies and memories | Never expire | They are case content and follow the case. Closing a book stops new entries; it deletes nothing and hides nothing. |
 
 ### Why a family link can outlive its 90 days
 
@@ -86,13 +86,15 @@ photograph and the encrypted bytes behind them, the obituary draft, the service
 selections, the belongings and their chain of custody, the vital statistics
 including the encrypted social security number, the message thread, the
 timeline, the family's contact details and their link, any aftercare
-enrolment and its scheduled check-ins, and **the memory book with every
-memory written in it**.
+enrolment and its scheduled check-ins, and **the memory book — the life
+story, the eulogies, the record of the day, and every memory written in
+it**.
 
 The memory book is worth naming separately because it is the one thing here
 that other people wrote. A cousin's paragraph about the caravan at
-Mablethorpe is destroyed along with everything else, at the request of
-whoever asked, and there is no copy kept.
+Mablethorpe, a chapter somebody added about the house on Cedar Street, a
+eulogy a son read at the service: all destroyed along with everything else,
+at the request of whoever asked, and no copy is kept.
 
 **What survives is a tombstone**: the former case number, who erased it, when,
 and the reason they typed. It holds no name — "delete everything about my

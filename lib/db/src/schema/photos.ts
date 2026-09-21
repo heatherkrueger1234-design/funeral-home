@@ -96,6 +96,36 @@ export const casePhotosTable = pgTable(
     position: integer("position").notNull().default(0),
 
     /**
+     * The year the photograph was taken, where anybody knows it.
+     *
+     * A year and not a date, because nobody knows the date. What is written
+     * on the back of a photograph, or remembered about it, is "1974" or
+     * "about 1974" -- and asking for a day and a month produces either a
+     * guess dressed as a fact or, much more often, a blank field.
+     *
+     * This is what makes the memory book's age progression possible: with
+     * the case's date of birth it gives "1974, aged 36", which is the
+     * caption a family actually wants under a photograph of their mother
+     * and cannot easily work out themselves at forty photographs.
+     *
+     * Null is the ordinary state and always will be. A book whose
+     * photographs are undated falls back to the order the family put them
+     * in, which is the order they meant.
+     */
+    takenYear: integer("taken_year"),
+
+    /**
+     * Whether this was taken at the funeral itself rather than during the
+     * life it was for.
+     *
+     * The distinction matters in exactly one place and matters a lot there:
+     * a photograph of the chapel full of people belongs at the back of the
+     * memory book, with the day, not dropped into a progression of
+     * childhood pictures because it happens to be the most recent one.
+     */
+    takenAtService: boolean("taken_at_service").notNull().default(false),
+
+    /**
      * `hidden` rather than deleted for a photograph a director takes out of
      * the slideshow. Deleting a family's picture of their own mother, because
      * it was too dark to project, is not a thing this software should do

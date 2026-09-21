@@ -95,6 +95,46 @@ export const memoryBooksTable = pgTable(
      */
     includeObituary: boolean("include_obituary").notNull().default(true),
 
+    /**
+     * The rest of the sections, each one a switch.
+     *
+     * All on by default, because a section with nothing in it prints
+     * nothing at all -- the renderer skips an empty one rather than
+     * printing a heading over a blank page. So the default costs a home
+     * that is not using a section precisely nothing, and a home that wants
+     * a plain photograph album can still turn the life story off and have
+     * one.
+     */
+    includeLifeStory: boolean("include_life_story").notNull().default(true),
+    includeCelebration: boolean("include_celebration").notNull().default(true),
+    includeEulogies: boolean("include_eulogies").notNull().default(true),
+    /** Photographs taken at the funeral, printed at the back with the day. */
+    includeServicePhotos: boolean("include_service_photos")
+      .notNull()
+      .default(true),
+
+    /* -------------------------------------------- the day itself ------- */
+
+    /*
+     * The celebration of life, as a page in the book.
+     *
+     * When and where are already on the case and are not duplicated here.
+     * What is here is everything a case does not model, and the field names
+     * follow the print templates' slots on purpose -- a director filling in
+     * an order of service for the printed program should recognise these.
+     *
+     * All free text, all optional, and all printed only if somebody typed
+     * something. A structured model of a funeral service -- hymns as rows,
+     * readings as rows -- was considered and is the wrong shape: the point
+     * of this page is that thirty years from now a grandchild can read what
+     * happened that day, and "Amazing Grace, sung by the grandchildren" is
+     * a better record of it than three normalised tables.
+     */
+    serviceOrder: text("service_order"),
+    music: text("music"),
+    bearers: text("bearers"),
+    reception: text("reception"),
+
     createdAt: timestamp("created_at").notNull().defaultNow(),
     updatedAt: timestamp("updated_at").notNull().defaultNow(),
   },
@@ -139,6 +179,19 @@ export const memoryEntriesTable = pgTable(
 
     /** `family` or `staff`. Printed differently; see the renderer. */
     authorSide: text("author_side").notNull().default("family"),
+
+    /**
+     * `memory` -- a paragraph somebody remembered.
+     * `eulogy`  -- what somebody stood up and read at the service.
+     *
+     * The same table because they are the same shape: a piece of writing,
+     * attributed to a named person, optionally with a photograph. What
+     * differs is length and where they print -- a eulogy runs to a
+     * thousand words and belongs with the day, a memory runs to a
+     * paragraph and belongs with the others. Two tables to express that
+     * would have been two of everything else as well.
+     */
+    kind: text("kind").notNull().default("memory"),
 
     /** Which family link wrote it, where one did. Null for staff entries. */
     authorContactId: integer("author_contact_id"),
@@ -193,6 +246,9 @@ export type MemoryEntry = typeof memoryEntriesTable.$inferSelect;
 export const MEMORY_AUTHOR_SIDES = ["family", "staff"] as const;
 export type MemoryAuthorSide = (typeof MEMORY_AUTHOR_SIDES)[number];
 
+export const MEMORY_KINDS = ["memory", "eulogy"] as const;
+export type MemoryKind = (typeof MEMORY_KINDS)[number];
+
 /**
  * Roughly a page of typing.
  *
@@ -202,6 +258,20 @@ export type MemoryAuthorSide = (typeof MEMORY_AUTHOR_SIDES)[number];
  * half of somebody's paragraph about their mother.
  */
 export const MEMORY_MAX_LENGTH = 4000;
+
+/**
+ * And a eulogy, which is a different thing at a different length.
+ *
+ * A spoken eulogy runs eight to twelve minutes, which is fifteen hundred
+ * words, which is about ten thousand characters with the pauses typed in as
+ * paragraph breaks. Twenty thousand leaves room for the long one somebody's
+ * brother wrote and read every word of, and is still short of the length at
+ * which this stops being a eulogy and starts being a manuscript.
+ */
+export const EULOGY_MAX_LENGTH = 20000;
+
+/** A chapter of a life. Long enough for a decade, short enough to read. */
+export const LIFE_CHAPTER_MAX_LENGTH = 6000;
 
 /**
  * How many photographs a single rendered book will embed.
@@ -225,3 +295,118 @@ export const MEMORY_BOOK_MAX_PHOTOS = 60;
  * survivable download and prints to a PDF a shop will accept.
  */
 export const MEMORY_BOOK_IMAGE_BUDGET_BYTES = 24 * 1024 * 1024;
+
+/* ---------------------------------------------------------- a whole life -- */
+
+/**
+ * The life story: what happened, in the order it happened.
+ *
+ * Separate from `memory_entries` because they are genuinely different
+ * things, and collapsing them would have made both worse. A memory is *I
+ * remember this about her* — it is one person's, it is attributed, and it
+ * belongs next to the other memories in whatever order they arrived. A
+ * chapter is *this is what happened* — it is the family's collectively, it
+ * belongs in the year it happened, and nobody signs it in the book.
+ *
+ * What this is for is the thing a family says they will do and never does:
+ * write down where she was born, what the house on Cedar Street was like,
+ * which year they moved, what he did in the war, why they stopped keeping
+ * bees. An obituary is four hundred words agreed by committee under
+ * deadline. This has a year to fill and as many hands as want to fill it.
+ *
+ * Ordering is by `startYear` first and `position` only as a tiebreak,
+ * which is the opposite of everywhere else in this schema. A life story
+ * assembled by six relatives over nine months arrives in no order at all,
+ * and the one thing everybody already agrees on is which decade a thing
+ * happened in. Undated chapters sort to the end rather than to the front:
+ * an unplaced note about the bees is a footnote, not a prologue.
+ */
+export const lifeChaptersTable = pgTable(
+  "life_chapters",
+  {
+    id: serial("id").primaryKey(),
+    funeralHomeId: integer("funeral_home_id")
+      .notNull()
+      .references(() => funeralHomesTable.id, { onDelete: "cascade" }),
+    caseId: integer("case_id")
+      .notNull()
+      .references(() => casesTable.id, { onDelete: "cascade" }),
+
+    /** "The Pueblo years", "Married", "Riverside Elementary". Optional. */
+    title: text("title"),
+    /** The prose. Optional too -- a milestone is a title and a year. */
+    body: text("body"),
+
+    /**
+     * Years, not dates, for the same reason `case_photos.takenYear` is a
+     * year: a family knows the decade and argues about the month.
+     * `endYear` is for a span -- "1961–1990, Riverside Elementary" -- and
+     * is null for a moment.
+     */
+    startYear: integer("start_year"),
+    endYear: integer("end_year"),
+
+    /** A photograph from this case's own bin. Same rule as a memory's. */
+    photoId: integer("photo_id"),
+
+    /**
+     * Who added it. Recorded but **not printed** — see the renderer.
+     *
+     * The life story reads as the family's, in one voice, because that is
+     * what it is; a chapter about somebody's birth signed by whichever
+     * cousin happened to type it would be strange. The attribution is kept
+     * anyway, because a director asked "who wrote this, it is wrong" needs
+     * an answer.
+     */
+    authorName: text("author_name").notNull(),
+    authorSide: text("author_side").notNull().default("family"),
+    authorContactId: integer("author_contact_id"),
+    authorUserId: integer("author_user_id"),
+
+    /** Same curation as a memory, and for the same reasons. */
+    includedInBook: boolean("included_in_book").notNull().default(true),
+    excludedAt: timestamp("excluded_at"),
+    excludedReason: text("excluded_reason"),
+
+    /** Only a tiebreak within a year, and a way to order undated ones. */
+    position: integer("position").notNull().default(0),
+
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+    updatedAt: timestamp("updated_at").notNull().defaultNow(),
+  },
+  (table) => [
+    index("life_chapters_case_idx").on(
+      table.caseId,
+      table.startYear,
+      table.position,
+    ),
+    index("life_chapters_home_idx").on(table.funeralHomeId),
+  ],
+);
+
+export type LifeChapter = typeof lifeChaptersTable.$inferSelect;
+
+/**
+ * Somebody's age in a given year, or null when it cannot be worked out.
+ *
+ * Deliberately coarse: year minus year, with no birthday arithmetic. The
+ * input is a year, so the answer is only ever right to within one, and a
+ * caption that says "aged 36" under a photograph taken the week before her
+ * thirty-seventh birthday is exactly what a family would have written
+ * themselves. Presenting it to the day would be false precision built on a
+ * number nobody measured.
+ *
+ * Null before birth and past about 120, because a wrong `takenYear` typed
+ * as 1074 should print nothing rather than "aged 964".
+ */
+export function ageInYear(
+  dateOfBirth: Date | null,
+  takenYear: number | null,
+): number | null {
+  if (dateOfBirth === null || takenYear === null) return null;
+
+  const age = takenYear - dateOfBirth.getUTCFullYear();
+  if (age < 0 || age > 120) return null;
+
+  return age;
+}

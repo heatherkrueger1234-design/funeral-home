@@ -44,7 +44,7 @@ production esbuild bundle, through the real nginx config:
   containers restores and verifies. A full restart leaves the photograph
   byte-for-byte identical.
 
-277 tests, 4 projects typechecking, 3 apps building.
+294 tests, 4 projects typechecking, 3 apps building.
 
 ## What is not ready
 
@@ -57,7 +57,8 @@ production esbuild bundle, through the real nginx config:
 | **Stripe has never taken a real payment.** The webhook signature check is tested; a live charge is not. | **High** | Test-mode keys, one real subscription cycle. |
 | **No prices exist in Stripe.** The per-case meter, the aftercare add-on and the group contract are all built and tested against a stubbed Stripe; none of them has a price behind it. Until `STRIPE_PRICE_ID_CASE` and `STRIPE_CASE_METER_EVENT` are set, every home is invoiced for a flat subscription and nothing says so. | **High** | Five environment variables and one test-mode cycle. `PRICING.md` has the checklist. |
 | **The usage reporter has never run on a schedule.** Same failure the aftercare job had for most of this product's life: the thing that turns work into revenue does nothing until something triggers it. | **High** | Set `TASK_SECRET` and schedule `usage.yml`. |
-| **The memory book has no screens.** The API is complete and tested — the family can write in it, the home can curate it, and it prints — but neither the family portal nor the director's console has a page for it yet, so today it is reachable only over the API. | **High** | A page in each front end. Nothing in the data model needs to change for it. |
+| **The memory book has no screens.** The API is complete and tested — the life story, the eulogies, the celebration page, the photograph dating, the curation and the printing — but neither the family portal nor the director's console has a page for it yet, so today it is all reachable only over the API. | **High** | A page in each front end. Nothing in the data model needs to change for it. |
+| **Printed cards show the service time in the server's timezone.** Pre-existing, in `print-render.ts`, and unrelated to the memory book — which formats in the home's own timezone and has a test for it. A prayer card printed on a UTC host states the wrong hour. | Medium | One argument, and a test. The book's `formatServiceWhen` is the pattern. |
 | **Groups have no console.** The API is complete — create, move locations, consolidated checkout, all audited — but the admin console has no screen for it, so a group is set up with curl. | Medium | A page in Component 2. Fine for the first one or two groups, which will be set up by hand anyway. |
 | **One API instance, one Postgres, no replication.** | Medium | Fine for a pilot. Not fine at fifty homes. |
 | **Uploads live in Postgres.** Encrypted, correct, and the wrong long-term home for gigabytes of photographs. | Medium | Object storage, when a home's database gets uncomfortable. |
@@ -92,7 +93,12 @@ These were chosen, and the reasoning is in the code next to them:
   and only times the director has already confirmed belong in the list.
 - **The memory book collects for a year and then prints.** The grief check-ins
   ask whether anything has come back to the family, and what accumulates is a
-  booklet with the photographs already in it. It is the thing that makes "we
+  whole book: the life story from birth, written a chapter at a time by
+  whoever knows a piece of it; the obituary; the photographs in the order they
+  were taken, captioned with how old she was; the day itself with its order of
+  service; the eulogies; the memories; and the photographs from the funeral at
+  the back. Every section is a switch that defaults on and prints nothing when
+  it is empty, so a home that wants a plain photograph album still gets one. It is the thing that makes "we
   stay in touch" a claim a home can put on a table rather than a claim every
   home makes. A family link is extended while a book is open, because
   otherwise the collection dies three months before the anniversary it was

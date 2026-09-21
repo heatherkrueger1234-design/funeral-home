@@ -6,8 +6,12 @@ import {
   casePhotosTable,
   memoryBooksTable,
   memoryEntriesTable,
+  lifeChaptersTable,
   MEMORY_MAX_LENGTH,
   MEMORY_BOOK_MAX_PHOTOS,
+  EULOGY_MAX_LENGTH,
+  LIFE_CHAPTER_MAX_LENGTH,
+  type LifeChapter,
   type Case,
   type FuneralHome,
   type MemoryBook,
@@ -55,17 +59,127 @@ const router: IRouter = Router();
  * why: a memory's date is "the summer we had the caravan", and a date
  * picker here makes people give up rather than answer.
  */
-export const memoryEntryInputSchema = z.object({
-  body: z.string().trim().min(1).max(MEMORY_MAX_LENGTH),
+const entryShape = {
+  kind: z.enum(["memory", "eulogy"]).optional(),
+  body: z.string().trim().min(1).max(EULOGY_MAX_LENGTH),
   whenText: z.string().trim().max(120).nullable().optional(),
   photoId: z.number().int().positive().nullable().optional(),
+};
+
+/**
+ * The length ceiling depends on which it is.
+ *
+ * A eulogy runs to fifteen hundred words and a memory to a paragraph. One
+ * limit for both would either cut a eulogy off mid-sentence or invite an
+ * essay into the memories, so the check is a refinement rather than a
+ * `max()` — and it lives in a function because it is applied to four
+ * schemas that cannot share a base once refined.
+ */
+function checkEntryLength(
+  values: { kind?: "memory" | "eulogy" | undefined; body?: string | undefined },
+  ctx: z.RefinementCtx,
+): void {
+  if (values.body === undefined) return;
+  if ((values.kind ?? "memory") !== "memory") return;
+  if (values.body.length <= MEMORY_MAX_LENGTH) return;
+
+  ctx.addIssue({
+    code: z.ZodIssueCode.too_big,
+    maximum: MEMORY_MAX_LENGTH,
+    type: "string",
+    inclusive: true,
+    path: ["body"],
+    message:
+      `A memory can run to ${MEMORY_MAX_LENGTH} characters. If this is a ` +
+      `eulogy, send it as one and it can be much longer.`,
+  });
+}
+
+/**
+ * The two things the memory book needs to know about a photograph.
+ *
+ * Parsed alongside the generated photo bodies rather than added to them,
+ * because those are regenerated from `openapi.yaml` — the same arrangement
+ * the add-on selection uses on the checkout route.
+ */
+export const PhotoDatingBody = z.object({
+  /*
+   * A year, not a date. What is written on the back of a photograph is
+   * "1974"; asking for a day and a month produces a guess dressed as a
+   * fact, or much more often a blank field.
+   */
+  takenYear: z.number().int().min(1800).max(2200).nullable().optional(),
+  takenAtService: z.boolean().optional(),
 });
+
+export const memoryEntryBaseSchema = z.object(entryShape);
+export const memoryEntryInputSchema =
+  memoryEntryBaseSchema.superRefine(checkEntryLength);
+export const memoryEntryUpdateSchema = memoryEntryBaseSchema
+  .partial()
+  .superRefine(checkEntryLength);
+
+/** A chapter needs a year, a title or something written in it. */
+const chapterShape = {
+  title: z.string().trim().max(160).nullable().optional(),
+  body: z.string().trim().max(LIFE_CHAPTER_MAX_LENGTH).nullable().optional(),
+  /*
+   * Years, not dates. 1800 is comfortably before anybody whose funeral
+   * this software will arrange, and the upper bound keeps a mistyped 20226
+   * out of a chronology rather than sorting it to the end of the century.
+   */
+  startYear: z.number().int().min(1800).max(2200).nullable().optional(),
+  endYear: z.number().int().min(1800).max(2200).nullable().optional(),
+  photoId: z.number().int().positive().nullable().optional(),
+};
+
+export function assertSaneYears(values: {
+  startYear?: number | null | undefined;
+  endYear?: number | null | undefined;
+}): void {
+  if (
+    values.startYear != null &&
+    values.endYear != null &&
+    values.endYear < values.startYear
+  ) {
+    throw badRequest("That chapter ends before it starts.");
+  }
+}
+
+export const lifeChapterInputSchema = z
+  .object(chapterShape)
+  .refine(
+    (values) =>
+      Boolean(values.title?.trim()) ||
+      Boolean(values.body?.trim()) ||
+      values.startYear != null,
+    {
+      message:
+        "A chapter needs a title, something written in it, or a year — " +
+        "otherwise there is nothing to print.",
+    },
+  );
+
+export const lifeChapterUpdateSchema = z.object(chapterShape);
 
 const BookSettingsBody = z.object({
   title: z.string().trim().max(160).nullable().optional(),
   dedication: z.string().trim().max(1000).nullable().optional(),
+
+  /* Which sections print. All default on; an empty one prints nothing. */
   includePhotos: z.boolean().optional(),
   includeObituary: z.boolean().optional(),
+  includeLifeStory: z.boolean().optional(),
+  includeCelebration: z.boolean().optional(),
+  includeEulogies: z.boolean().optional(),
+  includeServicePhotos: z.boolean().optional(),
+
+  /* The day itself. When and where come off the case, not from here. */
+  serviceOrder: z.string().trim().max(4000).nullable().optional(),
+  music: z.string().trim().max(2000).nullable().optional(),
+  bearers: z.string().trim().max(2000).nullable().optional(),
+  reception: z.string().trim().max(2000).nullable().optional(),
+
   /** An ISO date-time, or null to reopen the book. */
   closesAt: z.string().datetime().nullable().optional(),
 });
@@ -129,12 +243,38 @@ export function toBookJson(book: MemoryBook, now = new Date()) {
     open: bookIsOpen(book, now),
     includePhotos: book.includePhotos,
     includeObituary: book.includeObituary,
+    includeLifeStory: book.includeLifeStory,
+    includeCelebration: book.includeCelebration,
+    includeEulogies: book.includeEulogies,
+    includeServicePhotos: book.includeServicePhotos,
+    serviceOrder: book.serviceOrder,
+    music: book.music,
+    bearers: book.bearers,
+    reception: book.reception,
+  };
+}
+
+export function toChapterJson(chapter: LifeChapter) {
+  return {
+    id: chapter.id,
+    title: chapter.title,
+    body: chapter.body,
+    startYear: chapter.startYear,
+    endYear: chapter.endYear,
+    photoId: chapter.photoId,
+    authorName: chapter.authorName,
+    authorSide: chapter.authorSide,
+    authorContactId: chapter.authorContactId,
+    includedInBook: chapter.includedInBook,
+    position: chapter.position,
+    createdAt: chapter.createdAt,
   };
 }
 
 export function toEntryJson(entry: MemoryEntry) {
   return {
     id: entry.id,
+    kind: entry.kind,
     authorName: entry.authorName,
     authorSide: entry.authorSide,
     authorContactId: entry.authorContactId,
@@ -208,6 +348,17 @@ router.get("/cases/:caseId/memory-book", async (req, res) => {
     )
     .orderBy(asc(memoryEntriesTable.position), asc(memoryEntriesTable.id));
 
+  const chapters = await db
+    .select()
+    .from(lifeChaptersTable)
+    .where(
+      and(
+        eq(lifeChaptersTable.caseId, row.id),
+        eq(lifeChaptersTable.funeralHomeId, home.id),
+      ),
+    )
+    .orderBy(asc(lifeChaptersTable.startYear), asc(lifeChaptersTable.position));
+
   const contactNames = await contactNamesFor(row.id);
 
   /*
@@ -242,6 +393,7 @@ router.get("/cases/:caseId/memory-book", async (req, res) => {
     },
     // The director sees everything, including what has been taken out. An
     // exclusion nobody can see afterwards is indistinguishable from a bug.
+    chapters: chapters.map(toChapterJson),
     entries: entries.map((entry) => ({
       ...toEntryJson(entry),
       // The contact's name as it stands now, alongside the snapshot that
@@ -287,9 +439,11 @@ router.put("/cases/:caseId/memory-book", async (req, res) => {
  * director is the only person who hears and reads all of it. `authorName`
  * is whose memory it is, not who typed it.
  */
-const StaffEntryBody = memoryEntryInputSchema.extend({
-  authorName: z.string().trim().min(1).max(120),
-});
+const StaffEntryBody = memoryEntryBaseSchema
+  .extend({
+    authorName: z.string().trim().min(1).max(120),
+  })
+  .superRefine(checkEntryLength);
 
 router.post("/cases/:caseId/memory-book/entries", async (req, res) => {
   const home = tenant(req);
@@ -308,6 +462,7 @@ router.post("/cases/:caseId/memory-book/entries", async (req, res) => {
       authorName: values.authorName,
       authorSide: "staff",
       authorUserId: user.id,
+      kind: values.kind ?? "memory",
       body: values.body,
       whenText: values.whenText ?? null,
       photoId: values.photoId ?? null,
@@ -319,7 +474,7 @@ router.post("/cases/:caseId/memory-book/entries", async (req, res) => {
 });
 
 const StaffEntryUpdate = z.object({
-  body: z.string().trim().min(1).max(4000).optional(),
+  body: z.string().trim().min(1).max(EULOGY_MAX_LENGTH).optional(),
   whenText: z.string().trim().max(120).nullable().optional(),
   photoId: z.number().int().positive().nullable().optional(),
   position: z.number().int().min(0).optional(),
@@ -393,6 +548,148 @@ router.delete("/cases/:caseId/memory-book/entries/:entryId", async (req, res) =>
   const entry = await loadEntry(parseId(req.params.entryId), row.id, home.id);
 
   await db.delete(memoryEntriesTable).where(eq(memoryEntriesTable.id, entry.id));
+
+  res.status(204).end();
+});
+
+
+/* -------------------------------------------------------- life story -- */
+
+/**
+ * The life, from birth, written by whoever knows a piece of it.
+ *
+ * The director's side exists because a family who have just buried their
+ * mother will not sit down and write her childhood that week — but the
+ * aftercare year gives them nine months to, a paragraph at a time, and the
+ * home is the one who can put the first few in from what it was told at the
+ * arrangement conference.
+ */
+
+export async function nextChapterPosition(caseId: number): Promise<number> {
+  const [row] = await db
+    .select({ highest: max(lifeChaptersTable.position) })
+    .from(lifeChaptersTable)
+    .where(eq(lifeChaptersTable.caseId, caseId));
+
+  return (row?.highest ?? 0) + 1;
+}
+
+const StaffChapterBody = z.object({
+  ...chapterShape,
+  authorName: z.string().trim().min(1).max(120).optional(),
+});
+
+router.post("/cases/:caseId/memory-book/chapters", async (req, res) => {
+  const home = tenant(req);
+  const user = currentUser(req);
+  const row = await loadCase(req, req.params.caseId);
+  await loadOrCreateBook(row.id, home.id);
+
+  const values = parseBody(StaffChapterBody, req.body);
+  assertSaneYears(values);
+  await assertPhotoBelongs(values.photoId, row.id, home.id);
+
+  if (!values.title?.trim() && !values.body?.trim() && values.startYear == null) {
+    throw badRequest(
+      "A chapter needs a title, something written in it, or a year — " +
+        "otherwise there is nothing to print.",
+    );
+  }
+
+  const [created] = await db
+    .insert(lifeChaptersTable)
+    .values({
+      funeralHomeId: home.id,
+      caseId: row.id,
+      title: values.title ?? null,
+      body: values.body ?? null,
+      startYear: values.startYear ?? null,
+      endYear: values.endYear ?? null,
+      photoId: values.photoId ?? null,
+      // Whose account of it this is, not who typed it — the same rule the
+      // memories follow, for the same reason.
+      authorName: values.authorName ?? (user.displayName ?? user.email),
+      authorSide: "staff",
+      authorUserId: user.id,
+      position: await nextChapterPosition(row.id),
+    })
+    .returning();
+
+  res.status(201).json(toChapterJson(created!));
+});
+
+async function loadChapter(
+  chapterId: number,
+  caseId: number,
+  funeralHomeId: number,
+): Promise<LifeChapter> {
+  const [chapter] = await db
+    .select()
+    .from(lifeChaptersTable)
+    .where(
+      and(
+        eq(lifeChaptersTable.id, chapterId),
+        eq(lifeChaptersTable.caseId, caseId),
+        eq(lifeChaptersTable.funeralHomeId, funeralHomeId),
+      ),
+    )
+    .limit(1);
+
+  return requireRow(chapter, "That chapter could not be found.");
+}
+
+const StaffChapterUpdate = z.object({
+  ...chapterShape,
+  position: z.number().int().min(0).optional(),
+  includedInBook: z.boolean().optional(),
+  excludedReason: z.string().trim().max(400).nullable().optional(),
+});
+
+router.put("/cases/:caseId/memory-book/chapters/:chapterId", async (req, res) => {
+  const home = tenant(req);
+  const row = await loadCase(req, req.params.caseId);
+  const chapter = await loadChapter(
+    parseId(req.params.chapterId),
+    row.id,
+    home.id,
+  );
+
+  const values = assertHasUpdates(parseBody(StaffChapterUpdate, req.body));
+  assertSaneYears({
+    startYear: values.startYear ?? chapter.startYear,
+    endYear: values.endYear ?? chapter.endYear,
+  });
+  await assertPhotoBelongs(values.photoId, row.id, home.id);
+
+  const now = new Date();
+
+  const [updated] = await db
+    .update(lifeChaptersTable)
+    .set({
+      ...values,
+      ...(values.includedInBook === undefined
+        ? {}
+        : values.includedInBook
+          ? { excludedAt: null, excludedReason: null }
+          : { excludedAt: chapter.excludedAt ?? now }),
+      updatedAt: now,
+    })
+    .where(eq(lifeChaptersTable.id, chapter.id))
+    .returning();
+
+  res.json(toChapterJson(updated!));
+});
+
+router.delete("/cases/:caseId/memory-book/chapters/:chapterId", async (req, res) => {
+  const home = tenant(req);
+  const row = await loadCase(req, req.params.caseId);
+  const chapter = await loadChapter(
+    parseId(req.params.chapterId),
+    row.id,
+    home.id,
+  );
+
+  await db.delete(lifeChaptersTable).where(eq(lifeChaptersTable.id, chapter.id));
 
   res.status(204).end();
 });
