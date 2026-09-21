@@ -90,7 +90,8 @@ router.post("/snippets", async (req, res) => {
 
   const title = values.title.trim();
   const body = values.body.trim();
-  if (!title || !body) throw badRequest("A snippet needs a title and some text.");
+  if (!title || !body)
+    throw badRequest("A snippet needs a title and some text.");
 
   const [last] = await db
     .select({ value: max(snippetsTable.position) })
@@ -193,9 +194,7 @@ async function toPrintItemJson(item: CasePrintItem, row: Case) {
     values,
     // What the card will actually say, with the case's own details filled
     // in — so the preview needs no second round trip.
-    resolved: template
-      ? resolveSlots({ template, case: row, values })
-      : values,
+    resolved: template ? resolveSlots({ template, case: row, values }) : values,
     quantity: item.quantity,
     status: item.status,
     sharedWithFamily: item.sharedWithFamily,
@@ -330,7 +329,8 @@ router.put("/print/:printItemId", async (req, res) => {
     if (!photo) throw badRequest("That photograph is not on this case.");
   }
 
-  const approving = patch.status === "approved" && existing.status !== "approved";
+  const approving =
+    patch.status === "approved" && existing.status !== "approved";
 
   const [updated] = await db
     .update(casePrintItemsTable)
@@ -405,6 +405,14 @@ router.get("/print/:printItemId/render", async (req, res) => {
   res.setHeader("X-Content-Type-Options", "nosniff");
   // Self-contained and specific to one case: never cached by a shared proxy.
   res.setHeader("Cache-Control", "private, no-store");
+  // The one route on this process that serves real HTML (see app.ts, which
+  // disables CSP everywhere else). Every value in it is escaped before it
+  // gets here, so this is defense-in-depth against the day a future field is
+  // added to the template without going through that escaping.
+  res.setHeader(
+    "Content-Security-Policy",
+    "default-src 'none'; img-src data:; style-src 'unsafe-inline'; base-uri 'none'; form-action 'none'",
+  );
   res.send(html);
 });
 
