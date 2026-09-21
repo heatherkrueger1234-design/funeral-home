@@ -15,6 +15,14 @@
 #      can see -- disk, containers, whether the nightly jobs actually ran.
 #      It pages directly when it finds one.
 #
+#      Three of its checks exist for failures that produce no symptom at all
+#      until it is far too late: a certificate that stopped renewing, a
+#      backup that stopped leaving this host, and aftercare that stopped
+#      going out. None of the three makes anything look broken. All three
+#      are wired to the heartbeat below, so a failure stops the ping as well
+#      as sending the page -- which is what covers the case where the
+#      webhook itself is what is broken.
+#
 #   2. A dead-man's switch OFF the host. This script pings HEARTBEAT_URL on
 #      every clean run. The external service pages when the ping *stops*,
 #      which is the failure this script can never report itself. Use
@@ -45,6 +53,21 @@
 #                   failure with no symptoms: everything green, nobody paged,
 #                   and the grief check-ins the home is paying for quietly
 #                   stopped going out weeks ago.
+#   MIN_CERT_DAYS   page when the certificate this host is serving has fewer
+#                   days left than this. Default 14. Caddy renews at 30, so
+#                   14 means renewal has been failing for a fortnight rather
+#                   than that it has simply not happened yet.
+#   MAX_OFFSITE_AGE_H  page if the newest dump *at the remote* is older than
+#                   this. Default 30. Deliberately separate from
+#                   MAX_BACKUP_AGE_H above: the local dump being fresh and the
+#                   offsite copy being six weeks stale is a state this host
+#                   reaches on its own, every night, in silence.
+#   BACKUP_REMOTE, RCLONE_CONFIG  the same two deploy/backup-offsite.sh uses.
+#                   Needed here only to read the remote's newest timestamp;
+#                   nothing is written.
+#   RCLONE_NETWORK  optional, and the same one backup-offsite.sh takes. Set it
+#                   wherever that script needs it, or this check cannot reach
+#                   the remote and reports a backup that is fine as missing.
 #   COMPOSE_FILE    defaults to the docker-compose.yml above this script.
 #
 #   30 * * * *  /srv/funeral-home/deploy/monitor.sh >> /var/log/fh-monitor.log 2>&1
@@ -74,12 +97,22 @@ compose() { docker compose -f "$COMPOSE_FILE" "$@"; }
 # `docker compose ps` rather than asking the app: a container in a restart
 # loop can still answer one request in three, which reads as healthy to a
 # naive probe and is not.
-UNHEALTHY="$(compose ps --format '{{.Service}} {{.State}} {{.Health}}' 2>/dev/null \
-  | awk '$2 != "running" || ($3 != "" && $3 != "healthy") {print $1"("$2"/"$3")"}' | tr '\n' ' ')"
-if [ -n "${UNHEALTHY// /}" ]; then
-  problem "containers not healthy: $UNHEALTHY"
+#
+# Note the empty case is a failure, not a pass. `docker compose ps` prints
+# nothing at all when the daemon is down or the stack was never brought up,
+# and reading that as "no unhealthy containers" is how a monitor reports
+# perfect health on a host where nothing is running.
+PS_OUT="$(compose ps --format '{{.Service}} {{.State}} {{.Health}}' 2>/dev/null)"
+if [ -z "${PS_OUT// /}" ]; then
+  problem "docker compose reports no containers at all — the daemon is down, or the stack was never started"
 else
-  note "containers healthy"
+  UNHEALTHY="$(printf '%s\n' "$PS_OUT" \
+    | awk '$2 != "running" || ($3 != "" && $3 != "healthy") {print $1"("$2"/"$3")"}' | tr '\n' ' ')"
+  if [ -n "${UNHEALTHY// /}" ]; then
+    problem "containers not healthy: $UNHEALTHY"
+  else
+    note "containers healthy"
+  fi
 fi
 
 # ------------------------------------------------------------- the API is up --
@@ -151,6 +184,102 @@ case "$AFTERCARE_AGE_H" in
     fi
     ;;
 esac
+
+# ------------------------------------------------------------ certificate --
+# The other quiet one, and the reason it is checked *here* rather than only
+# from outside: a certificate that stops renewing does not fail today. Caddy
+# tries at 30 days remaining and keeps serving the old one, so the site is
+# perfect for a month and then, one Sunday morning, every browser refuses it
+# and a family gets a full-page security warning about the page holding their
+# mother's photographs.
+#
+# .github/workflows/uptime.yml asks the same question from GitHub's machines,
+# which is the better vantage point. This one exists because it is wired to
+# the dead-man's switch: a failure here suppresses the heartbeat, so the
+# external service pages even when the webhook itself is broken. Without it,
+# certificate expiry was the one of the three quiet failures that could not
+# stop the heartbeat.
+#
+# Read from what Caddy is actually serving on :443, not from the files on
+# disk. A renewed certificate Caddy has not loaded is still an expired
+# certificate to every browser.
+MIN_CERT_DAYS="${MIN_CERT_DAYS:-14}"
+if [ -z "${FAMILY_DOMAIN:-}${CONSOLE_DOMAIN:-}" ]; then
+  note "no FAMILY_DOMAIN/CONSOLE_DOMAIN set, so this host is not terminating TLS — skipping the certificate check"
+elif ! command -v openssl >/dev/null; then
+  problem "openssl is not installed, so certificate expiry cannot be checked here at all"
+else
+  for d in ${FAMILY_DOMAIN:-} ${CONSOLE_DOMAIN:-}; do
+    END="$(echo | openssl s_client -servername "$d" -connect 127.0.0.1:443 2>/dev/null \
+           | openssl x509 -noout -enddate 2>/dev/null | cut -d= -f2)"
+    if [ -z "$END" ]; then
+      problem "no certificate is being served for $d — Caddy has one it cannot load, or none at all"
+      continue
+    fi
+    DAYS=$(( ( $(date -d "$END" +%s) - $(date +%s) ) / 86400 ))
+    if [ "$DAYS" -lt "$MIN_CERT_DAYS" ]; then
+      problem "the certificate for $d expires in ${DAYS}d — Caddy renews at 30d, so renewal has been failing for a fortnight"
+    else
+      note "certificate for $d good for ${DAYS}d"
+    fi
+  done
+fi
+
+# ------------------------------------------------------- offsite backups --
+# The local check above passes in a failure mode that loses everything.
+#
+# backup-offsite.sh takes the dump first and copies it second. If the copy
+# has been failing every night -- an expired key, a bucket renamed, the
+# provider's account suspended -- the local dump is still written on time, so
+# "newest backup 4h old" is true and reassuring and the only copy that
+# survives the host dying is six weeks old. Nothing about that is visible
+# from inside the volume, which is why it is asked of the remote directly.
+if [ -z "${BACKUP_REMOTE:-}" ]; then
+  problem "BACKUP_REMOTE is not set, so there is no copy of this home's data anywhere but this host"
+elif [ -z "${RCLONE_CONFIG:-}" ] || [ ! -f "${RCLONE_CONFIG:-}" ]; then
+  problem "BACKUP_REMOTE is set but RCLONE_CONFIG does not point at a readable file — the offsite copy cannot be running"
+else
+  MAX_OFFSITE_AGE_H="${MAX_OFFSITE_AGE_H:-30}"
+  # RCLONE_NETWORK, exactly as deploy/backup-offsite.sh takes it. Without it
+  # this listing cannot reach a remote that lives on a docker network -- and
+  # rclone's failure to reach a remote produces an empty listing, which reads
+  # identically to an empty bucket. The result was a nightly page saying the
+  # backup had never worked, on a host where backup-offsite.sh was copying and
+  # verifying it correctly every night, because that script passes the flag
+  # and this check did not. A pager that cries wolf is worse than no pager:
+  # the person learns to dismiss it, and is still dismissing it on the night
+  # it is right.
+  #
+  # Modification times as rclone reports them, newest last. `lsl` rather than
+  # `lsf` because the timestamp is the whole question.
+  OFFSITE_ERR="$(mktemp)"
+  OFFSITE_NEWEST="$(docker run --rm \
+      ${RCLONE_NETWORK:+--network "$RCLONE_NETWORK"} \
+      -v "${RCLONE_CONFIG}":/config/rclone/rclone.conf:ro \
+      "${RCLONE_IMAGE:-rclone/rclone:1}" \
+      lsl "$BACKUP_REMOTE" --include 'holding-today-*.sql' 2>"$OFFSITE_ERR" \
+    | awk '{print $2" "$3}' | sort | tail -1)"
+  OFFSITE_WHY="$(tr -d '\r' < "$OFFSITE_ERR" | tail -1)"
+  rm -f "$OFFSITE_ERR"
+
+  if [ -z "${OFFSITE_NEWEST// /}" ]; then
+    # Distinguish "I looked and the bucket is empty" from "I could not look".
+    # Both need a human, and they need different humans doing different
+    # things: one is a broken copy job, the other is a broken check.
+    if [ -n "$OFFSITE_WHY" ]; then
+      problem "could not read $BACKUP_REMOTE, so whether an offsite copy exists is unknown: $OFFSITE_WHY"
+    else
+      problem "there is no dump at $BACKUP_REMOTE at all — either the copy has never worked or the credential can no longer read the bucket"
+    fi
+  else
+    OFFSITE_AGE_H=$(( ( $(date +%s) - $(date -d "$OFFSITE_NEWEST" +%s 2>/dev/null || echo 0) ) / 3600 ))
+    if [ "$OFFSITE_AGE_H" -ge "$MAX_OFFSITE_AGE_H" ]; then
+      problem "the newest offsite dump is ${OFFSITE_AGE_H}h old (limit ${MAX_OFFSITE_AGE_H}h) — the local backup is still running but nothing is leaving this host"
+    else
+      note "newest offsite dump ${OFFSITE_AGE_H}h old"
+    fi
+  fi
+fi
 
 # ------------------------------------------------------------------ page --
 if [ "${#PROBLEMS[@]}" -gt 0 ]; then

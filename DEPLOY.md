@@ -1,7 +1,14 @@
 # Putting this on a host
 
-Four containers: Postgres, the API, and one nginx per front end. A fifth,
-`tools`, is not a server — it is where migrations, backups and restores run.
+Five containers: Postgres, the API, and one nginx per front end — the family
+portal, the director console, and the platform console. A sixth, `tools`, is
+not a server; it is where migrations, backups and restores run. With
+`docker-compose.tls.yml` a seventh, Caddy, terminates TLS in front of them.
+
+The platform console is the one that is not published. It is ours rather than
+a customer's, and a signed-in platform admin can see every home on the
+platform — so the TLS overlay binds it to loopback and it is reached over an
+SSH tunnel. The two customer-facing front ends are what Caddy serves.
 
 **What has actually been verified, and what has not**, because the difference
 matters at 3am:
@@ -10,7 +17,7 @@ matters at 3am:
 | --- | --- |
 | Run, for real | The production esbuild bundle: registration, a case, a family link, a genuine iPhone HEIC uploaded and served back as JPEG, twelve photos zipped into a slideshow pack — all of it through this exact `nginx.conf`, with `nginx -t` passing on the expanded template. |
 | Run, for real | `pnpm deploy --prod --legacy` produces a tree where `sharp`, `heic-decode` and `nodemailer` resolve and `esbuild`, `vitest` and `supertest` do not. |
-| Run, for real | `docker build` for all four images, then `docker compose up`: four containers healthy, migrations applied through `tools`, a home registered and a real iPhone HEIC uploaded and served back through nginx. A full `docker compose restart` left the photograph byte-for-byte identical. |
+| Run, for real | `docker build` for **all five images**, then `docker compose up`: every container healthy, migrations applied through `tools`, a home registered and a real iPhone HEIC uploaded and served back through nginx. A full `docker compose restart` left the photograph byte-for-byte identical. The platform console's image was the last one built and was checked rather than assumed: it carries a real 320 KB site and not an empty one, comes up healthy, serves its SPA and proxies `/api` — and binds only to loopback, under the base file on its own as well as under `docker-compose.tls.yml`. |
 | Run, for real | **TLS in front, end to end.** Caddy terminating HTTPS, proxying to nginx, nginx to the API. A director signs in over HTTPS and the `Secure` session cookie makes the round trip; an authenticated request succeeds; the plain-HTTP warning stays silent. The same sign-in over plain HTTP was reproduced first, and does exactly what this file warns it does. |
 | Run, for real | **Two proxy hops.** With `TRUST_PROXY_HOPS=2`, twenty-five sign-in attempts each claiming a different `X-Forwarded-For` all shared one rate-limit bucket and got a 429 — the spoof is ignored and the real client is still identified. |
 | Run, for real | **A password reset, delivered.** Real SMTP conversation, message received, link opened over HTTPS, new password set, old password rejected, token refused on reuse. |
@@ -18,10 +25,20 @@ matters at 3am:
 | Run, for real | **A backup off the host, and a restore from it.** Dump shipped to S3-compatible object storage over the network, size read back and compared; every local copy then deleted; the dump pulled back and restored. The encrypted photograph came back byte-identical and every table matched. |
 | Run, for real | **Monitoring that pages.** A webhook received the page when the database was stopped, when the newest backup went stale, and when aftercare stopped running — and no heartbeat was sent on a failed run, so the dead-man's switch fires too. |
 | Run, for real | **The Stripe subscription lifecycle**, driven through the real webhook endpoint with genuine HMAC signatures: trialing → active → past_due → unpaid → active → canceled. `canceled` returns 402 on a new case; `past_due` opens one. Forged and replayed signatures were refused. |
+| Run, for real | **Preflight refuses on the preconditions that are invisible at `up` time.** Clock skew measured against Let's Encrypt's own server; free disk compared against the live database size; and a real listener bound on :80 and fetched back, confirming loopback first so a busy port is never reported as a firewall. Exercised on a host with neither `ss` nor `netstat`, which is the fallback path that previously claimed :80 was clear when it had not looked. |
+| Run, for real | **Both Let's Encrypt directory endpoints answer**, so the staging URL this file tells you to set `ACME_CA` to is current and correct. That is the whole of what can be checked about issuance without a domain. |
+| Run, for real | **The monitor's new failures fire, and suppress the heartbeat.** Missing offsite configuration pages; `docker compose ps` returning nothing is now a problem rather than "no unhealthy containers", which is what it was reading as on a host where nothing was running. |
+| Run, for real | **The certificate-expiry and offsite-staleness checks in `monitor.sh`**, against a real TLS listener and a real S3 bucket. The certificate check read what Caddy was actually serving on :443 and reported its true remaining life. The offsite check was exercised down all three paths that matter: a fresh dump on the remote (silent), a remote it could not reach (says so, and says the answer is *unknown* rather than claiming the backup is missing), and a remote whose newest dump was 74h old (pages). The first of those three was a false page before this round — the listing ran without `RCLONE_NETWORK`, could not reach the remote, and reported a backup that `backup-offsite.sh` had just verified as never having existed. |
 | **Not run** | **No public host, no public domain, no publicly-trusted certificate.** All of the above was proven on an ephemeral machine, with Caddy signing its own certificates and the domains in `/etc/hosts`. That exercises the proxy wiring, which is the half that fails quietly. It does **not** prove DNS resolves, that port 80 is reachable from the internet, or that Let's Encrypt will issue. See *Rehearse, then go live*. |
 | **Not run** | **No real mail provider.** The SMTP conversation was real; the server on the other end was a local one, not Gmail or Postmark. Sending limits, SPF/DKIM/DMARC alignment and whether a grieving family's mail client files it as spam are all untested. |
 | **Not run** | **No real Stripe account.** The events were signed with a test secret and shaped like Stripe's. No card has ever been charged, and no checkout page has been opened. |
 | **Not run** | **No real family has ever used the family portal.** |
+
+All four of those are blocked on a credential or a card, not on work. What each
+one needs, what it costs and who has to sign for it is in `LAUNCH.md` under
+*What I need from Heather*; the ordered path to close them is the runbook above
+it. **`LAUNCH.md` is the single go-live sequence — this file explains the
+pieces, that one is the order you touch them in.**
 
 ## Before anything else
 
@@ -86,8 +103,11 @@ from a new domain about a death is exactly the shape of thing filters dislike.
 ## Bring it up
 
 Check first. `deploy/preflight.sh` changes nothing, is safe to re-run, and
-catches the two mistakes that cost the most — an env file missing a value, and
-DNS that does not point at this host yet:
+refuses to pass on the preconditions that are invisible at `up` time and
+expensive afterwards — an env file missing one of the four required values,
+DNS that does not point at this host yet, a clock far enough out that a
+freshly-issued certificate will not validate, a disk without room to take a
+dump, and port 80 held by something else:
 
 ```sh
 ./deploy/preflight.sh
@@ -106,7 +126,7 @@ docker compose run --rm tools pnpm --filter @workspace/db run push
 docker compose run --rm tools pnpm --filter @workspace/scripts run load-postal-codes
 
 docker compose up -d
-docker compose ps          # all four should report healthy
+docker compose ps          # all five should report healthy
 ```
 
 The family portal lands on `FAMILY_PORTAL_PORT` (8080), the director console
@@ -317,10 +337,17 @@ Three legs, and the reason there are three is that each one is blind to a
 failure the others catch.
 
 1. **`deploy/monitor.sh`, on the host.** Containers, the API and its database,
-   disk, backup freshness, and whether aftercare has actually run. It pages
+   disk, backup freshness both locally and at the remote, the certificate this
+   host is actually serving, and whether aftercare has run. It pages
    `ALERT_WEBHOOK` — any URL taking a JSON POST: Slack, PagerDuty Events v2,
    ntfy, Discord. It **refuses to start** without one rather than pretend to be
    monitoring.
+
+   Local and offsite backup freshness are separate checks on purpose.
+   `backup-offsite.sh` takes the dump first and copies it second, so an expired
+   key or a renamed bucket leaves the local dump fresh and reassuring every
+   night while the only copy that survives this host dying goes stale. Asking
+   the volume is not asking the remote.
 
 2. **A dead-man's switch off the host.** `monitor.sh` pings `HEARTBEAT_URL` on
    every clean run, and only on a clean run. A monitor cannot report the host
@@ -328,6 +355,12 @@ failure the others catch.
    health. Something external has to notice the ping *stopping*.
    healthchecks.io, Better Stack or Cronitor; the free tier is enough for one
    deployment. Set the grace period to about twice the cron interval.
+
+   All three of the failures with no symptoms — a certificate that stopped
+   renewing, a backup that stopped leaving this host, aftercare that stopped
+   going out — are wired to this. Each one suppresses the heartbeat as well as
+   sending the page, which is what covers the case where the webhook itself is
+   what is broken.
 
 3. **`.github/workflows/uptime.yml`, from outside.** Every fifteen minutes it
    asks whether both front ends answer, whether the API answers, and how many

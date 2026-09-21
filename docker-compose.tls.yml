@@ -71,6 +71,33 @@ services:
     ports: !override
       - "127.0.0.1:${CONSOLE_PORT:-8081}:80"
 
+  # The platform console does not get a public door at all, and that is a
+  # deliberate difference from the two above rather than an omission.
+  #
+  # The other two front ends belong to a funeral home and its families, and
+  # Caddy publishes them because they have to be reachable from a phone in a
+  # hospital car park. This one is ours. A signed-in platform admin can see
+  # every home on the platform, so the blast radius of one stolen password is
+  # not one home's cases -- it is all of them. There is no version of that
+  # which is worth a public login page.
+  #
+  # Reach it over an SSH tunnel:
+  #
+  #   ssh -L 8082:127.0.0.1:8082 root@<host>
+  #   # then open http://127.0.0.1:8082
+  #
+  # Browsers treat 127.0.0.1 as a secure context, so the `Secure` session
+  # cookie is accepted over the tunnel and no certificate is involved.
+  #
+  # Without this override the service keeps the base file's "8082:80", which
+  # binds every interface: the platform console would sit on the public
+  # internet in plain HTTP, beside two front ends this same file was written
+  # to close. `!override` for the reason spelled out above -- compose appends
+  # list values rather than replacing them, so leaving it off is silent.
+  admin-console:
+    ports: !override
+      - "127.0.0.1:${ADMIN_CONSOLE_PORT:-8082}:80"
+
 volumes:
   caddy-data:
   caddy-config:
