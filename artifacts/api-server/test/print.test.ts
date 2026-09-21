@@ -55,6 +55,72 @@ describe("putting a card together", () => {
     expect(item.body.status).toBe("draft");
   });
 
+  /*
+   * The bug this catches got as far as the family's proof screen.
+   *
+   * The servers run UTC. `toLocaleString` with no `timeZone` reads the host
+   * clock, so a nine o'clock Denver funeral rendered as "3:00 PM" — on the
+   * prayer card, on the order of service, and on the proof whose entire job
+   * is to catch exactly that before two hundred are printed.
+   */
+  it("prints the service time in the home's timezone, not the server's", async () => {
+    const staff = await signUpHome();
+
+    // 15:00 UTC is 09:00 in Denver, which is this product's default zone.
+    const row = await createCase(staff, {
+      decedentFirstName: "Margaret",
+      decedentLastName: "Hale",
+      serviceAt: new Date("2026-09-26T15:00:00Z").toISOString(),
+      serviceLocation: "St Mary's Chapel",
+    });
+
+    const item = await staff.agent
+      .post(`/api/cases/${row.id}/print`)
+      .send({ templateKey: "program-folded" })
+      .expect(201);
+
+    const line = item.body.resolved.serviceLine as string;
+
+    expect(line).toContain("9:00 AM");
+    expect(line).not.toContain("3:00 PM");
+    // The zone is named, so nobody has to guess which nine o'clock it was.
+    expect(line).toContain("MDT");
+
+    // And the rendered card agrees with the preview, to the minute.
+    const render = await staff.agent
+      .get(`/api/print/${item.body.id}/render`)
+      .expect(200);
+
+    expect(render.text).toContain("9:00 AM");
+    expect(render.text).not.toContain("3:00 PM");
+  });
+
+  it("gives the family the same time on the proof as the card", async () => {
+    const staff = await signUpHome();
+    const row = await createCase(staff, {
+      decedentFirstName: "Margaret",
+      decedentLastName: "Hale",
+      serviceAt: new Date("2026-09-26T15:00:00Z").toISOString(),
+    });
+
+    const item = await staff.agent
+      .post(`/api/cases/${row.id}/print`)
+      .send({ templateKey: "program-folded" })
+      .expect(201);
+
+    await staff.agent
+      .put(`/api/print/${item.body.id}`)
+      .send({ status: "proof", sharedWithFamily: true })
+      .expect(200);
+
+    const contact = await inviteFamily(staff, row.id);
+    const family = asFamily(contact.token);
+    const proofs = await family.get("/api/family/print").expect(200);
+
+    expect(proofs.body).toHaveLength(1);
+    expect(proofs.body[0].resolved.serviceLine).toContain("9:00 AM");
+  });
+
   it("lets a director type over anything filled in", async () => {
     const staff = await signUpHome();
     const row = await createCase(staff, {

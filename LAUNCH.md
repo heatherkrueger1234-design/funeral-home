@@ -39,7 +39,7 @@ production esbuild bundle, through the real nginx config:
   containers restores and verifies. A full restart leaves the photograph
   byte-for-byte identical.
 
-163 tests, 4 projects typechecking, 3 apps building.
+226 tests, 5 projects typechecking, 4 apps building.
 
 ## What is not ready
 
