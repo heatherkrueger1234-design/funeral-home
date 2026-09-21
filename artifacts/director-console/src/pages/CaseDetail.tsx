@@ -24,6 +24,7 @@ import { useToast } from "@/hooks/use-toast";
 import { FamilyPanel } from "@/components/case/FamilyPanel";
 import { PhotosPanel } from "@/components/case/PhotosPanel";
 import { ObituaryPanel } from "@/components/case/ObituaryPanel";
+import { MemoriesPanel } from "@/components/case/MemoriesPanel";
 import { ServicePanel } from "@/components/case/ServicePanel";
 import { TimelinePanel } from "@/components/case/TimelinePanel";
 import { MessagesPanel } from "@/components/case/MessagesPanel";
@@ -101,7 +102,7 @@ export default function CaseDetail() {
       */}
       <Link
         href="/cases"
-        className="group inline-flex items-center gap-1.5 rounded-md text-sm text-muted-foreground
+        className="no-print group inline-flex items-center gap-1.5 rounded-md text-sm text-muted-foreground
                    no-underline transition-colors duration-200 hover:text-foreground"
       >
         <ArrowLeft
@@ -221,6 +222,13 @@ export default function CaseDetail() {
           <TabsTrigger value="vitals">Certificate</TabsTrigger>
           <TabsTrigger value="belongings">Belongings</TabsTrigger>
           <TabsTrigger value="obituary">Obituary</TabsTrigger>
+          {/*
+            Next to the obituary because that is what a director uses it for
+            first -- the obituary's one open field is written out of these --
+            and before Service because the sheet it produces is handed over
+            before anybody sings anything.
+          */}
+          <TabsTrigger value="memories">Memories</TabsTrigger>
           <TabsTrigger value="service">Service</TabsTrigger>
           <TabsTrigger value="print">Print</TabsTrigger>
           <TabsTrigger value="timeline">
@@ -255,6 +263,9 @@ export default function CaseDetail() {
           </TabsContent>
           <TabsContent value="obituary">
             <ObituaryPanel caseId={caseId} />
+          </TabsContent>
+          <TabsContent value="memories">
+            <MemoriesPanel caseId={caseId} />
           </TabsContent>
           <TabsContent value="service">
             <ServicePanel caseId={caseId} />

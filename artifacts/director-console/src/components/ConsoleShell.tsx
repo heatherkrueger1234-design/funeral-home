@@ -150,7 +150,7 @@ export function ConsoleShell({ children }: { children: ReactNode }) {
 
   return (
     <div className="flex min-h-dvh flex-col bg-background">
-      <header className="sticky top-0 z-30 border-b border-border bg-card/95 backdrop-blur-sm supports-[backdrop-filter]:bg-card/85">
+      <header className="no-print sticky top-0 z-30 border-b border-border bg-card/95 backdrop-blur-sm supports-[backdrop-filter]:bg-card/85">
         <div className="mx-auto flex w-full max-w-5xl items-center gap-3 px-5 py-2.5">
           <Link
             href="/"

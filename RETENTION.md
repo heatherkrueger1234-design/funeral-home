@@ -57,10 +57,11 @@ tired person dismisses without reading.
 
 When it completes, the following are gone from the database: the case, every
 photograph and the encrypted bytes behind them, the obituary draft, the service
-selections, the belongings and their chain of custody, the vital statistics
-including the encrypted social security number, the message thread, the
-timeline, the family's contact details and their link, and any aftercare
-enrolment and its scheduled check-ins.
+selections, everything the family wrote down about the person and anything
+kept of what was said at the service, the belongings and their chain of
+custody, the vital statistics including the encrypted social security number,
+the message thread, the timeline, the family's contact details and their link,
+and any aftercare enrolment and its scheduled check-ins.
 
 **What survives is a tombstone**: the former case number, who erased it, when,
 and the reason they typed. It holds no name — "delete everything about my

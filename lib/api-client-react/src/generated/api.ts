@@ -43,6 +43,7 @@ import type {
   CaseDeadline,
   CaseDetail,
   CaseInput,
+  CaseMemory,
   CaseMessage,
   CasePhoto,
   CaseSummary,
@@ -86,11 +87,15 @@ import type {
   IntakeRequestInput,
   LoginInput,
   LookupPlacesParams,
+  MemoryInput,
+  MemoryUpdate,
   MessageInput,
   MessageThread,
   ObituaryDraft,
   ObituaryFieldsInput,
   ObituaryUpdate,
+  OfficiantBriefEmailInput,
+  OfficiantBriefEmailResult,
   OnboardingStepInput,
   PhotoIdInput,
   PhotoOrderInput,
@@ -5489,6 +5494,546 @@ export function useGetPhotoPack<
 }
 
 /**
+ * @summary What the family remembered, and what was said
+ */
+export const getGetCaseMemoriesUrl = (caseId: number) => {
+  return `/api/cases/${caseId}/memories`;
+};
+
+export const getCaseMemories = async (
+  caseId: number,
+  options?: RequestInit,
+): Promise<CaseMemory[]> => {
+  return customFetch<CaseMemory[]>(getGetCaseMemoriesUrl(caseId), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getGetCaseMemoriesQueryKey = (caseId: number) => {
+  return [`/api/cases/${caseId}/memories`] as const;
+};
+
+export const getGetCaseMemoriesQueryOptions = <
+  TData = Awaited<ReturnType<typeof getCaseMemories>>,
+  TError = ErrorType<unknown>,
+>(
+  caseId: number,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getCaseMemories>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getGetCaseMemoriesQueryKey(caseId);
+
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof getCaseMemories>>> = ({
+    signal,
+  }) => getCaseMemories(caseId, { signal, ...requestOptions });
+
+  return {
+    queryKey,
+    queryFn,
+    enabled: !!caseId,
+    ...queryOptions,
+  } as UseQueryOptions<
+    Awaited<ReturnType<typeof getCaseMemories>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type GetCaseMemoriesQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getCaseMemories>>
+>;
+export type GetCaseMemoriesQueryError = ErrorType<unknown>;
+
+/**
+ * @summary What the family remembered, and what was said
+ */
+
+export function useGetCaseMemories<
+  TData = Awaited<ReturnType<typeof getCaseMemories>>,
+  TError = ErrorType<unknown>,
+>(
+  caseId: number,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getCaseMemories>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getGetCaseMemoriesQueryOptions(caseId, options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * A director uses this twice, for opposite reasons. Before the service,
+to type up something a daughter said on the telephone that would
+otherwise only exist in their own memory of the call. After it, to
+keep the eulogy -- `kind: tribute`, with `authorName` for whoever
+gave it, because that person has no account here and never will.
+
+ * @summary Write one down, or keep what was said at the service
+ */
+export const getCreateCaseMemoryUrl = (caseId: number) => {
+  return `/api/cases/${caseId}/memories`;
+};
+
+export const createCaseMemory = async (
+  caseId: number,
+  memoryInput: MemoryInput,
+  options?: RequestInit,
+): Promise<CaseMemory> => {
+  return customFetch<CaseMemory>(getCreateCaseMemoryUrl(caseId), {
+    ...options,
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(memoryInput),
+  });
+};
+
+export const getCreateCaseMemoryMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof createCaseMemory>>,
+    TError,
+    { caseId: number; data: BodyType<MemoryInput> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof createCaseMemory>>,
+  TError,
+  { caseId: number; data: BodyType<MemoryInput> },
+  TContext
+> => {
+  const mutationKey = ["createCaseMemory"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof createCaseMemory>>,
+    { caseId: number; data: BodyType<MemoryInput> }
+  > = (props) => {
+    const { caseId, data } = props ?? {};
+
+    return createCaseMemory(caseId, data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type CreateCaseMemoryMutationResult = NonNullable<
+  Awaited<ReturnType<typeof createCaseMemory>>
+>;
+export type CreateCaseMemoryMutationBody = BodyType<MemoryInput>;
+export type CreateCaseMemoryMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Write one down, or keep what was said at the service
+ */
+export const useCreateCaseMemory = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof createCaseMemory>>,
+    TError,
+    { caseId: number; data: BodyType<MemoryInput> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof createCaseMemory>>,
+  TError,
+  { caseId: number; data: BodyType<MemoryInput> },
+  TContext
+> => {
+  return useMutation(getCreateCaseMemoryMutationOptions(options));
+};
+
+/**
+ * @summary Correct one, or mark it for the minister
+ */
+export const getUpdateMemoryUrl = (memoryId: number) => {
+  return `/api/memories/${memoryId}`;
+};
+
+export const updateMemory = async (
+  memoryId: number,
+  memoryUpdate: MemoryUpdate,
+  options?: RequestInit,
+): Promise<CaseMemory> => {
+  return customFetch<CaseMemory>(getUpdateMemoryUrl(memoryId), {
+    ...options,
+    method: "PUT",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(memoryUpdate),
+  });
+};
+
+export const getUpdateMemoryMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof updateMemory>>,
+    TError,
+    { memoryId: number; data: BodyType<MemoryUpdate> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof updateMemory>>,
+  TError,
+  { memoryId: number; data: BodyType<MemoryUpdate> },
+  TContext
+> => {
+  const mutationKey = ["updateMemory"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof updateMemory>>,
+    { memoryId: number; data: BodyType<MemoryUpdate> }
+  > = (props) => {
+    const { memoryId, data } = props ?? {};
+
+    return updateMemory(memoryId, data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type UpdateMemoryMutationResult = NonNullable<
+  Awaited<ReturnType<typeof updateMemory>>
+>;
+export type UpdateMemoryMutationBody = BodyType<MemoryUpdate>;
+export type UpdateMemoryMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Correct one, or mark it for the minister
+ */
+export const useUpdateMemory = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof updateMemory>>,
+    TError,
+    { memoryId: number; data: BodyType<MemoryUpdate> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof updateMemory>>,
+  TError,
+  { memoryId: number; data: BodyType<MemoryUpdate> },
+  TContext
+> => {
+  return useMutation(getUpdateMemoryMutationOptions(options));
+};
+
+/**
+ * @summary Remove one
+ */
+export const getDeleteMemoryUrl = (memoryId: number) => {
+  return `/api/memories/${memoryId}`;
+};
+
+export const deleteMemory = async (
+  memoryId: number,
+  options?: RequestInit,
+): Promise<void> => {
+  return customFetch<void>(getDeleteMemoryUrl(memoryId), {
+    ...options,
+    method: "DELETE",
+  });
+};
+
+export const getDeleteMemoryMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof deleteMemory>>,
+    TError,
+    { memoryId: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof deleteMemory>>,
+  TError,
+  { memoryId: number },
+  TContext
+> => {
+  const mutationKey = ["deleteMemory"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof deleteMemory>>,
+    { memoryId: number }
+  > = (props) => {
+    const { memoryId } = props ?? {};
+
+    return deleteMemory(memoryId, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type DeleteMemoryMutationResult = NonNullable<
+  Awaited<ReturnType<typeof deleteMemory>>
+>;
+
+export type DeleteMemoryMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Remove one
+ */
+export const useDeleteMemory = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof deleteMemory>>,
+    TError,
+    { memoryId: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof deleteMemory>>,
+  TError,
+  { memoryId: number },
+  TContext
+> => {
+  return useMutation(getDeleteMemoryMutationOptions(options));
+};
+
+/**
+ * Letter-sized HTML with a `@page` rule, the same approach the print
+templates take: the browser already has a better PDF writer behind
+Ctrl-P than anything bolted on here, and a director can read it
+before committing -- which is the step that catches a misspelled
+name.
+
+It carries the name and dates, the service details, who is who in the
+family, the hymns and readings already chosen, and the memories the
+family marked for the minister. Nothing that was not marked.
+
+ * @summary One printable sheet for whoever is taking the service
+ */
+export const getGetOfficiantBriefUrl = (caseId: number) => {
+  return `/api/cases/${caseId}/officiant-brief`;
+};
+
+export const getOfficiantBrief = async (
+  caseId: number,
+  options?: RequestInit,
+): Promise<string> => {
+  return customFetch<string>(getGetOfficiantBriefUrl(caseId), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getGetOfficiantBriefQueryKey = (caseId: number) => {
+  return [`/api/cases/${caseId}/officiant-brief`] as const;
+};
+
+export const getGetOfficiantBriefQueryOptions = <
+  TData = Awaited<ReturnType<typeof getOfficiantBrief>>,
+  TError = ErrorType<unknown>,
+>(
+  caseId: number,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getOfficiantBrief>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey =
+    queryOptions?.queryKey ?? getGetOfficiantBriefQueryKey(caseId);
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof getOfficiantBrief>>
+  > = ({ signal }) => getOfficiantBrief(caseId, { signal, ...requestOptions });
+
+  return {
+    queryKey,
+    queryFn,
+    enabled: !!caseId,
+    ...queryOptions,
+  } as UseQueryOptions<
+    Awaited<ReturnType<typeof getOfficiantBrief>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type GetOfficiantBriefQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getOfficiantBrief>>
+>;
+export type GetOfficiantBriefQueryError = ErrorType<unknown>;
+
+/**
+ * @summary One printable sheet for whoever is taking the service
+ */
+
+export function useGetOfficiantBrief<
+  TData = Awaited<ReturnType<typeof getOfficiantBrief>>,
+  TError = ErrorType<unknown>,
+>(
+  caseId: number,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getOfficiantBrief>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getGetOfficiantBriefQueryOptions(caseId, options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary Send that sheet to the minister
+ */
+export const getEmailOfficiantBriefUrl = (caseId: number) => {
+  return `/api/cases/${caseId}/officiant-brief/email`;
+};
+
+export const emailOfficiantBrief = async (
+  caseId: number,
+  officiantBriefEmailInput: OfficiantBriefEmailInput,
+  options?: RequestInit,
+): Promise<OfficiantBriefEmailResult> => {
+  return customFetch<OfficiantBriefEmailResult>(
+    getEmailOfficiantBriefUrl(caseId),
+    {
+      ...options,
+      method: "POST",
+      headers: { "Content-Type": "application/json", ...options?.headers },
+      body: JSON.stringify(officiantBriefEmailInput),
+    },
+  );
+};
+
+export const getEmailOfficiantBriefMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof emailOfficiantBrief>>,
+    TError,
+    { caseId: number; data: BodyType<OfficiantBriefEmailInput> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof emailOfficiantBrief>>,
+  TError,
+  { caseId: number; data: BodyType<OfficiantBriefEmailInput> },
+  TContext
+> => {
+  const mutationKey = ["emailOfficiantBrief"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof emailOfficiantBrief>>,
+    { caseId: number; data: BodyType<OfficiantBriefEmailInput> }
+  > = (props) => {
+    const { caseId, data } = props ?? {};
+
+    return emailOfficiantBrief(caseId, data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type EmailOfficiantBriefMutationResult = NonNullable<
+  Awaited<ReturnType<typeof emailOfficiantBrief>>
+>;
+export type EmailOfficiantBriefMutationBody =
+  BodyType<OfficiantBriefEmailInput>;
+export type EmailOfficiantBriefMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Send that sheet to the minister
+ */
+export const useEmailOfficiantBrief = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof emailOfficiantBrief>>,
+    TError,
+    { caseId: number; data: BodyType<OfficiantBriefEmailInput> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof emailOfficiantBrief>>,
+  TError,
+  { caseId: number; data: BodyType<OfficiantBriefEmailInput> },
+  TContext
+> => {
+  return useMutation(getEmailOfficiantBriefMutationOptions(options));
+};
+
+/**
  * @summary Everything the family is bringing in, and where it is
  */
 export const getGetBelongingsUrl = (caseId: number) => {
@@ -6009,6 +6554,342 @@ export const useUpdatePreparation = <
   TContext
 > => {
   return useMutation(getUpdatePreparationMutationOptions(options));
+};
+
+/**
+ * @summary What this family has written down, and what was said
+ */
+export const getGetFamilyMemoriesUrl = () => {
+  return `/api/family/memories`;
+};
+
+export const getFamilyMemories = async (
+  options?: RequestInit,
+): Promise<CaseMemory[]> => {
+  return customFetch<CaseMemory[]>(getGetFamilyMemoriesUrl(), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getGetFamilyMemoriesQueryKey = () => {
+  return [`/api/family/memories`] as const;
+};
+
+export const getGetFamilyMemoriesQueryOptions = <
+  TData = Awaited<ReturnType<typeof getFamilyMemories>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof getFamilyMemories>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getGetFamilyMemoriesQueryKey();
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof getFamilyMemories>>
+  > = ({ signal }) => getFamilyMemories({ signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof getFamilyMemories>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type GetFamilyMemoriesQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getFamilyMemories>>
+>;
+export type GetFamilyMemoriesQueryError = ErrorType<unknown>;
+
+/**
+ * @summary What this family has written down, and what was said
+ */
+
+export function useGetFamilyMemories<
+  TData = Awaited<ReturnType<typeof getFamilyMemories>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof getFamilyMemories>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getGetFamilyMemoriesQueryOptions(options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary Write something down
+ */
+export const getCreateFamilyMemoryUrl = () => {
+  return `/api/family/memories`;
+};
+
+export const createFamilyMemory = async (
+  memoryInput: MemoryInput,
+  options?: RequestInit,
+): Promise<CaseMemory> => {
+  return customFetch<CaseMemory>(getCreateFamilyMemoryUrl(), {
+    ...options,
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(memoryInput),
+  });
+};
+
+export const getCreateFamilyMemoryMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof createFamilyMemory>>,
+    TError,
+    { data: BodyType<MemoryInput> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof createFamilyMemory>>,
+  TError,
+  { data: BodyType<MemoryInput> },
+  TContext
+> => {
+  const mutationKey = ["createFamilyMemory"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof createFamilyMemory>>,
+    { data: BodyType<MemoryInput> }
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return createFamilyMemory(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type CreateFamilyMemoryMutationResult = NonNullable<
+  Awaited<ReturnType<typeof createFamilyMemory>>
+>;
+export type CreateFamilyMemoryMutationBody = BodyType<MemoryInput>;
+export type CreateFamilyMemoryMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Write something down
+ */
+export const useCreateFamilyMemory = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof createFamilyMemory>>,
+    TError,
+    { data: BodyType<MemoryInput> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof createFamilyMemory>>,
+  TError,
+  { data: BodyType<MemoryInput> },
+  TContext
+> => {
+  return useMutation(getCreateFamilyMemoryMutationOptions(options));
+};
+
+/**
+ * Only your own. Several relatives share one case, and a sister-in-law
+rewording somebody else's memory of their mother is not a thing to
+make possible by accident.
+
+ * @summary Change something you wrote
+ */
+export const getUpdateFamilyMemoryUrl = (memoryId: number) => {
+  return `/api/family/memories/${memoryId}`;
+};
+
+export const updateFamilyMemory = async (
+  memoryId: number,
+  memoryUpdate: MemoryUpdate,
+  options?: RequestInit,
+): Promise<CaseMemory> => {
+  return customFetch<CaseMemory>(getUpdateFamilyMemoryUrl(memoryId), {
+    ...options,
+    method: "PUT",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(memoryUpdate),
+  });
+};
+
+export const getUpdateFamilyMemoryMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof updateFamilyMemory>>,
+    TError,
+    { memoryId: number; data: BodyType<MemoryUpdate> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof updateFamilyMemory>>,
+  TError,
+  { memoryId: number; data: BodyType<MemoryUpdate> },
+  TContext
+> => {
+  const mutationKey = ["updateFamilyMemory"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof updateFamilyMemory>>,
+    { memoryId: number; data: BodyType<MemoryUpdate> }
+  > = (props) => {
+    const { memoryId, data } = props ?? {};
+
+    return updateFamilyMemory(memoryId, data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type UpdateFamilyMemoryMutationResult = NonNullable<
+  Awaited<ReturnType<typeof updateFamilyMemory>>
+>;
+export type UpdateFamilyMemoryMutationBody = BodyType<MemoryUpdate>;
+export type UpdateFamilyMemoryMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Change something you wrote
+ */
+export const useUpdateFamilyMemory = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof updateFamilyMemory>>,
+    TError,
+    { memoryId: number; data: BodyType<MemoryUpdate> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof updateFamilyMemory>>,
+  TError,
+  { memoryId: number; data: BodyType<MemoryUpdate> },
+  TContext
+> => {
+  return useMutation(getUpdateFamilyMemoryMutationOptions(options));
+};
+
+/**
+ * @summary Remove something you wrote
+ */
+export const getDeleteFamilyMemoryUrl = (memoryId: number) => {
+  return `/api/family/memories/${memoryId}`;
+};
+
+export const deleteFamilyMemory = async (
+  memoryId: number,
+  options?: RequestInit,
+): Promise<void> => {
+  return customFetch<void>(getDeleteFamilyMemoryUrl(memoryId), {
+    ...options,
+    method: "DELETE",
+  });
+};
+
+export const getDeleteFamilyMemoryMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof deleteFamilyMemory>>,
+    TError,
+    { memoryId: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof deleteFamilyMemory>>,
+  TError,
+  { memoryId: number },
+  TContext
+> => {
+  const mutationKey = ["deleteFamilyMemory"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof deleteFamilyMemory>>,
+    { memoryId: number }
+  > = (props) => {
+    const { memoryId } = props ?? {};
+
+    return deleteFamilyMemory(memoryId, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type DeleteFamilyMemoryMutationResult = NonNullable<
+  Awaited<ReturnType<typeof deleteFamilyMemory>>
+>;
+
+export type DeleteFamilyMemoryMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Remove something you wrote
+ */
+export const useDeleteFamilyMemory = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof deleteFamilyMemory>>,
+    TError,
+    { memoryId: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof deleteFamilyMemory>>,
+  TError,
+  { memoryId: number },
+  TContext
+> => {
+  return useMutation(getDeleteFamilyMemoryMutationOptions(options));
 };
 
 /**

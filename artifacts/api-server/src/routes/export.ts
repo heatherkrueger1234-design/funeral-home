@@ -4,6 +4,7 @@ import {
   caseBelongingsTable,
   caseDeletionsTable,
   caseDeadlinesTable,
+  caseMemoriesTable,
   caseMessagesTable,
   casePhotosTable,
   casesTable,
@@ -278,6 +279,60 @@ router.get("/cases/:caseId/export", async (req, res) => {
       "utf8",
     ),
   );
+
+  /*
+   * The family's own writing, which is the part of this archive least
+   * replaceable by anything else in it.
+   *
+   * A photograph exists in somebody's camera roll and an obituary was printed
+   * in a newspaper. What a daughter wrote about her mother at two in the
+   * morning exists here and nowhere, and an export that answers "what happens
+   * to our families' files if we stop paying you?" without it is not
+   * answering the question.
+   *
+   * Two files, because they are two different things: what the family wrote
+   * before, and what was said on the day.
+   */
+  const memories = await db
+    .select()
+    .from(caseMemoriesTable)
+    .where(
+      and(
+        eq(caseMemoriesTable.caseId, row.id),
+        eq(caseMemoriesTable.funeralHomeId, home.id),
+      ),
+    )
+    .orderBy(asc(caseMemoriesTable.position), asc(caseMemoriesTable.id));
+
+  const written = memories.filter((m) => m.kind === "memory");
+  const tributes = memories.filter((m) => m.kind === "tribute");
+
+  if (written.length > 0) {
+    await zip.addFile(
+      "memories.txt",
+      Buffer.from(
+        written
+          .map((m) => {
+            const head = m.prompt ? `${m.prompt}\n${"-".repeat(m.prompt.length)}\n` : "";
+            return `${head}${m.body}\n`;
+          })
+          .join("\n") + "\n",
+        "utf8",
+      ),
+    );
+  }
+
+  if (tributes.length > 0) {
+    await zip.addFile(
+      "what-was-said.txt",
+      Buffer.from(
+        tributes
+          .map((m) => `${m.body}\n${m.authorName ? `-- ${m.authorName}\n` : ""}`)
+          .join("\n") + "\n",
+        "utf8",
+      ),
+    );
+  }
 
   /*
    * Vitals go in without the social security number. `toVitalsJson` returns it

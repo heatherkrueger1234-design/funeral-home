@@ -1313,6 +1313,124 @@ paths:
                 type: string
                 format: binary
 
+  /cases/{caseId}/memories:
+    get:
+      operationId: getCaseMemories
+      tags: [memories]
+      summary: What the family remembered, and what was said
+      parameters:
+        - $ref: "#/components/parameters/CaseId"
+      responses:
+        "200":
+          description: Oldest first, memories and tributes together
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/CaseMemory"
+    post:
+      operationId: createCaseMemory
+      tags: [memories]
+      summary: Write one down, or keep what was said at the service
+      description: |
+        A director uses this twice, for opposite reasons. Before the service,
+        to type up something a daughter said on the telephone that would
+        otherwise only exist in their own memory of the call. After it, to
+        keep the eulogy -- `kind: tribute`, with `authorName` for whoever
+        gave it, because that person has no account here and never will.
+      parameters:
+        - $ref: "#/components/parameters/CaseId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/MemoryInput"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CaseMemory"
+
+  /memories/{memoryId}:
+    put:
+      operationId: updateMemory
+      tags: [memories]
+      summary: Correct one, or mark it for the minister
+      parameters:
+        - $ref: "#/components/parameters/MemoryId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/MemoryUpdate"
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CaseMemory"
+    delete:
+      operationId: deleteMemory
+      tags: [memories]
+      summary: Remove one
+      parameters:
+        - $ref: "#/components/parameters/MemoryId"
+      responses:
+        "204":
+          description: Deleted
+
+  /cases/{caseId}/officiant-brief:
+    get:
+      operationId: getOfficiantBrief
+      tags: [memories]
+      summary: One printable sheet for whoever is taking the service
+      description: |
+        Letter-sized HTML with a `@page` rule, the same approach the print
+        templates take: the browser already has a better PDF writer behind
+        Ctrl-P than anything bolted on here, and a director can read it
+        before committing -- which is the step that catches a misspelled
+        name.
+
+        It carries the name and dates, the service details, who is who in the
+        family, the hymns and readings already chosen, and the memories the
+        family marked for the minister. Nothing that was not marked.
+      parameters:
+        - $ref: "#/components/parameters/CaseId"
+      responses:
+        "200":
+          description: The sheet
+          content:
+            text/html:
+              schema:
+                type: string
+
+  /cases/{caseId}/officiant-brief/email:
+    post:
+      operationId: emailOfficiantBrief
+      tags: [memories]
+      summary: Send that sheet to the minister
+      parameters:
+        - $ref: "#/components/parameters/CaseId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/OfficiantBriefEmailInput"
+      responses:
+        "200":
+          description: Accepted for delivery, or reported as not configured
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OfficiantBriefEmailResult"
+
   /cases/{caseId}/belongings:
     get:
       operationId: getBelongings
@@ -1424,6 +1542,72 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Preparation"
+
+  /family/memories:
+    get:
+      operationId: getFamilyMemories
+      tags: [family]
+      summary: What this family has written down, and what was said
+      responses:
+        "200":
+          description: List
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/CaseMemory"
+    post:
+      operationId: createFamilyMemory
+      tags: [family]
+      summary: Write something down
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/MemoryInput"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CaseMemory"
+
+  /family/memories/{memoryId}:
+    put:
+      operationId: updateFamilyMemory
+      tags: [family]
+      summary: Change something you wrote
+      description: |
+        Only your own. Several relatives share one case, and a sister-in-law
+        rewording somebody else's memory of their mother is not a thing to
+        make possible by accident.
+      parameters:
+        - $ref: "#/components/parameters/MemoryId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/MemoryUpdate"
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CaseMemory"
+    delete:
+      operationId: deleteFamilyMemory
+      tags: [family]
+      summary: Remove something you wrote
+      parameters:
+        - $ref: "#/components/parameters/MemoryId"
+      responses:
+        "204":
+          description: Deleted
 
   /family/belongings:
     get:
@@ -2731,6 +2915,12 @@ components:
         type: integer
     ContactId:
       name: contactId
+      in: path
+      required: true
+      schema:
+        type: integer
+    MemoryId:
+      name: memoryId
       in: path
       required: true
       schema:
@@ -5078,6 +5268,133 @@ components:
       required: [postalCode, recognised]
 
     # ---------------------------------------------------------- belongings --
+
+    CaseMemory:
+      description: |
+        Something somebody remembered, or something somebody said.
+
+        `prompt` is the question this answers, stored as the words it was
+        asked in rather than as an id, so a memory stays readable years later
+        whatever happened to the list of questions.
+
+        `authorName` is already resolved -- the family contact's name, the
+        staff member's, or, for a tribute, the free text naming whoever gave
+        it. `authorContactId` is kept alongside so the family portal can tell
+        which ones are the reader's own to edit.
+      type: object
+      properties:
+        id:
+          type: integer
+        caseId:
+          type: integer
+        kind:
+          type: string
+          enum: [memory, tribute]
+        prompt:
+          type: string
+          nullable: true
+        body:
+          type: string
+        authorName:
+          type: string
+          nullable: true
+        authorSide:
+          type: string
+          enum: [family, home, other]
+        authorContactId:
+          type: integer
+          nullable: true
+        forOfficiant:
+          type: boolean
+        position:
+          type: integer
+        createdAt:
+          type: string
+          format: date-time
+      required:
+        [
+          id,
+          caseId,
+          kind,
+          prompt,
+          body,
+          authorName,
+          authorSide,
+          authorContactId,
+          forOfficiant,
+          position,
+          createdAt,
+        ]
+
+    MemoryInput:
+      type: object
+      properties:
+        kind:
+          type: string
+          enum: [memory, tribute]
+        prompt:
+          type: string
+          maxLength: 200
+          nullable: true
+        body:
+          type: string
+          minLength: 1
+          maxLength: 4000
+        authorName:
+          description: Who said it. Only meaningful on a tribute.
+          type: string
+          maxLength: 120
+          nullable: true
+        forOfficiant:
+          type: boolean
+      required: [body]
+
+    MemoryUpdate:
+      type: object
+      properties:
+        body:
+          type: string
+          minLength: 1
+          maxLength: 4000
+        authorName:
+          type: string
+          maxLength: 120
+          nullable: true
+        forOfficiant:
+          type: boolean
+
+    OfficiantBriefEmailInput:
+      type: object
+      properties:
+        to:
+          type: string
+          format: email
+        note:
+          description: A line from the director, set above the sheet itself.
+          type: string
+          maxLength: 500
+          nullable: true
+      required: [to]
+
+    OfficiantBriefEmailResult:
+      description: |
+        `sent` is false when the deployment has no SMTP configured, or when
+        the mail server refused the message. Neither is an error the caller
+        should see as a failed request -- the brief is still printable, and a
+        director is owed the difference between "this deployment cannot send
+        email" and "that address bounced", because only one of those is
+        fixed by trying a different address.
+      type: object
+      properties:
+        sent:
+          type: boolean
+        to:
+          type: string
+        reason:
+          description: Why it did not go. Null when it did.
+          type: string
+          nullable: true
+      required: [sent, to, reason]
 
     Belonging:
       type: object

@@ -7,6 +7,7 @@ import {
 import {
   Images,
   FileText,
+  Feather,
   ListMusic,
   Shirt,
   ClipboardList,
@@ -269,6 +270,16 @@ export default function Hub() {
                 : obituaryStatus === "submitted"
                   ? "With the funeral home"
                   : "Tell us about them"
+            }
+          />
+          <Card
+            href="/memories"
+            icon={Feather}
+            title={voice.preNeed ? "Things to say" : "Things to remember"}
+            detail={
+              voice.preNeed
+                ? "Stories you would want told"
+                : "What they said, what they did, the small things"
             }
           />
           <Card

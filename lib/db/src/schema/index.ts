@@ -29,6 +29,10 @@ export * from "./photos";
 export * from "./obituary";
 export * from "./selections";
 
+/* What people say about them -- collected before the service, and kept
+ * after it. */
+export * from "./memories";
+
 /* What the family brings in, and how they should look. */
 export * from "./belongings";
 

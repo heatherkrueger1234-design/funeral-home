@@ -2114,6 +2114,153 @@ export const GetPhotoPackParams = zod.object({
 });
 
 /**
+ * @summary What the family remembered, and what was said
+ */
+export const GetCaseMemoriesParams = zod.object({
+  caseId: zod.coerce.number(),
+});
+
+export const GetCaseMemoriesResponseItem = zod
+  .object({
+    id: zod.number(),
+    caseId: zod.number(),
+    kind: zod.enum(["memory", "tribute"]),
+    prompt: zod.string().nullable(),
+    body: zod.string(),
+    authorName: zod.string().nullable(),
+    authorSide: zod.enum(["family", "home", "other"]),
+    authorContactId: zod.number().nullable(),
+    forOfficiant: zod.boolean(),
+    position: zod.number(),
+    createdAt: zod.date(),
+  })
+  .describe(
+    "Something somebody remembered, or something somebody said.\n\n`prompt` is the question this answers, stored as the words it was\nasked in rather than as an id, so a memory stays readable years later\nwhatever happened to the list of questions.\n\n`authorName` is already resolved -- the family contact's name, the\nstaff member's, or, for a tribute, the free text naming whoever gave\nit. `authorContactId` is kept alongside so the family portal can tell\nwhich ones are the reader's own to edit.\n",
+  );
+export const GetCaseMemoriesResponse = zod.array(GetCaseMemoriesResponseItem);
+
+/**
+ * A director uses this twice, for opposite reasons. Before the service,
+to type up something a daughter said on the telephone that would
+otherwise only exist in their own memory of the call. After it, to
+keep the eulogy -- `kind: tribute`, with `authorName` for whoever
+gave it, because that person has no account here and never will.
+
+ * @summary Write one down, or keep what was said at the service
+ */
+export const CreateCaseMemoryParams = zod.object({
+  caseId: zod.coerce.number(),
+});
+
+export const createCaseMemoryBodyPromptMax = 200;
+
+export const createCaseMemoryBodyBodyMax = 4000;
+
+export const createCaseMemoryBodyAuthorNameMax = 120;
+
+export const CreateCaseMemoryBody = zod.object({
+  kind: zod.enum(["memory", "tribute"]).optional(),
+  prompt: zod.string().max(createCaseMemoryBodyPromptMax).nullish(),
+  body: zod.string().min(1).max(createCaseMemoryBodyBodyMax),
+  authorName: zod
+    .string()
+    .max(createCaseMemoryBodyAuthorNameMax)
+    .nullish()
+    .describe("Who said it. Only meaningful on a tribute."),
+  forOfficiant: zod.boolean().optional(),
+});
+
+/**
+ * @summary Correct one, or mark it for the minister
+ */
+export const UpdateMemoryParams = zod.object({
+  memoryId: zod.coerce.number(),
+});
+
+export const updateMemoryBodyBodyMax = 4000;
+
+export const updateMemoryBodyAuthorNameMax = 120;
+
+export const UpdateMemoryBody = zod.object({
+  body: zod.string().min(1).max(updateMemoryBodyBodyMax).optional(),
+  authorName: zod.string().max(updateMemoryBodyAuthorNameMax).nullish(),
+  forOfficiant: zod.boolean().optional(),
+});
+
+export const UpdateMemoryResponse = zod
+  .object({
+    id: zod.number(),
+    caseId: zod.number(),
+    kind: zod.enum(["memory", "tribute"]),
+    prompt: zod.string().nullable(),
+    body: zod.string(),
+    authorName: zod.string().nullable(),
+    authorSide: zod.enum(["family", "home", "other"]),
+    authorContactId: zod.number().nullable(),
+    forOfficiant: zod.boolean(),
+    position: zod.number(),
+    createdAt: zod.date(),
+  })
+  .describe(
+    "Something somebody remembered, or something somebody said.\n\n`prompt` is the question this answers, stored as the words it was\nasked in rather than as an id, so a memory stays readable years later\nwhatever happened to the list of questions.\n\n`authorName` is already resolved -- the family contact's name, the\nstaff member's, or, for a tribute, the free text naming whoever gave\nit. `authorContactId` is kept alongside so the family portal can tell\nwhich ones are the reader's own to edit.\n",
+  );
+
+/**
+ * @summary Remove one
+ */
+export const DeleteMemoryParams = zod.object({
+  memoryId: zod.coerce.number(),
+});
+
+/**
+ * Letter-sized HTML with a `@page` rule, the same approach the print
+templates take: the browser already has a better PDF writer behind
+Ctrl-P than anything bolted on here, and a director can read it
+before committing -- which is the step that catches a misspelled
+name.
+
+It carries the name and dates, the service details, who is who in the
+family, the hymns and readings already chosen, and the memories the
+family marked for the minister. Nothing that was not marked.
+
+ * @summary One printable sheet for whoever is taking the service
+ */
+export const GetOfficiantBriefParams = zod.object({
+  caseId: zod.coerce.number(),
+});
+
+/**
+ * @summary Send that sheet to the minister
+ */
+export const EmailOfficiantBriefParams = zod.object({
+  caseId: zod.coerce.number(),
+});
+
+export const emailOfficiantBriefBodyNoteMax = 500;
+
+export const EmailOfficiantBriefBody = zod.object({
+  to: zod.string().email(),
+  note: zod
+    .string()
+    .max(emailOfficiantBriefBodyNoteMax)
+    .nullish()
+    .describe("A line from the director, set above the sheet itself."),
+});
+
+export const EmailOfficiantBriefResponse = zod
+  .object({
+    sent: zod.boolean(),
+    to: zod.string(),
+    reason: zod
+      .string()
+      .nullable()
+      .describe("Why it did not go. Null when it did."),
+  })
+  .describe(
+    '`sent` is false when the deployment has no SMTP configured, or when\nthe mail server refused the message. Neither is an error the caller\nshould see as a failed request -- the brief is still printable, and a\ndirector is owed the difference between \"this deployment cannot send\nemail\" and \"that address bounced\", because only one of those is\nfixed by trying a different address.\n',
+  );
+
+/**
  * @summary Everything the family is bringing in, and where it is
  */
 export const GetBelongingsParams = zod.object({
@@ -2311,6 +2458,97 @@ export const UpdatePreparationResponse = zod.object({
     .describe("The upload behind the chosen reference photograph."),
   reviewedAt: zod.date().nullable(),
   reviewedByName: zod.string().nullable(),
+});
+
+/**
+ * @summary What this family has written down, and what was said
+ */
+export const GetFamilyMemoriesResponseItem = zod
+  .object({
+    id: zod.number(),
+    caseId: zod.number(),
+    kind: zod.enum(["memory", "tribute"]),
+    prompt: zod.string().nullable(),
+    body: zod.string(),
+    authorName: zod.string().nullable(),
+    authorSide: zod.enum(["family", "home", "other"]),
+    authorContactId: zod.number().nullable(),
+    forOfficiant: zod.boolean(),
+    position: zod.number(),
+    createdAt: zod.date(),
+  })
+  .describe(
+    "Something somebody remembered, or something somebody said.\n\n`prompt` is the question this answers, stored as the words it was\nasked in rather than as an id, so a memory stays readable years later\nwhatever happened to the list of questions.\n\n`authorName` is already resolved -- the family contact's name, the\nstaff member's, or, for a tribute, the free text naming whoever gave\nit. `authorContactId` is kept alongside so the family portal can tell\nwhich ones are the reader's own to edit.\n",
+  );
+export const GetFamilyMemoriesResponse = zod.array(
+  GetFamilyMemoriesResponseItem,
+);
+
+/**
+ * @summary Write something down
+ */
+export const createFamilyMemoryBodyPromptMax = 200;
+
+export const createFamilyMemoryBodyBodyMax = 4000;
+
+export const createFamilyMemoryBodyAuthorNameMax = 120;
+
+export const CreateFamilyMemoryBody = zod.object({
+  kind: zod.enum(["memory", "tribute"]).optional(),
+  prompt: zod.string().max(createFamilyMemoryBodyPromptMax).nullish(),
+  body: zod.string().min(1).max(createFamilyMemoryBodyBodyMax),
+  authorName: zod
+    .string()
+    .max(createFamilyMemoryBodyAuthorNameMax)
+    .nullish()
+    .describe("Who said it. Only meaningful on a tribute."),
+  forOfficiant: zod.boolean().optional(),
+});
+
+/**
+ * Only your own. Several relatives share one case, and a sister-in-law
+rewording somebody else's memory of their mother is not a thing to
+make possible by accident.
+
+ * @summary Change something you wrote
+ */
+export const UpdateFamilyMemoryParams = zod.object({
+  memoryId: zod.coerce.number(),
+});
+
+export const updateFamilyMemoryBodyBodyMax = 4000;
+
+export const updateFamilyMemoryBodyAuthorNameMax = 120;
+
+export const UpdateFamilyMemoryBody = zod.object({
+  body: zod.string().min(1).max(updateFamilyMemoryBodyBodyMax).optional(),
+  authorName: zod.string().max(updateFamilyMemoryBodyAuthorNameMax).nullish(),
+  forOfficiant: zod.boolean().optional(),
+});
+
+export const UpdateFamilyMemoryResponse = zod
+  .object({
+    id: zod.number(),
+    caseId: zod.number(),
+    kind: zod.enum(["memory", "tribute"]),
+    prompt: zod.string().nullable(),
+    body: zod.string(),
+    authorName: zod.string().nullable(),
+    authorSide: zod.enum(["family", "home", "other"]),
+    authorContactId: zod.number().nullable(),
+    forOfficiant: zod.boolean(),
+    position: zod.number(),
+    createdAt: zod.date(),
+  })
+  .describe(
+    "Something somebody remembered, or something somebody said.\n\n`prompt` is the question this answers, stored as the words it was\nasked in rather than as an id, so a memory stays readable years later\nwhatever happened to the list of questions.\n\n`authorName` is already resolved -- the family contact's name, the\nstaff member's, or, for a tribute, the free text naming whoever gave\nit. `authorContactId` is kept alongside so the family portal can tell\nwhich ones are the reader's own to edit.\n",
+  );
+
+/**
+ * @summary Remove something you wrote
+ */
+export const DeleteFamilyMemoryParams = zod.object({
+  memoryId: zod.coerce.number(),
 });
 
 /**

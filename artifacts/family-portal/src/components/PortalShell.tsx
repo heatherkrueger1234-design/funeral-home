@@ -238,7 +238,7 @@ export function PortalShell({ children }: { children: ReactNode }) {
         like.
       */}
       <header
-        className="sticky top-0 z-30 text-white shadow-[0_1px_0_rgb(0_0_0/0.06),0_6px_16px_-12px_rgb(40_34_24/0.5)]"
+        className="no-print sticky top-0 z-30 text-white shadow-[0_1px_0_rgb(0_0_0/0.06),0_6px_16px_-12px_rgb(40_34_24/0.5)]"
         style={{
           background:
             "linear-gradient(170deg, var(--accent-deep) 0%, var(--accent) 65%)",
@@ -266,7 +266,7 @@ export function PortalShell({ children }: { children: ReactNode }) {
       </header>
 
       {!atHub && (
-        <div className="mx-auto w-full max-w-2xl px-5 pt-5">
+        <div className="no-print mx-auto w-full max-w-2xl px-5 pt-5">
           <Link
             href="/"
             className="group inline-flex items-center gap-1.5 rounded-md text-sm text-muted-foreground no-underline transition-colors duration-200 hover:text-foreground"
@@ -289,7 +289,7 @@ export function PortalShell({ children }: { children: ReactNode }) {
         the last line of the stationery rather than as another button.
       */}
       {home.urgentPhone && (
-        <footer className="mx-auto w-full max-w-2xl px-5 pb-10">
+        <footer className="no-print mx-auto w-full max-w-2xl px-5 pb-10">
           <hr className="mb-5 border-0 border-t border-border" />
           <a
             href={`tel:${home.urgentPhone.replace(/[^\d+]/g, "")}`}

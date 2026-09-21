@@ -421,3 +421,39 @@ export async function sendIntakeNotificationEmail(options: {
     html,
   });
 }
+
+/**
+ * The officiant's brief, as the body of an email rather than as a file.
+ *
+ * Deliberately not an attachment. This is opened by a minister on a phone,
+ * standing up, often the evening before — and a PDF attachment on a phone is
+ * a download, an app switch and a pinch-zoom before anybody reads a word of
+ * it. The brief is already self-contained HTML sized for letter paper, so it
+ * is sent as the message itself: readable where it lands, and still printable
+ * from any mail client for anyone who wants it on paper.
+ *
+ * `rethrow` is on. Unlike a password reset, the caller here is a signed-in
+ * director who pressed Send and is owed the truth about whether it went —
+ * there is no address-enumeration concern, and silently swallowing a bounce
+ * would let somebody walk into a service believing the minister had been sent
+ * something they never received.
+ */
+export async function sendOfficiantBriefEmail(options: {
+  to: string;
+  homeName: string;
+  decedentName: string;
+  /** The rendered sheet. Already escaped by its own renderer. */
+  html: string;
+  /** A plain-text rendering, for clients that will not show the HTML. */
+  text: string;
+}): Promise<void> {
+  const { to, homeName, decedentName, html, text } = options;
+
+  await send({
+    to,
+    subject: `For the service: ${decedentName}`,
+    text: `${text}\n\n— ${homeName}`,
+    html,
+    rethrow: true,
+  });
+}

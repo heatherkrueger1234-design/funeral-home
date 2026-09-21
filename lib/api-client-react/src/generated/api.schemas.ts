@@ -1503,6 +1503,111 @@ export interface PostalCodeResult {
   recognised: boolean;
 }
 
+export type CaseMemoryKind =
+  (typeof CaseMemoryKind)[keyof typeof CaseMemoryKind];
+
+export const CaseMemoryKind = {
+  memory: "memory",
+  tribute: "tribute",
+} as const;
+
+export type CaseMemoryAuthorSide =
+  (typeof CaseMemoryAuthorSide)[keyof typeof CaseMemoryAuthorSide];
+
+export const CaseMemoryAuthorSide = {
+  family: "family",
+  home: "home",
+  other: "other",
+} as const;
+
+/**
+ * Something somebody remembered, or something somebody said.
+
+`prompt` is the question this answers, stored as the words it was
+asked in rather than as an id, so a memory stays readable years later
+whatever happened to the list of questions.
+
+`authorName` is already resolved -- the family contact's name, the
+staff member's, or, for a tribute, the free text naming whoever gave
+it. `authorContactId` is kept alongside so the family portal can tell
+which ones are the reader's own to edit.
+
+ */
+export interface CaseMemory {
+  id: number;
+  caseId: number;
+  kind: CaseMemoryKind;
+  prompt: string | null;
+  body: string;
+  authorName: string | null;
+  authorSide: CaseMemoryAuthorSide;
+  authorContactId: number | null;
+  forOfficiant: boolean;
+  position: number;
+  createdAt: string;
+}
+
+export type MemoryInputKind =
+  (typeof MemoryInputKind)[keyof typeof MemoryInputKind];
+
+export const MemoryInputKind = {
+  memory: "memory",
+  tribute: "tribute",
+} as const;
+
+export interface MemoryInput {
+  kind?: MemoryInputKind;
+  /** @maxLength 200 */
+  prompt?: string | null;
+  /**
+   * @minLength 1
+   * @maxLength 4000
+   */
+  body: string;
+  /**
+   * Who said it. Only meaningful on a tribute.
+   * @maxLength 120
+   */
+  authorName?: string | null;
+  forOfficiant?: boolean;
+}
+
+export interface MemoryUpdate {
+  /**
+   * @minLength 1
+   * @maxLength 4000
+   */
+  body?: string;
+  /** @maxLength 120 */
+  authorName?: string | null;
+  forOfficiant?: boolean;
+}
+
+export interface OfficiantBriefEmailInput {
+  to: string;
+  /**
+   * A line from the director, set above the sheet itself.
+   * @maxLength 500
+   */
+  note?: string | null;
+}
+
+/**
+ * `sent` is false when the deployment has no SMTP configured, or when
+the mail server refused the message. Neither is an error the caller
+should see as a failed request -- the brief is still printable, and a
+director is owed the difference between "this deployment cannot send
+email" and "that address bounced", because only one of those is
+fixed by trying a different address.
+
+ */
+export interface OfficiantBriefEmailResult {
+  sent: boolean;
+  to: string;
+  /** Why it did not go. Null when it did. */
+  reason: string | null;
+}
+
 export type BelongingKind = (typeof BelongingKind)[keyof typeof BelongingKind];
 
 export const BelongingKind = {

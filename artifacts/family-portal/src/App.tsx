@@ -13,6 +13,7 @@ import { PortalShell } from "@/components/PortalShell";
 import Hub from "@/pages/Hub";
 import Photos from "@/pages/Photos";
 import Obituary from "@/pages/Obituary";
+import Memories from "@/pages/Memories";
 import Selections from "@/pages/Selections";
 import Timeline from "@/pages/Timeline";
 import ServiceTime from "@/pages/ServiceTime";
@@ -93,6 +94,7 @@ export default function App() {
               <Route path="/f/:token" component={Hub} />
               <Route path="/photos" component={Photos} />
               <Route path="/obituary" component={Obituary} />
+              <Route path="/memories" component={Memories} />
               <Route path="/service" component={Selections} />
               <Route path="/timeline" component={Timeline} />
               <Route path="/service-time" component={ServiceTime} />

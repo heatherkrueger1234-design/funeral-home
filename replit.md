@@ -29,23 +29,47 @@ bytes survive), the obituary as named fields rather than a blank box, and the
 hymns, readings and pallbearers as short lists. This replaces a director's
 inbox holding forty attachments from six addresses.
 
-**2. One contained thread.** Everyone on the family's side sees the same
+**2. What people actually say about them.** The obituary form asks named
+questions and gets named answers, which is right — but its one open field is
+labelled "their life", and a blank box is what the rest of the form exists to
+avoid. So there is a second screen that asks small ones instead: *what did
+they always say?*, *what were they doing when they were happiest?* A family
+answers a few sentences at a time, from whoever's phone is nearest, over a
+week.
+
+Three things come out of it. The obituary the home writes. A eulogy somebody
+in the family has to stand up and give — with guidance on that page about
+doing it, not a paragraph of ready-made prose to hand over as if it were
+theirs. And **one sheet of paper for whoever is taking the service**: the
+name and dates, the service, who is who in the family, the hymns and readings
+already chosen, and the memories the family ticked — printable, emailable,
+with ruled lines at the bottom because it gets written on. It replaces the
+telephone call in which a director reads out, from memory, what a daughter
+said three days ago.
+
+The tick is the load-bearing part and is not a flag: a family writes things
+here that are for saying out loud and things that are for the family, and
+nothing untitled reaches a stranger. Afterwards, what *was* said goes back on
+the case, because "could we have a copy of what the minister said?" is a
+question homes get months later and can almost never answer.
+
+**3. One contained thread.** Everyone on the family's side sees the same
 conversation, so the "who told you that?" arguments settle themselves and the
 director answers once. Office hours are *shown, never enforced* — a 2am message
 is delivered at 2am and the family is told, before they send, when it will be
 read, with the 24-hour number next to it. The thread locks a fortnight after
 the service, for both sides.
 
-**3. A timeline.** Four or five dated things, in plain words. Events (the
+**4. A timeline.** Four or five dated things, in plain words. Events (the
 funeral) are distinguished from tasks (deliver the clothing) and cannot be
 ticked off.
 
-**4. Aftercare that costs no staff hours.** Closing a case enrols the family in
+**5. Aftercare that costs no staff hours.** Closing a case enrols the family in
 30/60/90-day and anniversary check-ins, signed in the home's name. Enrolments
 start `pending` and send nothing until the family consents — they are shown
 the actual dates and a decline of equal visual weight, and a no is final.
 
-**5. The master page.** The screen a director opens first, and the only one
+**6. The master page.** The screen a director opens first, and the only one
 in the product that is not about a single case: who is waiting on a reply,
 what went past due while they were at a graveside, what is happening this
 week, and which cases have no service date at all -- that last one because

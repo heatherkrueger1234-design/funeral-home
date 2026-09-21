@@ -11,6 +11,7 @@ import {
   vitalStatisticsTable,
   normalisePostalCode,
   caseDeadlinesTable,
+  caseMemoriesTable,
   caseMessagesTable,
   casePhotosTable,
   casesTable,
@@ -40,6 +41,8 @@ import {
   RequestFamilyQuoteBody,
   GetFamilyVendorsQueryParams,
   UpdateFamilyVitalsBody,
+  CreateFamilyMemoryBody,
+  UpdateFamilyMemoryBody,
 } from "@workspace/api-zod";
 import {
   assertHasUpdates,
@@ -72,6 +75,11 @@ import {
   toPhotoJson,
 } from "../lib/media";
 import { buildThread, isThreadLocked, markRead } from "../lib/thread";
+import {
+  memoriesForCase,
+  memoryById,
+  nextMemoryPosition,
+} from "../lib/memories";
 import { isWithinOfficeHours } from "../lib/office-hours";
 import { aftercareForCase } from "../lib/aftercare";
 import { findVendors, locate, toVendorJson } from "../lib/vendors";
@@ -1206,6 +1214,115 @@ router.post("/aftercare", async (req, res) => {
       deliveries: [],
     },
   );
+});
+
+/* ------------------------------------------------------------ memories --- */
+
+/**
+ * What the family writes down about the person, and what was said afterwards.
+ *
+ * Read by everyone on the case; written and edited only by whoever wrote it.
+ * Several relatives share one link's worth of access here, and a
+ * sister-in-law rewording somebody else's memory of their mother is not a
+ * thing to make possible by accident — so the ownership check is the same one
+ * the photographs use, and for the same reason.
+ */
+router.get("/memories", async (req, res) => {
+  const row = familyCase(req);
+  const home = familyHome(req);
+
+  res.json(await memoriesForCase(row.id, home.id));
+});
+
+router.post("/memories", async (req, res) => {
+  const row = familyCase(req);
+  const home = familyHome(req);
+  const contact = familyContact(req);
+  const body = parseBody(CreateFamilyMemoryBody, req.body);
+
+  const kind = body.kind ?? "memory";
+  const named = body.authorName?.trim() || null;
+
+  const [created] = await db
+    .insert(caseMemoriesTable)
+    .values({
+      funeralHomeId: home.id,
+      caseId: row.id,
+      kind,
+      prompt: body.prompt?.trim() || null,
+      body: body.body.trim(),
+      /*
+       * A tribute names whoever gave it, which is usually not the person
+       * typing — a daughter keeping the words her brother spoke. A memory is
+       * always the reader's own, so it carries their contact id and the name
+       * resolves from their row.
+       */
+      authorName: kind === "tribute" ? named : null,
+      authorContactId: kind === "tribute" && named ? null : contact.id,
+      forOfficiant: body.forOfficiant ?? false,
+      position: await nextMemoryPosition(row.id, home.id),
+    })
+    .returning();
+
+  res.status(201).json(await memoryById(created!.id, home.id));
+});
+
+router.put("/memories/:memoryId", async (req, res) => {
+  const row = familyCase(req);
+  const home = familyHome(req);
+  const contact = familyContact(req);
+  const id = parseId(req.params.memoryId);
+  const body = assertHasUpdates(parseBody(UpdateFamilyMemoryBody, req.body));
+
+  const [updated] = await db
+    .update(caseMemoriesTable)
+    .set({
+      ...(body.body !== undefined ? { body: body.body.trim() } : {}),
+      ...(body.authorName !== undefined
+        ? { authorName: body.authorName?.trim() || null }
+        : {}),
+      ...(body.forOfficiant !== undefined
+        ? { forOfficiant: body.forOfficiant }
+        : {}),
+      updatedAt: new Date(),
+    })
+    .where(
+      and(
+        eq(caseMemoriesTable.id, id),
+        eq(caseMemoriesTable.caseId, row.id),
+        eq(caseMemoriesTable.funeralHomeId, home.id),
+        // Theirs, and only theirs.
+        eq(caseMemoriesTable.authorContactId, contact.id),
+      ),
+    )
+    .returning();
+
+  requireRow(updated, "That could not be found.");
+
+  res.json(await memoryById(id, home.id));
+});
+
+router.delete("/memories/:memoryId", async (req, res) => {
+  const row = familyCase(req);
+  const home = familyHome(req);
+  const contact = familyContact(req);
+  const id = parseId(req.params.memoryId);
+
+  const [deleted] = await db
+    .delete(caseMemoriesTable)
+    .where(
+      and(
+        eq(caseMemoriesTable.id, id),
+        eq(caseMemoriesTable.caseId, row.id),
+        eq(caseMemoriesTable.funeralHomeId, home.id),
+        eq(caseMemoriesTable.authorContactId, contact.id),
+      ),
+    )
+    .returning({ id: caseMemoriesTable.id });
+
+  requireRow(deleted, "That could not be found.");
+
+  res.status(204).end();
 });
 
 /* ------------------------------------------------------------- uploads --- */

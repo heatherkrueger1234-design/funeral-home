@@ -223,7 +223,17 @@ a[href]:not([class*="no-underline"]) {
 
   body { background: #fff; }
 
-  header, nav, .no-print { display: none !important; }
+  /*
+   * `nav` and anything explicitly marked, and deliberately *not* a bare
+   * `header`. That rule was here to drop the branded bar at the top of the
+   * screen, and it also dropped every `<header>` a page renders for itself —
+   * which is the element `PageHeader` uses, so every printed page came out
+   * of the printer with no title on it. A sheet of somebody's memories with
+   * nothing at the top saying what it is is a stack of anonymous paragraphs.
+   *
+   * The shell's own chrome now says so itself, with `no-print`.
+   */
+  nav, .no-print { display: none !important; }
 
   main { max-width: none !important; padding: 0 !important; }
 

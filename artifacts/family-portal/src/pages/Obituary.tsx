@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { Link } from "wouter";
 import { useQueryClient } from "@tanstack/react-query";
 import {
   useGetFamilyObituary,
@@ -193,6 +194,26 @@ export default function Obituary() {
           disabled={locked}
           onSave={save("biography")}
         />
+
+        {/*
+          The one field on this form that is a blank box, pointed at the screen
+          that is not. Everything else here has a named answer; "their life"
+          has a cliff, and the answer to a cliff is smaller questions rather
+          than a bigger box.
+        */}
+        {!locked && (
+          <p className="text-sm leading-relaxed text-muted-foreground">
+            Stuck on that one?{" "}
+            <Link
+              href="/memories"
+              className="font-semibold text-[var(--accent-deep)] decoration-[var(--accent)]/40 underline-offset-4 hover:decoration-[var(--accent)]"
+            >
+              Answer a few small questions instead
+            </Link>{" "}
+            — the funeral home writes this up from those, and you do not have to
+            fill this in at all.
+          </p>
+        )}
 
         <div className="pt-2">
           <Divider label="Family" />
