@@ -1,0 +1,273 @@
+import { clsx, type ClassValue } from "clsx";
+import { twMerge } from "tailwind-merge";
+
+/**
+ * This console's way of talking to the API.
+ *
+ * TODO(C1): every other frontend here uses the react-query hooks generated
+ * from `lib/api-spec/openapi.yaml`. This one cannot yet — Component 1 splits
+ * the spec into one file per domain, and `TEAM-SPLIT.md` is explicit that
+ * nobody adds paths to the single shared file before that lands. So the admin
+ * endpoints are typed by hand here, against `routes/admin.ts`, and this file
+ * is deleted in favour of `@workspace/api-client-react` once `admin.yaml`
+ * exists. The types below are the contract that file has to produce.
+ */
+
+export function cn(...inputs: ClassValue[]) {
+  return twMerge(clsx(inputs));
+}
+
+export class ApiError extends Error {
+  readonly status: number;
+
+  constructor(status: number, message: string) {
+    super(message);
+    this.name = "ApiError";
+    this.status = status;
+  }
+}
+
+const BASE = "/api";
+
+async function call<T>(
+  method: string,
+  path: string,
+  body?: unknown,
+): Promise<T> {
+  const response = await fetch(`${BASE}${path}`, {
+    method,
+    // The session is an httpOnly cookie, so it only travels when asked for.
+    credentials: "include",
+    headers: body === undefined ? {} : { "content-type": "application/json" },
+    body: body === undefined ? undefined : JSON.stringify(body),
+  });
+
+  if (response.status === 204) return undefined as T;
+
+  const text = await response.text();
+  const parsed: unknown = text ? JSON.parse(text) : null;
+
+  if (!response.ok) {
+    const message =
+      (parsed as { error?: string } | null)?.error ??
+      "Something went wrong. Please try again.";
+    throw new ApiError(response.status, message);
+  }
+
+  return parsed as T;
+}
+
+export const api = {
+  get: <T>(path: string) => call<T>("GET", path),
+  post: <T>(path: string, body?: unknown) => call<T>("POST", path, body ?? {}),
+  put: <T>(path: string, body?: unknown) => call<T>("PUT", path, body ?? {}),
+  delete: <T>(path: string) => call<T>("DELETE", path),
+};
+
+export function isUnauthorized(error: unknown): boolean {
+  return error instanceof ApiError && error.status === 401;
+}
+
+/** A 403 here means "you are signed in, and this is not yours". */
+export function isForbidden(error: unknown): boolean {
+  return error instanceof ApiError && error.status === 403;
+}
+
+/* ------------------------------------------------------------- the shapes */
+
+export type Engagement = {
+  casesOpened: number;
+  casesActive: number;
+  familyLinksCreated: number;
+  familyLinksOpened: number;
+  photographs: number;
+  aftercareEnrolled: number;
+  aftercareConsented: number;
+  aftercareDeclined: number;
+  aftercareUnsubscribed: number;
+};
+
+export type AdminHome = {
+  id: number;
+  name: string;
+  slug: string;
+  city: string | null;
+  region: string | null;
+  phone: string | null;
+  timezone: string;
+  accentColor: string;
+  subscriptionStatus: string;
+  trialDaysLeft: number | null;
+  canOpenCases: boolean;
+  suspendedAt: string | null;
+  suspendedReason: string | null;
+  onboardingDone: string[];
+  createdAt: string;
+  engagement: Engagement;
+};
+
+export type ReminderStanding = "settled" | "ahead" | "soon" | "passed";
+
+export type LicensureReminder = {
+  key: string;
+  summary: string;
+  detail: string;
+  standing: ReminderStanding;
+};
+
+export type HomeLicensure = {
+  doraRegistrationNumber: string | null;
+  registeredServices: string[];
+  designeeName: string | null;
+  designeeTitle: string | null;
+  beganBusinessOn: string | null;
+  registrationRenewsOn: string | null;
+  servicesChangedOn: string | null;
+  amendmentFiledOn: string | null;
+  notes: string | null;
+};
+
+export const PRACTITIONER_ROLES = [
+  "mortuary_science_practitioner",
+  "funeral_director",
+  "embalmer",
+  "cremationist",
+  "natural_reductionist",
+] as const;
+export type PractitionerRole = (typeof PRACTITIONER_ROLES)[number];
+
+/** US spelling: these are American funeral homes and an American reader. */
+export const PRACTITIONER_ROLE_LABELS: Record<PractitionerRole, string> = {
+  mortuary_science_practitioner: "Mortuary science practitioner",
+  funeral_director: "Funeral director",
+  embalmer: "Embalmer",
+  cremationist: "Cremationist",
+  natural_reductionist: "Natural reductionist",
+};
+
+export const LICENCE_STANDINGS = [
+  "not_applied",
+  "applied",
+  "provisional",
+  "held",
+] as const;
+export type LicenceStanding = (typeof LICENCE_STANDINGS)[number];
+
+export const LICENCE_STANDING_LABELS: Record<LicenceStanding, string> = {
+  not_applied: "Not applied for yet",
+  applied: "Application in",
+  provisional: "Provisional license",
+  held: "Licensed",
+};
+
+export type Practitioner = {
+  id: number;
+  personName: string;
+  role: PractitionerRole;
+  standing: LicenceStanding;
+  licenceNumber: string | null;
+  expiresOn: string | null;
+};
+
+export type HomeStaff = {
+  id: number;
+  displayName: string | null;
+  title: string | null;
+  role: string;
+  deactivatedAt: string | null;
+};
+
+export type AdminHomeDetail = AdminHome & {
+  licensure: HomeLicensure | null;
+  practitioners: Practitioner[];
+  reminders: LicensureReminder[];
+  staff: HomeStaff[];
+};
+
+export type PlatformOverview = {
+  homes: { homes: number; suspended: number; paying: number; onTrial: number };
+  engagement: {
+    casesOpened: number;
+    familyLinksCreated: number;
+    familyLinksOpened: number;
+    photographs: number;
+    aftercareEnrolled: number;
+    aftercareConsented: number;
+  };
+  attention: Array<{ home: AdminHome; reminders: LicensureReminder[] }>;
+};
+
+export type AuditEntry = {
+  id: number;
+  actorEmail: string;
+  action: string;
+  subjectHomeId: number | null;
+  subjectHomeName: string | null;
+  detail: string | null;
+  createdAt: string;
+};
+
+/* -------------------------------------------------------------- the words */
+
+/**
+ * Dates, written the way a person writes them.
+ *
+ * `2027-06-30` arrives as a plain calendar date with no timezone, and is
+ * parsed as one: `new Date("2027-06-30")` is midnight UTC, which in Denver is
+ * the evening of the 29th, and a renewal date that renders a day early is a
+ * phone call nobody wants to have.
+ */
+export function formatDate(value: string | null | undefined): string {
+  if (!value) return "—";
+
+  const [year, month, day] = value.slice(0, 10).split("-").map(Number);
+  if (!year || !month || !day) return value;
+
+  return new Date(Date.UTC(year, month - 1, day)).toLocaleDateString("en-US", {
+    day: "numeric",
+    month: "long",
+    year: "numeric",
+    timeZone: "UTC",
+  });
+}
+
+export function formatDateTime(value: string | null | undefined): string {
+  if (!value) return "—";
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) return value;
+
+  return parsed.toLocaleString("en-US", {
+    day: "numeric",
+    month: "long",
+    year: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+  });
+}
+
+/** How the account is doing, in a phrase rather than a status chip. */
+export function describeAccount(home: AdminHome): string {
+  if (home.suspendedAt) return "Suspended";
+  if (home.subscriptionStatus === "trial") {
+    return home.trialDaysLeft === null
+      ? "On trial"
+      : home.trialDaysLeft === 0
+        ? "Trial finished"
+        : `On trial, ${home.trialDaysLeft} days left`;
+  }
+  if (home.subscriptionStatus === "active") return "Subscribed";
+  if (home.subscriptionStatus === "past_due") return "Payment outstanding";
+  return "Subscription ended";
+}
+
+/** What the log line says, in English. */
+export const AUDIT_ACTION_LABELS: Record<string, string> = {
+  "homes.list": "Listed the homes",
+  "home.open": "Opened a home",
+  "home.create": "Created a home",
+  "home.suspend": "Suspended a home",
+  "home.restore": "Lifted a suspension",
+  "home.licensure.update": "Updated licensure",
+  "home.practitioner.update": "Updated a practitioner",
+  "platform.overview": "Opened the overview",
+};

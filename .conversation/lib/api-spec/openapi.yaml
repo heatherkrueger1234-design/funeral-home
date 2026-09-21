@@ -1,0 +1,6104 @@
+openapi: 3.1.0
+info:
+  title: Api
+  version: 0.1.0
+  description: |
+    Holding Today for funeral homes - the calm, private portal a home gives a
+    family, and the console the director works it from.
+
+    Two audiences, two authentication schemes, and the split is load-bearing:
+
+    - **Staff** sign in and carry a session cookie. Their funeral home is read
+      off their user row; a home id arriving in a request is never trusted.
+    - **Families** have no account. They arrive through a link that was texted
+      to them and send its token as `Authorization: Bearer <token>`. Every one
+      of their endpoints lives under `/family` and is scoped to the single
+      case that token belongs to - there is no case id in any of those paths,
+      because there is no case they could ask for other than their own.
+servers:
+  - url: /api
+    description: Base API path
+tags:
+  - name: health
+    description: Liveness
+  - name: auth
+    description: Staff accounts and sessions
+  - name: home
+    description: The funeral home's own settings and branding
+  - name: cases
+    description: Cases - one death, and the work around it
+  - name: contacts
+    description: The family's people, and their links
+  - name: photos
+    description: The photo bin
+  - name: obituary
+    description: The obituary draft
+  - name: selections
+    description: Hymns, readings, pallbearers
+  - name: messages
+    description: The one thread per case
+  - name: deadlines
+    description: What is due, and when
+  - name: belongings
+    description: Clothing, jewellery, and how they should look
+  - name: vendors
+    description: The home's local network, and quotes passed through it
+  - name: vitals
+    description: What the death certificate needs
+  - name: billing
+    description: Subscription, trial, and the setup checklist
+  - name: print
+    description: Cards, programs and everything else that gets printed
+  - name: aftercare
+    description: Branded grief check-ins after the service
+  - name: uploads
+    description: Serving stored bytes
+  - name: family
+    description: Everything the family-facing portal calls
+  - name: public
+    description: |
+      The front door, reachable with no credential at all. A home's public
+      page, and the request form for the two people nobody has sent a link
+      to - a family who found the home themselves, and someone arranging
+      their own funeral in advance.
+  - name: intake
+    description: The director's queue of those requests
+  - name: dashboard
+    description: |
+      The home's master page. One read for the landing screen, and the
+      cross-case view of a product whose every other screen is one case.
+  - name: service-offers
+    description: |
+      Times the home can do, for the family to pick from. Offers, not
+      bookings - this knows nothing about whether the church is free.
+  - name: storefront
+    description: The home's public page, and the policies published on it
+  - name: pricing
+    description: |
+      The home's own prices, for the home's own staff. Never reachable by a
+      family or by the public; see `/home/price-list`.
+
+paths:
+  /healthz:
+    get:
+      operationId: getHealth
+      tags: [health]
+      summary: Liveness probe
+      responses:
+        "200":
+          description: Alive
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HealthStatus"
+
+  # ---------------------------------------------------------------- public --
+
+  /public/homes/{slug}:
+    get:
+      operationId: getPublicHome
+      tags: [public]
+      summary: The home's public front door
+      description: |
+        Unauthenticated. Enough to recognise the home and to reach it by
+        telephone, and nothing about its account. `intakeEnabled` false means
+        the home would rather the first contact were a phone call: show the
+        number, not a form.
+      parameters:
+        - name: slug
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: The home
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PublicFuneralHome"
+        "404":
+          description: No such home, or it is not taking public requests
+
+  /public/intake:
+    post:
+      operationId: submitIntakeRequest
+      tags: [public]
+      summary: Ask a home to open a file
+      description: |
+        Unauthenticated, and deliberately does not create a case. A stranger
+        cannot put a row in a director's case list; this lands in a queue the
+        director accepts or declines.
+
+        The response never contains anything about the home beyond what the
+        public page already showed, and never confirms whether a person is
+        already known to the home.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/IntakeRequestInput"
+      responses:
+        "202":
+          description: Received, and waiting for a director
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/IntakeReceipt"
+        "404":
+          description: No such home, or it is not taking public requests
+        "429":
+          description: Too many requests
+
+  # ------------------------------------------------------------------ auth --
+
+  /auth/register:
+    post:
+      operationId: registerHome
+      tags: [auth]
+      summary: Open an account, creating the funeral home and its first owner
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RegisterInput"
+      responses:
+        "201":
+          description: Signed in
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthUser"
+
+  /auth/login:
+    post:
+      operationId: login
+      tags: [auth]
+      summary: Sign in
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/LoginInput"
+      responses:
+        "200":
+          description: Signed in
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthUser"
+
+  /auth/logout:
+    post:
+      operationId: logout
+      tags: [auth]
+      summary: Sign out on this device
+      responses:
+        "204":
+          description: Signed out
+
+  /auth/me:
+    get:
+      operationId: getCurrentUser
+      tags: [auth]
+      summary: Who is signed in, and which home they work at
+      responses:
+        "200":
+          description: The signed-in staff member
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthUser"
+
+  /auth/forgot-password:
+    post:
+      operationId: forgotPassword
+      tags: [auth]
+      summary: Send a reset link
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ForgotPasswordInput"
+      responses:
+        "202":
+          description: Accepted, whether or not the address is known
+
+  /auth/reset-password:
+    post:
+      operationId: resetPassword
+      tags: [auth]
+      summary: Set a new password from a reset token
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ResetPasswordInput"
+      responses:
+        "204":
+          description: Password changed and other sessions ended
+
+  # ------------------------------------------------------------------ home --
+
+  /home:
+    get:
+      operationId: getHome
+      tags: [home]
+      summary: The signed-in staff member's funeral home
+      responses:
+        "200":
+          description: The home
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FuneralHome"
+    put:
+      operationId: updateHome
+      tags: [home]
+      summary: Update branding, hours and contact details
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/FuneralHomeUpdate"
+      responses:
+        "200":
+          description: The updated home
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FuneralHome"
+
+  /billing:
+    get:
+      operationId: getBilling
+      tags: [billing]
+      summary: Where this home stands, and what setup is left
+      responses:
+        "200":
+          description: Status
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Billing"
+
+  /billing/checkout:
+    post:
+      operationId: startCheckout
+      tags: [billing]
+      summary: Begin a subscription
+      description: Returns a Stripe Checkout URL for the browser to open.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/BillingReturnInput"
+      responses:
+        "200":
+          description: Where to send them
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BillingRedirect"
+
+  /billing/portal:
+    post:
+      operationId: openBillingPortal
+      tags: [billing]
+      summary: Open Stripe's own billing page for cards and invoices
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/BillingReturnInput"
+      responses:
+        "200":
+          description: Where to send them
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BillingRedirect"
+
+  /home/onboarding:
+    post:
+      operationId: completeOnboardingStep
+      tags: [billing]
+      summary: Mark a setup step done, or dismiss it
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/OnboardingStepInput"
+      responses:
+        "200":
+          description: The updated checklist
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Billing"
+
+  /home/staff:
+    get:
+      operationId: getStaff
+      tags: [home]
+      summary: Everyone who works cases at this home
+      responses:
+        "200":
+          description: List
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/StaffMember"
+    post:
+      operationId: inviteStaff
+      tags: [home]
+      summary: Add a colleague, and send them a link to set a password
+      description: |
+        Owner only. The account is created with no password; the invitee sets
+        one through the ordinary reset link, so a password is never typed by
+        one person on behalf of another and never travels in an email.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/StaffInviteInput"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StaffMemberWithInvite"
+
+  /home/staff/{userId}:
+    put:
+      operationId: updateStaff
+      tags: [home]
+      summary: Change a colleague's role, or take their access away
+      parameters:
+        - name: userId
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/StaffUpdate"
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StaffMember"
+
+  /home/timeline-template:
+    get:
+      operationId: getTimelineTemplate
+      tags: [home]
+      summary: The home's standard schedule, as offsets from the service
+      responses:
+        "200":
+          description: List
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/TimelineTemplate"
+    post:
+      operationId: createTimelineTemplate
+      tags: [home]
+      summary: Add a step to the standard schedule
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/TimelineTemplateInput"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TimelineTemplate"
+
+  /home/timeline-template/{templateId}:
+    put:
+      operationId: updateTimelineTemplate
+      tags: [home]
+      summary: Edit a step
+      parameters:
+        - name: templateId
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/TimelineTemplateUpdate"
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TimelineTemplate"
+    delete:
+      operationId: deleteTimelineTemplate
+      tags: [home]
+      summary: Remove a step
+      parameters:
+        - name: templateId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: Deleted
+
+  # ------------------------------------------------------------ dashboard --
+
+  /home/dashboard:
+    get:
+      operationId: getHomeDashboard
+      tags: [dashboard]
+      summary: The home's master page - what needs answering today
+      description: |
+        One read for the landing screen. Nothing here is new information:
+        every number on it is reachable a page at a time. What it adds is
+        that a director opening the console at eight in the morning does not
+        have to visit four screens to discover that a family answered at
+        midnight and a service is tomorrow.
+
+        Scoped to the signed-in staff member's own home, like everything
+        below the session gate.
+      responses:
+        "200":
+          description: The home's day
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HomeDashboard"
+
+  /home/inbox:
+    get:
+      operationId: getHomeInbox
+      tags: [dashboard]
+      summary: Every family conversation, the ones waiting first
+      description: |
+        The cross-case view of the one-thread-per-case rule. A director
+        working four funerals had no way to see that the Okonkwo family wrote
+        at midnight except by opening the Okonkwo case.
+
+        Replying is deliberately not here. A reply goes to
+        `POST /cases/{caseId}/messages`, which is the single place a message
+        can be written, the single place the out-of-hours stamp is applied,
+        and the single place the fortnight lock is enforced.
+      responses:
+        "200":
+          description: One entry per case that has a conversation
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/InboxEntry"
+
+  # ------------------------------------------------------- service offers --
+
+  /cases/{caseId}/service-offers:
+    get:
+      operationId: getServiceOffers
+      tags: [service-offers]
+      summary: The times offered to this family
+      parameters:
+        - $ref: "#/components/parameters/CaseId"
+      responses:
+        "200":
+          description: Soonest first
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/ServiceOffer"
+    post:
+      operationId: createServiceOffer
+      tags: [service-offers]
+      summary: Offer the family a time
+      description: |
+        A time the home has already confirmed it can do. This endpoint knows
+        nothing about whether the church is free - it records what the
+        director would otherwise have said on the telephone.
+
+        Refused once the family has chosen, because a list that grows after
+        an answer is a list somebody will answer twice.
+      parameters:
+        - $ref: "#/components/parameters/CaseId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ServiceOfferInput"
+      responses:
+        "201":
+          description: Offered
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ServiceOffer"
+        "409":
+          description: The family has already chosen
+
+  /cases/{caseId}/service-offers/{offerId}/confirm:
+    post:
+      operationId: confirmServiceOffer
+      tags: [service-offers]
+      summary: Record that the family picked this one
+      description: |
+        For the family who rang instead of tapping, which is most of them
+        over sixty. Identical in effect to the family choosing it themselves:
+        the service date is set and the home's standard schedule is applied.
+      parameters:
+        - $ref: "#/components/parameters/CaseId"
+        - $ref: "#/components/parameters/OfferId"
+      responses:
+        "200":
+          description: Confirmed, with what the schedule did
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ChosenService"
+        "409":
+          description: A time has already been chosen for this case
+
+  /service-offers/{offerId}:
+    delete:
+      operationId: deleteServiceOffer
+      tags: [service-offers]
+      summary: Withdraw an offered time
+      description: |
+        Refused once it is the chosen one. Deleting the family's answer out
+        from under them would leave a case with a service date that no longer
+        traces to anything, and a family who believes they have settled it.
+      parameters:
+        - $ref: "#/components/parameters/OfferId"
+      responses:
+        "204":
+          description: Withdrawn
+        "409":
+          description: This is the time the family chose
+
+  /family/service-offers:
+    get:
+      operationId: getFamilyServiceOffers
+      tags: [family]
+      summary: The times the home can do, and which one was picked
+      responses:
+        "200":
+          description: The choice, open or settled
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FamilyServiceOffers"
+
+  /family/service-offers/{offerId}/choose:
+    post:
+      operationId: chooseFamilyServiceOffer
+      tags: [family]
+      summary: Pick one
+      description: |
+        The one place a family sets a date on anything. Choosing writes the
+        service date and builds the timeline from the home's standard
+        schedule, so a family who answers at eleven at night has a dated list
+        at eleven at night.
+
+        A second choice is refused rather than applied. Two people in the
+        same kitchen tapping two different times must not move a funeral, and
+        changing an agreed time is a telephone call to the home, not a tap.
+      parameters:
+        - $ref: "#/components/parameters/OfferId"
+      responses:
+        "200":
+          description: Settled
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FamilyServiceOffers"
+        "404":
+          description: No such offer on this case
+        "409":
+          description: A time has already been chosen
+
+  # ---------------------------------------------------------- storefront --
+
+  /home/policies:
+    get:
+      operationId: getHomePolicies
+      tags: [storefront]
+      summary: What the home says the same way every time
+      description: |
+        Staff see drafts as well as published sections. The public page and
+        the family portal see only the published ones.
+      responses:
+        "200":
+          description: In the order the home put them in
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/HomePolicy"
+    post:
+      operationId: createHomePolicy
+      tags: [storefront]
+      summary: Add a section
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/HomePolicyInput"
+      responses:
+        "201":
+          description: Created, unpublished
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HomePolicy"
+
+  /policies/{policyId}:
+    put:
+      operationId: updateHomePolicy
+      tags: [storefront]
+      summary: Edit a section, or publish it
+      parameters:
+        - $ref: "#/components/parameters/PolicyId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/HomePolicyUpdate"
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HomePolicy"
+    delete:
+      operationId: deleteHomePolicy
+      tags: [storefront]
+      summary: Remove a section
+      parameters:
+        - $ref: "#/components/parameters/PolicyId"
+      responses:
+        "204":
+          description: Removed
+
+  # ------------------------------------------------------------- pricing --
+
+  /home/price-list:
+    get:
+      operationId: getPriceList
+      tags: [pricing]
+      summary: The home's own prices, for the home's own staff
+      description: |
+        Staff-only, and that is a rule rather than a default. These numbers
+        are never returned by a family route or a public one - the FTC
+        Funeral Rule governs how a funeral provider discloses prices, and a
+        national SaaS publishing a home's numbers off a text box would be
+        handing that home a compliance problem. This is the crib sheet a
+        director has open at a kitchen table, nothing more.
+      responses:
+        "200":
+          description: Grouped by the home's own categories
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/PriceItem"
+    post:
+      operationId: createPriceItem
+      tags: [pricing]
+      summary: Add a line
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PriceItemInput"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PriceItem"
+
+  /price-items/{itemId}:
+    put:
+      operationId: updatePriceItem
+      tags: [pricing]
+      summary: Change a line, or take it off the sheet
+      parameters:
+        - $ref: "#/components/parameters/PriceItemId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PriceItemUpdate"
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PriceItem"
+    delete:
+      operationId: deletePriceItem
+      tags: [pricing]
+      summary: Delete a line
+      parameters:
+        - $ref: "#/components/parameters/PriceItemId"
+      responses:
+        "204":
+          description: Deleted
+
+  /cases/{caseId}/deadlines/from-template:
+    post:
+      operationId: applyTimelineTemplate
+      tags: [deadlines]
+      summary: Build this case's schedule from the home's standard one
+      description: |
+        Needs a service date, because every step is an offset from it. Steps
+        already on the timeline are matched by title and left alone, so this
+        is safe to run twice and safe to run after the service date moves.
+      parameters:
+        - $ref: "#/components/parameters/CaseId"
+      responses:
+        "200":
+          description: The rebuilt timeline
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/CaseDeadline"
+
+  # ---------------------------------------------------------------- intake --
+
+  /cases/{caseId}/export:
+    get:
+      operationId: exportCase
+      tags: [cases]
+      summary: Everything on this case, as a folder the home keeps
+      description: |
+        A zip the home can walk away with: the photographs at full size, the
+        obituary as written, the selections, the belongings, the vital
+        statistics, the message thread, and a readable summary of the case
+        itself. Nothing in it needs this software to open.
+
+        The answer to "what happens to our families' files if we stop paying
+        you" is this endpoint, and it keeps working when the subscription has
+        lapsed - a home that has cancelled must still be able to take its
+        data out, or the product is holding it hostage.
+      parameters:
+        - $ref: "#/components/parameters/CaseId"
+      responses:
+        "200":
+          description: The archive
+          content:
+            application/zip:
+              schema:
+                type: string
+                format: binary
+        "413":
+          description: Too large for one archive
+
+  /cases/{caseId}/at-need:
+    post:
+      operationId: convertCaseToAtNeed
+      tags: [cases]
+      summary: The person this pre-need file was for has died
+      description: |
+        The moment a pre-need file is worth having. Everything they chose
+        while well - the photographs, the obituary in their own words, the
+        hymns, who carries them - is already here, so nothing is re-typed on
+        the day it is hardest to ask.
+
+        Flips the file to `at_need`, records the date of death, and builds the
+        standard schedule that a pre-need file deliberately never had. It does
+        not invite anybody: who the family is, is a conversation, not a
+        field.
+
+        Refused on a file that is already at-need. There is no way back - a
+        death is not an editing mistake, and if it really was one, the case
+        can be deleted.
+      parameters:
+        - $ref: "#/components/parameters/CaseId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ConvertToAtNeedInput"
+      responses:
+        "200":
+          description: The file, now a case
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Case"
+        "409":
+          description: Already an at-need case
+
+  /cases/{caseId}/delete:
+    post:
+      operationId: deleteCase
+      tags: [cases]
+      summary: Erase a case and everything on it, permanently
+      description: |
+        Not an archive and not a soft delete. The row goes, and every
+        photograph, message, obituary draft, belonging and encrypted social
+        security number cascades with it. The bytes are gone from the database
+        the moment this returns; the only remaining copies are in whatever
+        backups the home's deployment keeps, which is why the written
+        retention position says so plainly.
+
+        Guarded by typing the name, because a mis-click here destroys the only
+        copy of a family's photographs of their mother that exists anywhere.
+
+        What survives is a tombstone: which case, who erased it, when, and
+        nothing about who it was for.
+      parameters:
+        - $ref: "#/components/parameters/CaseId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/DeleteCaseInput"
+      responses:
+        "204":
+          description: Gone
+        "400":
+          description: The confirmation did not match
+
+  /intake-requests:
+    get:
+      operationId: getIntakeRequests
+      tags: [intake]
+      summary: Requests waiting for a director
+      parameters:
+        - name: status
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [pending, accepted, declined]
+      responses:
+        "200":
+          description: The queue, oldest first
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/IntakeRequest"
+
+  /intake-requests/{intakeId}/accept:
+    post:
+      operationId: acceptIntakeRequest
+      tags: [intake]
+      summary: Turn a request into a case
+      description: |
+        Creates the case, carrying the kind across: an at-need request opens
+        an ordinary case, a pre-need request opens a file for someone who is
+        still alive. The person who asked becomes the first family contact,
+        so the link can go straight back to them.
+      parameters:
+        - $ref: "#/components/parameters/IntakeId"
+      responses:
+        "201":
+          description: The case that now exists
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AcceptedIntake"
+        "409":
+          description: Already reviewed
+
+  /intake-requests/{intakeId}/decline:
+    post:
+      operationId: declineIntakeRequest
+      tags: [intake]
+      summary: Dismiss a request
+      description: |
+        For a duplicate, a mistake, or a home that will handle it by
+        telephone instead. Nothing is sent to the person who asked - a home
+        declining a bereaved family's request by automated email would be
+        worse than the dead end this feature replaced.
+      parameters:
+        - $ref: "#/components/parameters/IntakeId"
+      responses:
+        "200":
+          description: The dismissed request
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/IntakeRequest"
+        "409":
+          description: Already reviewed
+
+  # ----------------------------------------------------------------- cases --
+
+  /cases:
+    get:
+      operationId: getCases
+      tags: [cases]
+      summary: The home's cases, soonest service first
+      parameters:
+        - name: status
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [intake, active, closed]
+        - name: search
+          in: query
+          required: false
+          description: Matches the deceased's name, however it was recorded.
+          schema:
+            type: string
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 200
+            default: 100
+      responses:
+        "200":
+          description: List
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/CaseSummary"
+    post:
+      operationId: createCase
+      tags: [cases]
+      summary: Open a case
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CaseInput"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Case"
+
+  /cases/{caseId}:
+    get:
+      operationId: getCase
+      tags: [cases]
+      summary: One case, with everything the director needs at a glance
+      parameters:
+        - $ref: "#/components/parameters/CaseId"
+      responses:
+        "200":
+          description: The case
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CaseDetail"
+    put:
+      operationId: updateCase
+      tags: [cases]
+      summary: Update the person, the service, or the lead director
+      parameters:
+        - $ref: "#/components/parameters/CaseId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CaseUpdate"
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Case"
+
+  /cases/{caseId}/close:
+    post:
+      operationId: closeCase
+      tags: [cases]
+      summary: Close the case, lock the thread, and hand the family to aftercare
+      description: |
+        The commercially important endpoint. Closing sets the date the chat
+        locks (a fortnight after the service) and, when the home has aftercare
+        switched on, creates a pending enrolment for every family contact who
+        left an address. Enrolments stay `pending` until the family consents.
+      parameters:
+        - $ref: "#/components/parameters/CaseId"
+      responses:
+        "200":
+          description: The closed case
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CaseDetail"
+
+  # -------------------------------------------------------------- contacts --
+
+  /cases/{caseId}/contacts:
+    get:
+      operationId: getCaseContacts
+      tags: [contacts]
+      summary: The family's people on this case
+      parameters:
+        - $ref: "#/components/parameters/CaseId"
+      responses:
+        "200":
+          description: List
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/FamilyContact"
+    post:
+      operationId: createCaseContact
+      tags: [contacts]
+      summary: Add a family member and mint their link
+      description: |
+        The only time the working link is ever returned. It is shown once, for
+        the director to paste into a text message, and cannot be retrieved
+        afterwards - only the digest is stored.
+      parameters:
+        - $ref: "#/components/parameters/CaseId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/FamilyContactInput"
+      responses:
+        "201":
+          description: Created, with the one-time link
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FamilyContactWithLink"
+
+  /contacts/{contactId}:
+    put:
+      operationId: updateContact
+      tags: [contacts]
+      summary: Correct a name, number or role
+      parameters:
+        - $ref: "#/components/parameters/ContactId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/FamilyContactUpdate"
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FamilyContact"
+    delete:
+      operationId: revokeContact
+      tags: [contacts]
+      summary: Revoke this person's link
+      parameters:
+        - $ref: "#/components/parameters/ContactId"
+      responses:
+        "204":
+          description: Revoked
+
+  /contacts/{contactId}/send-link:
+    post:
+      operationId: sendContactLink
+      tags: [contacts]
+      summary: Text a fresh link to this person's mobile
+      description: |
+        Mints a new link and sends it, so the previous one stops working. The
+        response says whether the text actually went; where the home has no
+        SMS credentials it returns the link and `sent: false` so the director
+        can send it themselves rather than being told nothing happened.
+      parameters:
+        - $ref: "#/components/parameters/ContactId"
+      responses:
+        "200":
+          description: Minted, and sent if possible
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SentLink"
+
+  /contacts/{contactId}/link:
+    post:
+      operationId: reissueContactLink
+      tags: [contacts]
+      summary: Mint a fresh link, invalidating the old one
+      parameters:
+        - $ref: "#/components/parameters/ContactId"
+      responses:
+        "200":
+          description: The new one-time link
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FamilyContactWithLink"
+
+  # ---------------------------------------------------- staff: the asset drop
+
+  /cases/{caseId}/photos:
+    get:
+      operationId: getCasePhotos
+      tags: [photos]
+      summary: Every photograph on the case, in slideshow order
+      parameters:
+        - $ref: "#/components/parameters/CaseId"
+      responses:
+        "200":
+          description: List
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/CasePhoto"
+
+  /cases/{caseId}/photos/selection:
+    put:
+      operationId: setPhotoSelection
+      tags: [photos]
+      summary: Choose which photographs run in the slideshow
+      description: |
+        Replaces the selection wholesale and sets its order from the list
+        given. Photographs not named are deselected but never deleted -- they
+        stay in the bin, because a family's picture of their own mother is not
+        something this software throws away for being left out of a slideshow.
+      parameters:
+        - $ref: "#/components/parameters/CaseId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PhotoSelectionInput"
+      responses:
+        "200":
+          description: The bin, with the new selection marked
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/CasePhoto"
+
+  /cases/{caseId}/photos/order:
+    put:
+      operationId: reorderCasePhotos
+      tags: [photos]
+      summary: Set the slideshow order
+      parameters:
+        - $ref: "#/components/parameters/CaseId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PhotoOrderInput"
+      responses:
+        "200":
+          description: The reordered list
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/CasePhoto"
+
+  /photos/{photoId}:
+    patch:
+      operationId: updatePhoto
+      tags: [photos]
+      summary: Caption, crop, or hide a photograph
+      parameters:
+        - $ref: "#/components/parameters/PhotoId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PhotoUpdate"
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CasePhoto"
+    delete:
+      operationId: deletePhoto
+      tags: [photos]
+      summary: Remove a photograph entirely
+      parameters:
+        - $ref: "#/components/parameters/PhotoId"
+      responses:
+        "204":
+          description: Deleted
+
+  /cases/{caseId}/photo-pack:
+    get:
+      operationId: getPhotoPack
+      tags: [photos]
+      summary: Download the photographs as a numbered folder, in slideshow order
+      description: |
+        A ZIP the director can drop straight into slideshow software: files
+        numbered in the order they will be shown, named with the caption the
+        family wrote, plus a `captions.txt` for the order of service. Hidden
+        photographs are left out.
+      parameters:
+        - $ref: "#/components/parameters/CaseId"
+      responses:
+        "200":
+          description: The pack
+          content:
+            application/zip:
+              schema:
+                type: string
+                format: binary
+
+  /cases/{caseId}/belongings:
+    get:
+      operationId: getBelongings
+      tags: [belongings]
+      summary: Everything the family is bringing in, and where it is
+      parameters:
+        - $ref: "#/components/parameters/CaseId"
+      responses:
+        "200":
+          description: List
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Belonging"
+    post:
+      operationId: createBelonging
+      tags: [belongings]
+      summary: Log an item
+      parameters:
+        - $ref: "#/components/parameters/CaseId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/BelongingInput"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Belonging"
+
+  /belongings/{belongingId}:
+    put:
+      operationId: updateBelonging
+      tags: [belongings]
+      summary: Take an item in, send it back, or correct it
+      description: |
+        Setting `status` to `received` or `returned` stamps the time and the
+        staff member automatically -- the chain of custody is a side effect of
+        doing the work, not a second form to fill in.
+      parameters:
+        - name: belongingId
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/BelongingUpdate"
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Belonging"
+    delete:
+      operationId: deleteBelonging
+      tags: [belongings]
+      summary: Remove an item logged in error
+      parameters:
+        - name: belongingId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: Deleted
+
+  /cases/{caseId}/preparation:
+    get:
+      operationId: getPreparation
+      tags: [belongings]
+      summary: How the family would like them to look
+      parameters:
+        - $ref: "#/components/parameters/CaseId"
+      responses:
+        "200":
+          description: The sheet
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Preparation"
+    put:
+      operationId: updatePreparation
+      tags: [belongings]
+      summary: Edit or acknowledge the preparation sheet
+      parameters:
+        - $ref: "#/components/parameters/CaseId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PreparationUpdate"
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Preparation"
+
+  /family/belongings:
+    get:
+      operationId: getFamilyBelongings
+      tags: [family]
+      summary: What to bring in, and what has arrived
+      responses:
+        "200":
+          description: List
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Belonging"
+    post:
+      operationId: createFamilyBelonging
+      tags: [family]
+      summary: Add something the family is bringing
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/BelongingInput"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Belonging"
+
+  /family/belongings/{belongingId}:
+    put:
+      operationId: updateFamilyBelonging
+      tags: [family]
+      summary: Change a description or say what should happen to an item
+      description: |
+        A family may describe an item and choose its disposition. They cannot
+        move it through the chain of custody -- only the home can say an item
+        has been received or returned, because that is the record the home
+        stands behind.
+      parameters:
+        - name: belongingId
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/FamilyBelongingUpdate"
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Belonging"
+    delete:
+      operationId: deleteFamilyBelonging
+      tags: [family]
+      summary: Remove something not yet handed over
+      parameters:
+        - name: belongingId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: Deleted
+
+  /family/preparation:
+    get:
+      operationId: getFamilyPreparation
+      tags: [family]
+      summary: How they would like them to look
+      responses:
+        "200":
+          description: The sheet
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Preparation"
+    put:
+      operationId: updateFamilyPreparation
+      tags: [family]
+      summary: Tell the funeral home how they wore their hair, and the rest
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/FamilyPreparationUpdate"
+      responses:
+        "200":
+          description: Saved
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Preparation"
+
+  /cases/{caseId}/vitals:
+    get:
+      operationId: getVitals
+      tags: [vitals]
+      summary: The death certificate details collected so far
+      parameters:
+        - $ref: "#/components/parameters/CaseId"
+      responses:
+        "200":
+          description: The record
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/VitalStatistics"
+    put:
+      operationId: updateVitals
+      tags: [vitals]
+      summary: Correct or complete the details, and verify them
+      parameters:
+        - $ref: "#/components/parameters/CaseId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/VitalsStaffUpdate"
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/VitalStatistics"
+
+  /family/vitals:
+    get:
+      operationId: getFamilyVitals
+      tags: [family]
+      summary: The details the funeral home still needs
+      responses:
+        "200":
+          description: The record
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/VitalStatistics"
+    put:
+      operationId: updateFamilyVitals
+      tags: [family]
+      summary: Fill in what you know, a bit at a time
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/VitalsFamilyUpdate"
+      responses:
+        "200":
+          description: Saved
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/VitalStatistics"
+
+  /family/vitals/submit:
+    post:
+      operationId: submitFamilyVitals
+      tags: [family]
+      summary: Tell the funeral home you have finished
+      responses:
+        "200":
+          description: Submitted
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/VitalStatistics"
+
+  /cases/{caseId}/obituary:
+    get:
+      operationId: getObituary
+      tags: [obituary]
+      summary: The obituary draft and its fields
+      parameters:
+        - $ref: "#/components/parameters/CaseId"
+      responses:
+        "200":
+          description: The draft
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ObituaryDraft"
+    put:
+      operationId: updateObituary
+      tags: [obituary]
+      summary: Edit the fields or the composed text
+      parameters:
+        - $ref: "#/components/parameters/CaseId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ObituaryUpdate"
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ObituaryDraft"
+
+  /cases/{caseId}/obituary/compose:
+    post:
+      operationId: composeObituary
+      tags: [obituary]
+      summary: Recompose the draft text from the fields
+      description: |
+        Overwrites `draftText`. Refused once staff have hand-edited the text
+        unless `force` is set, so that regenerating cannot silently discard a
+        director's rewrite.
+      parameters:
+        - $ref: "#/components/parameters/CaseId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ComposeObituaryInput"
+      responses:
+        "200":
+          description: Recomposed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ObituaryDraft"
+
+  /cases/{caseId}/obituary/approve:
+    post:
+      operationId: approveObituary
+      tags: [obituary]
+      summary: Sign the obituary off for print
+      parameters:
+        - $ref: "#/components/parameters/CaseId"
+      responses:
+        "200":
+          description: Approved
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ObituaryDraft"
+
+  /cases/{caseId}/selections:
+    get:
+      operationId: getSelections
+      tags: [selections]
+      summary: Hymns, readings, music, pallbearers
+      parameters:
+        - $ref: "#/components/parameters/CaseId"
+      responses:
+        "200":
+          description: List
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/ServiceSelection"
+    post:
+      operationId: createSelection
+      tags: [selections]
+      summary: Add a selection
+      parameters:
+        - $ref: "#/components/parameters/CaseId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SelectionInput"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ServiceSelection"
+
+  /selections/{selectionId}:
+    put:
+      operationId: updateSelection
+      tags: [selections]
+      summary: Edit or confirm a selection
+      parameters:
+        - $ref: "#/components/parameters/SelectionId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SelectionUpdate"
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ServiceSelection"
+    delete:
+      operationId: deleteSelection
+      tags: [selections]
+      summary: Remove a selection
+      parameters:
+        - $ref: "#/components/parameters/SelectionId"
+      responses:
+        "204":
+          description: Deleted
+
+  /cases/{caseId}/messages:
+    get:
+      operationId: getCaseMessages
+      tags: [messages]
+      summary: The thread, oldest first
+      parameters:
+        - $ref: "#/components/parameters/CaseId"
+      responses:
+        "200":
+          description: The thread
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MessageThread"
+    post:
+      operationId: postCaseMessage
+      tags: [messages]
+      summary: Reply to the family
+      parameters:
+        - $ref: "#/components/parameters/CaseId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/MessageInput"
+      responses:
+        "201":
+          description: Sent
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CaseMessage"
+
+  /cases/{caseId}/deadlines:
+    get:
+      operationId: getDeadlines
+      tags: [deadlines]
+      summary: The timeline, soonest first
+      parameters:
+        - $ref: "#/components/parameters/CaseId"
+      responses:
+        "200":
+          description: List
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/CaseDeadline"
+    post:
+      operationId: createDeadline
+      tags: [deadlines]
+      summary: Add something due, or an event
+      parameters:
+        - $ref: "#/components/parameters/CaseId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/DeadlineInput"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CaseDeadline"
+
+  /deadlines/{deadlineId}:
+    put:
+      operationId: updateDeadline
+      tags: [deadlines]
+      summary: Edit, complete or reopen
+      parameters:
+        - $ref: "#/components/parameters/DeadlineId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/DeadlineUpdate"
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CaseDeadline"
+    delete:
+      operationId: deleteDeadline
+      tags: [deadlines]
+      summary: Remove a timeline entry
+      parameters:
+        - $ref: "#/components/parameters/DeadlineId"
+      responses:
+        "204":
+          description: Deleted
+
+  /cases/{caseId}/aftercare:
+    get:
+      operationId: getAftercare
+      tags: [aftercare]
+      summary: Who is enrolled, and what has gone out
+      parameters:
+        - $ref: "#/components/parameters/CaseId"
+      responses:
+        "200":
+          description: List
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/AftercareEnrollment"
+
+  /vendors:
+    get:
+      operationId: getVendors
+      tags: [vendors]
+      summary: The home's local network, nearest first
+      parameters:
+        - name: kind
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [monument, cemetery, casket, urn, clergy, celebrant, florist, musician, caterer, transport, other]
+        - name: near
+          in: query
+          required: false
+          description: A US ZIP code to measure from.
+          schema:
+            type: string
+        - name: radiusMiles
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 500
+        - name: search
+          in: query
+          required: false
+          schema:
+            type: string
+      responses:
+        "200":
+          description: List
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Vendor"
+    post:
+      operationId: createVendor
+      tags: [vendors]
+      summary: Add someone to the network
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/VendorInput"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Vendor"
+
+  /vendors/lookup:
+    get:
+      operationId: lookupPlaces
+      tags: [vendors]
+      summary: Search live for businesses near a ZIP code
+      description: |
+        Nothing is seeded into the directory, because no public-domain
+        nationwide listing of monument makers or celebrants exists and
+        inventing them would be indefensible. This searches a places provider
+        the home has configured with its own key and returns candidates to
+        save. With no provider configured it returns `configured: false` and
+        an empty list rather than pretending to have looked.
+      parameters:
+        - name: kind
+          in: query
+          required: true
+          schema:
+            type: string
+            enum: [monument, cemetery, casket, urn, clergy, celebrant, florist, musician, caterer, transport, other]
+        - name: near
+          in: query
+          required: true
+          schema:
+            type: string
+        - name: radiusMiles
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 200
+      responses:
+        "200":
+          description: Candidates
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PlaceLookup"
+
+  /vendors/{vendorId}:
+    put:
+      operationId: updateVendor
+      tags: [vendors]
+      summary: Edit, recommend, or show a vendor to families
+      parameters:
+        - $ref: "#/components/parameters/VendorId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/VendorUpdate"
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Vendor"
+    delete:
+      operationId: archiveVendor
+      tags: [vendors]
+      summary: Take a vendor out of the network
+      parameters:
+        - $ref: "#/components/parameters/VendorId"
+      responses:
+        "204":
+          description: Archived
+
+  /cases/{caseId}/quotes:
+    get:
+      operationId: getQuotes
+      tags: [vendors]
+      summary: Quotes requested on this case
+      parameters:
+        - $ref: "#/components/parameters/CaseId"
+      responses:
+        "200":
+          description: List
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/VendorQuote"
+
+  /quotes/{quoteId}:
+    put:
+      operationId: updateQuote
+      tags: [vendors]
+      summary: Record what a vendor came back with
+      parameters:
+        - name: quoteId
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/QuoteUpdate"
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/VendorQuote"
+
+  /family/vendors:
+    get:
+      operationId: getFamilyVendors
+      tags: [family]
+      summary: Local help the funeral home recommends, nearest first
+      parameters:
+        - name: kind
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [monument, cemetery, casket, urn, clergy, celebrant, florist, musician, caterer, transport, other]
+      responses:
+        "200":
+          description: List
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Vendor"
+
+  /family/postal-code:
+    put:
+      operationId: setFamilyPostalCode
+      tags: [family]
+      summary: Say whereabouts you are, so local suggestions are actually local
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PostalCodeInput"
+      responses:
+        "200":
+          description: Saved
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PostalCodeResult"
+
+  /family/quotes:
+    get:
+      operationId: getFamilyQuotes
+      tags: [family]
+      summary: Quotes asked for on this case
+      responses:
+        "200":
+          description: List
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/VendorQuote"
+    post:
+      operationId: requestFamilyQuote
+      tags: [family]
+      summary: Ask the funeral home to get a price from someone
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/QuoteRequestInput"
+      responses:
+        "201":
+          description: Requested
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/VendorQuote"
+
+  /cases/import/preview:
+    post:
+      operationId: previewCaseImport
+      tags: [cases]
+      summary: Read a CSV and show what would be created
+      description: |
+        Always run before importing. Returns the guessed column mapping, the
+        first rows as they would be created, and every problem found — so a
+        director sees that the dates parsed and the names landed in the right
+        columns before anything is written.
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              $ref: "#/components/schemas/CsvUploadInput"
+      responses:
+        "200":
+          description: What would happen
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ImportPreview"
+
+  /cases/import:
+    post:
+      operationId: importCases
+      tags: [cases]
+      summary: Create cases from a CSV
+      description: |
+        Skips rows that would duplicate a case already open for the same
+        person, so re-importing a daily export is safe.
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              $ref: "#/components/schemas/CsvUploadInput"
+      responses:
+        "200":
+          description: What was created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ImportResult"
+
+  /print/templates:
+    get:
+      operationId: getPrintTemplates
+      tags: [print]
+      summary: The ready-made layouts
+      responses:
+        "200":
+          description: List
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/PrintTemplate"
+
+  /snippets:
+    get:
+      operationId: getSnippets
+      tags: [print]
+      summary: The home's own verses, prayers and closing lines
+      parameters:
+        - name: kind
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [verse, prayer, poem, reading, closing, hymn]
+      responses:
+        "200":
+          description: List
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Snippet"
+    post:
+      operationId: createSnippet
+      tags: [print]
+      summary: Add one
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SnippetInput"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Snippet"
+
+  /snippets/{snippetId}:
+    put:
+      operationId: updateSnippet
+      tags: [print]
+      summary: Edit one
+      parameters:
+        - $ref: "#/components/parameters/SnippetId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SnippetInput"
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Snippet"
+    delete:
+      operationId: archiveSnippet
+      tags: [print]
+      summary: Remove one
+      parameters:
+        - $ref: "#/components/parameters/SnippetId"
+      responses:
+        "204":
+          description: Removed
+
+  /cases/{caseId}/print:
+    get:
+      operationId: getPrintItems
+      tags: [print]
+      summary: What is being printed for this case
+      parameters:
+        - $ref: "#/components/parameters/CaseId"
+      responses:
+        "200":
+          description: List
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/PrintItem"
+    post:
+      operationId: createPrintItem
+      tags: [print]
+      summary: Start a card or program from a template
+      parameters:
+        - $ref: "#/components/parameters/CaseId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PrintItemInput"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PrintItem"
+
+  /print/{printItemId}:
+    put:
+      operationId: updatePrintItem
+      tags: [print]
+      summary: Change what goes in the slots, or sign it off
+      parameters:
+        - $ref: "#/components/parameters/PrintItemId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PrintItemUpdate"
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PrintItem"
+    delete:
+      operationId: deletePrintItem
+      tags: [print]
+      summary: Throw one away
+      parameters:
+        - $ref: "#/components/parameters/PrintItemId"
+      responses:
+        "204":
+          description: Deleted
+
+  /print/{printItemId}/render:
+    get:
+      operationId: renderPrintItem
+      tags: [print]
+      summary: Print-ready HTML, sized in inches with bleed
+      parameters:
+        - $ref: "#/components/parameters/PrintItemId"
+      responses:
+        "200":
+          description: The document
+          content:
+            text/html:
+              schema:
+                type: string
+
+  /family/print:
+    get:
+      operationId: getFamilyPrintItems
+      tags: [family]
+      summary: Proofs the funeral home has shared for checking
+      responses:
+        "200":
+          description: List
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/PrintItem"
+
+  /uploads:
+    post:
+      operationId: uploadFile
+      tags: [uploads]
+      summary: Store bytes (the home's logo, or a staff-added photograph)
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              $ref: "#/components/schemas/UploadInput"
+      responses:
+        "201":
+          description: Stored
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UploadSummary"
+
+  /uploads/{uploadId}:
+    get:
+      operationId: getUpload
+      tags: [uploads]
+      summary: Serve stored bytes
+      parameters:
+        - $ref: "#/components/parameters/UploadId"
+      responses:
+        "200":
+          description: The file
+          content:
+            application/octet-stream:
+              schema:
+                type: string
+                format: binary
+
+  # ---------------------------------------------------------------- family --
+  #
+  # Everything below is reached with the link token, not a session. None of
+  # these paths carry a case id: the token names exactly one case, and a
+  # family member has no other case they could be asking for. That is what
+  # makes the whole surface safe to expose to an unauthenticated stranger
+  # holding a forwarded text message.
+
+  /family/session:
+    get:
+      operationId: getFamilySession
+      tags: [family]
+      summary: Who this link belongs to, and everything needed to draw the portal
+      description: |
+        The first call the portal makes. Returns the home (for branding and
+        the urgent number), the person who died, the service details, what is
+        outstanding, and the contact the link identifies. A revoked, expired
+        or unknown token is a 401 here and the portal shows the "ask the home
+        for a new link" screen.
+      responses:
+        "200":
+          description: The session
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FamilySession"
+
+  /family/photos:
+    get:
+      operationId: getFamilyPhotos
+      tags: [family]
+      summary: The photographs uploaded so far
+      responses:
+        "200":
+          description: List
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/CasePhoto"
+    post:
+      operationId: uploadFamilyPhoto
+      tags: [family]
+      summary: Add a photograph to the bin
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              $ref: "#/components/schemas/FamilyPhotoUploadInput"
+      responses:
+        "201":
+          description: Stored
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CasePhoto"
+
+  /family/photos/{photoId}:
+    patch:
+      operationId: updateFamilyPhoto
+      tags: [family]
+      summary: Caption a photograph, or set its portrait crop
+      parameters:
+        - $ref: "#/components/parameters/PhotoId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/FamilyPhotoUpdate"
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CasePhoto"
+    delete:
+      operationId: deleteFamilyPhoto
+      tags: [family]
+      summary: Remove a photograph this family uploaded
+      parameters:
+        - $ref: "#/components/parameters/PhotoId"
+      responses:
+        "204":
+          description: Deleted
+
+  /family/reference-photo:
+    put:
+      operationId: setFamilyReferencePhoto
+      tags: [family]
+      summary: Choose the photograph showing how they wore their hair and makeup
+      description: |
+        Handed to whoever prepares them. Deliberately separate from the
+        portrait: the portrait is the picture the family loves, which is often
+        thirty years old and in profile, and what the preparation room needs
+        is a clear recent front-on face.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PhotoIdInput"
+      responses:
+        "200":
+          description: The chosen photograph
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CasePhoto"
+
+  /family/photos/selection:
+    put:
+      operationId: setFamilyPhotoSelection
+      tags: [family]
+      summary: Choose which photographs run in the slideshow
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PhotoSelectionInput"
+      responses:
+        "200":
+          description: The bin, with the new selection marked
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/CasePhoto"
+
+  /family/portrait:
+    put:
+      operationId: setFamilyPortrait
+      tags: [family]
+      summary: Choose the main portrait
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PortraitInput"
+      responses:
+        "200":
+          description: The chosen photograph
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CasePhoto"
+
+  /family/obituary:
+    get:
+      operationId: getFamilyObituary
+      tags: [family]
+      summary: The obituary form as the family left it
+      responses:
+        "200":
+          description: The draft
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ObituaryDraft"
+    put:
+      operationId: updateFamilyObituary
+      tags: [family]
+      summary: Save the obituary fields
+      description: |
+        Refused once the director has approved the obituary for print, so that
+        a well-meaning relative cannot change the text after it has gone to
+        the printer.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ObituaryFieldsInput"
+      responses:
+        "200":
+          description: Saved
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ObituaryDraft"
+
+  /family/obituary/submit:
+    post:
+      operationId: submitFamilyObituary
+      tags: [family]
+      summary: Hand the obituary to the director
+      responses:
+        "200":
+          description: Submitted
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ObituaryDraft"
+
+  /family/selections:
+    get:
+      operationId: getFamilySelections
+      tags: [family]
+      summary: Hymns, readings and pallbearers chosen so far
+      responses:
+        "200":
+          description: List
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/ServiceSelection"
+    post:
+      operationId: createFamilySelection
+      tags: [family]
+      summary: Add a hymn, reading, or pallbearer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SelectionInput"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ServiceSelection"
+
+  /family/selections/{selectionId}:
+    delete:
+      operationId: deleteFamilySelection
+      tags: [family]
+      summary: Remove a selection the director has not confirmed
+      parameters:
+        - $ref: "#/components/parameters/SelectionId"
+      responses:
+        "204":
+          description: Deleted
+
+  /family/messages:
+    get:
+      operationId: getFamilyMessages
+      tags: [family]
+      summary: The thread with the funeral home
+      responses:
+        "200":
+          description: The thread
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MessageThread"
+    post:
+      operationId: postFamilyMessage
+      tags: [family]
+      summary: Ask the director something
+      description: |
+        Always delivered, whatever the hour. When it is sent outside the
+        home's office hours the response says so, so the portal can tell the
+        family plainly when it will be read and offer the 24-hour line - which
+        is a truthful thing to say, unlike holding the message back.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/MessageInput"
+      responses:
+        "201":
+          description: Sent
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CaseMessage"
+
+  /family/deadlines:
+    get:
+      operationId: getFamilyDeadlines
+      tags: [family]
+      summary: What is due, and when the service is
+      responses:
+        "200":
+          description: List
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/CaseDeadline"
+
+  /family/deadlines/{deadlineId}:
+    post:
+      operationId: completeFamilyDeadline
+      tags: [family]
+      summary: Mark something done, or undo that
+      parameters:
+        - $ref: "#/components/parameters/DeadlineId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CompleteDeadlineInput"
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CaseDeadline"
+
+  /family/aftercare:
+    post:
+      operationId: setFamilyAftercareConsent
+      tags: [family]
+      summary: Accept or decline the grief check-ins
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AftercareConsentInput"
+      responses:
+        "200":
+          description: Recorded
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AftercareEnrollment"
+
+  /family/uploads/{uploadId}:
+    get:
+      operationId: getFamilyUpload
+      tags: [family]
+      summary: Serve a photograph on this case, or the home's logo
+      parameters:
+        - $ref: "#/components/parameters/UploadId"
+      responses:
+        "200":
+          description: The file
+          content:
+            application/octet-stream:
+              schema:
+                type: string
+                format: binary
+
+components:
+  parameters:
+    CaseId:
+      name: caseId
+      in: path
+      required: true
+      schema:
+        type: integer
+    IntakeId:
+      name: intakeId
+      in: path
+      required: true
+      schema:
+        type: integer
+    ContactId:
+      name: contactId
+      in: path
+      required: true
+      schema:
+        type: integer
+    PhotoId:
+      name: photoId
+      in: path
+      required: true
+      schema:
+        type: integer
+    SelectionId:
+      name: selectionId
+      in: path
+      required: true
+      schema:
+        type: integer
+    DeadlineId:
+      name: deadlineId
+      in: path
+      required: true
+      schema:
+        type: integer
+    SnippetId:
+      name: snippetId
+      in: path
+      required: true
+      schema:
+        type: integer
+    PrintItemId:
+      name: printItemId
+      in: path
+      required: true
+      schema:
+        type: integer
+    VendorId:
+      name: vendorId
+      in: path
+      required: true
+      schema:
+        type: integer
+    UploadId:
+      name: uploadId
+      in: path
+      required: true
+      schema:
+        type: integer
+    OfferId:
+      name: offerId
+      in: path
+      required: true
+      schema:
+        type: integer
+    PolicyId:
+      name: policyId
+      in: path
+      required: true
+      schema:
+        type: integer
+    PriceItemId:
+      name: itemId
+      in: path
+      required: true
+      schema:
+        type: integer
+
+  schemas:
+    HealthStatus:
+      type: object
+      description: |
+        Reports on the database, because a process that is up but cannot reach
+        Postgres serves errors on every screen -- and a health check that
+        answers "ok" to that keeps it in the load balancer.
+      properties:
+        status:
+          type: string
+          enum: [ok, degraded]
+        database:
+          type: boolean
+        mail:
+          type: boolean
+          description: Whether real email can go out, or is only logged.
+        sms:
+          type: boolean
+          description: Whether family links can actually be texted from here.
+      required: [status, database, mail, sms]
+
+    # ---------------------------------------------------------------- auth --
+
+    RegisterInput:
+      type: object
+      properties:
+        homeName:
+          type: string
+          minLength: 1
+        email:
+          type: string
+          format: email
+        password:
+          type: string
+          minLength: 10
+        displayName:
+          type: string
+          nullable: true
+      required: [homeName, email, password]
+
+    LoginInput:
+      type: object
+      properties:
+        email:
+          type: string
+          format: email
+        password:
+          type: string
+      required: [email, password]
+
+    ForgotPasswordInput:
+      type: object
+      properties:
+        email:
+          type: string
+          format: email
+      required: [email]
+
+    ResetPasswordInput:
+      type: object
+      properties:
+        token:
+          type: string
+        password:
+          type: string
+          minLength: 10
+      required: [token, password]
+
+    StaffMember:
+      type: object
+      properties:
+        id:
+          type: integer
+        email:
+          type: string
+        displayName:
+          type: string
+          nullable: true
+        title:
+          type: string
+          nullable: true
+        role:
+          type: string
+          enum: [owner, director, staff]
+        deactivatedAt:
+          type: string
+          format: date-time
+          nullable: true
+      required: [id, email, displayName, title, role, deactivatedAt]
+
+    TimelineTemplate:
+      type: object
+      properties:
+        id:
+          type: integer
+        title:
+          type: string
+        description:
+          type: string
+          nullable: true
+        offsetMinutes:
+          type: integer
+          description: Relative to the service. Negative is before it.
+        offsetLabel:
+          type: string
+          description: The offset in words, e.g. "3 days before".
+        isEvent:
+          type: boolean
+        enabled:
+          type: boolean
+        position:
+          type: integer
+      required:
+        [id, title, description, offsetMinutes, offsetLabel, isEvent, enabled, position]
+
+    TimelineTemplateInput:
+      type: object
+      properties:
+        title:
+          type: string
+          minLength: 1
+        description:
+          type: string
+          nullable: true
+        offsetMinutes:
+          type: integer
+        isEvent:
+          type: boolean
+      required: [title, offsetMinutes]
+
+    TimelineTemplateUpdate:
+      type: object
+      properties:
+        title:
+          type: string
+          minLength: 1
+        description:
+          type: string
+          nullable: true
+        offsetMinutes:
+          type: integer
+        isEvent:
+          type: boolean
+        enabled:
+          type: boolean
+        position:
+          type: integer
+
+    OnboardingItem:
+      type: object
+      properties:
+        key:
+          type: string
+        title:
+          type: string
+        detail:
+          type: string
+        done:
+          type: boolean
+      required: [key, title, detail, done]
+
+    Billing:
+      type: object
+      properties:
+        subscriptionStatus:
+          type: string
+          enum: [trial, active, past_due, canceled]
+        trialEndsAt:
+          type: string
+          format: date-time
+          nullable: true
+        trialDaysLeft:
+          type: integer
+          nullable: true
+        currentPeriodEndsAt:
+          type: string
+          format: date-time
+          nullable: true
+        canOpenCases:
+          type: boolean
+        billingConfigured:
+          type: boolean
+          description: False when this deployment has no Stripe keys.
+        hasSubscription:
+          type: boolean
+        onboarding:
+          type: array
+          items:
+            $ref: "#/components/schemas/OnboardingItem"
+        onboardingComplete:
+          type: boolean
+      required:
+        [
+          subscriptionStatus,
+          trialEndsAt,
+          trialDaysLeft,
+          currentPeriodEndsAt,
+          canOpenCases,
+          billingConfigured,
+          hasSubscription,
+          onboarding,
+          onboardingComplete,
+        ]
+
+    BillingReturnInput:
+      type: object
+      properties:
+        returnUrl:
+          type: string
+          description: Where Stripe sends them back to.
+      required: [returnUrl]
+
+    BillingRedirect:
+      type: object
+      properties:
+        url:
+          type: string
+      required: [url]
+
+    OnboardingStepInput:
+      type: object
+      properties:
+        step:
+          type: string
+        done:
+          type: boolean
+      required: [step]
+
+    StaffInviteInput:
+      type: object
+      properties:
+        email:
+          type: string
+          format: email
+        displayName:
+          type: string
+          nullable: true
+        title:
+          type: string
+          nullable: true
+        role:
+          type: string
+          enum: [owner, director, staff]
+      required: [email]
+
+    StaffMemberWithInvite:
+      description: |
+        Returned once, when a colleague is added. `inviteLink` is shown to the
+        owner so they can pass it on if the email does not arrive; it is the
+        ordinary single-use password-reset link and is never retrievable again.
+      allOf:
+        - $ref: "#/components/schemas/StaffMember"
+        - type: object
+          properties:
+            inviteLink:
+              type: string
+          required: [inviteLink]
+
+    StaffUpdate:
+      type: object
+      properties:
+        displayName:
+          type: string
+          nullable: true
+        title:
+          type: string
+          nullable: true
+        role:
+          type: string
+          enum: [owner, director, staff]
+        active:
+          type: boolean
+          description: False takes their access away without deleting their history.
+
+    AuthUser:
+      type: object
+      properties:
+        user:
+          $ref: "#/components/schemas/StaffMember"
+        home:
+          $ref: "#/components/schemas/FuneralHome"
+      required: [user, home]
+
+    # ---------------------------------------------------------------- home --
+
+    FuneralHome:
+      type: object
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        slug:
+          type: string
+        logoUploadId:
+          type: integer
+          nullable: true
+        accentColor:
+          type: string
+        phone:
+          type: string
+          nullable: true
+        urgentPhone:
+          type: string
+          nullable: true
+        addressLine1:
+          type: string
+          nullable: true
+        addressLine2:
+          type: string
+          nullable: true
+        city:
+          type: string
+          nullable: true
+        region:
+          type: string
+          nullable: true
+        postalCode:
+          type: string
+          nullable: true
+        officeOpensMinute:
+          type: integer
+        officeClosesMinute:
+          type: integer
+        timezone:
+          type: string
+        aftercareEnabled:
+          type: boolean
+        intakeEnabled:
+          type: boolean
+          description: |
+            Whether the home's public page will take a request from somebody
+            nobody has sent a link to.
+        intakeNotifyEmail:
+          type: string
+          nullable: true
+          description: |
+            Where a request lands. Falls back to the owner's address, because
+            a form that fills a queue nobody opens is worse than no form -
+            the family believes they have reached someone.
+        aftercareSenderName:
+          type: string
+          nullable: true
+        storefrontHeadline:
+          type: string
+          nullable: true
+          description: |
+            One line above the form on the public page. What a family needs
+            off it is that they have the right place and that a person will
+            answer - not that the home is compassionate, which every home
+            says.
+        storefrontAbout:
+          type: string
+          nullable: true
+          description: A paragraph or two under it. Both may be blank.
+        messageLockDays:
+          type: integer
+          description: |
+            How long the case chat stays open after the service. Read when a
+            case closes, so shortening it never slams a live conversation
+            shut mid-sentence.
+        slideshowTarget:
+          type: integer
+          description: |
+            How many photographs the home asks a family to pick. Shown as a
+            target, never enforced.
+        subscriptionStatus:
+          type: string
+          enum: [trial, active, past_due, canceled]
+        trialEndsAt:
+          type: string
+          format: date-time
+          nullable: true
+      required:
+        [
+          id,
+          name,
+          slug,
+          logoUploadId,
+          accentColor,
+          phone,
+          urgentPhone,
+          officeOpensMinute,
+          officeClosesMinute,
+          timezone,
+          aftercareEnabled,
+          intakeEnabled,
+          messageLockDays,
+          slideshowTarget,
+          subscriptionStatus,
+        ]
+
+    FuneralHomeUpdate:
+      type: object
+      properties:
+        name:
+          type: string
+        logoUploadId:
+          type: integer
+          nullable: true
+        accentColor:
+          type: string
+        phone:
+          type: string
+          nullable: true
+        urgentPhone:
+          type: string
+          nullable: true
+        addressLine1:
+          type: string
+          nullable: true
+        addressLine2:
+          type: string
+          nullable: true
+        city:
+          type: string
+          nullable: true
+        region:
+          type: string
+          nullable: true
+        postalCode:
+          type: string
+          nullable: true
+        officeOpensMinute:
+          type: integer
+          minimum: 0
+          maximum: 1439
+        officeClosesMinute:
+          type: integer
+          minimum: 0
+          maximum: 1439
+        timezone:
+          type: string
+        aftercareEnabled:
+          type: boolean
+        intakeEnabled:
+          type: boolean
+        intakeNotifyEmail:
+          type: string
+          nullable: true
+        aftercareSenderName:
+          type: string
+          nullable: true
+        storefrontHeadline:
+          type: string
+          nullable: true
+          maxLength: 160
+        storefrontAbout:
+          type: string
+          nullable: true
+          maxLength: 4000
+        messageLockDays:
+          type: integer
+          minimum: 1
+          maximum: 365
+        slideshowTarget:
+          type: integer
+          minimum: 1
+          maximum: 500
+
+    # ------------------------------------------------------- what a family sees
+
+    PublicFuneralHome:
+      type: object
+      description: The home as a family may see it - branding and how to reach it.
+      properties:
+        name:
+          type: string
+        slug:
+          type: string
+        accentColor:
+          type: string
+        logoUploadId:
+          type: integer
+          nullable: true
+        phone:
+          type: string
+          nullable: true
+        urgentPhone:
+          type: string
+          nullable: true
+        addressLine1:
+          type: string
+          nullable: true
+        addressLine2:
+          type: string
+          nullable: true
+        city:
+          type: string
+          nullable: true
+        region:
+          type: string
+          nullable: true
+        postalCode:
+          type: string
+          nullable: true
+        intakeEnabled:
+          type: boolean
+          description: |
+            False means this home would rather the first contact were a phone
+            call. Show the number instead of the request form.
+        officeOpensMinute:
+          type: integer
+        officeClosesMinute:
+          type: integer
+        timezone:
+          type: string
+        storefrontHeadline:
+          type: string
+          nullable: true
+          description: |
+            One line above the form on the public page. What a family needs
+            off it is that they have the right place and that a person will
+            answer - not that the home is compassionate, which every home
+            says.
+        storefrontAbout:
+          type: string
+          nullable: true
+          description: A paragraph or two under it. Both may be blank.
+        policies:
+          type: array
+          description: |
+            The home's published policy sections. Drafts are absent, and so
+            is any hint that there are drafts. Prices are absent too, and
+            that is not an oversight - see `/home/price-list`.
+          items:
+            $ref: "#/components/schemas/PublicHomePolicy"
+      required:
+        [
+          name,
+          slug,
+          accentColor,
+          logoUploadId,
+          phone,
+          urgentPhone,
+          addressLine1,
+          addressLine2,
+          city,
+          region,
+          postalCode,
+          intakeEnabled,
+          officeOpensMinute,
+          officeClosesMinute,
+          timezone,
+          storefrontHeadline,
+          storefrontAbout,
+          policies,
+        ]
+
+    # ----------------------------------------------------------- dashboard --
+
+    HomeDashboard:
+      type: object
+      description: |
+        The landing screen, in one read. Counts and the few rows behind them -
+        never the whole case list, because a home three years in has hundreds
+        and a dashboard that loads them all stops being a dashboard.
+      properties:
+        homeName:
+          type: string
+        openCases:
+          type: integer
+          description: Cases not yet closed. The size of what is being carried.
+        servicesThisWeek:
+          type: array
+          description: Services in the next seven days, soonest first.
+          items:
+            $ref: "#/components/schemas/DashboardService"
+        awaitingServiceDate:
+          type: array
+          description: |
+            Active cases with no service date at all. These are the ones
+            where nothing is due yet because nothing can be dated - the
+            standard schedule measures from the service, so a case without
+            one has an empty timeline and a family being told nothing.
+          items:
+            $ref: "#/components/schemas/DashboardCase"
+        overdue:
+          type: array
+          description: Past due, not done. Across every open case.
+          items:
+            $ref: "#/components/schemas/DashboardDeadline"
+        dueSoon:
+          type: array
+          description: Due in the next three days.
+          items:
+            $ref: "#/components/schemas/DashboardDeadline"
+        unansweredMessages:
+          type: integer
+          description: Messages from families nobody at the home has read.
+        casesWaitingOnReply:
+          type: integer
+          description: How many separate families those are sitting in.
+        pendingRequests:
+          type: integer
+          description: Requests off the public page waiting for a director.
+        offersAwaitingChoice:
+          type: integer
+          description: Cases where the home has offered times and nobody has picked.
+      required:
+        [
+          homeName,
+          openCases,
+          servicesThisWeek,
+          awaitingServiceDate,
+          overdue,
+          dueSoon,
+          unansweredMessages,
+          casesWaitingOnReply,
+          pendingRequests,
+          offersAwaitingChoice,
+        ]
+
+    DashboardCase:
+      type: object
+      properties:
+        caseId:
+          type: integer
+        decedentName:
+          type: string
+        kind:
+          type: string
+          enum: [at_need, pre_need]
+          description: |
+            Read this before writing any sentence about the person. A
+            `pre_need` subject is alive and arranging their own funeral.
+        openedAt:
+          type: string
+          format: date-time
+      required: [caseId, decedentName, kind, openedAt]
+
+    DashboardService:
+      type: object
+      properties:
+        caseId:
+          type: integer
+        decedentName:
+          type: string
+        kind:
+          type: string
+          enum: [at_need, pre_need]
+        serviceAt:
+          type: string
+          format: date-time
+        serviceLocation:
+          type: string
+          nullable: true
+      required: [caseId, decedentName, kind, serviceAt, serviceLocation]
+
+    DashboardDeadline:
+      type: object
+      properties:
+        id:
+          type: integer
+        caseId:
+          type: integer
+        decedentName:
+          type: string
+        title:
+          type: string
+        dueAt:
+          type: string
+          format: date-time
+        isEvent:
+          type: boolean
+      required: [id, caseId, decedentName, title, dueAt, isEvent]
+
+    InboxEntry:
+      type: object
+      description: One case's conversation, summarised.
+      properties:
+        caseId:
+          type: integer
+        decedentName:
+          type: string
+        kind:
+          type: string
+          enum: [at_need, pre_need]
+        lastMessageBody:
+          type: string
+          description: Trimmed for a list. The thread has the whole thing.
+        lastMessageAt:
+          type: string
+          format: date-time
+        lastMessageFrom:
+          type: string
+          enum: [home, family]
+        unreadFromFamily:
+          type: integer
+          description: |
+            How many the home has not opened. This is what sorts the list:
+            somebody waiting comes before somebody who was answered.
+        sentOutsideOfficeHours:
+          type: boolean
+          description: |
+            Whether the latest family message arrived outside the home's
+            hours. Not a reason to reply at 2am - it is context for a
+            director reading at eight.
+        locked:
+          type: boolean
+          description: The fortnight after the service has passed, for both sides.
+      required:
+        [
+          caseId,
+          decedentName,
+          kind,
+          lastMessageBody,
+          lastMessageAt,
+          lastMessageFrom,
+          unreadFromFamily,
+          sentOutsideOfficeHours,
+          locked,
+        ]
+
+    # ------------------------------------------------------ service offers --
+
+    ServiceOffer:
+      type: object
+      description: |
+        A time the home has confirmed it can do, waiting on the family.
+      properties:
+        id:
+          type: integer
+        caseId:
+          type: integer
+        startsAt:
+          type: string
+          format: date-time
+        location:
+          type: string
+          nullable: true
+        note:
+          type: string
+          nullable: true
+        position:
+          type: integer
+        chosenAt:
+          type: string
+          format: date-time
+          nullable: true
+        chosenByName:
+          type: string
+          nullable: true
+          description: |
+            Who answered, when it was the family. Null when the home
+            confirmed it on their behalf, which is what a telephone call
+            looks like from here.
+      required:
+        [id, caseId, startsAt, location, note, position, chosenAt, chosenByName]
+
+    ServiceOfferInput:
+      type: object
+      properties:
+        startsAt:
+          type: string
+          format: date-time
+        location:
+          type: string
+          nullable: true
+          maxLength: 200
+        note:
+          type: string
+          nullable: true
+          maxLength: 400
+      required: [startsAt]
+
+    ChosenService:
+      type: object
+      description: What choosing did, so the console can say it rather than imply it.
+      properties:
+        offer:
+          $ref: "#/components/schemas/ServiceOffer"
+        serviceAt:
+          type: string
+          format: date-time
+        scheduleCreated:
+          type: integer
+          description: Timeline entries added from the home's standard schedule.
+        scheduleMoved:
+          type: integer
+          description: Entries that already existed and were moved to fit.
+      required: [offer, serviceAt, scheduleCreated, scheduleMoved]
+
+    FamilyServiceOffers:
+      type: object
+      description: |
+        The choice as the family sees it. `chosenOfferId` null with a
+        non-empty `offers` is the only state that asks them for anything.
+      properties:
+        offers:
+          type: array
+          items:
+            $ref: "#/components/schemas/ServiceOffer"
+        chosenOfferId:
+          type: integer
+          nullable: true
+        serviceAt:
+          type: string
+          format: date-time
+          nullable: true
+          description: |
+            The confirmed time, which may have been set by the home without
+            any offer at all. A family shown this has nothing left to answer.
+        serviceLocation:
+          type: string
+          nullable: true
+        homePhone:
+          type: string
+          nullable: true
+          description: |
+            Shown beside a settled choice, because the way to change an
+            agreed funeral time is to speak to a person.
+      required:
+        [offers, chosenOfferId, serviceAt, serviceLocation, homePhone]
+
+    # ---------------------------------------------------------- storefront --
+
+    HomePolicy:
+      type: object
+      description: |
+        A section of the home's own words. Words only - nothing here changes
+        what the software does.
+      properties:
+        id:
+          type: integer
+        title:
+          type: string
+        body:
+          type: string
+        position:
+          type: integer
+        published:
+          type: boolean
+          description: False is a draft. Staff see it; nobody else does.
+      required: [id, title, body, position, published]
+
+    HomePolicyInput:
+      type: object
+      properties:
+        title:
+          type: string
+          minLength: 1
+          maxLength: 120
+        body:
+          type: string
+          minLength: 1
+          maxLength: 4000
+        published:
+          type: boolean
+      required: [title, body]
+
+    HomePolicyUpdate:
+      type: object
+      properties:
+        title:
+          type: string
+          minLength: 1
+          maxLength: 120
+        body:
+          type: string
+          minLength: 1
+          maxLength: 4000
+        position:
+          type: integer
+          minimum: 0
+        published:
+          type: boolean
+
+    PublicHomePolicy:
+      type: object
+      description: A published policy section, as anyone may read it.
+      properties:
+        id:
+          type: integer
+        title:
+          type: string
+        body:
+          type: string
+      required: [id, title, body]
+
+    # ------------------------------------------------------------- pricing --
+
+    PriceItem:
+      type: object
+      description: |
+        One line of the home's staff-only crib sheet. Never returned by a
+        family or public endpoint - see the `/home/price-list` description.
+      properties:
+        id:
+          type: integer
+        category:
+          type: string
+        label:
+          type: string
+        amountCents:
+          type: integer
+          nullable: true
+          description: |
+            Null means there is no number - flowers at market, a cemetery's
+            own fee. The note carries the reason.
+        amountLabel:
+          type: string
+          nullable: true
+          description: The amount already formatted, so two clients cannot round it differently.
+        note:
+          type: string
+          nullable: true
+        position:
+          type: integer
+        enabled:
+          type: boolean
+      required:
+        [id, category, label, amountCents, amountLabel, note, position, enabled]
+
+    PriceItemInput:
+      type: object
+      properties:
+        category:
+          type: string
+          minLength: 1
+          maxLength: 80
+        label:
+          type: string
+          minLength: 1
+          maxLength: 160
+        amountCents:
+          type: integer
+          nullable: true
+          minimum: 0
+          maximum: 100000000
+        note:
+          type: string
+          nullable: true
+          maxLength: 200
+      required: [category, label]
+
+    PriceItemUpdate:
+      type: object
+      properties:
+        category:
+          type: string
+          minLength: 1
+          maxLength: 80
+        label:
+          type: string
+          minLength: 1
+          maxLength: 160
+        amountCents:
+          type: integer
+          nullable: true
+          minimum: 0
+          maximum: 100000000
+        note:
+          type: string
+          nullable: true
+          maxLength: 200
+        position:
+          type: integer
+          minimum: 0
+        enabled:
+          type: boolean
+
+    StaffSignature:
+      type: object
+      description: A staff member as a family sees them - a name and a title.
+      properties:
+        displayName:
+          type: string
+          nullable: true
+        title:
+          type: string
+          nullable: true
+      required: [displayName, title]
+
+    # -------------------------------------------------------------- intake --
+
+    IntakeRequestInput:
+      type: object
+      description: |
+        A request from someone nobody has sent a link to. `kind` decides
+        everything downstream: `at_need` is a family whose person has died,
+        `pre_need` is a living person arranging their own funeral, where the
+        requester and the subject are the same and `dateOfDeath` must be
+        absent.
+      properties:
+        homeSlug:
+          type: string
+          description: Which home is being asked. From the public page's URL.
+          minLength: 1
+          maxLength: 120
+        kind:
+          type: string
+          enum: [at_need, pre_need]
+        requesterName:
+          type: string
+          minLength: 1
+          maxLength: 120
+        requesterEmail:
+          type: string
+          nullable: true
+          maxLength: 200
+        requesterPhone:
+          type: string
+          nullable: true
+          maxLength: 40
+        relationship:
+          type: string
+          nullable: true
+          maxLength: 80
+          description: How they are related. Omitted for a pre-need request.
+        subjectFirstName:
+          type: string
+          minLength: 1
+          maxLength: 120
+        subjectLastName:
+          type: string
+          minLength: 1
+          maxLength: 120
+        dateOfDeath:
+          type: string
+          format: date-time
+          nullable: true
+        note:
+          type: string
+          nullable: true
+          maxLength: 4000
+      required: [homeSlug, kind, requesterName, subjectFirstName, subjectLastName]
+
+    IntakeReceipt:
+      type: object
+      description: |
+        Deliberately thin. It confirms the request arrived and repeats what
+        the person should do if it cannot wait, and says nothing about the
+        home's queue or whether this person is already known to them.
+      properties:
+        received:
+          type: boolean
+        kind:
+          type: string
+          enum: [at_need, pre_need]
+        homeName:
+          type: string
+        urgentPhone:
+          type: string
+          nullable: true
+      required: [received, kind, homeName, urgentPhone]
+
+    DeleteCaseInput:
+      type: object
+      properties:
+        confirmName:
+          type: string
+          description: |
+            The deceased's name exactly as the case shows it. Compared
+            case-insensitively and with surrounding space ignored, because
+            this is a confirmation and not a spelling test - but it must be
+            typed, not clicked.
+        reason:
+          type: string
+          nullable: true
+          maxLength: 500
+          description: Recorded on the tombstone. For the home's own records.
+      required: [confirmName]
+
+    ConvertToAtNeedInput:
+      type: object
+      properties:
+        dateOfDeath:
+          type: string
+          format: date-time
+          description: |
+            Required. Converting without one would leave a file that claims
+            somebody died on no particular day, and the schedule counts from
+            it.
+        serviceAt:
+          type: string
+          format: date-time
+          nullable: true
+          description: If it is already known. The schedule is built from it.
+      required: [dateOfDeath]
+
+    AcceptedIntake:
+      allOf:
+        - $ref: "#/components/schemas/Case"
+        - type: object
+          description: |
+            The new case, plus the one thing that exists only at this moment.
+          properties:
+            familyLink:
+              type: string
+              description: |
+                The link to send the person who asked. Returned once and never
+                again - the contact row holds only its digest. A director who
+                loses it mints a fresh one from the contact, which also stops
+                the old one working.
+          required: [familyLink]
+
+    IntakeRequest:
+      type: object
+      description: One request, as the director sees it in their queue.
+      properties:
+        id:
+          type: integer
+        kind:
+          type: string
+          enum: [at_need, pre_need]
+        status:
+          type: string
+          enum: [pending, accepted, declined]
+        requesterName:
+          type: string
+        requesterEmail:
+          type: string
+          nullable: true
+        requesterPhone:
+          type: string
+          nullable: true
+        relationship:
+          type: string
+          nullable: true
+        subjectFirstName:
+          type: string
+        subjectLastName:
+          type: string
+        subjectDisplayName:
+          type: string
+        dateOfDeath:
+          type: string
+          format: date-time
+          nullable: true
+        note:
+          type: string
+          nullable: true
+        caseId:
+          type: integer
+          nullable: true
+        reviewedAt:
+          type: string
+          format: date-time
+          nullable: true
+        createdAt:
+          type: string
+          format: date-time
+      required:
+        [
+          id,
+          kind,
+          status,
+          requesterName,
+          requesterEmail,
+          requesterPhone,
+          relationship,
+          subjectFirstName,
+          subjectLastName,
+          subjectDisplayName,
+          dateOfDeath,
+          note,
+          caseId,
+          reviewedAt,
+          createdAt,
+        ]
+
+    # --------------------------------------------------------------- cases --
+
+    Case:
+      type: object
+      properties:
+        id:
+          type: integer
+        kind:
+          type: string
+          enum: [at_need, pre_need]
+          description: |
+            `pre_need` means the person this file is about is still alive and
+            arranging their own funeral. Every label, every date and every
+            line of condolence has to read this first.
+        decedentFirstName:
+          type: string
+        decedentLastName:
+          type: string
+        decedentPreferredName:
+          type: string
+          nullable: true
+        displayName:
+          type: string
+        dateOfBirth:
+          type: string
+          format: date-time
+          nullable: true
+        dateOfDeath:
+          type: string
+          format: date-time
+          nullable: true
+        portraitPhotoId:
+          type: integer
+          nullable: true
+        referencePhotoId:
+          type: integer
+          nullable: true
+        serviceAt:
+          type: string
+          format: date-time
+          nullable: true
+        serviceLocation:
+          type: string
+          nullable: true
+        serviceNotes:
+          type: string
+          nullable: true
+        postalCode:
+          type: string
+          nullable: true
+          description: Where the family is, for finding anything local to them.
+        leadDirectorId:
+          type: integer
+          nullable: true
+        status:
+          type: string
+          enum: [intake, active, closed]
+        closedAt:
+          type: string
+          format: date-time
+          nullable: true
+        messagesLockAt:
+          type: string
+          format: date-time
+          nullable: true
+        createdAt:
+          type: string
+          format: date-time
+      required:
+        [
+          id,
+          kind,
+          decedentFirstName,
+          decedentLastName,
+          decedentPreferredName,
+          displayName,
+          dateOfBirth,
+          dateOfDeath,
+          portraitPhotoId,
+          referencePhotoId,
+          serviceAt,
+          serviceLocation,
+          serviceNotes,
+          postalCode,
+          leadDirectorId,
+          status,
+          closedAt,
+          messagesLockAt,
+          createdAt,
+        ]
+
+    CaseSummary:
+      description: |
+        A case as it appears in the director's list. The counts are what turn
+        the list into a worklist: they answer "which family is behind" without
+        opening anything.
+      allOf:
+        - $ref: "#/components/schemas/Case"
+        - type: object
+          properties:
+            photoCount:
+              type: integer
+            unreadFamilyMessages:
+              type: integer
+            outstandingDeadlines:
+              type: integer
+            obituaryStatus:
+              type: string
+              enum: [family_draft, submitted, approved]
+            nextOfKinName:
+              type: string
+              nullable: true
+          required:
+            [
+              photoCount,
+              unreadFamilyMessages,
+              outstandingDeadlines,
+              obituaryStatus,
+              nextOfKinName,
+            ]
+
+    CaseDetail:
+      allOf:
+        - $ref: "#/components/schemas/CaseSummary"
+        - type: object
+          properties:
+            leadDirector:
+              oneOf:
+                - $ref: "#/components/schemas/StaffSignature"
+                - type: "null"
+            contacts:
+              type: array
+              items:
+                $ref: "#/components/schemas/FamilyContact"
+          required: [leadDirector, contacts]
+
+    CaseInput:
+      type: object
+      properties:
+        kind:
+          type: string
+          enum: [at_need, pre_need]
+          description: |
+            Defaults to `at_need`. `pre_need` opens a file for someone who is
+            still alive and arranging their own funeral; the same
+            collaboration, so that on the day they die the home changes this
+            one field and nothing has to be re-typed.
+        decedentFirstName:
+          type: string
+          minLength: 1
+        decedentLastName:
+          type: string
+          minLength: 1
+        decedentPreferredName:
+          type: string
+          nullable: true
+        dateOfBirth:
+          type: string
+          format: date-time
+          nullable: true
+        dateOfDeath:
+          type: string
+          format: date-time
+          nullable: true
+        serviceAt:
+          type: string
+          format: date-time
+          nullable: true
+        serviceLocation:
+          type: string
+          nullable: true
+        leadDirectorId:
+          type: integer
+          nullable: true
+      required: [decedentFirstName, decedentLastName]
+
+    CaseUpdate:
+      type: object
+      properties:
+        decedentFirstName:
+          type: string
+          minLength: 1
+        decedentLastName:
+          type: string
+          minLength: 1
+        decedentPreferredName:
+          type: string
+          nullable: true
+        dateOfBirth:
+          type: string
+          format: date-time
+          nullable: true
+        dateOfDeath:
+          type: string
+          format: date-time
+          nullable: true
+        portraitPhotoId:
+          type: integer
+          nullable: true
+        referencePhotoId:
+          type: integer
+          nullable: true
+        serviceAt:
+          type: string
+          format: date-time
+          nullable: true
+        serviceLocation:
+          type: string
+          nullable: true
+        serviceNotes:
+          type: string
+          nullable: true
+        postalCode:
+          type: string
+          nullable: true
+        leadDirectorId:
+          type: integer
+          nullable: true
+        status:
+          type: string
+          enum: [intake, active, closed]
+        messagesLockAt:
+          type: string
+          format: date-time
+          nullable: true
+
+    # ------------------------------------------------------------ contacts --
+
+    FamilyContact:
+      type: object
+      properties:
+        id:
+          type: integer
+        caseId:
+          type: integer
+        name:
+          type: string
+        relationship:
+          type: string
+          nullable: true
+        phone:
+          type: string
+          nullable: true
+        email:
+          type: string
+          nullable: true
+        role:
+          type: string
+          enum: [next_of_kin, contributor]
+        canInvite:
+          type: boolean
+        expiresAt:
+          type: string
+          format: date-time
+        revokedAt:
+          type: string
+          format: date-time
+          nullable: true
+        firstSeenAt:
+          type: string
+          format: date-time
+          nullable: true
+        lastSeenAt:
+          type: string
+          format: date-time
+          nullable: true
+        createdAt:
+          type: string
+          format: date-time
+      required:
+        [
+          id,
+          caseId,
+          name,
+          relationship,
+          phone,
+          email,
+          role,
+          canInvite,
+          expiresAt,
+          revokedAt,
+          firstSeenAt,
+          lastSeenAt,
+          createdAt,
+        ]
+
+    FamilyContactWithLink:
+      description: |
+        Returned only at the moment a link is minted. `link` is the working
+        URL to paste into a text message and is never retrievable again -
+        only its digest is stored.
+      allOf:
+        - $ref: "#/components/schemas/FamilyContact"
+        - type: object
+          properties:
+            link:
+              type: string
+          required: [link]
+
+    SentLink:
+      allOf:
+        - $ref: "#/components/schemas/FamilyContactWithLink"
+        - type: object
+          properties:
+            sent:
+              type: boolean
+            smsError:
+              type: string
+              nullable: true
+              description: Why the text did not go, in words a director can act on.
+          required: [sent, smsError]
+
+    FamilyContactInput:
+      type: object
+      properties:
+        name:
+          type: string
+          minLength: 1
+        relationship:
+          type: string
+          nullable: true
+        phone:
+          type: string
+          nullable: true
+        email:
+          type: string
+          nullable: true
+        role:
+          type: string
+          enum: [next_of_kin, contributor]
+        canInvite:
+          type: boolean
+      required: [name]
+
+    FamilyContactUpdate:
+      type: object
+      properties:
+        name:
+          type: string
+          minLength: 1
+        relationship:
+          type: string
+          nullable: true
+        phone:
+          type: string
+          nullable: true
+        email:
+          type: string
+          nullable: true
+        role:
+          type: string
+          enum: [next_of_kin, contributor]
+        canInvite:
+          type: boolean
+
+    # -------------------------------------------------------------- photos --
+
+    CasePhoto:
+      type: object
+      properties:
+        id:
+          type: integer
+        caseId:
+          type: integer
+        uploadId:
+          type: integer
+        uploadedByContactId:
+          type: integer
+          nullable: true
+        uploadedByName:
+          type: string
+          nullable: true
+          description: Who sent it, resolved for display. Null when staff added it.
+        caption:
+          type: string
+          nullable: true
+        cropX:
+          type: number
+          nullable: true
+        cropY:
+          type: number
+          nullable: true
+        cropWidth:
+          type: number
+          nullable: true
+        cropHeight:
+          type: number
+          nullable: true
+        position:
+          type: integer
+        status:
+          type: string
+          enum: [visible, hidden]
+        selected:
+          type: boolean
+          description: Whether this one runs in the slideshow.
+        isPortrait:
+          type: boolean
+        isReference:
+          type: boolean
+          description: The photograph given to whoever does hair and cosmetics.
+        createdAt:
+          type: string
+          format: date-time
+      required:
+        [
+          id,
+          caseId,
+          uploadId,
+          uploadedByContactId,
+          uploadedByName,
+          caption,
+          cropX,
+          cropY,
+          cropWidth,
+          cropHeight,
+          position,
+          status,
+          selected,
+          isPortrait,
+          isReference,
+          createdAt,
+        ]
+
+    PhotoUpdate:
+      type: object
+      properties:
+        caption:
+          type: string
+          nullable: true
+        status:
+          type: string
+          enum: [visible, hidden]
+        cropX:
+          type: number
+          minimum: 0
+          maximum: 1
+        cropY:
+          type: number
+          minimum: 0
+          maximum: 1
+        cropWidth:
+          type: number
+          minimum: 0
+          maximum: 1
+        cropHeight:
+          type: number
+          minimum: 0
+          maximum: 1
+
+    FamilyPhotoUpdate:
+      type: object
+      properties:
+        caption:
+          type: string
+          nullable: true
+        cropX:
+          type: number
+          minimum: 0
+          maximum: 1
+        cropY:
+          type: number
+          minimum: 0
+          maximum: 1
+        cropWidth:
+          type: number
+          minimum: 0
+          maximum: 1
+        cropHeight:
+          type: number
+          minimum: 0
+          maximum: 1
+
+    PhotoSelectionInput:
+      type: object
+      properties:
+        photoIds:
+          type: array
+          description: In slideshow order. Anything omitted is deselected.
+          items:
+            type: integer
+      required: [photoIds]
+
+    PhotoIdInput:
+      type: object
+      properties:
+        photoId:
+          type: integer
+      required: [photoId]
+
+    PhotoOrderInput:
+      type: object
+      properties:
+        photoIds:
+          type: array
+          items:
+            type: integer
+      required: [photoIds]
+
+    PortraitInput:
+      type: object
+      properties:
+        photoId:
+          type: integer
+        cropX:
+          type: number
+          minimum: 0
+          maximum: 1
+        cropY:
+          type: number
+          minimum: 0
+          maximum: 1
+        cropWidth:
+          type: number
+          minimum: 0
+          maximum: 1
+        cropHeight:
+          type: number
+          minimum: 0
+          maximum: 1
+      required: [photoId]
+
+    UploadInput:
+      type: object
+      properties:
+        file:
+          type: string
+          format: binary
+      required: [file]
+
+    FamilyPhotoUploadInput:
+      type: object
+      properties:
+        file:
+          type: string
+          format: binary
+        caption:
+          type: string
+      required: [file]
+
+    CsvUploadInput:
+      type: object
+      properties:
+        file:
+          type: string
+          format: binary
+      required: [file]
+
+    ImportRowIssue:
+      type: object
+      properties:
+        row:
+          type: integer
+          description: Line number in the file, counting the header as line 1.
+        message:
+          type: string
+      required: [row, message]
+
+    ImportPreviewRow:
+      type: object
+      properties:
+        row:
+          type: integer
+        decedentName:
+          type: string
+        serviceAt:
+          type: string
+          format: date-time
+          nullable: true
+        contactName:
+          type: string
+          nullable: true
+        contactPhone:
+          type: string
+          nullable: true
+        duplicate:
+          type: boolean
+          description: A case is already open for this person.
+      required: [row, decedentName, serviceAt, contactName, contactPhone, duplicate]
+
+    ImportPreview:
+      type: object
+      properties:
+        headers:
+          type: array
+          items:
+            type: string
+        mapping:
+          type: object
+          additionalProperties:
+            type: string
+            nullable: true
+          description: Which incoming column feeds each of our fields.
+        unmapped:
+          type: array
+          description: Columns we did not recognise. Harmless, but worth seeing.
+          items:
+            type: string
+        totalRows:
+          type: integer
+        wouldCreate:
+          type: integer
+        wouldSkip:
+          type: integer
+        rows:
+          type: array
+          items:
+            $ref: "#/components/schemas/ImportPreviewRow"
+        issues:
+          type: array
+          items:
+            $ref: "#/components/schemas/ImportRowIssue"
+      required:
+        [headers, mapping, unmapped, totalRows, wouldCreate, wouldSkip, rows, issues]
+
+    ImportResult:
+      type: object
+      properties:
+        created:
+          type: integer
+        skipped:
+          type: integer
+        issues:
+          type: array
+          items:
+            $ref: "#/components/schemas/ImportRowIssue"
+        caseIds:
+          type: array
+          items:
+            type: integer
+      required: [created, skipped, issues, caseIds]
+
+    UploadSummary:
+      type: object
+      properties:
+        id:
+          type: integer
+        filename:
+          type: string
+        mimeType:
+          type: string
+        sizeBytes:
+          type: integer
+        createdAt:
+          type: string
+          format: date-time
+      required: [id, filename, mimeType, sizeBytes, createdAt]
+
+    # --------------------------------------------------------------- print --
+
+    TemplateSlot:
+      type: object
+      properties:
+        key:
+          type: string
+        label:
+          type: string
+        kind:
+          type: string
+          enum: [text, longText, photo, date]
+        hint:
+          type: string
+          nullable: true
+        from:
+          type: string
+          nullable: true
+          description: Which case detail fills this slot when left blank.
+        maxLength:
+          type: integer
+          nullable: true
+      required: [key, label, kind, hint, from, maxLength]
+
+    PrintTemplate:
+      type: object
+      properties:
+        key:
+          type: string
+        name:
+          type: string
+        description:
+          type: string
+        width:
+          type: number
+        height:
+          type: number
+        panels:
+          type: integer
+        perSheet:
+          type: integer
+        slots:
+          type: array
+          items:
+            $ref: "#/components/schemas/TemplateSlot"
+      required: [key, name, description, width, height, panels, perSheet, slots]
+
+    Snippet:
+      type: object
+      properties:
+        id:
+          type: integer
+        kind:
+          type: string
+          enum: [verse, prayer, poem, reading, closing, hymn]
+        title:
+          type: string
+        body:
+          type: string
+        attribution:
+          type: string
+          nullable: true
+        clearedForPrint:
+          type: boolean
+        position:
+          type: integer
+      required: [id, kind, title, body, attribution, clearedForPrint, position]
+
+    SnippetInput:
+      type: object
+      properties:
+        kind:
+          type: string
+          enum: [verse, prayer, poem, reading, closing, hymn]
+        title:
+          type: string
+          minLength: 1
+        body:
+          type: string
+          minLength: 1
+        attribution:
+          type: string
+          nullable: true
+        clearedForPrint:
+          type: boolean
+      required: [title, body]
+
+    PrintItem:
+      type: object
+      properties:
+        id:
+          type: integer
+        caseId:
+          type: integer
+        templateKey:
+          type: string
+        templateName:
+          type: string
+        title:
+          type: string
+          nullable: true
+        photoId:
+          type: integer
+          nullable: true
+        photoUploadId:
+          type: integer
+          nullable: true
+        values:
+          type: object
+          additionalProperties:
+            type: string
+        resolved:
+          type: object
+          additionalProperties:
+            type: string
+          description: Slots with the case's own details filled in.
+        quantity:
+          type: integer
+          nullable: true
+        status:
+          type: string
+          enum: [draft, proof, approved]
+        sharedWithFamily:
+          type: boolean
+        approvedAt:
+          type: string
+          format: date-time
+          nullable: true
+        updatedAt:
+          type: string
+          format: date-time
+      required:
+        [
+          id,
+          caseId,
+          templateKey,
+          templateName,
+          title,
+          photoId,
+          photoUploadId,
+          values,
+          resolved,
+          quantity,
+          status,
+          sharedWithFamily,
+          approvedAt,
+          updatedAt,
+        ]
+
+    PrintItemInput:
+      type: object
+      properties:
+        templateKey:
+          type: string
+        title:
+          type: string
+          nullable: true
+      required: [templateKey]
+
+    PrintItemUpdate:
+      type: object
+      properties:
+        title:
+          type: string
+          nullable: true
+        photoId:
+          type: integer
+          nullable: true
+        values:
+          type: object
+          additionalProperties:
+            type: string
+        quantity:
+          type: integer
+          nullable: true
+        status:
+          type: string
+          enum: [draft, proof, approved]
+        sharedWithFamily:
+          type: boolean
+
+    # ------------------------------------------------------------- vendors --
+
+    Vendor:
+      type: object
+      properties:
+        id:
+          type: integer
+        kind:
+          type: string
+          enum: [monument, cemetery, casket, urn, clergy, celebrant, florist, musician, caterer, transport, other]
+        name:
+          type: string
+        contactName:
+          type: string
+          nullable: true
+        phone:
+          type: string
+          nullable: true
+        email:
+          type: string
+          nullable: true
+        website:
+          type: string
+          nullable: true
+        addressLine1:
+          type: string
+          nullable: true
+        city:
+          type: string
+          nullable: true
+        region:
+          type: string
+          nullable: true
+        postalCode:
+          type: string
+          nullable: true
+        specialisms:
+          type: string
+          nullable: true
+        languages:
+          type: string
+          nullable: true
+        notes:
+          type: string
+          nullable: true
+        visibleToFamily:
+          type: boolean
+        preferred:
+          type: boolean
+        source:
+          type: string
+          enum: [home, places, gnis]
+        distanceMiles:
+          type: number
+          nullable: true
+          description: From the ZIP searched near, when one was given.
+      required:
+        [
+          id,
+          kind,
+          name,
+          contactName,
+          phone,
+          email,
+          website,
+          addressLine1,
+          city,
+          region,
+          postalCode,
+          specialisms,
+          languages,
+          notes,
+          visibleToFamily,
+          preferred,
+          source,
+          distanceMiles,
+        ]
+
+    VendorInput:
+      type: object
+      properties:
+        kind:
+          type: string
+          enum: [monument, cemetery, casket, urn, clergy, celebrant, florist, musician, caterer, transport, other]
+        name:
+          type: string
+          minLength: 1
+        contactName:
+          type: string
+          nullable: true
+        phone:
+          type: string
+          nullable: true
+        email:
+          type: string
+          nullable: true
+        website:
+          type: string
+          nullable: true
+        addressLine1:
+          type: string
+          nullable: true
+        city:
+          type: string
+          nullable: true
+        region:
+          type: string
+          nullable: true
+        postalCode:
+          type: string
+          nullable: true
+        specialisms:
+          type: string
+          nullable: true
+        languages:
+          type: string
+          nullable: true
+        notes:
+          type: string
+          nullable: true
+        visibleToFamily:
+          type: boolean
+        preferred:
+          type: boolean
+        source:
+          type: string
+          enum: [home, places, gnis]
+        sourceRef:
+          type: string
+          nullable: true
+      required: [kind, name]
+
+    VendorUpdate:
+      allOf:
+        - $ref: "#/components/schemas/VendorInput"
+        - type: object
+          properties:
+            archived:
+              type: boolean
+
+    PlaceLookup:
+      type: object
+      description: |
+        Candidates from a live provider. `configured` is false when the home
+        has not connected one, which is a different thing from finding nothing
+        and is reported as such.
+      properties:
+        configured:
+          type: boolean
+        provider:
+          type: string
+          nullable: true
+        results:
+          type: array
+          items:
+            $ref: "#/components/schemas/PlaceCandidate"
+        message:
+          type: string
+          nullable: true
+      required: [configured, provider, results, message]
+
+    PlaceCandidate:
+      type: object
+      properties:
+        sourceRef:
+          type: string
+        name:
+          type: string
+        phone:
+          type: string
+          nullable: true
+        website:
+          type: string
+          nullable: true
+        addressLine1:
+          type: string
+          nullable: true
+        city:
+          type: string
+          nullable: true
+        region:
+          type: string
+          nullable: true
+        postalCode:
+          type: string
+          nullable: true
+        distanceMiles:
+          type: number
+          nullable: true
+        alreadySaved:
+          type: boolean
+      required:
+        [sourceRef, name, phone, website, addressLine1, city, region, postalCode, distanceMiles, alreadySaved]
+
+    VendorQuote:
+      type: object
+      properties:
+        id:
+          type: integer
+        caseId:
+          type: integer
+        vendorId:
+          type: integer
+        vendorName:
+          type: string
+        vendorKind:
+          type: string
+        vendorPhone:
+          type: string
+          nullable: true
+        request:
+          type: string
+          nullable: true
+        status:
+          type: string
+          enum: [requested, passed_on, quoted, declined, chosen]
+        quotedAmountCents:
+          type: integer
+          nullable: true
+        response:
+          type: string
+          nullable: true
+        requestedByName:
+          type: string
+          nullable: true
+        respondedAt:
+          type: string
+          format: date-time
+          nullable: true
+        createdAt:
+          type: string
+          format: date-time
+      required:
+        [
+          id,
+          caseId,
+          vendorId,
+          vendorName,
+          vendorKind,
+          vendorPhone,
+          request,
+          status,
+          quotedAmountCents,
+          response,
+          requestedByName,
+          respondedAt,
+          createdAt,
+        ]
+
+    QuoteRequestInput:
+      type: object
+      properties:
+        vendorId:
+          type: integer
+        request:
+          type: string
+          nullable: true
+      required: [vendorId]
+
+    QuoteUpdate:
+      type: object
+      properties:
+        status:
+          type: string
+          enum: [requested, passed_on, quoted, declined, chosen]
+        quotedAmountCents:
+          type: integer
+          nullable: true
+        response:
+          type: string
+          nullable: true
+
+    PostalCodeInput:
+      type: object
+      properties:
+        postalCode:
+          type: string
+      required: [postalCode]
+
+    PostalCodeResult:
+      type: object
+      properties:
+        postalCode:
+          type: string
+          nullable: true
+        recognised:
+          type: boolean
+          description: Whether it matched a known US ZIP, so distances will work.
+      required: [postalCode, recognised]
+
+    # ---------------------------------------------------------- belongings --
+
+    Belonging:
+      type: object
+      properties:
+        id:
+          type: integer
+        caseId:
+          type: integer
+        kind:
+          type: string
+          enum:
+            [clothing, undergarments, shoes, jewellery, glasses, dentures, keepsake, photograph, other]
+        description:
+          type: string
+        disposition:
+          type: string
+          enum: [undecided, with_deceased, return_to_family]
+        status:
+          type: string
+          enum: [expected, received, with_deceased, returned]
+        photoUploadId:
+          type: integer
+          nullable: true
+        notes:
+          type: string
+          nullable: true
+        receivedAt:
+          type: string
+          format: date-time
+          nullable: true
+        receivedByName:
+          type: string
+          nullable: true
+        returnedAt:
+          type: string
+          format: date-time
+          nullable: true
+        returnedToName:
+          type: string
+          nullable: true
+        position:
+          type: integer
+      required:
+        [
+          id,
+          caseId,
+          kind,
+          description,
+          disposition,
+          status,
+          photoUploadId,
+          notes,
+          receivedAt,
+          receivedByName,
+          returnedAt,
+          returnedToName,
+          position,
+        ]
+
+    BelongingInput:
+      type: object
+      properties:
+        kind:
+          type: string
+          enum:
+            [clothing, undergarments, shoes, jewellery, glasses, dentures, keepsake, photograph, other]
+        description:
+          type: string
+          minLength: 1
+        disposition:
+          type: string
+          enum: [undecided, with_deceased, return_to_family]
+        notes:
+          type: string
+          nullable: true
+      required: [description]
+
+    BelongingUpdate:
+      type: object
+      properties:
+        kind:
+          type: string
+          enum:
+            [clothing, undergarments, shoes, jewellery, glasses, dentures, keepsake, photograph, other]
+        description:
+          type: string
+          minLength: 1
+        disposition:
+          type: string
+          enum: [undecided, with_deceased, return_to_family]
+        status:
+          type: string
+          enum: [expected, received, with_deceased, returned]
+        notes:
+          type: string
+          nullable: true
+        photoUploadId:
+          type: integer
+          nullable: true
+        returnedToName:
+          type: string
+          nullable: true
+        position:
+          type: integer
+
+    FamilyBelongingUpdate:
+      type: object
+      properties:
+        kind:
+          type: string
+          enum:
+            [clothing, undergarments, shoes, jewellery, glasses, dentures, keepsake, photograph, other]
+        description:
+          type: string
+          minLength: 1
+        disposition:
+          type: string
+          enum: [undecided, with_deceased, return_to_family]
+        notes:
+          type: string
+          nullable: true
+
+    Preparation:
+      type: object
+      properties:
+        caseId:
+          type: integer
+        hairNotes:
+          type: string
+          nullable: true
+        cosmeticsNotes:
+          type: string
+          nullable: true
+        nailNotes:
+          type: string
+          nullable: true
+        glassesWorn:
+          type: boolean
+          nullable: true
+        dentures:
+          type: boolean
+          nullable: true
+        jewelleryNotes:
+          type: string
+          nullable: true
+        otherNotes:
+          type: string
+          nullable: true
+        referencePhotoUploadId:
+          type: integer
+          nullable: true
+          description: The upload behind the chosen reference photograph.
+        reviewedAt:
+          type: string
+          format: date-time
+          nullable: true
+        reviewedByName:
+          type: string
+          nullable: true
+      required:
+        [
+          caseId,
+          hairNotes,
+          cosmeticsNotes,
+          nailNotes,
+          glassesWorn,
+          dentures,
+          jewelleryNotes,
+          otherNotes,
+          referencePhotoUploadId,
+          reviewedAt,
+          reviewedByName,
+        ]
+
+    FamilyPreparationUpdate:
+      type: object
+      properties:
+        hairNotes:
+          type: string
+          nullable: true
+        cosmeticsNotes:
+          type: string
+          nullable: true
+        nailNotes:
+          type: string
+          nullable: true
+        glassesWorn:
+          type: boolean
+          nullable: true
+        dentures:
+          type: boolean
+          nullable: true
+        jewelleryNotes:
+          type: string
+          nullable: true
+        otherNotes:
+          type: string
+          nullable: true
+
+    PreparationUpdate:
+      allOf:
+        - $ref: "#/components/schemas/FamilyPreparationUpdate"
+        - type: object
+          properties:
+            reviewed:
+              type: boolean
+              description: Mark the sheet as read before it goes to the room.
+
+    # -------------------------------------------------------------- vitals --
+
+    VitalStatistics:
+      type: object
+      description: |
+        Everything the death certificate asks for. Free text throughout,
+        because the fields vary across more than fifty registration
+        jurisdictions and a dropdown missing the true answer produces a
+        confident wrong one.
+      properties:
+        caseId:
+          type: integer
+        legalFirstName:
+          type: string
+          nullable: true
+        legalMiddleName:
+          type: string
+          nullable: true
+        legalLastName:
+          type: string
+          nullable: true
+        nameAtBirth:
+          type: string
+          nullable: true
+        suffix:
+          type: string
+          nullable: true
+        dateOfBirth:
+          type: string
+          nullable: true
+        birthCity:
+          type: string
+          nullable: true
+        birthState:
+          type: string
+          nullable: true
+        birthCountry:
+          type: string
+          nullable: true
+        sex:
+          type: string
+          nullable: true
+        maritalStatus:
+          type: string
+          nullable: true
+        spouseName:
+          type: string
+          nullable: true
+        spouseNameAtBirth:
+          type: string
+          nullable: true
+        fatherFirstName:
+          type: string
+          nullable: true
+        fatherMiddleName:
+          type: string
+          nullable: true
+        fatherLastName:
+          type: string
+          nullable: true
+        motherFirstName:
+          type: string
+          nullable: true
+        motherMiddleName:
+          type: string
+          nullable: true
+        motherMaidenName:
+          type: string
+          nullable: true
+        occupation:
+          type: string
+          nullable: true
+        industry:
+          type: string
+          nullable: true
+        educationLevel:
+          type: string
+          nullable: true
+        raceEthnicity:
+          type: string
+          nullable: true
+        hispanicOrigin:
+          type: string
+          nullable: true
+        residenceLine1:
+          type: string
+          nullable: true
+        residenceCity:
+          type: string
+          nullable: true
+        residenceCounty:
+          type: string
+          nullable: true
+        residenceState:
+          type: string
+          nullable: true
+        residencePostalCode:
+          type: string
+          nullable: true
+        veteranBranch:
+          type: string
+          nullable: true
+        veteranServiceDates:
+          type: string
+          nullable: true
+        veteranDischargeDocument:
+          type: string
+          nullable: true
+        dispositionType:
+          type: string
+          nullable: true
+        dispositionPlace:
+          type: string
+          nullable: true
+        informantName:
+          type: string
+          nullable: true
+        informantRelationship:
+          type: string
+          nullable: true
+        informantPhone:
+          type: string
+          nullable: true
+        residenceInsideCityLimits:
+          type: boolean
+          nullable: true
+        veteran:
+          type: boolean
+          nullable: true
+        socialSecurityNumberMasked:
+          type: string
+          nullable: true
+          description: |
+            Last four digits only. The number itself is encrypted at rest and
+            is never returned by the API, to either side.
+        hasSocialSecurityNumber:
+          type: boolean
+        status:
+          type: string
+          enum: [collecting, submitted, verified]
+        submittedAt:
+          type: string
+          format: date-time
+          nullable: true
+        verifiedAt:
+          type: string
+          format: date-time
+          nullable: true
+        verifiedByName:
+          type: string
+          nullable: true
+        staffNotes:
+          type: string
+          nullable: true
+        missingForFiling:
+          type: array
+          description: Fields still needed before a certificate can be filed.
+          items:
+            type: string
+      required:
+        [caseId, socialSecurityNumberMasked, hasSocialSecurityNumber, status, submittedAt, verifiedAt, verifiedByName, staffNotes, missingForFiling]
+
+    VitalsFamilyUpdate:
+      type: object
+      properties:
+        legalFirstName:
+          type: string
+          nullable: true
+        legalMiddleName:
+          type: string
+          nullable: true
+        legalLastName:
+          type: string
+          nullable: true
+        nameAtBirth:
+          type: string
+          nullable: true
+        suffix:
+          type: string
+          nullable: true
+        dateOfBirth:
+          type: string
+          nullable: true
+        birthCity:
+          type: string
+          nullable: true
+        birthState:
+          type: string
+          nullable: true
+        birthCountry:
+          type: string
+          nullable: true
+        sex:
+          type: string
+          nullable: true
+        maritalStatus:
+          type: string
+          nullable: true
+        spouseName:
+          type: string
+          nullable: true
+        spouseNameAtBirth:
+          type: string
+          nullable: true
+        fatherFirstName:
+          type: string
+          nullable: true
+        fatherMiddleName:
+          type: string
+          nullable: true
+        fatherLastName:
+          type: string
+          nullable: true
+        motherFirstName:
+          type: string
+          nullable: true
+        motherMiddleName:
+          type: string
+          nullable: true
+        motherMaidenName:
+          type: string
+          nullable: true
+        occupation:
+          type: string
+          nullable: true
+        industry:
+          type: string
+          nullable: true
+        educationLevel:
+          type: string
+          nullable: true
+        raceEthnicity:
+          type: string
+          nullable: true
+        hispanicOrigin:
+          type: string
+          nullable: true
+        residenceLine1:
+          type: string
+          nullable: true
+        residenceCity:
+          type: string
+          nullable: true
+        residenceCounty:
+          type: string
+          nullable: true
+        residenceState:
+          type: string
+          nullable: true
+        residencePostalCode:
+          type: string
+          nullable: true
+        veteranBranch:
+          type: string
+          nullable: true
+        veteranServiceDates:
+          type: string
+          nullable: true
+        veteranDischargeDocument:
+          type: string
+          nullable: true
+        dispositionType:
+          type: string
+          nullable: true
+        dispositionPlace:
+          type: string
+          nullable: true
+        informantName:
+          type: string
+          nullable: true
+        informantRelationship:
+          type: string
+          nullable: true
+        informantPhone:
+          type: string
+          nullable: true
+        residenceInsideCityLimits:
+          type: boolean
+          nullable: true
+        veteran:
+          type: boolean
+          nullable: true
+        socialSecurityNumber:
+          type: string
+          nullable: true
+          description: Nine digits. Stored encrypted and never read back.
+
+    VitalsStaffUpdate:
+      allOf:
+        - $ref: "#/components/schemas/VitalsFamilyUpdate"
+        - type: object
+          properties:
+            staffNotes:
+              type: string
+              nullable: true
+            verified:
+              type: boolean
+
+    # ------------------------------------------------------------ obituary --
+
+    ObituaryDraft:
+      type: object
+      properties:
+        id:
+          type: integer
+        caseId:
+          type: integer
+        fullName:
+          type: string
+          nullable: true
+        bornOn:
+          type: string
+          nullable: true
+        birthPlace:
+          type: string
+          nullable: true
+        diedOn:
+          type: string
+          nullable: true
+        deathPlace:
+          type: string
+          nullable: true
+        survivedBy:
+          type: string
+          nullable: true
+        precededBy:
+          type: string
+          nullable: true
+        biography:
+          type: string
+          nullable: true
+        inLieuOfFlowers:
+          type: string
+          nullable: true
+        specialThanks:
+          type: string
+          nullable: true
+        draftText:
+          type: string
+          nullable: true
+        draftEditedByStaff:
+          type: string
+          format: date-time
+          nullable: true
+        status:
+          type: string
+          enum: [family_draft, submitted, approved]
+        submittedAt:
+          type: string
+          format: date-time
+          nullable: true
+        approvedAt:
+          type: string
+          format: date-time
+          nullable: true
+        updatedAt:
+          type: string
+          format: date-time
+      required:
+        [
+          id,
+          caseId,
+          fullName,
+          bornOn,
+          birthPlace,
+          diedOn,
+          deathPlace,
+          survivedBy,
+          precededBy,
+          biography,
+          inLieuOfFlowers,
+          specialThanks,
+          draftText,
+          draftEditedByStaff,
+          status,
+          submittedAt,
+          approvedAt,
+          updatedAt,
+        ]
+
+    ObituaryFieldsInput:
+      type: object
+      properties:
+        fullName:
+          type: string
+          nullable: true
+        bornOn:
+          type: string
+          nullable: true
+        birthPlace:
+          type: string
+          nullable: true
+        diedOn:
+          type: string
+          nullable: true
+        deathPlace:
+          type: string
+          nullable: true
+        survivedBy:
+          type: string
+          nullable: true
+        precededBy:
+          type: string
+          nullable: true
+        biography:
+          type: string
+          nullable: true
+        inLieuOfFlowers:
+          type: string
+          nullable: true
+        specialThanks:
+          type: string
+          nullable: true
+
+    ObituaryUpdate:
+      allOf:
+        - $ref: "#/components/schemas/ObituaryFieldsInput"
+        - type: object
+          properties:
+            draftText:
+              type: string
+              nullable: true
+
+    ComposeObituaryInput:
+      type: object
+      properties:
+        force:
+          type: boolean
+          description: Recompose even though staff have hand-edited the text.
+
+    # ---------------------------------------------------------- selections --
+
+    ServiceSelection:
+      type: object
+      properties:
+        id:
+          type: integer
+        caseId:
+          type: integer
+        kind:
+          type: string
+          enum: [hymn, reading, music, pallbearer, eulogist, other]
+        value:
+          type: string
+        notes:
+          type: string
+          nullable: true
+        attribution:
+          type: string
+          nullable: true
+        position:
+          type: integer
+        confirmedAt:
+          type: string
+          format: date-time
+          nullable: true
+        createdAt:
+          type: string
+          format: date-time
+      required:
+        [id, caseId, kind, value, notes, attribution, position, confirmedAt, createdAt]
+
+    SelectionInput:
+      type: object
+      properties:
+        kind:
+          type: string
+          enum: [hymn, reading, music, pallbearer, eulogist, other]
+        value:
+          type: string
+          minLength: 1
+        notes:
+          type: string
+          nullable: true
+        attribution:
+          type: string
+          nullable: true
+      required: [kind, value]
+
+    SelectionUpdate:
+      type: object
+      properties:
+        kind:
+          type: string
+          enum: [hymn, reading, music, pallbearer, eulogist, other]
+        value:
+          type: string
+          minLength: 1
+        notes:
+          type: string
+          nullable: true
+        attribution:
+          type: string
+          nullable: true
+        position:
+          type: integer
+        confirmed:
+          type: boolean
+
+    # ------------------------------------------------------------ messages --
+
+    CaseMessage:
+      type: object
+      properties:
+        id:
+          type: integer
+        caseId:
+          type: integer
+        body:
+          type: string
+        authorSide:
+          type: string
+          enum: [home, family]
+          description: |
+            Which side wrote it, derived on the server from which author
+            column is set rather than stored, so the two cannot disagree.
+        authorName:
+          type: string
+          nullable: true
+        authorTitle:
+          type: string
+          nullable: true
+        sentOutsideOfficeHours:
+          type: boolean
+        readAt:
+          type: string
+          format: date-time
+          nullable: true
+        createdAt:
+          type: string
+          format: date-time
+      required:
+        [
+          id,
+          caseId,
+          body,
+          authorSide,
+          authorName,
+          authorTitle,
+          sentOutsideOfficeHours,
+          readAt,
+          createdAt,
+        ]
+
+    MessageThread:
+      type: object
+      description: |
+        The thread plus the state the UI needs to say something honest about
+        it: whether it is locked, and whether a message written now would land
+        outside office hours.
+      properties:
+        messages:
+          type: array
+          items:
+            $ref: "#/components/schemas/CaseMessage"
+        locked:
+          type: boolean
+        lockedAt:
+          type: string
+          format: date-time
+          nullable: true
+        withinOfficeHours:
+          type: boolean
+        officeOpensMinute:
+          type: integer
+        officeClosesMinute:
+          type: integer
+        timezone:
+          type: string
+        urgentPhone:
+          type: string
+          nullable: true
+      required:
+        [
+          messages,
+          locked,
+          lockedAt,
+          withinOfficeHours,
+          officeOpensMinute,
+          officeClosesMinute,
+          timezone,
+          urgentPhone,
+        ]
+
+    MessageInput:
+      type: object
+      properties:
+        body:
+          type: string
+          minLength: 1
+      required: [body]
+
+    # ----------------------------------------------------------- deadlines --
+
+    CaseDeadline:
+      type: object
+      properties:
+        id:
+          type: integer
+        caseId:
+          type: integer
+        title:
+          type: string
+        description:
+          type: string
+          nullable: true
+        dueAt:
+          type: string
+          format: date-time
+        isEvent:
+          type: boolean
+        completedAt:
+          type: string
+          format: date-time
+          nullable: true
+        completedByName:
+          type: string
+          nullable: true
+        position:
+          type: integer
+      required:
+        [id, caseId, title, description, dueAt, isEvent, completedAt, completedByName, position]
+
+    DeadlineInput:
+      type: object
+      properties:
+        title:
+          type: string
+          minLength: 1
+        description:
+          type: string
+          nullable: true
+        dueAt:
+          type: string
+          format: date-time
+        isEvent:
+          type: boolean
+      required: [title, dueAt]
+
+    DeadlineUpdate:
+      type: object
+      properties:
+        title:
+          type: string
+          minLength: 1
+        description:
+          type: string
+          nullable: true
+        dueAt:
+          type: string
+          format: date-time
+        isEvent:
+          type: boolean
+        completed:
+          type: boolean
+        position:
+          type: integer
+
+    CompleteDeadlineInput:
+      type: object
+      properties:
+        completed:
+          type: boolean
+      required: [completed]
+
+    # ----------------------------------------------------------- aftercare --
+
+    AftercareEnrollment:
+      type: object
+      properties:
+        id:
+          type: integer
+        caseId:
+          type: integer
+        contactId:
+          type: integer
+        contactName:
+          type: string
+          nullable: true
+        email:
+          type: string
+          nullable: true
+        phone:
+          type: string
+          nullable: true
+        brandedAs:
+          type: string
+        status:
+          type: string
+          enum: [pending, active, done]
+        startsAt:
+          type: string
+          format: date-time
+        consentedAt:
+          type: string
+          format: date-time
+          nullable: true
+        unsubscribedAt:
+          type: string
+          format: date-time
+          nullable: true
+        deliveries:
+          type: array
+          items:
+            $ref: "#/components/schemas/AftercareDelivery"
+      required:
+        [
+          id,
+          caseId,
+          contactId,
+          contactName,
+          email,
+          phone,
+          brandedAs,
+          status,
+          startsAt,
+          consentedAt,
+          unsubscribedAt,
+          deliveries,
+        ]
+
+    AftercareDelivery:
+      type: object
+      properties:
+        id:
+          type: integer
+        dayOffset:
+          type: integer
+        dueAt:
+          type: string
+          format: date-time
+        sentAt:
+          type: string
+          format: date-time
+          nullable: true
+        failedAt:
+          type: string
+          format: date-time
+          nullable: true
+      required: [id, dayOffset, dueAt, sentAt, failedAt]
+
+    AftercareConsentInput:
+      type: object
+      properties:
+        consent:
+          type: boolean
+        email:
+          type: string
+          nullable: true
+      required: [consent]
+
+    # -------------------------------------------------------------- family --
+
+    FamilySession:
+      type: object
+      description: |
+        Everything the family portal needs on first load, in one call - the
+        portal is opened on a phone, on mobile data, at a kitchen table, and
+        four round trips before anything renders is four chances to look
+        broken.
+      properties:
+        contact:
+          $ref: "#/components/schemas/FamilyContact"
+        home:
+          $ref: "#/components/schemas/PublicFuneralHome"
+        case:
+          $ref: "#/components/schemas/Case"
+        leadDirector:
+          oneOf:
+            - $ref: "#/components/schemas/StaffSignature"
+            - type: "null"
+        photoCount:
+          type: integer
+        photoLimit:
+          type: integer
+        selectedPhotoCount:
+          type: integer
+        slideshowTarget:
+          type: integer
+          description: A recommendation for a watchable slideshow, never enforced.
+        obituaryStatus:
+          type: string
+          enum: [family_draft, submitted, approved]
+        outstandingDeadlines:
+          type: integer
+        unreadMessages:
+          type: integer
+        messagesLocked:
+          type: boolean
+        awaitingServiceChoice:
+          type: boolean
+          description: |
+            The home has offered times and nobody has picked one. The single
+            thing on this screen that somebody else is waiting on, so the
+            portal puts it above everything else.
+        aftercare:
+          oneOf:
+            - $ref: "#/components/schemas/AftercareEnrollment"
+            - type: "null"
+      required:
+        [
+          contact,
+          home,
+          case,
+          leadDirector,
+          photoCount,
+          photoLimit,
+          selectedPhotoCount,
+          slideshowTarget,
+          obituaryStatus,
+          outstandingDeadlines,
+          unreadMessages,
+          messagesLocked,
+          awaitingServiceChoice,
+          aftercare,
+        ]

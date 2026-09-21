@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Holding Today — Console</title>
+    <meta
+      name="description"
+      content="The console funeral directors work cases from."
+    />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+
+    <!--
+      Deliberately no Open Graph tags and no indexing. A link to this portal
+      gets forwarded round a family by text message, and a preview card
+      naming someone who has just died - or a search engine indexing it -
+      would be a private grief made public by a detail nobody chose.
+    -->
+    <meta name="robots" content="noindex, nofollow" />
+
+    <!--
+      The colour of the phone's status bar above the header. Replaced at
+      runtime with the funeral home's own, once we know whose portal this
+      is; this is the default header colour, so the strip is never white
+      above a coloured header even for the first paint.
+    -->
+    <meta name="theme-color" content="#14332e" />
+
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>
