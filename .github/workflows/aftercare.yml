@@ -27,6 +27,9 @@ concurrency:
   group: aftercare
   cancel-in-progress: false
 
+# No checkout, no push, no PR/issue access — just one authenticated curl.
+permissions: {}
+
 jobs:
   send:
     runs-on: ubuntu-latest

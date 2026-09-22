@@ -15,9 +15,10 @@
  * you cannot.
  */
 import { spawn } from "node:child_process";
-import { readdir, stat, readFile } from "node:fs/promises";
+import { readdir, stat, readFile, rm } from "node:fs/promises";
 import path from "node:path";
 import pg from "pg";
+import { decryptFile, isEncryptedBackupName } from "./backup-crypto";
 
 const DATABASE_URL = process.env.DATABASE_URL;
 const VERIFY_DATABASE_URL = process.env.VERIFY_DATABASE_URL;
@@ -75,7 +76,15 @@ function psql(url: string, file: string): Promise<void> {
   return new Promise((resolve, reject) => {
     const child = spawn(
       "psql",
-      ["--quiet", "--no-psqlrc", "--set", "ON_ERROR_STOP=1", "--file", file, url],
+      [
+        "--quiet",
+        "--no-psqlrc",
+        "--set",
+        "ON_ERROR_STOP=1",
+        "--file",
+        file,
+        url,
+      ],
       { stdio: ["ignore", "ignore", "inherit"] },
     );
     child.on("error", reject);
@@ -88,7 +97,7 @@ function psql(url: string, file: string): Promise<void> {
 /** The most recent finished dump. Partials are ignored by the pattern. */
 async function newestDump(dir: string): Promise<string> {
   const entries = (await readdir(dir)).filter((name) =>
-    /^holding-today-\d.*\.sql$/.test(name),
+    /^holding-today-\d.*\.sql(\.enc)?$/.test(name),
   );
 
   if (entries.length === 0) fail(`No backups found in ${dir}.`);
@@ -124,19 +133,38 @@ async function main(): Promise<void> {
 
   if (!info || info.size === 0) fail(`${file} is missing or empty.`);
 
-  const head = (await readFile(file)).subarray(0, 4096).toString("utf8");
-  if (!head.includes("PostgreSQL database dump")) {
-    fail(`${file} does not look like a pg_dump.`);
+  const encrypted = isEncryptedBackupName(file);
+  const dumpFile = encrypted ? `${file}.verify-${process.pid}.tmp` : file;
+
+  let live: Record<string, number>;
+  let restored: Record<string, number>;
+  try {
+    if (encrypted) {
+      console.log("Decrypting…");
+      await decryptFile(file, dumpFile);
+    }
+
+    const dumpInfo = encrypted ? await stat(dumpFile) : info;
+
+    const head = (await readFile(dumpFile)).subarray(0, 4096).toString("utf8");
+    if (!head.includes("PostgreSQL database dump")) {
+      throw new Error(`${file} does not look like a pg_dump.`);
+    }
+
+    console.log(
+      `Verifying ${path.basename(file)} (${(dumpInfo.size / 1024 / 1024).toFixed(1)} MB` +
+        `${encrypted ? ", decrypted" : ""})`,
+    );
+
+    live = await counts(DATABASE_URL);
+
+    console.log("Restoring into the scratch database…");
+    await psql(VERIFY_DATABASE_URL, dumpFile);
+
+    restored = await counts(VERIFY_DATABASE_URL);
+  } finally {
+    if (encrypted) await rm(dumpFile, { force: true }).catch(() => {});
   }
-
-  console.log(`Verifying ${path.basename(file)} (${(info.size / 1024 / 1024).toFixed(1)} MB)`);
-
-  const live = await counts(DATABASE_URL);
-
-  console.log("Restoring into the scratch database…");
-  await psql(VERIFY_DATABASE_URL, file);
-
-  const restored = await counts(VERIFY_DATABASE_URL);
 
   let mismatches = 0;
   let total = 0;
@@ -148,7 +176,9 @@ async function main(): Promise<void> {
 
     if (before !== after) {
       mismatches += 1;
-      console.error(`  ${table}: live ${before}, restored ${after}  ← MISMATCH`);
+      console.error(
+        `  ${table}: live ${before}, restored ${after}  ← MISMATCH`,
+      );
     } else {
       console.log(`  ${table}: ${after}`);
     }

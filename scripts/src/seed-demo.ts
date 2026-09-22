@@ -11,6 +11,13 @@
  * The data is obviously invented: a fictional home, a fictional family, and
  * a generated photograph rather than anybody's. Nothing here should ever be
  * mistaken for a real case, so the names say so.
+ *
+ * It writes to whatever DATABASE_URL points at with no dry run and no undo,
+ * so it refuses to run against anything that isn't obviously a local or CI
+ * database unless told `--yes` — the same guard restore-database uses,
+ * because "seed-demo against the wrong DATABASE_URL" is the same failure
+ * as "restore against the wrong DATABASE_URL": a confident mistake, not a
+ * careful one.
  */
 import { randomBytes, createHash } from "node:crypto";
 import { eq } from "drizzle-orm";
@@ -39,6 +46,39 @@ const say = (message: string) => {
 
 const DAY = 24 * 60 * 60 * 1000;
 
+const LOCAL_HOSTS = new Set(["localhost", "127.0.0.1", "::1"]);
+
+/** Host and database only — never the password, which ends up in logs. */
+function describeTarget(url: string): string {
+  try {
+    const parsed = new URL(url);
+    return `${parsed.hostname}${parsed.port ? `:${parsed.port}` : ""}${parsed.pathname}`;
+  } catch {
+    return "(unparseable DATABASE_URL)";
+  }
+}
+
+function assertSafeTarget(): void {
+  const databaseUrl = process.env.DATABASE_URL ?? "";
+  const hostname = (() => {
+    try {
+      return new URL(databaseUrl).hostname;
+    } catch {
+      return "";
+    }
+  })();
+
+  if (LOCAL_HOSTS.has(hostname) || process.argv.includes("--yes")) return;
+
+  console.error(
+    `seed-demo: target is ${describeTarget(databaseUrl)}, which is not ` +
+      "localhost.\n" +
+      "This inserts a fake home, case and SSN into whatever DATABASE_URL " +
+      "points at. If that is really where you want demo data, add --yes.",
+  );
+  process.exit(1);
+}
+
 /**
  * A valid PNG, generated rather than checked in.
  *
@@ -58,6 +98,8 @@ function placeholderPng(): Buffer {
 }
 
 async function main(): Promise<void> {
+  assertSafeTarget();
+
   const [home] = await db
     .insert(funeralHomesTable)
     .values({
@@ -202,7 +244,9 @@ async function main(): Promise<void> {
   });
 
   say(`Seeded demo case ${row!.id} at "${home!.name}" (home ${home!.id}).`);
-  say("Nothing here is real. The demo account has no password and cannot sign in.");
+  say(
+    "Nothing here is real. The demo account has no password and cannot sign in.",
+  );
 }
 
 main()

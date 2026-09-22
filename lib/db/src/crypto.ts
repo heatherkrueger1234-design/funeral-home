@@ -42,6 +42,17 @@ export class MissingEncryptionKeyError extends Error {
   }
 }
 
+/**
+ * The fixed key CI and the test suite use (see .github/workflows/*.yml and
+ * artifacts/api-server/test/setup.ts). It is checked into version control,
+ * so it is not a secret from anyone with repo access — meaning it must never
+ * be the key actually protecting a production database. This is a real,
+ * valid 32-byte AES key, not a placeholder, so a copy-pasted CI snippet that
+ * ends up as a deployment's ENCRYPTION_KEY would fail silently otherwise:
+ * everything would encrypt and decrypt correctly, for anyone.
+ */
+const KNOWN_TEST_KEY = "BwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwc=";
+
 export function getEncryptionKey(): Buffer {
   if (cachedKey) return cachedKey;
 
@@ -49,6 +60,15 @@ export function getEncryptionKey(): Buffer {
 
   if (!raw) {
     throw new MissingEncryptionKeyError();
+  }
+
+  if (raw === KNOWN_TEST_KEY && process.env.NODE_ENV === "production") {
+    throw new Error(
+      "ENCRYPTION_KEY is set to the fixed key used by CI and the test " +
+        "suite. That value is public (it's in version control), so it " +
+        "cannot protect anything in production. Generate a real one:\n" +
+        "  node -e \"console.log(require('crypto').randomBytes(32).toString('base64'))\"",
+    );
   }
 
   const key = Buffer.from(raw, "base64");
@@ -202,11 +222,13 @@ export function decryptBuffer(stored: Buffer): Buffer {
 }
 
 /** Null-tolerant wrappers, since these columns are all nullable. */
-export const encryptNullable = (value: string | null | undefined): string | null =>
-  value == null || value === "" ? null : encrypt(value);
+export const encryptNullable = (
+  value: string | null | undefined,
+): string | null => (value == null || value === "" ? null : encrypt(value));
 
-export const decryptNullable = (value: string | null | undefined): string | null =>
-  value == null ? null : decrypt(value);
+export const decryptNullable = (
+  value: string | null | undefined,
+): string | null => (value == null ? null : decrypt(value));
 
 /** Exported for tests: proves two encryptions of the same input differ. */
 export function constantTimeEquals(a: Buffer, b: Buffer): boolean {

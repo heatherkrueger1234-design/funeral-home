@@ -19,6 +19,10 @@ on:
       - "scripts/src/verify-backup.ts"
       - "lib/db/**"
 
+# Checkout and a local Postgres service, nothing that writes back to GitHub.
+permissions:
+  contents: read
+
 jobs:
   drill:
     runs-on: ubuntu-latest
