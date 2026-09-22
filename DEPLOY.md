@@ -30,11 +30,13 @@ pnpm --filter @workspace/scripts run generate-encryption-key
 ```
 
 **`ENCRYPTION_KEY` is the one that cannot be recovered.** Every uploaded file
-and every social security number in the database and in every backup is
-AES-256-GCM under it. Lose it and the photographs are gone — the ciphertext is
-still there and is worth nothing. Changing it does not re-encrypt anything;
-existing files simply stop opening. Keep a copy somewhere that is neither this
-host nor the backup.
+and every social security number in the database is AES-256-GCM under it, and
+every backup file (`backup-database`'s `.sql.enc` output) is encrypted whole
+under the same key — not just those two columns. Lose it and the photographs
+are gone — the ciphertext is still there and is worth nothing. Changing it
+does not re-encrypt anything; existing files simply stop opening, and no
+existing backup will decrypt. Keep a copy somewhere that is neither this host
+nor the backup.
 
 ## Bring it up
 

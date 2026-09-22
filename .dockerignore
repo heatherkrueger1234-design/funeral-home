@@ -23,6 +23,7 @@ dist
 backups/
 *.sql
 *.sql.partial
+*.sql.enc
 
 .DS_Store
 Thumbs.db
