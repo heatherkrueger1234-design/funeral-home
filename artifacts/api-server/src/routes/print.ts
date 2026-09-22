@@ -1,4 +1,4 @@
-import { Router, type IRouter } from "express";
+import { Router, type IRouter, type Response } from "express";
 import { and, asc, desc, eq, isNull, max } from "drizzle-orm";
 import {
   db,
@@ -8,6 +8,7 @@ import {
   uploadsTable,
   type Case,
   type CasePrintItem,
+  type FuneralHome,
   type Snippet,
 } from "@workspace/db";
 import { decryptBuffer } from "@workspace/db/crypto";
@@ -382,30 +383,42 @@ async function dataUri(uploadId: number | null): Promise<string | null> {
   }
 }
 
-router.get("/print/:printItemId/render", async (req, res) => {
-  const home = tenant(req);
-  const existing = await loadPrintItem(req, req.params.printItemId);
-  const row = await caseFor(existing.caseId);
-
-  const template = findTemplate(existing.templateKey);
+/** Shared by the staff and family render endpoints: one card, one renderer. */
+export async function renderPrintItemHtml(
+  item: CasePrintItem,
+  row: Case,
+  home: FuneralHome,
+): Promise<string> {
+  const template = findTemplate(item.templateKey);
   if (!template) throw badRequest("That template no longer exists.");
 
-  const { uploadId } = await photoUploadFor(existing, row);
+  const { uploadId } = await photoUploadFor(item, row);
 
-  const html = renderPrintItem({
+  return renderPrintItem({
     template,
     case: row,
     home,
-    values: (existing.values ?? {}) as Record<string, string>,
+    values: (item.values ?? {}) as Record<string, string>,
     photoDataUri: await dataUri(uploadId),
     logoDataUri: await dataUri(home.logoUploadId),
   });
+}
 
+function sendRenderedHtml(res: Response, html: string) {
   res.setHeader("Content-Type", "text/html; charset=utf-8");
   res.setHeader("X-Content-Type-Options", "nosniff");
   // Self-contained and specific to one case: never cached by a shared proxy.
   res.setHeader("Cache-Control", "private, no-store");
   res.send(html);
+}
+
+router.get("/print/:printItemId/render", async (req, res) => {
+  const home = tenant(req);
+  const existing = await loadPrintItem(req, req.params.printItemId);
+  const row = await caseFor(existing.caseId);
+
+  sendRenderedHtml(res, await renderPrintItemHtml(existing, row, home));
 });
 
+export { sendRenderedHtml };
 export default router;
