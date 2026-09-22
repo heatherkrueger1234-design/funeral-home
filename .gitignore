@@ -61,3 +61,8 @@ Thumbs.db
 # everything anyone has written here; they must never reach the repo.
 /backups/
 *.sql.partial
+
+# Playwright, from artifacts/e2e-tests
+/playwright-report/
+/test-results/
+/blob-report/
