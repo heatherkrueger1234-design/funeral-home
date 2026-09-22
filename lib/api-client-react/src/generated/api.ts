@@ -12158,3 +12158,100 @@ export function useGetFamilyUpload<
 
   return { ...query, queryKey: queryOptions.queryKey };
 }
+
+/**
+ * Same document as the staff `renderPrintItem`, scoped to this case and
+to items the home has shared. Fetched as a blob and handed to the
+browser as an object URL — the portal has no cookie, only a bearer
+token, so a plain `<iframe src>` cannot carry the credential.
+
+ * @summary The rendered proof behind a shared print item
+ */
+export const getRenderFamilyPrintItemUrl = (printItemId: number) => {
+  return `/api/family/print/${printItemId}/render`;
+};
+
+export const renderFamilyPrintItem = async (
+  printItemId: number,
+  options?: RequestInit,
+): Promise<Blob> => {
+  return customFetch<Blob>(getRenderFamilyPrintItemUrl(printItemId), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getRenderFamilyPrintItemQueryKey = (printItemId: number) => {
+  return [`/api/family/print/${printItemId}/render`] as const;
+};
+
+export const getRenderFamilyPrintItemQueryOptions = <
+  TData = Awaited<ReturnType<typeof renderFamilyPrintItem>>,
+  TError = ErrorType<unknown>,
+>(
+  printItemId: number,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof renderFamilyPrintItem>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey =
+    queryOptions?.queryKey ?? getRenderFamilyPrintItemQueryKey(printItemId);
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof renderFamilyPrintItem>>
+  > = ({ signal }) =>
+    renderFamilyPrintItem(printItemId, { signal, ...requestOptions });
+
+  return {
+    queryKey,
+    queryFn,
+    enabled: !!printItemId,
+    ...queryOptions,
+  } as UseQueryOptions<
+    Awaited<ReturnType<typeof renderFamilyPrintItem>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type RenderFamilyPrintItemQueryResult = NonNullable<
+  Awaited<ReturnType<typeof renderFamilyPrintItem>>
+>;
+export type RenderFamilyPrintItemQueryError = ErrorType<unknown>;
+
+/**
+ * @summary The rendered proof behind a shared print item
+ */
+
+export function useRenderFamilyPrintItem<
+  TData = Awaited<ReturnType<typeof renderFamilyPrintItem>>,
+  TError = ErrorType<unknown>,
+>(
+  printItemId: number,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof renderFamilyPrintItem>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getRenderFamilyPrintItemQueryOptions(
+    printItemId,
+    options,
+  );
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}

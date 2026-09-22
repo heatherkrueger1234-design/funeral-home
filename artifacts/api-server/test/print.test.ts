@@ -282,6 +282,68 @@ describe("proofs", () => {
       .expect(200);
     expect(reopened.body.approvedAt).toBeNull();
   });
+
+  it("lets the family open the rendered card behind a shared proof", async () => {
+    const staff = await signUpHome();
+    const row = await createCase(staff, {
+      decedentFirstName: "Margaret",
+      decedentLastName: "Hale",
+    });
+    const { token } = await inviteFamily(staff, row.id);
+
+    const item = await staff.agent
+      .post(`/api/cases/${row.id}/print`)
+      .send({ templateKey: "prayer-card" })
+      .expect(201);
+
+    await staff.agent
+      .put(`/api/print/${item.body.id}`)
+      .send({ status: "proof", sharedWithFamily: true })
+      .expect(200);
+
+    const render = await asFamily(token)
+      .get(`/api/family/print/${item.body.id}/render`)
+      .expect(200);
+
+    expect(render.headers["content-type"]).toContain("text/html");
+    expect(render.text).toContain("Margaret Hale");
+  });
+
+  it("will not let the family open a card that has not been shared", async () => {
+    const staff = await signUpHome();
+    const row = await createCase(staff);
+    const { token } = await inviteFamily(staff, row.id);
+
+    const draft = await staff.agent
+      .post(`/api/cases/${row.id}/print`)
+      .send({ templateKey: "prayer-card" })
+      .expect(201);
+
+    await asFamily(token)
+      .get(`/api/family/print/${draft.body.id}/render`)
+      .expect(404);
+  });
+
+  it("will not let one family's link open another case's shared proof", async () => {
+    const staff = await signUpHome();
+    const row = await createCase(staff);
+    const other = await createCase(staff);
+    const { token } = await inviteFamily(staff, other.id);
+
+    const item = await staff.agent
+      .post(`/api/cases/${row.id}/print`)
+      .send({ templateKey: "prayer-card" })
+      .expect(201);
+
+    await staff.agent
+      .put(`/api/print/${item.body.id}`)
+      .send({ status: "proof", sharedWithFamily: true })
+      .expect(200);
+
+    await asFamily(token)
+      .get(`/api/family/print/${item.body.id}/render`)
+      .expect(404);
+  });
 });
 
 describe("the home's own snippets", () => {
