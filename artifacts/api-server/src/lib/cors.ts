@@ -47,6 +47,19 @@ export const rejectCrossOriginWrites: RequestHandler = (req, _res, next) => {
     return;
   }
 
+  /*
+   * The one write a third party is meant to make. RFC 8058's one-click
+   * unsubscribe is POSTed by the recipient's mail provider, not by a page of
+   * ours, and a provider that sends its own Origin would otherwise be refused
+   * -- leaving a family who pressed "Unsubscribe" in Gmail still enrolled.
+   * Forgery buys nothing here: the signed id in the query is the whole
+   * authority, and the only thing it can do is stop mail.
+   */
+  if (req.path === "/public/aftercare/unsubscribe") {
+    next();
+    return;
+  }
+
   const origin = req.get("origin");
   if (!origin) {
     next();

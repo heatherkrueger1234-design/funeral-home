@@ -83,6 +83,7 @@ that was never made.
 | Erasure destroys the encrypted bytes, not just the reference | `routes/export.ts` case delete; verified — `uploads` is empty afterwards |
 | Social security numbers are excluded from exports | `routes/export.ts` |
 | Aftercare sends nothing until the family consents, and a decline is final | `lib/db/src/schema/aftercare.ts`; `test/aftercare-loop.test.ts` |
+| Every check-in carries the home's postal address and a working unsubscribe | `lib/mailer/src/aftercare.ts`; `test/aftercare-sender.test.ts` ("the foot of a check-in") |
 
 ## Three things to fix in the product because of these drafts
 

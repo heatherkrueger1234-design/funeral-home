@@ -2,12 +2,14 @@ import { useQueryClient } from "@tanstack/react-query";
 import {
   useGetFamilyDeadlines,
   useCompleteFamilyDeadline,
+  useGetFamilySession,
   getGetFamilyDeadlinesQueryKey,
   getGetFamilySessionQueryKey,
 } from "@workspace/api-client-react";
 import { Checkbox } from "@/components/ui/checkbox";
 import { CalendarClock, Church } from "lucide-react";
 import { Empty, Loading, PageHeader } from "@/components/page";
+import { formatAtHome } from "@/lib/utils";
 
 /**
  * What is due, and when.
@@ -24,11 +26,9 @@ import { Empty, Loading, PageHeader } from "@/components/page";
  * thing on the list that is not a chore.
  */
 
-function formatDue(value: string | Date): string {
-  const date = value instanceof Date ? value : new Date(value);
-  if (Number.isNaN(date.getTime())) return "";
-
-  return date.toLocaleString(undefined, {
+/** On the home's clock — see `formatAtHome`. */
+function formatDue(value: string | Date, timeZone: string | undefined): string {
+  return formatAtHome(value, timeZone, {
     weekday: "long",
     day: "numeric",
     month: "long",
@@ -45,6 +45,7 @@ function isOverdue(value: string | Date): boolean {
 export default function Timeline() {
   const queryClient = useQueryClient();
   const deadlines = useGetFamilyDeadlines();
+  const timeZone = useGetFamilySession().data?.home.timezone;
 
   const complete = useCompleteFamilyDeadline({
     mutation: {
@@ -104,7 +105,9 @@ export default function Timeline() {
                     : late
                       ? "border-[var(--accent)]/40 bg-card pl-5"
                       : "border-border bg-card",
-                  done && "opacity-70",
+                  // No fading on a finished row: the strike-through says it
+                  // is done, and dimming grey text on grey took it below
+                  // readable contrast for the people this is written for.
                 ]
                   .filter(Boolean)
                   .join(" ")}
@@ -148,7 +151,7 @@ export default function Timeline() {
                       {row.title}
                     </p>
                     <p className="mt-0.5 text-sm text-muted-foreground">
-                      {formatDue(row.dueAt)}
+                      {formatDue(row.dueAt, timeZone)}
                       {late && (
                         <span className="ml-2 font-semibold text-[var(--accent-deep)]">
                           · overdue

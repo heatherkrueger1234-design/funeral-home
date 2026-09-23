@@ -7,6 +7,7 @@ import {
   caseBelongingsTable,
   casePreparationTable,
   casePrintItemsTable,
+  caseServiceOffersTable,
   vendorsTable,
   vendorQuotesTable,
   vitalStatisticsTable,
@@ -351,9 +352,11 @@ router.patch("/photos/:photoId", async (req, res) => {
    * who can: a director has never seen the back of the print. This is what
    * makes the age progression in the memory book possible at all.
    */
+  // `parseBody` for both halves: a bare `.parse` threw a ZodError that no
+  // handler recognised, so a year typed as "1970s" came back as a 500.
   const values = assertHasUpdates({
     ...parseBody(UpdateFamilyPhotoBody, req.body),
-    ...PhotoDatingBody.parse(req.body ?? {}),
+    ...parseBody(PhotoDatingBody, req.body),
   });
 
   const [updated] = await db
@@ -1146,6 +1149,43 @@ router.post("/service-offers/:offerId/choose", async (req, res) => {
     );
   }
 
+  /*
+   * Two more ways the family's screen and this route used to disagree.
+   *
+   * A home can set the service date directly, having offered times earlier
+   * or offered some since; the portal then shows the date as settled and no
+   * buttons, so a choice arriving here is from a stale tab and would quietly
+   * move a funeral the director has already booked with the church. And a
+   * time that has already passed is not a choice at all — picking it would
+   * set a service date in the past and build a timeline of tasks all overdue.
+   * Both are refused in the same words as a second chooser, because the
+   * answer to all three is the same: ring the home.
+   */
+  if (row.serviceAt !== null) {
+    throw new HttpError(
+      409,
+      "The service time is already settled. Please ring the funeral home if it needs to change.",
+    );
+  }
+
+  const [offer] = await db
+    .select({ startsAt: caseServiceOffersTable.startsAt })
+    .from(caseServiceOffersTable)
+    .where(
+      and(
+        eq(caseServiceOffersTable.id, offerId),
+        eq(caseServiceOffersTable.caseId, row.id),
+      ),
+    )
+    .limit(1);
+
+  if (offer && offer.startsAt.getTime() <= Date.now()) {
+    throw new HttpError(
+      409,
+      "That time has already passed. Please ring the funeral home to settle another.",
+    );
+  }
+
   await chooseOffer(row, offerId, { contactId: contact.id });
 
   /*
@@ -1252,6 +1292,27 @@ router.post("/aftercare", async (req, res) => {
     throw badRequest("This family already declined and cannot be re-enrolled.");
   }
 
+  /*
+   * A yes needs somewhere to send to.
+   *
+   * The check-ins are email, and a contact the home added with only a mobile
+   * number is enrolled all the same. Saying yes used to succeed for them, show
+   * four dates, and then fail every one of those dates in the sender with "No
+   * email address" — a family promised a note on the anniversary of their
+   * mother's death who silently never gets it. Now the portal asks for the
+   * address alongside the yes, and a yes without one is refused here.
+   */
+  const email = values.email?.trim() || null;
+
+  if (values.consent) {
+    if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      throw badRequest("That email address doesn't look quite right.");
+    }
+    if (!email && !found.email) {
+      throw badRequest("Please add an email address for the notes to go to.");
+    }
+  }
+
   const now = new Date();
 
   const [updated] = await db
@@ -1262,7 +1323,7 @@ router.post("/aftercare", async (req, res) => {
             status: "active",
             consentedAt: now,
             unsubscribedAt: null,
-            ...(values.email ? { email: values.email } : {}),
+            ...(email ? { email } : {}),
             updatedAt: now,
           }
         : { status: "done", unsubscribedAt: now, updatedAt: now },
@@ -1516,12 +1577,10 @@ router.get("/memory-book/render", async (req, res) => {
   const row = familyCase(req);
   const home = familyHome(req);
 
-  const html = await renderBookFor({ case: row, home });
-
-  res.setHeader("Content-Type", "text/html; charset=utf-8");
-  res.setHeader("X-Content-Type-Options", "nosniff");
-  res.setHeader("Cache-Control", "private, no-store");
-  res.send(html);
+  // Through the same sender as every other rendered page, so it carries the
+  // locked-down CSP: this HTML is built from what relatives typed, and the
+  // app-wide helmet config turns CSP off for this process (see app.ts).
+  sendRenderedHtml(res, await renderBookFor({ case: row, home }));
 });
 
 

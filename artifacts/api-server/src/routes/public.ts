@@ -1,6 +1,7 @@
 import { Router, type IRouter } from "express";
 import { and, eq, gte, isNull, sql } from "drizzle-orm";
 import {
+  aftercareEnrollmentsTable,
   canOpenCases,
   db,
   funeralHomesTable,
@@ -11,6 +12,8 @@ import {
 } from "@workspace/db";
 import { SubmitIntakeRequestBody } from "@workspace/api-zod";
 import { sendIntakeNotificationEmail } from "@workspace/mailer";
+import { AFTERCARE_UNSUBSCRIBE_PURPOSE } from "@workspace/mailer/aftercare";
+import { readSignedId } from "@workspace/db/crypto";
 import { badRequest, notFound, parseBody, HttpError } from "../lib/http";
 import { publicHome } from "../lib/storefront";
 import { markOnboarding } from "../lib/onboarding";
@@ -169,6 +172,31 @@ async function assertUnderCeilings(homeId: number, ip: string): Promise<void> {
 
 router.post("/intake", async (req, res) => {
   const body = parseBody(SubmitIntakeRequestBody, req.body);
+
+  /*
+   * A request nobody can answer is refused before it reaches a queue.
+   *
+   * The form has always asked for a telephone number or an email, but only
+   * the form did: this endpoint took a request with neither, which lands in
+   * a director's list as a death they have been told about and cannot ring
+   * back — and it is also the cheapest possible thing for a script to fill a
+   * queue with. An email that is not one is the same failure, found later.
+   */
+  const phone = body.requesterPhone?.trim() ?? "";
+  const email = body.requesterEmail?.trim() ?? "";
+
+  if (!phone && !email) {
+    throw badRequest(
+      "Please leave a telephone number or an email address, so they can reach you.",
+    );
+  }
+  if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+    throw badRequest("That email address doesn't look quite right.");
+  }
+  if (phone && (phone.replace(/\D/g, "").length < 7)) {
+    throw badRequest("That telephone number looks too short to ring.");
+  }
+
   const home = await receivingHome(body.homeSlug);
 
   if (!home) {
@@ -241,6 +269,88 @@ router.post("/intake", async (req, res) => {
     homeName: home.name,
     urgentPhone: home.urgentPhone,
   });
+});
+
+/* --------------------------------------------- stopping the check-ins --- */
+
+/**
+ * The unsubscribe link at the foot of every grief check-in.
+ *
+ * Public because it has to work a year on, from an inbox, for somebody whose
+ * texted link expired months ago. What stands in for a credential is the
+ * enrolment id signed under ENCRYPTION_KEY (`signId`), so a stranger cannot
+ * stop anybody else's notes, and the one thing the token can do is the one
+ * thing it was sent for.
+ *
+ * Two verbs, on purpose. Mail scanners and link previews fetch every URL in
+ * a message, so a GET must never be what stops anything — it only says whose
+ * notes these are, so the page can ask. The POST is what stops them, and it
+ * is also the RFC 8058 one-click target a mail client's own "unsubscribe"
+ * button posts to. Stopping is final, exactly as a "no" in the portal is:
+ * `unsubscribedAt` is set once and nothing in this codebase clears it.
+ */
+async function enrolmentForStopToken(raw: unknown) {
+  const token = typeof raw === "string" ? raw : "";
+  const id = readSignedId(AFTERCARE_UNSUBSCRIBE_PURPOSE, token);
+
+  // One answer for a forged token and a deleted enrolment: neither is
+  // anything the person holding the link can do something about.
+  const gone = () =>
+    notFound(
+      "We could not find these notes. They may already have been stopped, " +
+        "or the funeral home can stop them for you if you telephone.",
+    );
+
+  if (id === null) throw gone();
+
+  const [row] = await db
+    .select({
+      enrollment: aftercareEnrollmentsTable,
+      homeName: funeralHomesTable.name,
+    })
+    .from(aftercareEnrollmentsTable)
+    .innerJoin(
+      funeralHomesTable,
+      eq(funeralHomesTable.id, aftercareEnrollmentsTable.funeralHomeId),
+    )
+    .where(eq(aftercareEnrollmentsTable.id, id))
+    .limit(1);
+
+  if (!row) throw gone();
+  return row;
+}
+
+function stopTokenFrom(req: { query: Record<string, unknown>; body?: unknown }) {
+  const fromBody = (req.body as { token?: unknown } | undefined)?.token;
+  return typeof req.query["token"] === "string" ? req.query["token"] : fromBody;
+}
+
+router.get("/aftercare/unsubscribe", async (req, res) => {
+  const { enrollment, homeName } = await enrolmentForStopToken(stopTokenFrom(req));
+
+  res.json({
+    homeName: enrollment.brandedAs || homeName,
+    stopped: enrollment.unsubscribedAt !== null,
+  });
+});
+
+router.post("/aftercare/unsubscribe", async (req, res) => {
+  const { enrollment, homeName } = await enrolmentForStopToken(stopTokenFrom(req));
+
+  if (enrollment.unsubscribedAt === null) {
+    const now = new Date();
+    await db
+      .update(aftercareEnrollmentsTable)
+      .set({ status: "done", unsubscribedAt: now, updatedAt: now })
+      .where(
+        and(
+          eq(aftercareEnrollmentsTable.id, enrollment.id),
+          isNull(aftercareEnrollmentsTable.unsubscribedAt),
+        ),
+      );
+  }
+
+  res.json({ homeName: enrollment.brandedAs || homeName, stopped: true });
 });
 
 async function notifyHome(

@@ -34,6 +34,34 @@ import { AuthedImage } from "@/components/AuthedImage";
  * and a family who believes the whole thing is broken.
  */
 
+/**
+ * Send one photograph, waiting out the link's rate limit rather than failing.
+ *
+ * A family choosing three hundred pictures on good wifi can send them faster
+ * than the server's per-minute ceiling allows, and each one past it used to
+ * come back as its own red "Couldn't add" — seventy of them, for photographs
+ * that were perfectly fine. The server says how long to wait, so wait that
+ * long and send the same one again; only a refusal that is about the
+ * photograph itself is shown to the family.
+ */
+async function uploadWithPatience(file: File): Promise<void> {
+  for (let attempt = 0; ; attempt += 1) {
+    try {
+      await postFamilyPhotoMultipart(file);
+      return;
+    } catch (error) {
+      const status = (error as { status?: number }).status;
+      if (status !== 429 || attempt >= 4) throw error;
+
+      const header = (error as { headers?: Headers }).headers?.get(
+        "retry-after",
+      );
+      const seconds = Math.min(60, Math.max(1, Number(header) || 10));
+      await new Promise((resolve) => setTimeout(resolve, seconds * 1000));
+    }
+  }
+}
+
 export default function Photos() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
@@ -58,7 +86,24 @@ export default function Photos() {
     mutation: { onSuccess: refresh },
   });
   const setSelection = useSetFamilyPhotoSelection({
-    mutation: { onSuccess: refresh },
+    mutation: {
+      /*
+       * The answer is the new list, so it goes straight into the cache.
+       *
+       * The button below is disabled while a toggle is in flight so the next
+       * tap cannot be built from a stale list — but "in flight" used to end
+       * when this request returned, and the list it was protecting was only
+       * brought up to date by a refetch fired after that. A family picking
+       * their fifty in quick succession had a tap land in that gap every few
+       * photographs, and each one silently undid the choice before it.
+       */
+      onSuccess: (data) => {
+        queryClient.setQueryData(getGetFamilyPhotosQueryKey(), data);
+        void queryClient.invalidateQueries({
+          queryKey: getGetFamilySessionQueryKey(),
+        });
+      },
+    },
   });
 
   const limit = session.data?.photoLimit ?? 1000;
@@ -106,7 +151,7 @@ export default function Photos() {
       }
 
       try {
-        await postFamilyPhotoMultipart(file);
+        await uploadWithPatience(file);
       } catch (error) {
         toast({
           title: `Couldn't add "${file.name}"`,
@@ -174,6 +219,10 @@ export default function Photos() {
           multiple
           accept={ACCEPTED_UPLOAD_TYPES.join(",")}
           className="sr-only"
+          // The visible button below is what people press; this is only
+          // reached through it, so it is kept out of the tab order.
+          tabIndex={-1}
+          aria-label="Choose photographs"
           onChange={(event) => void onFilesChosen(event.target.files)}
         />
         <Button
@@ -245,13 +294,27 @@ export default function Photos() {
 
               <div className="min-w-0 flex-1 space-y-2.5">
                 <Input
+                  // Re-drawn when somebody else's caption arrives, so this box
+                  // never holds a version older than the one on file.
+                  key={photo.caption ?? ""}
                   defaultValue={photo.caption ?? ""}
                   placeholder="Who's in it, and when?"
+                  aria-label="Caption: who is in it, and when"
+                  onFocus={(event) => {
+                    event.currentTarget.dataset.before = event.currentTarget.value;
+                  }}
                   // Saved on blur rather than on every keystroke: this is a
                   // phone keyboard on mobile data, and a request per letter
                   // would be both slow and pointless.
+                  //
+                  // And only when this person actually typed something. Two
+                  // relatives captioning the same bin at once used to undo
+                  // each other just by tapping through a box: the blur sent
+                  // back whatever this screen had loaded, which was the other
+                  // person's caption from before they changed it.
                   onBlur={(event) => {
                     const caption = event.target.value.trim();
+                    if (event.target.value === event.target.dataset.before) return;
                     if (caption === (photo.caption ?? "")) return;
                     updatePhoto.mutate({
                       photoId: photo.id,

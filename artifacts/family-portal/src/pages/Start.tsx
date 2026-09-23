@@ -1,5 +1,5 @@
-import { useState } from "react";
-import { useRoute, Link } from "wouter";
+import { useEffect, useRef, useState } from "react";
+import { useLocation, useRoute } from "wouter";
 import {
   useGetPublicHome,
   useSubmitIntakeRequest,
@@ -32,9 +32,10 @@ type Door = "at_need" | "pre_need" | null;
 function Shell({ children }: { children: React.ReactNode }) {
   return (
     <div className="min-h-dvh bg-[var(--background)]">
-      <div className="mx-auto w-full max-w-xl px-5 py-10 sm:py-16">
+      {/* A landmark, so a screen reader's "jump to main" lands somewhere. */}
+      <main className="mx-auto w-full max-w-xl px-5 py-10 sm:py-16">
         {children}
-      </div>
+      </main>
     </div>
   );
 }
@@ -80,10 +81,37 @@ function UrgentLine({
   );
 }
 
+/*
+ * Which door is open lives in the address, not in component state.
+ *
+ * It used to be state, which made the phone's own back button — the one
+ * everybody actually uses — leave the page altogether from half-way down the
+ * form, taking whatever had been typed with it, instead of going back to
+ * "which of these is you?". As a path segment it is a real step in the
+ * history, and the in-page "Back" does the same thing as the phone's.
+ */
+const DOOR_SEGMENTS: Record<Exclude<Door, null>, string> = {
+  at_need: "someone-has-died",
+  pre_need: "planning-ahead",
+};
+
+function doorFrom(segment: string | undefined): Door {
+  if (segment === DOOR_SEGMENTS.at_need) return "at_need";
+  if (segment === DOOR_SEGMENTS.pre_need) return "pre_need";
+  return null;
+}
+
 export default function Start() {
-  const [, params] = useRoute("/start/:slug");
+  const [, params] = useRoute("/start/:slug/:door?");
+  const [, navigate] = useLocation();
   const slug = params?.slug ?? "";
-  const [door, setDoor] = useState<Door>(null);
+  const door = doorFrom(params?.door);
+  const setDoor = (next: Door) =>
+    navigate(
+      next === null
+        ? `/start/${encodeURIComponent(slug)}`
+        : `/start/${encodeURIComponent(slug)}/${DOOR_SEGMENTS[next]}`,
+    );
   const [sent, setSent] = useState<{ kind: Door; homeName: string } | null>(null);
 
   const home = useGetPublicHome(slug, {
@@ -92,10 +120,22 @@ export default function Start() {
       enabled: slug.length > 0,
       // A home's name and telephone number do not change while somebody is
       // reading the page, and a retry storm is the last thing a person on
-      // hotel wifi at 2am needs.
-      retry: 1,
+      // hotel wifi at 2am needs. A 404 is an answer, not a failure, so it is
+      // shown at once rather than after a second's pointless retry.
+      retry: (count, error) =>
+        count < 1 && ((error as { status?: number })?.status ?? 500) >= 500,
     },
   });
+
+  /*
+   * The tab says whose page this is. It used to say "Your funeral
+   * arrangements" — the portal's title — to somebody who has arranged
+   * nothing and is trying to work out whether this is the right home.
+   */
+  const homeName = home.data?.name;
+  useEffect(() => {
+    document.title = homeName ?? "Funeral home";
+  }, [homeName]);
 
   if (home.isPending) {
     return (
@@ -148,7 +188,13 @@ export default function Start() {
           >
             <Check className="size-7 text-[var(--accent-deep)]" strokeWidth={1.75} />
           </div>
-          <h1 className="font-display text-[1.75rem] leading-tight">
+          {/* Focused on arrival, so a screen reader says it was sent rather
+              than going quiet where the form used to be. */}
+          <h1
+            ref={(element) => element?.focus()}
+            tabIndex={-1}
+            className="font-display text-[1.75rem] leading-tight outline-none"
+          >
             {h.name} has your message
           </h1>
           <p className="mx-auto mb-8 mt-3 max-w-sm leading-relaxed text-muted-foreground">
@@ -162,7 +208,11 @@ export default function Start() {
     );
   }
 
-  if (door) {
+  // Only when the home is actually taking requests: an address typed or
+  // bookmarked straight to the form must not bring it back for a home whose
+  // form is switched off or not yet confirmed. The server refuses it too, but
+  // only after the person has written everything out.
+  if (door && h.intakeEnabled) {
     return (
       <Shell>
         <button
@@ -264,7 +314,15 @@ export default function Start() {
             <p className="text-sm leading-relaxed text-muted-foreground">
               {h.name} would rather you telephoned for a first conversation,
               whether that is because of a death or because you are planning
-              ahead. Their number is above.
+              ahead.{" "}
+              {/*
+                A home that has just registered may not have put a number in
+                yet, and "their number is above" over no number is a dead end
+                for somebody an hour after a death.
+              */}
+              {h.urgentPhone || h.phone
+                ? "Their number is above."
+                : "Their telephone number will be on their own website, or on anything they have sent you."}
             </p>
           </div>
         )}
@@ -410,8 +468,16 @@ function IntakeForm({
   const [subjectLastName, setSubjectLastName] = useState("");
   const [note, setNote] = useState("");
 
+  const sending = useRef(false);
   const submit = useSubmitIntakeRequest({
-    mutation: { onSuccess: onSent },
+    mutation: {
+      onSuccess: onSent,
+      // A refusal (a limit, a typo the server caught) leaves the form open
+      // to correct and send again.
+      onError: () => {
+        sending.current = false;
+      },
+    },
   });
 
   const reachable =
@@ -423,18 +489,72 @@ function IntakeForm({
     ? requesterName.trim().split(/\s+/).slice(1).join(" ")
     : subjectLastName;
 
+  const emailLooksWrong =
+    requesterEmail.trim().length > 0 &&
+    !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(requesterEmail.trim());
+
   const ready =
     requesterName.trim().length > 0 &&
     reachable &&
+    !emailLooksWrong &&
     subjectFirst.length > 0 &&
     subjectLast.length > 0;
 
+  /*
+   * What is still needed, said in words, once somebody has tried to send.
+   *
+   * The button used to stay greyed out until the form was complete, with no
+   * word about why. For most people the missing piece was obvious; for the
+   * one planning ahead who typed a single name ("Cher", or a first name
+   * alone) it never was — the plan needs a last name, the form split it off
+   * a single word as empty, and the only thing on the screen was a button
+   * that would not press. A disabled button also cannot be reached by a
+   * screen reader's tab order, so it could not even say that it was there.
+   */
+  const [tried, setTried] = useState(false);
+  const summary = useRef<HTMLDivElement>(null);
+  const missing: Array<{ field: string; text: string }> = [];
+  if (!requesterName.trim()) {
+    missing.push({ field: "requesterName", text: "your name" });
+  } else if (preNeed && !subjectLast) {
+    missing.push({
+      field: "requesterName",
+      text: "your last name as well as your first, so the plan is in your full name",
+    });
+  }
+  if (!reachable) {
+    missing.push({ field: "requesterPhone", text: "a telephone number or an email address" });
+  }
+  if (emailLooksWrong) {
+    missing.push({
+      field: "requesterEmail",
+      text: "an email address written like name@example.com",
+    });
+  }
+  if (!preNeed && !subjectFirstName.trim()) {
+    missing.push({ field: "subjectFirstName", text: "the first name of the person who has died" });
+  }
+  if (!preNeed && !subjectLastName.trim()) {
+    missing.push({ field: "subjectLastName", text: "their last name" });
+  }
+
   return (
     <form
+      noValidate
       onSubmit={(event) => {
         event.preventDefault();
-        if (!ready) return;
+        // A ref rather than `isPending`, which only re-renders the button
+        // disabled after the second of a double tap has already landed —
+        // and put the same death in a director's queue twice.
+        if (sending.current) return;
+        if (!ready) {
+          setTried(true);
+          // Next frame, so the summary exists to be read out.
+          requestAnimationFrame(() => summary.current?.focus());
+          return;
+        }
 
+        sending.current = true;
         submit.mutate({
           data: {
             homeSlug: slug,
@@ -567,11 +687,38 @@ function IntakeForm({
         </div>
       </div>
 
+      {tried && missing.length > 0 && (
+        <div
+          ref={summary}
+          tabIndex={-1}
+          role="alert"
+          className="mt-7 rounded-xl border border-border bg-[var(--sunken)] px-4 py-3.5 text-sm leading-relaxed"
+        >
+          <p className="font-semibold">Before this can go, we still need:</p>
+          <ul className="mt-1.5 list-disc pl-5 text-muted-foreground">
+            {missing.map((item) => (
+              <li key={item.text}>
+                <a
+                  href={`#${item.field}`}
+                  className="underline decoration-[var(--accent)]/40 underline-offset-4"
+                  onClick={(event) => {
+                    event.preventDefault();
+                    document.getElementById(item.field)?.focus();
+                  }}
+                >
+                  {item.text}
+                </a>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+
       <Button
         type="submit"
         size="lg"
         className="mt-7 w-full"
-        disabled={!ready || submit.isPending}
+        disabled={submit.isPending}
       >
         {submit.isPending && <Loader2 className="size-4 animate-spin" />}
         Send this to {homeName}

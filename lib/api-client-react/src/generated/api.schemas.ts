@@ -704,6 +704,12 @@ export interface IntakeRequestInput {
   note?: string | null;
 }
 
+export interface AftercareUnsubscribeState {
+  /** Whose name the check-ins are signed in. */
+  homeName: string;
+  stopped: boolean;
+}
+
 export type IntakeReceiptKind =
   (typeof IntakeReceiptKind)[keyof typeof IntakeReceiptKind];
 
@@ -2503,6 +2509,14 @@ portal puts it above everything else.
   awaitingServiceChoice: boolean;
   aftercare: AftercareEnrollment | null;
 }
+
+export type GetAftercareUnsubscribeParams = {
+  token: string;
+};
+
+export type AftercareUnsubscribeParams = {
+  token: string;
+};
 
 export type GetIntakeRequestsParams = {
   status?: GetIntakeRequestsStatus;

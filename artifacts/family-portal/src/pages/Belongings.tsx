@@ -119,6 +119,7 @@ export default function Belongings() {
                 <div className="flex items-start gap-2">
                   <div className="min-w-0 flex-1">
                     <Input
+                      aria-label="What this is"
                       defaultValue={item.description}
                       disabled={held}
                       onBlur={(event) => {
@@ -203,6 +204,7 @@ export default function Belongings() {
           <Input
             value={description}
             placeholder="Her mother's locket"
+            aria-label="Add something else to bring"
             className="min-w-[10rem] flex-1"
             onChange={(event) => setDescription(event.target.value)}
             onKeyDown={(event) => {

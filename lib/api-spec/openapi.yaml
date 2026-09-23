@@ -153,6 +153,53 @@ paths:
         "429":
           description: Too many requests
 
+  /public/aftercare/unsubscribe:
+    get:
+      operationId: getAftercareUnsubscribe
+      tags: [public]
+      summary: Whose check-ins an unsubscribe link would stop
+      description: |
+        Unauthenticated; the signed token from the foot of a grief check-in
+        is the credential. Changes nothing, because mail scanners fetch every
+        link in a message - it only lets the page name the home and ask.
+      parameters:
+        - name: token
+          in: query
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: The enrolment the link names
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AftercareUnsubscribeState"
+        "404":
+          description: Forged, mangled, or no longer on file
+    post:
+      operationId: aftercareUnsubscribe
+      tags: [public]
+      summary: Stop the check-ins, for good
+      description: |
+        Final, exactly as a "no" in the portal is. Also the RFC 8058
+        one-click target named in the message's List-Unsubscribe header.
+      parameters:
+        - name: token
+          in: query
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Stopped
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AftercareUnsubscribeState"
+        "404":
+          description: Forged, mangled, or no longer on file
+
   # ------------------------------------------------------------------ auth --
 
   /auth/register:
@@ -4292,6 +4339,16 @@ components:
           nullable: true
           maxLength: 4000
       required: [homeSlug, kind, requesterName, subjectFirstName, subjectLastName]
+
+    AftercareUnsubscribeState:
+      type: object
+      properties:
+        homeName:
+          type: string
+          description: Whose name the check-ins are signed in.
+        stopped:
+          type: boolean
+      required: [homeName, stopped]
 
     IntakeReceipt:
       type: object

@@ -190,7 +190,8 @@ agrees. Before they decide they are shown the actual dates the messages would
 arrive, and a decline sits next to the agreement with equal visual weight. A
 decline is final. Consent is checked again at the moment of sending, not just
 when the schedule was written, and it can be withdrawn from either side at any
-time.
+time — including from the check-in itself, each of which carries the home's
+postal address and a link that stops the rest.
 
 This is deliberate, and the reason is that the Colorado Privacy Act is explicit
 that broad terms-of-service acceptance, a pre-ticked box, or a deceptively

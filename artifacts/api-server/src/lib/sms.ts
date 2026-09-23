@@ -88,6 +88,11 @@ export function normalisePhone(
   return `+${code}${digits}`;
 }
 
+/** `/f/<token>` → `/f/REDACTED`, for anything headed for a log. */
+export function redactFamilyLink(text: string): string {
+  return text.replace(/(\/f\/)[^\s/?#]+/g, "$1REDACTED");
+}
+
 export async function sendSms(options: {
   to: string;
   body: string;
@@ -100,8 +105,19 @@ export async function sendSms(options: {
   }
 
   if (!config) {
+    /*
+     * The body is logged with any family link's token masked out.
+     *
+     * The one text this product sends is a family's link, and that token is
+     * a working credential for one case's photographs, obituary and thread
+     * for ninety days. Written to the log in full, it went wherever the log
+     * goes — an aggregator, a support ticket, a sidecar — which is exactly
+     * what the mailer's `redactToken` exists to stop for reset links. The
+     * director loses nothing: `send-link` hands them the working link in its
+     * response, which is the copy they are meant to paste.
+     */
     logger.warn(
-      { to, body: options.body },
+      { to, body: redactFamilyLink(options.body) },
       "Twilio is not configured — text not sent, logged instead",
     );
     throw new SmsNotSentError(

@@ -95,11 +95,45 @@ function positiveIntFromEnv(name: string, fallback: number): number {
  * write costs the home storage. Generous enough that a family uploading fifty
  * photographs on hotel wifi never sees it.
  */
-export const familyRateLimit: RateLimiter = rateLimit({
+const FAMILY_LIMIT_MESSAGE =
+  "That was a lot at once. Please wait a moment and try again.";
+
+const familyWrites = rateLimit({
   windowMs: 60_000,
   max: 240,
-  message: "That was a lot at once. Please wait a moment and try again.",
+  message: FAMILY_LIMIT_MESSAGE,
 });
+
+/*
+ * Reads are counted separately, and more generously.
+ *
+ * Every photograph in the bin is its own authenticated GET, because the
+ * portal cannot put the token in an `<img src>` (see `AuthedImage`). With
+ * one shared bucket a family who had sent 240 photographs could not open
+ * the photographs page at all: the thumbnails alone spent the minute's
+ * allowance, and the session, the thread and every save after them came back
+ * 429. What this limiter is for is writes — each one costs the home storage —
+ * so that is where the tight ceiling stays; reading a case's own pictures
+ * back only has to be kept from being a flood.
+ */
+const familyReads = rateLimit({
+  windowMs: 60_000,
+  max: 1200,
+  message: FAMILY_LIMIT_MESSAGE,
+});
+
+export const familyRateLimit: RateLimiter = Object.assign(
+  ((req, res, next) =>
+    req.method === "GET" || req.method === "HEAD"
+      ? familyReads(req, res, next)
+      : familyWrites(req, res, next)) as RequestHandler,
+  {
+    reset: () => {
+      familyReads.reset();
+      familyWrites.reset();
+    },
+  },
+);
 
 export const authRateLimit: RateLimiter = rateLimit({
   windowMs: positiveIntFromEnv("AUTH_RATE_LIMIT_WINDOW_MS", 15 * 60 * 1000),
