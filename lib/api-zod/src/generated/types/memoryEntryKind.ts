@@ -17,36 +17,11 @@ Two audiences, two authentication schemes, and the split is load-bearing:
 
  * OpenAPI spec version: 0.1.0
  */
-import type { PhotoUpdateStatus } from "./photoUpdateStatus";
 
-export interface PhotoUpdate {
-  caption?: string | null;
-  status?: PhotoUpdateStatus;
-  /**
-   * @minimum 0
-   * @maximum 1
-   */
-  cropX?: number;
-  /**
-   * @minimum 0
-   * @maximum 1
-   */
-  cropY?: number;
-  /**
-   * @minimum 0
-   * @maximum 1
-   */
-  cropWidth?: number;
-  /**
-   * @minimum 0
-   * @maximum 1
-   */
-  cropHeight?: number;
-  /**
-   * A year, not a date -- what is written on the back of the print.
-   * @minimum 1800
-   * @maximum 2200
-   */
-  takenYear?: number | null;
-  takenAtService?: boolean;
-}
+export type MemoryEntryKind =
+  (typeof MemoryEntryKind)[keyof typeof MemoryEntryKind];
+
+export const MemoryEntryKind = {
+  memory: "memory",
+  eulogy: "eulogy",
+} as const;

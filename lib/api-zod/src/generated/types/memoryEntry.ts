@@ -17,30 +17,26 @@ Two audiences, two authentication schemes, and the split is load-bearing:
 
  * OpenAPI spec version: 0.1.0
  */
-import type { CasePhotoStatus } from "./casePhotoStatus";
+import type { MemoryEntryAuthorSide } from "./memoryEntryAuthorSide";
+import type { MemoryEntryKind } from "./memoryEntryKind";
 
-export interface CasePhoto {
+/**
+ * A memory or a eulogy, as the home sees it.
+ */
+export interface MemoryEntry {
   id: number;
-  caseId: number;
-  uploadId: number;
-  uploadedByContactId: number | null;
-  /** Who sent it, resolved for display. Null when staff added it. */
-  uploadedByName: string | null;
-  caption: string | null;
-  cropX: number | null;
-  cropY: number | null;
-  cropWidth: number | null;
-  cropHeight: number | null;
+  kind: MemoryEntryKind;
+  /** The name printed under it, snapshotted when it was written. */
+  authorName: string;
+  authorSide: MemoryEntryAuthorSide;
+  authorContactId: number | null;
+  body: string;
+  /** Free text -- "Christmas, some time in the eighties" -- never a date. */
+  whenText: string | null;
+  photoId: number | null;
+  includedInBook: boolean;
+  /** A note between the home and itself. Never shown to the family. */
+  excludedReason: string | null;
   position: number;
-  status: CasePhotoStatus;
-  /** Whether this one runs in the slideshow. */
-  selected: boolean;
-  isPortrait: boolean;
-  /** The photograph given to whoever does hair and cosmetics. */
-  isReference: boolean;
-  /** The year it was taken, where anybody knows it. Orders the memory book. */
-  takenYear: number | null;
-  /** Taken at the funeral itself; printed at the back of the memory book. */
-  takenAtService: boolean;
   createdAt: Date;
 }

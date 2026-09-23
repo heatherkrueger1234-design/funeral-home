@@ -17,30 +17,24 @@ Two audiences, two authentication schemes, and the split is load-bearing:
 
  * OpenAPI spec version: 0.1.0
  */
-import type { CasePhotoStatus } from "./casePhotoStatus";
+import type { LifeChapterAuthorSide } from "./lifeChapterAuthorSide";
 
-export interface CasePhoto {
+/**
+ * A chapter of the life story. Years, not dates; `endYear` is for a span
+and null for a moment. The author is recorded but never printed.
+
+ */
+export interface LifeChapter {
   id: number;
-  caseId: number;
-  uploadId: number;
-  uploadedByContactId: number | null;
-  /** Who sent it, resolved for display. Null when staff added it. */
-  uploadedByName: string | null;
-  caption: string | null;
-  cropX: number | null;
-  cropY: number | null;
-  cropWidth: number | null;
-  cropHeight: number | null;
+  title: string | null;
+  body: string | null;
+  startYear: number | null;
+  endYear: number | null;
+  photoId: number | null;
+  authorName: string;
+  authorSide: LifeChapterAuthorSide;
+  authorContactId: number | null;
+  includedInBook: boolean;
   position: number;
-  status: CasePhotoStatus;
-  /** Whether this one runs in the slideshow. */
-  selected: boolean;
-  isPortrait: boolean;
-  /** The photograph given to whoever does hair and cosmetics. */
-  isReference: boolean;
-  /** The year it was taken, where anybody knows it. Orders the memory book. */
-  takenYear: number | null;
-  /** Taken at the funeral itself; printed at the back of the memory book. */
-  takenAtService: boolean;
   createdAt: Date;
 }

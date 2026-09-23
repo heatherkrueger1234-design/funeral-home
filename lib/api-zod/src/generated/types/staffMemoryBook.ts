@@ -17,36 +17,15 @@ Two audiences, two authentication schemes, and the split is load-bearing:
 
  * OpenAPI spec version: 0.1.0
  */
-import type { PhotoUpdateStatus } from "./photoUpdateStatus";
+import type { LifeChapter } from "./lifeChapter";
+import type { MemoryBook } from "./memoryBook";
+import type { MemoryBookPhotoCount } from "./memoryBookPhotoCount";
+import type { StaffMemoryEntry } from "./staffMemoryEntry";
 
-export interface PhotoUpdate {
-  caption?: string | null;
-  status?: PhotoUpdateStatus;
-  /**
-   * @minimum 0
-   * @maximum 1
-   */
-  cropX?: number;
-  /**
-   * @minimum 0
-   * @maximum 1
-   */
-  cropY?: number;
-  /**
-   * @minimum 0
-   * @maximum 1
-   */
-  cropWidth?: number;
-  /**
-   * @minimum 0
-   * @maximum 1
-   */
-  cropHeight?: number;
-  /**
-   * A year, not a date -- what is written on the back of the print.
-   * @minimum 1800
-   * @maximum 2200
-   */
-  takenYear?: number | null;
-  takenAtService?: boolean;
-}
+export type StaffMemoryBook = MemoryBook & {
+  photos: MemoryBookPhotoCount;
+  /** Every chapter, including any taken out, in printed order. */
+  chapters: LifeChapter[];
+  /** Every entry, including any taken out, in printed order. */
+  entries: StaffMemoryEntry[];
+};

@@ -17,36 +17,26 @@ Two audiences, two authentication schemes, and the split is load-bearing:
 
  * OpenAPI spec version: 0.1.0
  */
-import type { PhotoUpdateStatus } from "./photoUpdateStatus";
+import type { MemoryEntryInputKind } from "./memoryEntryInputKind";
 
-export interface PhotoUpdate {
-  caption?: string | null;
-  status?: PhotoUpdateStatus;
+/**
+ * `body` is trimmed. A memory may run to 4000 characters and a eulogy to
+20000; the longer limit applies only when `kind` is `eulogy`.
+
+ */
+export interface MemoryEntryInput {
+  /** Defaults to memory. */
+  kind?: MemoryEntryInputKind;
   /**
-   * @minimum 0
-   * @maximum 1
+   * @minLength 1
+   * @maxLength 20000
    */
-  cropX?: number;
+  body: string;
+  /** @maxLength 120 */
+  whenText?: string | null;
   /**
-   * @minimum 0
-   * @maximum 1
+   * A photograph already on this case.
+   * @minimum 1
    */
-  cropY?: number;
-  /**
-   * @minimum 0
-   * @maximum 1
-   */
-  cropWidth?: number;
-  /**
-   * @minimum 0
-   * @maximum 1
-   */
-  cropHeight?: number;
-  /**
-   * A year, not a date -- what is written on the back of the print.
-   * @minimum 1800
-   * @maximum 2200
-   */
-  takenYear?: number | null;
-  takenAtService?: boolean;
+  photoId?: number | null;
 }

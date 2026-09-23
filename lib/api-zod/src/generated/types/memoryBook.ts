@@ -17,30 +17,32 @@ Two audiences, two authentication schemes, and the split is load-bearing:
 
  * OpenAPI spec version: 0.1.0
  */
-import type { CasePhotoStatus } from "./casePhotoStatus";
 
-export interface CasePhoto {
+/**
+ * One per case, opened the first time anybody looks. Every section is a
+switch that defaults on and prints nothing when it is empty.
+
+ */
+export interface MemoryBook {
   id: number;
   caseId: number;
-  uploadId: number;
-  uploadedByContactId: number | null;
-  /** Who sent it, resolved for display. Null when staff added it. */
-  uploadedByName: string | null;
-  caption: string | null;
-  cropX: number | null;
-  cropY: number | null;
-  cropWidth: number | null;
-  cropHeight: number | null;
-  position: number;
-  status: CasePhotoStatus;
-  /** Whether this one runs in the slideshow. */
-  selected: boolean;
-  isPortrait: boolean;
-  /** The photograph given to whoever does hair and cosmetics. */
-  isReference: boolean;
-  /** The year it was taken, where anybody knows it. Orders the memory book. */
-  takenYear: number | null;
-  /** Taken at the funeral itself; printed at the back of the memory book. */
-  takenAtService: boolean;
-  createdAt: Date;
+  /** Printed as "Remembering <name>" when blank. */
+  title: string | null;
+  dedication: string | null;
+  /** When contributions stop. Null -- the default -- means open: there
+is no date on which a family is too late to remember something.
+ */
+  closesAt: Date | null;
+  /** Whether the family can still add to it, right now. */
+  open: boolean;
+  includePhotos: boolean;
+  includeObituary: boolean;
+  includeLifeStory: boolean;
+  includeCelebration: boolean;
+  includeEulogies: boolean;
+  includeServicePhotos: boolean;
+  serviceOrder: string | null;
+  music: string | null;
+  bearers: string | null;
+  reception: string | null;
 }
