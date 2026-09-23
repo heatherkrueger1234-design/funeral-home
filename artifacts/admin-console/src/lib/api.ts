@@ -101,6 +101,7 @@ export type AdminHome = {
   canOpenCases: boolean;
   suspendedAt: string | null;
   suspendedReason: string | null;
+  internalAccount: boolean;
   onboardingDone: string[];
   createdAt: string;
   engagement: Engagement;
@@ -175,6 +176,9 @@ export type HomeStaff = {
   title: string | null;
   role: string;
   deactivatedAt: string | null;
+  /** False until they have finished their invitation and chosen one. */
+  hasPassword: boolean;
+  emailVerified: boolean;
 };
 
 export type AdminHomeDetail = AdminHome & {
@@ -195,6 +199,24 @@ export type PlatformOverview = {
     aftercareConsented: number;
   };
   attention: Array<{ home: AdminHome; reminders: LicensureReminder[] }>;
+  delivery: {
+    mailConfigured: boolean;
+    smsConfigured: boolean;
+    aftercareFailedLast30Days: number;
+    homesWithFailures: number;
+    lastFailureAt: string | null;
+  };
+};
+
+export type PlatformAdmin = {
+  id: number;
+  email: string;
+  displayName: string | null;
+  note: string | null;
+  addedByEmail: string | null;
+  revokedAt: string | null;
+  revokedByEmail: string | null;
+  createdAt: string;
 };
 
 export type AuditEntry = {
@@ -270,4 +292,16 @@ export const AUDIT_ACTION_LABELS: Record<string, string> = {
   "home.licensure.update": "Updated licensure",
   "home.practitioner.update": "Updated a practitioner",
   "platform.overview": "Opened the overview",
+  // Every action the server can write. A label missing here used to show the
+  // raw key -- "platform.admin.grant" -- on the page shown to an insurer.
+  "home.internal.update": "Changed whether a home is ours",
+  "home.group.update": "Moved a home between groups",
+  "home.staff.reset": "Emailed a director a password reset",
+  "group.list": "Listed the groups",
+  "group.create": "Created a group",
+  "group.open": "Opened a group",
+  "group.checkout": "Started a group's subscription",
+  "platform.admins.list": "Looked at who has access",
+  "platform.admin.grant": "Gave someone access",
+  "platform.admin.revoke": "Took someone's access away",
 };
