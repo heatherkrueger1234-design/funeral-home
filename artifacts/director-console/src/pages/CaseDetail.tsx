@@ -30,6 +30,7 @@ import { MessagesPanel } from "@/components/case/MessagesPanel";
 import { BelongingsPanel } from "@/components/case/BelongingsPanel";
 import { VitalsPanel } from "@/components/case/VitalsPanel";
 import { PrintPanel } from "@/components/case/PrintPanel";
+import { MemoryBookPanel } from "@/components/case/MemoryBookPanel";
 import { DetailsPanel } from "@/components/case/DetailsPanel";
 import { CaseData } from "@/components/CaseData";
 import { Empty, Loading } from "@/components/page";
@@ -216,6 +217,10 @@ export default function CaseDetail() {
           <TabsTrigger value="obituary">Obituary</TabsTrigger>
           <TabsTrigger value="service">Service</TabsTrigger>
           <TabsTrigger value="print">Print</TabsTrigger>
+          {/* Not on a pre-need file: a memory book is about somebody who has died. */}
+          {detail.kind !== "pre_need" && (
+            <TabsTrigger value="book">Memory book</TabsTrigger>
+          )}
           <TabsTrigger value="timeline">
             Timeline
             {detail.outstandingDeadlines > 0 && (
@@ -262,6 +267,11 @@ export default function CaseDetail() {
           <TabsContent value="print">
             <PrintPanel caseId={caseId} />
           </TabsContent>
+          {detail.kind !== "pre_need" && (
+            <TabsContent value="book">
+              <MemoryBookPanel caseId={caseId} displayName={detail.displayName} />
+            </TabsContent>
+          )}
           <TabsContent value="timeline">
             <TimelinePanel caseId={caseId} serviceAt={detail.serviceAt} />
           </TabsContent>
