@@ -3511,9 +3511,11 @@ export const useDeletePriceItem = <
 };
 
 /**
- * Needs a service date, because every step is an offset from it. Steps
-already on the timeline are matched by title and left alone, so this
-is safe to run twice and safe to run after the service date moves.
+ * Needs a service date or a date of death, because every step is an
+offset from one of them; each step is built only once its own date
+exists. Steps already on the timeline are matched by title and left
+alone, so this is safe to run twice and safe to run after a date
+moves.
 
  * @summary Build this case's schedule from the home's standard one
  */

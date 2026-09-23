@@ -57,6 +57,18 @@ export const caseDeadlinesTable = pgTable(
 
     position: integer("position").notNull().default(0),
 
+    /**
+     * Which date this entry follows when it moves: `service`, `death`, or
+     * null for a step a director typed by hand.
+     *
+     * Set only on entries built from the standard schedule. When the funeral
+     * is moved, every unfinished `service` entry moves by the same amount,
+     * so the family's timeline is never left pointing at the old date. Hand
+     * typed entries stay where the director put them -- nothing here knows
+     * what "collect the ashes on the 14th" was measured from.
+     */
+    anchor: text("anchor"),
+
     createdAt: timestamp("created_at").notNull().defaultNow(),
     updatedAt: timestamp("updated_at").notNull().defaultNow(),
   },
