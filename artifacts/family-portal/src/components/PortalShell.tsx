@@ -5,6 +5,7 @@ import {
   getGetFamilySessionQueryKey,
 } from "@workspace/api-client-react";
 import { useLink } from "@/lib/link";
+import { PasteLink } from "@/components/PasteLink";
 import { voiceFor } from "@/lib/voice";
 import { ArrowLeft, Phone } from "lucide-react";
 import { AuthedImage } from "@/components/AuthedImage";
@@ -135,6 +136,26 @@ function Waiting() {
   );
 }
 
+/**
+ * The way out for someone who is here by mistake: a funeral director who
+ * opened the family portal's address instead of the console's. Only shown
+ * when the deployment says where the console is.
+ */
+function StaffSignIn() {
+  const configured = import.meta.env["VITE_CONSOLE_URL"] as string | undefined;
+  const consoleUrl = configured?.trim().replace(/\/+$/, "");
+  if (!consoleUrl) return null;
+
+  return (
+    <p className="mt-6 text-center text-sm text-muted-foreground">
+      Work at a funeral home?{" "}
+      <a href={consoleUrl} className="font-medium text-foreground underline underline-offset-2">
+        Staff sign in
+      </a>
+    </p>
+  );
+}
+
 export function PortalShell({ children }: { children: ReactNode }) {
   const { token } = useLink();
   const [location] = useLocation();
@@ -174,6 +195,10 @@ export function PortalShell({ children }: { children: ReactNode }) {
             to sign in to, and no password to remember.
           </p>
 
+          <div className="mt-6">
+            <PasteLink />
+          </div>
+
           <hr className="my-7 border-0 border-t border-border" />
 
           <p className="eyebrow mb-3">If you have not been sent one</p>
@@ -191,6 +216,7 @@ export function PortalShell({ children }: { children: ReactNode }) {
             </p>
           </div>
         </div>
+        <StaffSignIn />
       </FullScreen>
     );
   }
@@ -213,6 +239,11 @@ export function PortalShell({ children }: { children: ReactNode }) {
               ? "Please ask the funeral home to send you a new one. Nothing you have already added has been lost."
               : "Please check your connection and try again."}
           </p>
+          {gone && (
+            <div className="mt-6 text-left">
+              <PasteLink />
+            </div>
+          )}
         </div>
       </FullScreen>
     );
