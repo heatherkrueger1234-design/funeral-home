@@ -262,9 +262,21 @@ That is a deliberate architecture and it is what keeps this section short:
 - No connected-account onboarding, which is the identity-verification wall that
   would otherwise stand between a home and its first day of use.
 
-The only money in this system is **us charging the home its monthly
-subscription**, in `artifacts/api-server/src/lib/billing.ts`. That surface is
-not extended to families.
+The only money in this system is **us charging the home**: a monthly
+subscription, a per-funeral charge on top of it, and the grief-aftercare
+add-on, all in `artifacts/api-server/src/lib/billing.ts` and all billed to
+the funeral home or to the group that owns it. That surface is not extended
+to families.
+
+The proposal that would extend it comes back regularly and is worth naming so
+that it is refused on the record rather than re-argued: selling the obituary
+or the photograph slideshow to the family as a paid keepsake. Beyond
+re-importing everything the four bullets above remove, it would put a charge
+attached to a funeral in front of a consumer *inside the home's own branded
+portal*, disclosed on neither the home's General Price List nor the Statement
+of Funeral Goods and Services Selected. The Funeral Rule binds the provider,
+so that exposure lands on the home. `PRICING.md` argues it in full and
+`no-family-charges.test.ts` fails the build if anyone builds it anyway.
 
 What we do produce is the **Statement of Funeral Goods and Services Selected** —
 the itemised document the FTC Funeral Rule requires a provider to give at the

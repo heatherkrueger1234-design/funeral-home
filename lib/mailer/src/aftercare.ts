@@ -5,6 +5,8 @@ import {
   aftercareEnrollmentsTable,
   casesTable,
   familyContactsTable,
+  memoryBooksTable,
+  FAMILY_LINK_TTL_MS,
 } from "@workspace/db";
 import { sendAftercareEmail, isMailConfigured } from "./index";
 
@@ -74,6 +76,35 @@ const MESSAGES: Record<number, { subject: string; body: (name: string) => string
   },
 };
 
+/**
+ * The line that turns a check-in into a collection.
+ *
+ * Appended only when the case's memory book is actually open, so a home
+ * that is not keeping one sends exactly the message it sent before.
+ *
+ * Written as an invitation with an explicit way out, and phrased so that
+ * doing nothing is a complete response. The check-ins earn their welcome by
+ * never asking anything of somebody who is not up to it, and a book is not
+ * worth spending that on.
+ */
+function memoryInvitation(name: string, dayOffset: number): string {
+  if (dayOffset === 365) {
+    return (
+      `\n\nWe have been keeping a book of memories of ${name} — the ` +
+      `photographs from the service, and whatever anyone has wanted to add. ` +
+      `It is yours, and you can print it whenever you like. If there is ` +
+      `something you would still like in it, there is room.`
+    );
+  }
+
+  return (
+    `\n\nIf something about ${name} has come back to you lately — the way ` +
+    `she answered the telephone, a Christmas, anything at all — you can add ` +
+    `it to the book of memories we are keeping alongside the photographs. ` +
+    `A sentence is enough, and there is no hurry.`
+  );
+}
+
 export type AftercareRunResult = {
   due: number;
   sent: number;
@@ -95,8 +126,13 @@ export async function runAftercare(
       delivery: aftercareDeliveriesTable,
       enrollment: aftercareEnrollmentsTable,
       contactName: familyContactsTable.name,
+      contactId: familyContactsTable.id,
+      contactExpiresAt: familyContactsTable.expiresAt,
+      contactRevokedAt: familyContactsTable.revokedAt,
       firstName: casesTable.decedentFirstName,
       preferredName: casesTable.decedentPreferredName,
+      bookClosesAt: memoryBooksTable.closesAt,
+      bookId: memoryBooksTable.id,
     })
     .from(aftercareDeliveriesTable)
     .innerJoin(
@@ -108,6 +144,11 @@ export async function runAftercare(
       eq(familyContactsTable.id, aftercareEnrollmentsTable.contactId),
     )
     .innerJoin(casesTable, eq(casesTable.id, aftercareEnrollmentsTable.caseId))
+    /*
+     * Left, not inner: most cases have no memory book, and a check-in must
+     * never fail to go out because of a feature the home is not using.
+     */
+    .leftJoin(memoryBooksTable, eq(memoryBooksTable.caseId, casesTable.id))
     .where(
       and(
         lte(aftercareDeliveriesTable.dueAt, now),
@@ -156,6 +197,54 @@ export async function runAftercare(
       continue;
     }
 
+    /*
+     * Is there an open book to invite them to?
+     *
+     * `closesAt` null means open, which is the default. A home that closed
+     * the book for printing last week should not be asking for more.
+     */
+    const bookOpen =
+      row.bookId !== null &&
+      (row.bookClosesAt === null || row.bookClosesAt > now);
+
+    /*
+     * Keep their way in working.
+     *
+     * A family link lives 90 days from issue and the anniversary check-in
+     * lands at 365, so without this the book quietly stops accepting
+     * anything from the family some time around the third message — the
+     * exact failure that makes a collection feature look like it works
+     * right up until the year it was built for.
+     *
+     * The **same token** is extended rather than a new one issued. Minting
+     * a replacement would kill the link in the text message they already
+     * have, which is the one they will actually click. And the raw token
+     * is never stored -- only its digest -- so this is the only way to keep
+     * a working link working, and that property is worth more than a
+     * prettier email.
+     *
+     * Narrow on purpose: only for somebody who consented to a year of
+     * contact, only while their book is open, and never for a link a
+     * director has revoked. Revocation stays absolute.
+     *
+     * Done before the check on whether mail can actually go out, and that
+     * is deliberate. Whether this deployment has SMTP credentials is our
+     * problem, not the family's: they were told at the funeral that they
+     * would hear from the home, they have a book open, and their way in
+     * should not lapse because of our configuration. A dry run still
+     * changes nothing.
+     */
+    if (!dryRun && bookOpen && row.contactRevokedAt === null) {
+      const keepUntil = new Date(now.getTime() + FAMILY_LINK_TTL_MS);
+
+      if (row.contactExpiresAt < keepUntil) {
+        await db
+          .update(familyContactsTable)
+          .set({ expiresAt: keepUntil })
+          .where(eq(familyContactsTable.id, row.contactId));
+      }
+    }
+
     if (dryRun || !mailConfigured) {
       result.skipped += 1;
       continue;
@@ -183,7 +272,9 @@ export async function runAftercare(
       await sendAftercareEmail({
         to,
         subject: template.subject,
-        body: template.body(deceased),
+        body:
+          template.body(deceased) +
+          (bookOpen ? memoryInvitation(deceased, row.delivery.dayOffset) : ""),
         brandedAs: row.enrollment.brandedAs,
       });
       result.sent += 1;

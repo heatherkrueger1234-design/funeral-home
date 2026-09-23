@@ -1,0 +1,77 @@
+# Reporting counted funerals to Stripe's meter, on a schedule.
+#
+# The per-case charge is the part of the bill that moves. Counting happens
+# locally the moment a case opens — a director must never be waiting on
+# api.stripe.com to open a file — so something has to carry those counts
+# across, and if nothing does, every home is invoiced for a flat subscription
+# and nobody notices for a month.
+#
+# Deliberately a separate workflow from `aftercare.yml`. A broken meter must
+# not stop the grief check-ins going out, and a mail outage must not stop the
+# month being invoiced; one job failing should page somebody about one thing.
+name: Usage
+
+on:
+  schedule:
+    # 02:00 UTC daily — late evening in the US, so a day's funerals are all
+    # counted before the run and nothing sits overnight. Unlike the aftercare
+    # job, nobody receives anything as a result of this, so the hour is
+    # chosen for completeness rather than for tact.
+    - cron: "0 2 * * *"
+  workflow_dispatch:
+    inputs:
+      dryRun:
+        description: "Report what is owed without sending anything to Stripe"
+        type: boolean
+        default: false
+
+concurrency:
+  # Idempotent — the meter events carry an identifier Stripe deduplicates on
+  # — but overlapping runs just waste a worker.
+  group: usage
+  cancel-in-progress: false
+
+jobs:
+  report:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Trigger the report
+        env:
+          API_URL: ${{ secrets.API_URL }}
+          TASK_SECRET: ${{ secrets.TASK_SECRET }}
+          DRY_RUN: ${{ inputs.dryRun && '1' || '0' }}
+        run: |
+          if [ -z "$API_URL" ] || [ -z "$TASK_SECRET" ]; then
+            echo "API_URL and TASK_SECRET must be set as repository secrets." >&2
+            exit 1
+          fi
+
+          # --fail-with-body so a 4xx/5xx fails the job *and* prints why,
+          # rather than failing silently on a schedule nobody is watching.
+          curl --fail-with-body --silent --show-error \
+            --max-time 600 \
+            -X POST "${API_URL%/}/api/tasks/usage?dryRun=${DRY_RUN}" \
+            -H "Authorization: Bearer ${TASK_SECRET}" \
+            | tee result.json
+
+          echo
+
+          python3 - <<'PY'
+          import json, sys
+          with open("result.json") as f:
+              result = json.load(f)
+          print(f"due={result['due']} reported={result['reported']} "
+                f"duplicates={result['duplicates']} failed={result['failed']} "
+                f"skipped={result['skipped']}")
+
+          # A deployment with no metered price skips everything, every day,
+          # and that is a flat-subscription product working correctly.
+          if not result["meteringConfigured"]:
+              print("No metered price configured; nothing to report.")
+              sys.exit(0)
+
+          # Everything that was owed failing to reach Stripe is a month of
+          # revenue going missing quietly. That should go red.
+          if result["failed"] > 0 and result["reported"] == 0 and result["due"] > 0:
+              sys.exit("Every funeral that was due to be reported failed.")
+          PY

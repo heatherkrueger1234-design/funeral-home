@@ -9,6 +9,7 @@ import {
   familyContactsTable,
   casePhotosTable,
   aftercareEnrollmentsTable,
+  homeGroupsTable,
   homeLicensureTable,
   practitionerLicencesTable,
   platformAuditTable,
@@ -18,7 +19,12 @@ import {
   LICENCE_STANDINGS,
   PRACTITIONER_ROLES,
   TRIAL_DAYS,
+  ADD_ONS,
+  isAddOnKey,
+  serialiseEntitlements,
+  type AddOnKey,
   type FuneralHome,
+  type HomeGroup,
   type HomeLicensure,
   type PractitionerLicence,
 } from "@workspace/db";
@@ -36,6 +42,10 @@ import { createPasswordReset, normaliseEmail, PASSWORD_RESET_TTL_MS } from "../l
 import { seedTimelineTemplate } from "../lib/timeline";
 import { seedPolicyPrompts } from "../lib/storefront";
 import { logger } from "../lib/logger";
+import {
+  createGroupCheckoutSession,
+  isBillingConfigured,
+} from "../lib/billing";
 
 /**
  * The platform admin console: Heather looking at her own customers.
@@ -164,6 +174,11 @@ const AUDIT_ACTIONS = [
   "home.restore",
   "home.licensure.update",
   "home.practitioner.update",
+  "home.group.update",
+  "group.list",
+  "group.create",
+  "group.open",
+  "group.checkout",
   "platform.overview",
 ] as const;
 type AuditAction = (typeof AUDIT_ACTIONS)[number];
@@ -952,6 +967,308 @@ router.get("/admin/audit", async (req, res) => {
     .limit(options.limit);
 
   res.json(rows);
+});
+
+/* ------------------------------------------------------------- groups -- */
+
+/**
+ * Funeral-home groups: one contract, many locations.
+ *
+ * This lives in the platform console rather than in any home's own console,
+ * and that is the right place for it. A group contract is negotiated by a
+ * person at this end talking to a person who owns forty funeral homes; it is
+ * not something a director at one branch should be able to create by
+ * clicking about in their settings.
+ *
+ * Every route here audits, like everything else under `/admin`, though these
+ * read less than the rest of the console does: a group row holds a name, a
+ * Stripe id and a status, and no family has ever appeared in one.
+ */
+
+/** How long a location gets to arrange its own billing after leaving a group. */
+const GROUP_EXIT_GRACE_DAYS = 14;
+
+async function uniqueGroupSlug(name: string): Promise<string> {
+  const base =
+    name
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, "-")
+      .replace(/^-+|-+$/g, "")
+      .slice(0, 48) || "group";
+
+  for (let attempt = 0; attempt < 100; attempt += 1) {
+    const candidate = attempt === 0 ? base : `${base}-${attempt + 1}`;
+    const [taken] = await db
+      .select({ id: homeGroupsTable.id })
+      .from(homeGroupsTable)
+      .where(eq(homeGroupsTable.slug, candidate))
+      .limit(1);
+
+    if (!taken) return candidate;
+  }
+
+  throw new HttpError(500, "Could not allocate a unique name for this group.");
+}
+
+/**
+ * A group as the console sees it. Hand-built for the same reason
+ * `toAdminHome` is: a column added to `home_groups` should not widen this
+ * by accident.
+ */
+function toAdminGroup(group: HomeGroup, locations: number) {
+  return {
+    id: group.id,
+    name: group.name,
+    slug: group.slug,
+    locations,
+    subscriptionStatus: group.subscriptionStatus,
+    trialEndsAt: group.trialEndsAt,
+    currentPeriodEndsAt: group.currentPeriodEndsAt,
+    hasSubscription: group.stripeSubscriptionId !== null,
+    entitlements: group.entitlements
+      .split(",")
+      .map((entry) => entry.trim())
+      .filter(Boolean),
+    createdAt: group.createdAt,
+  };
+}
+
+async function locationCounts(
+  groupIds: number[],
+): Promise<Map<number, number>> {
+  if (groupIds.length === 0) return new Map();
+
+  const rows = await db
+    .select({ groupId: funeralHomesTable.groupId, total: count() })
+    .from(funeralHomesTable)
+    .where(inArray(funeralHomesTable.groupId, groupIds))
+    .groupBy(funeralHomesTable.groupId);
+
+  return new Map(
+    rows.flatMap((row) => (row.groupId === null ? [] : [[row.groupId, row.total]])),
+  );
+}
+
+router.get("/admin/groups", async (req, res) => {
+  const who = actor(req);
+  await recordPlatformAccess(who, "group.list", null);
+
+  const groups = await db
+    .select()
+    .from(homeGroupsTable)
+    .orderBy(asc(homeGroupsTable.name));
+
+  const counts = await locationCounts(groups.map((group) => group.id));
+
+  res.json(
+    groups.map((group) => toAdminGroup(group, counts.get(group.id) ?? 0)),
+  );
+});
+
+const CreateGroupBody = z.object({
+  name: z.string().trim().min(1).max(160),
+});
+
+router.post("/admin/groups", async (req, res) => {
+  const who = actor(req);
+  const { name } = parseBody(CreateGroupBody, req.body);
+
+  const [created] = await db
+    .insert(homeGroupsTable)
+    .values({
+      name,
+      slug: await uniqueGroupSlug(name),
+      // A group starts on the same trial a single home gets. Nobody signs a
+      // forty-location contract without trying it on one of them first.
+      trialEndsAt: new Date(Date.now() + TRIAL_DAYS * 24 * 60 * 60 * 1000),
+    })
+    .returning();
+
+  await recordPlatformAccess(who, "group.create", null, `Created group "${name}"`);
+
+  res.status(201).json(toAdminGroup(created!, 0));
+});
+
+async function loadGroup(who: PlatformActor, raw: string | undefined) {
+  const [group] = await db
+    .select()
+    .from(homeGroupsTable)
+    .where(eq(homeGroupsTable.id, parseId(raw)))
+    .limit(1);
+
+  const row = requireRow(group, "That group could not be found.");
+  await recordPlatformAccess(who, "group.open", null, `Opened group "${row.name}"`);
+  return row;
+}
+
+router.get("/admin/groups/:groupId", async (req, res) => {
+  const who = actor(req);
+  const group = await loadGroup(who, req.params.groupId);
+
+  const locations = await db
+    .select()
+    .from(funeralHomesTable)
+    .where(eq(funeralHomesTable.groupId, group.id))
+    .orderBy(asc(funeralHomesTable.name));
+
+  res.json({
+    ...toAdminGroup(group, locations.length),
+    addOns: ADD_ONS.map((addOn) => ({
+      key: addOn.key,
+      title: addOn.title,
+      detail: addOn.detail,
+      included: group.entitlements.split(",").includes(addOn.key),
+    })),
+    locations: locations.map(toAdminHome),
+  });
+});
+
+const MoveHomeBody = z.object({
+  /** Null takes the location back out of its group. */
+  groupId: z.number().int().positive().nullable(),
+});
+
+/**
+ * Move a location into a group, or out of one.
+ *
+ * Both directions have a trap, and both are handled here rather than left to
+ * whoever is on the call with the customer.
+ *
+ * **In:** a home that already has its own Stripe subscription is refused.
+ * Letting it join would leave the group paying a consolidated invoice while
+ * the branch quietly kept paying its own, and that is discovered by somebody
+ * in accounts a quarter later, which is the worst possible way for a vendor
+ * to be wrong about money.
+ *
+ * **Out:** the location keeps working. A branch sold to an independent owner
+ * on Tuesday has funerals on Wednesday, and cutting it off the moment the
+ * paperwork changed would stop a family part-way through uploading
+ * photographs of their mother because two companies were renegotiating. It
+ * gets a fortnight to put its own card in, on a trial with a real end date.
+ */
+router.put("/admin/homes/:homeId/group", async (req, res) => {
+  const who = actor(req);
+  const { groupId } = parseBody(MoveHomeBody, req.body);
+  const home = await platformLoadHome(
+    who,
+    parseId(req.params.homeId),
+    "home.group.update",
+    groupId === null ? "Removed from its group" : `Moved into group ${groupId}`,
+  );
+
+  if (groupId === null) {
+    const graceEnds = new Date(
+      Date.now() + GROUP_EXIT_GRACE_DAYS * 24 * 60 * 60 * 1000,
+    );
+
+    const [updated] = await db
+      .update(funeralHomesTable)
+      .set({
+        groupId: null,
+        subscriptionStatus: "trial",
+        trialEndsAt: graceEnds,
+        currentPeriodEndsAt: null,
+        // The group's add-ons left with the group. The live trial above is
+        // what keeps aftercare running for the next fortnight, and after
+        // that this location buys its own.
+        entitlements: "",
+        updatedAt: new Date(),
+      })
+      .where(eq(funeralHomesTable.id, home.id))
+      .returning();
+
+    res.json(toAdminHome(updated!));
+    return;
+  }
+
+  const [group] = await db
+    .select()
+    .from(homeGroupsTable)
+    .where(eq(homeGroupsTable.id, groupId))
+    .limit(1);
+
+  const target = requireRow(group, "That group could not be found.");
+
+  if (home.stripeSubscriptionId !== null && home.groupId === null) {
+    throw new HttpError(
+      409,
+      "This home has its own subscription. Cancel it in Stripe first, or " +
+        "the group's contract and this one will both be charged.",
+    );
+  }
+
+  const [updated] = await db
+    .update(funeralHomesTable)
+    .set({
+      groupId: target.id,
+      // Adopt the contract it is now covered by. The webhook keeps these in
+      // step from here on — see `applyGroupSubscription`.
+      subscriptionStatus: target.subscriptionStatus,
+      trialEndsAt: target.trialEndsAt,
+      currentPeriodEndsAt: target.currentPeriodEndsAt,
+      entitlements: target.entitlements,
+      updatedAt: new Date(),
+    })
+    .where(eq(funeralHomesTable.id, home.id))
+    .returning();
+
+  res.json(toAdminHome(updated!));
+});
+
+const GroupCheckoutBody = z.object({
+  returnUrl: z.string().trim().min(1).max(2048),
+  email: z.string().trim().email().max(254),
+  addOns: z.array(z.string().refine(isAddOnKey)).optional(),
+});
+
+/**
+ * Start the group's subscription.
+ *
+ * The base line is quantity-per-location and the per-case line is metered
+ * across the whole estate, which is the shape a rollup actually wants: one
+ * invoice, one renewal date, and a volume number their finance team can
+ * reconcile against their own case count.
+ */
+router.post("/admin/groups/:groupId/checkout", async (req, res) => {
+  const who = actor(req);
+  const group = await loadGroup(who, req.params.groupId);
+  const body = parseBody(GroupCheckoutBody, req.body);
+
+  if (!isBillingConfigured()) {
+    throw badRequest(
+      "Billing is not set up on this deployment. Nothing is being charged.",
+    );
+  }
+
+  const [row] = await db
+    .select({ total: count() })
+    .from(funeralHomesTable)
+    .where(eq(funeralHomesTable.groupId, group.id));
+
+  const locations = row?.total ?? 0;
+
+  if (locations === 0) {
+    throw badRequest(
+      "Put at least one location in this group before starting its contract.",
+    );
+  }
+
+  await recordPlatformAccess(
+    who,
+    "group.checkout",
+    null,
+    `Started checkout for "${group.name}" (${locations} locations)`,
+  );
+
+  res.json({
+    url: await createGroupCheckoutSession({
+      group,
+      email: body.email,
+      returnUrl: body.returnUrl,
+      addOns: body.addOns as AddOnKey[] | undefined,
+      locations,
+    }),
+  });
 });
 
 export default router;

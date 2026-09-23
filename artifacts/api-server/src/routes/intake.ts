@@ -114,7 +114,7 @@ router.post("/intake-requests/:intakeId/accept", async (req, res) => {
     throw new HttpError(402, cannotOpenCasesReason(home));
   }
 
-  const created = await openCase(home.id, user.id, {
+  const created = await openCase(home, user.id, {
     kind: row.kind,
     decedentFirstName: row.subjectFirstName,
     decedentLastName: row.subjectLastName,
