@@ -4,6 +4,7 @@ import { runAftercare } from "@workspace/mailer/aftercare";
 import { runTrialReminders } from "../lib/trial-reminders";
 import { HttpError } from "../lib/http";
 import { logger } from "../lib/logger";
+import { runCaseMetering } from "../lib/metering";
 
 /**
  * Scheduled work, triggered over HTTP.
@@ -84,6 +85,27 @@ router.post("/tasks/trial-reminders", async (req, res) => {
   const result = await runTrialReminders({ dryRun: isDryRun(req.query) });
 
   logger.info({ ...result }, "Trial reminder run finished");
+
+  res.json(result);
+});
+
+/**
+ * Report counted funerals to Stripe's meter.
+ *
+ * Same posture as the aftercare run, and separate from it on purpose: a
+ * broken meter must not stop the grief check-ins going out, and a mail
+ * outage must not stop the month being invoiced. One job failing should
+ * page somebody about one thing.
+ *
+ * Safe to run as often as you like. The rows carry an identifier Stripe
+ * deduplicates on, so the worst a double trigger does is waste a request.
+ */
+router.post("/tasks/usage", async (req, res) => {
+  assertAuthorised(req.headers.authorization);
+
+  const result = await runCaseMetering({ dryRun: isDryRun(req.query) });
+
+  logger.info({ ...result }, "Case metering run finished")
 
   res.json(result);
 });

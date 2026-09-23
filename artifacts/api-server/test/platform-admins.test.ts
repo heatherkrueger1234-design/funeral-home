@@ -298,3 +298,54 @@ describe("ours, not a customer's", () => {
     expect(log[0]!.detail).toBe("marked ours");
   });
 });
+
+describe("and what ours is never charged for", () => {
+  beforeEach(async () => {
+    await db.insert(platformAdminsTable).values({ email: ADMIN });
+  });
+
+  it("never meters a funeral opened in our own tenant", async () => {
+    const admin = await signInAdmin();
+    const customer = await signUpHome("Riverside Funeral Home");
+
+    await admin.agent
+      .put(`/api/admin/homes/${admin.homeId}/internal`)
+      .send({ internalAccount: true })
+      .expect(200);
+
+    /*
+     * Both paying, so a funeral in either is counted rather than waived as a
+     * trial. `internalAccount` is then the only thing separating them, which is
+     * the whole point of the test.
+     */
+    await db
+      .update(funeralHomesTable)
+      .set({ subscriptionStatus: "active" })
+      .where(eq(funeralHomesTable.id, admin.homeId));
+    await db
+      .update(funeralHomesTable)
+      .set({ subscriptionStatus: "active" })
+      .where(eq(funeralHomesTable.id, customer.homeId));
+
+    // A funeral in each: one real, one us trying something out.
+    await admin.agent
+      .post("/api/cases")
+      .send({ decedentFirstName: "Test", decedentLastName: "Case" })
+      .expect(201);
+    await customer.agent
+      .post("/api/cases")
+      .send({ decedentFirstName: "Margaret", decedentLastName: "Dunn" })
+      .expect(201);
+
+    const { runCaseMetering } = await import("../src/lib/metering");
+    const result = await runCaseMetering({ dryRun: true });
+
+    /*
+     * One, not two. Today our own row has no Stripe customer so it would be
+     * skipped anyway — but that is luck, not a rule: attach a customer to it
+     * once to test checkout and we would meter our own demo cases onto a real
+     * invoice.
+     */
+    expect(result.due).toBe(1);
+  });
+});

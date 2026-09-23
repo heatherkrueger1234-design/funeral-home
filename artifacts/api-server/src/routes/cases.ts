@@ -11,7 +11,9 @@ import {
   toStaffSignature,
   canOpenCases,
   cannotOpenCasesReason,
+  hasAddOn,
   type Case,
+  type FuneralHome,
 } from "@workspace/db";
 import {
   CreateCaseBody,
@@ -30,6 +32,7 @@ import {
 import { currentUser, tenant } from "../middleware/require-auth";
 import { countsForCases, toCaseJson } from "../lib/case-view";
 import { enrolCaseInAftercare } from "../lib/aftercare";
+import { recordBillableCase } from "../lib/metering";
 import { applyTemplateToCase, hasDeadlines } from "../lib/timeline";
 import { markOnboarding } from "../lib/onboarding";
 import { HttpError } from "../lib/http";
@@ -139,7 +142,7 @@ router.post("/cases", async (req, res) => {
     await assertStaffBelongsHere(values.leadDirectorId, home.id);
   }
 
-  const created = await openCase(home.id, user.id, values);
+  const created = await openCase(home, user.id, values);
 
   res.status(201).json(toCaseJson(created));
 });
@@ -155,13 +158,15 @@ router.post("/cases", async (req, res) => {
  * rest of its life.
  */
 export async function openCase(
-  funeralHomeId: number,
+  home: FuneralHome,
   userId: number,
   values: Partial<typeof casesTable.$inferInsert> & {
     decedentFirstName: string;
     decedentLastName: string;
   },
 ): Promise<Case> {
+  const funeralHomeId = home.id;
+
   const created = await db.transaction(async (tx) => {
     const [row] = await tx
       .insert(casesTable)
@@ -194,6 +199,14 @@ export async function openCase(
   if (created.serviceAt !== null && created.kind !== "pre_need") {
     await applyTemplateToCase(created);
   }
+
+  /*
+   * Count the funeral. After the case exists and outside its transaction,
+   * because the accounting must never be able to refuse the case -- see
+   * `metering.ts`. A pre-need file is not counted here and is counted when
+   * it converts.
+   */
+  await recordBillableCase(created, home);
 
   await markOnboarding(funeralHomeId, "case");
 
@@ -329,6 +342,7 @@ async function assertPhotoOnCase(
  * happen.
  */
 router.post("/cases/:caseId/at-need", async (req, res) => {
+  const home = tenant(req);
   const existing = await loadCase(req, req.params.caseId);
 
   if (existing.kind !== "pre_need") {
@@ -358,6 +372,15 @@ router.post("/cases/:caseId/at-need", async (req, res) => {
    * who is perfectly well would be grotesque. That objection has just stopped
    * applying.
    */
+  /*
+   * And count it, for the first time. A pre-need file was never billable --
+   * somebody writing down what they want at their own funeral is not a
+   * funeral served -- and today it became one. The unique index on `caseId`
+   * means a file that somehow travelled this road twice is still counted
+   * once.
+   */
+  await recordBillableCase(converted!, home);
+
   if (converted!.serviceAt !== null && !(await hasDeadlines(converted!.id))) {
     await applyTemplateToCase(converted!);
   }
@@ -410,7 +433,29 @@ router.post("/cases/:caseId/close", async (req, res) => {
    * home's own setting, because no home setting should be able to turn this
    * on for someone who has not died.
    */
-  if (closed!.kind !== "pre_need" && home.aftercareEnabled) {
+  /*
+   * `hasAddOn` comes last of the three, and the order is the argument.
+   *
+   * The kind check is first because no amount of money should be able to
+   * send a bereavement check-in to somebody who has not died. The home's own
+   * switch is second because a home that has turned this off has said so.
+   * Only then does it matter whether the add-on is on the contract.
+   *
+   * What this gates is *enrolling a new family*, and nothing else. A family
+   * already enrolled keeps receiving their check-ins at sixty days, ninety
+   * days and on the anniversary even if the home drops the add-on, or lets
+   * the subscription lapse, or leaves entirely -- `runAftercare` reads the
+   * enrolment and never asks who is paying, and that is not an oversight to
+   * be tidied up later. Somebody promised that family, in the home's name,
+   * that they would hear from them on the anniversary of their mother's
+   * death. A billing event on our side is not a reason to break it, and a
+   * product that broke it would deserve everything that followed.
+   */
+  if (
+    closed!.kind !== "pre_need" &&
+    home.aftercareEnabled &&
+    hasAddOn(home, "aftercare", now)
+  ) {
     await enrolCaseInAftercare(closed!, home, now);
   }
 
