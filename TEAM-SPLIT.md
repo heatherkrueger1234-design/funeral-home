@@ -1,5 +1,11 @@
 # Building this in parallel: six components, six owners
 
+> **Out of date on one point (23 Sep 2026):** the branch names below are
+> wrong. `claude/app-capability-check-mvfn8x` is no longer the integration
+> branch. Branch from and merge into **`claude/funeral-home-portal-uj9bik`**.
+> See [`./STATUS.md`](./STATUS.md). The rules and the craft standard still
+> apply.
+
 Read this before you touch anything. It exists because six agents working in
 one pnpm workspace on one OpenAPI contract will otherwise spend more time
 resolving merge conflicts than writing features.
