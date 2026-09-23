@@ -1,10 +1,12 @@
 # Component briefs
 
 > **Archived.** These were written for the agents that built each component and
-> the work has landed. Read them for the intention behind existing code. The
-> live rules are in [`../../../CONTRIBUTING.md`](../../../CONTRIBUTING.md) and
-> [`../../../CRAFT.md`](../../../CRAFT.md); the branch names and sequencing
-> below are no longer accurate.
+> the work has landed. Read them for the intention behind existing code, not to
+> find out what to build. The branch names and sequencing below are wrong:
+> branch from and merge into **`claude/funeral-home-portal-uj9bik`**, and see
+> [`../../../STATUS.md`](../../../STATUS.md). The live rules are in
+> [`../../../CONTRIBUTING.md`](../../../CONTRIBUTING.md) and
+> [`../../../CRAFT.md`](../../../CRAFT.md).
 
 One file per agent. Read, in this order:
 

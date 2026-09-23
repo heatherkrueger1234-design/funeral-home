@@ -3,10 +3,13 @@
 > **Archived — do not follow this.** The build happened and this is the plan it
 > happened under, kept for the decisions it explains. Two things in it were
 > never true: `lib/api-spec/openapi.yaml` was never split into one file per
-> domain, and the branches named below are not where the code ended up.
+> domain, and `claude/app-capability-check-mvfn8x` is no longer the integration
+> branch — branch from and merge into **`claude/funeral-home-portal-uj9bik`**,
+> and see [`../../STATUS.md`](../../STATUS.md) for why there are two.
 >
-> The live rules are in [`../../CONTRIBUTING.md`](../../CONTRIBUTING.md). The
-> craft standard, which used to be the second half of this file, is now
+> The rules themselves still hold, and they live in
+> [`../../CONTRIBUTING.md`](../../CONTRIBUTING.md). The craft standard, which
+> used to be the second half of this file, is now
 > [`../../CRAFT.md`](../../CRAFT.md), unchanged.
 
 Read this before you touch anything. It exists because six agents working in
