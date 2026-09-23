@@ -48,6 +48,14 @@ Thumbs.db
 .cache/
 .local/
 
+# The Replit Agent's own scratch/checkpoint state. Not part of the product —
+# committing it duplicates the whole repository into a subdirectory (585 files
+# in one such commit, ~94,000 lines) which is pure bloat, and it has already
+# happened once. Taken from claude/publishing-issue-alvr9f, which is otherwise
+# obsolete: the dump it removed is already gone and the rest of that branch
+# would drag the lockfile back two days.
+.conversation/
+
 # Secrets. ENCRYPTION_KEY, SMTP_PASS and the Google client secret belong in
 # the host's secret store, never in the repository — a key committed beside
 # the ciphertext it protects is not encryption.
