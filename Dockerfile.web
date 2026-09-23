@@ -46,6 +46,13 @@ RUN pnpm run typecheck:libs
 # gets its own hostname rather than a path prefix. PORT is not set because the
 # build does not need one — nginx does the serving.
 ENV NODE_ENV=production
+# The one build-time value: the director console prints the home's public
+# page address for them to put on their own website, and only the deployment
+# knows the family portal's hostname. Without it the console could only show
+# "/start/<slug>" and ask a funeral director to assemble a URL by hand.
+# Harmless for the other two apps, which never read it.
+ARG VITE_FAMILY_PORTAL_URL=""
+ENV VITE_FAMILY_PORTAL_URL=${VITE_FAMILY_PORTAL_URL}
 RUN pnpm --filter "@workspace/${APP}" run build
 
 # Pin the output path for the next stage: COPY --from cannot expand an ARG in

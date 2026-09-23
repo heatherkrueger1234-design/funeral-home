@@ -143,7 +143,7 @@ router.patch("/photos/:photoId", async (req, res) => {
   // body is regenerated from `openapi.yaml` and does not carry them yet.
   const values = assertHasUpdates({
     ...parseBody(UpdatePhotoBody, req.body),
-    ...PhotoDatingBody.parse(req.body ?? {}),
+    ...parseBody(PhotoDatingBody, req.body),
   });
 
   const [updated] = await db
@@ -320,10 +320,17 @@ router.get("/cases/:caseId/photo-pack", async (req, res) => {
       ? upload.filename.slice(upload.filename.lastIndexOf(".") + 1)
       : "jpg";
     const caption = photo.caption?.trim();
-    const label = caption ? `-${caption.replace(/[^a-zA-Z0-9]+/g, "-")}` : "";
+    // The caption is what gets shortened, never the whole name: cutting the
+    // assembled name at 120 characters used to take the extension with it
+    // whenever a family wrote a long caption, and a file called "07-Mum-at-
+    // the-lake-the-summer-before" with no ".jpg" is one the slideshow
+    // software will not open.
+    const label = caption
+      ? `-${caption.replace(/[^a-zA-Z0-9]+/g, "-").slice(0, 100)}`
+      : "";
 
     await zip.addFile(
-      ZipWriter.safeName(`${order}${label}.${extension}`.slice(0, 120)),
+      ZipWriter.safeName(`${order}${label}.${extension}`),
       bytes,
       upload.createdAt,
     );

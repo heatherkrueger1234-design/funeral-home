@@ -101,6 +101,8 @@ services:
       dockerfile: Dockerfile.web
       args:
         APP: director-console
+        # So the Storefront screen shows the whole public-page address.
+        VITE_FAMILY_PORTAL_URL: ${FAMILY_PORTAL_URL:-}
     restart: unless-stopped
     depends_on:
       - api

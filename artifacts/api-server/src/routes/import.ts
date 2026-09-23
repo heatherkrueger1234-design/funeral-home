@@ -6,8 +6,10 @@ import {
   casesTable,
   familyContactsTable,
   obituaryDraftsTable,
+  canOpenCases,
+  cannotOpenCasesReason,
 } from "@workspace/db";
-import { badRequest } from "../lib/http";
+import { badRequest, HttpError } from "../lib/http";
 import { currentUser, tenant } from "../middleware/require-auth";
 import {
   guessMapping,
@@ -244,6 +246,19 @@ router.post(
 router.post("/cases/import", upload.single("file"), async (req, res) => {
   const home = tenant(req);
   const user = currentUser(req);
+
+  /*
+   * The same gate `POST /cases` has, and for the same one action: this
+   * endpoint opens new cases, two hundred at a time. Without it the
+   * subscription's only gate -- and a platform suspension, which is defined
+   * as exactly "cannot open new cases" -- was one spreadsheet away from
+   * meaning nothing. The preview stays open, because looking costs nothing
+   * and a home deciding whether to subscribe may well want to see it.
+   */
+  if (!canOpenCases(home)) {
+    throw new HttpError(402, cannotOpenCasesReason(home));
+  }
+
   const parsed = readCsv(req.file);
   const mapping = guessMapping(parsed.headers);
 

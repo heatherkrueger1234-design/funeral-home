@@ -268,6 +268,12 @@ router.put("/cases/:caseId", async (req, res) => {
   if (values.portraitPhotoId != null) {
     await assertPhotoOnCase(values.portraitPhotoId, existing.id, home.id);
   }
+  // The same for the preparation room's reference photo, which was missed:
+  // it resolves to an upload id on the preparation sheet, so an unchecked id
+  // pointed this case at a photograph from another case, or another home.
+  if (values.referencePhotoId != null) {
+    await assertPhotoOnCase(values.referencePhotoId, existing.id, home.id);
+  }
 
   const [updated] = await db
     .update(casesTable)

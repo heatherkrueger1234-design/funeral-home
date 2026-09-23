@@ -267,7 +267,11 @@ router.post("/billing/checkout", async (req, res) => {
   const { returnUrl } = parseBody(StartCheckoutBody, req.body);
   // Parsed separately from the generated body schema, which is regenerated
   // from `openapi.yaml` and does not know about add-ons yet.
-  const { addOns } = AddOnSelection.parse(req.body ?? {});
+  // safeParse rather than parse: a thrown ZodError is not an HttpError, so a
+  // malformed add-on list reached the error handler as a 500.
+  const selection = AddOnSelection.safeParse(req.body ?? {});
+  if (!selection.success) throw badRequest("That is not an add-on we offer.");
+  const { addOns } = selection.data;
 
   res.json({
     url: await createCheckoutSession({
