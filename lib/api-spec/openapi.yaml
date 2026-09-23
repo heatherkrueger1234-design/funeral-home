@@ -973,6 +973,9 @@ paths:
 
         What survives is a tombstone: which case, who erased it, when, and
         nothing about who it was for.
+
+        Owner only. A director or member of staff is refused with 403 before
+        the case is looked up.
       parameters:
         - $ref: "#/components/parameters/CaseId"
       requestBody:
@@ -986,6 +989,8 @@ paths:
           description: Gone
         "400":
           description: The confirmation did not match
+        "403":
+          description: Only the home's owner can erase a case
 
   /intake-requests:
     get:

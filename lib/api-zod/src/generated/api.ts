@@ -1412,6 +1412,9 @@ copy of a family's photographs of their mother that exists anywhere.
 What survives is a tombstone: which case, who erased it, when, and
 nothing about who it was for.
 
+Owner only. A director or member of staff is refused with 403 before
+the case is looked up.
+
  * @summary Erase a case and everything on it, permanently
  */
 export const DeleteCaseParams = zod.object({

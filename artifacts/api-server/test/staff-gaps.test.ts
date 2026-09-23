@@ -235,3 +235,79 @@ describe("staff adding a photograph to a case", () => {
     expect(refused.body.error).toContain(String(MAX_PHOTOS_PER_CASE));
   });
 });
+
+/** Invite a colleague with the given role and return their signed-in agent. */
+async function colleague(
+  owner: Awaited<ReturnType<typeof signUpHome>>,
+  role: "director" | "staff",
+) {
+  const email = `${role}-${Math.random().toString(36).slice(2)}@example.com`;
+  const invited = await owner.agent
+    .post("/api/home/staff")
+    .send({ email, displayName: "Ray Ochoa", role })
+    .expect(201);
+
+  const token = String(invited.body.inviteLink).split("token=")[1]!;
+  const request = (await import("supertest")).default;
+  const app = (await import("../src/app")).default;
+  const agent = request.agent(app);
+  await agent
+    .post("/api/auth/reset-password")
+    .send({ token: decodeURIComponent(token), password: "another-long-pass" })
+    .expect(204);
+  await agent
+    .post("/api/auth/login")
+    .send({ email, password: "another-long-pass" })
+    .expect(200);
+  return agent;
+}
+
+/**
+ * Erasing a case is the owner's decision.
+ *
+ * It cannot be undone, it destroys photographs other people sent, and it is
+ * how the home discharges a retention duty that belongs to the home. The
+ * roles comment in `users.ts` gives the owner billing and staff and draws no
+ * other line between director and staff, so the line drawn here is the
+ * owner's.
+ */
+describe("permanently erasing a case", () => {
+  for (const role of ["director", "staff"] as const) {
+    it(`is refused to a ${role}, and the case survives`, async () => {
+      const owner = await signUpHome();
+      const kase = await createCase(owner);
+      const agent = await colleague(owner, role);
+
+      const refused = await agent
+        .post(`/api/cases/${kase.id}/delete`)
+        .send({ confirmName: "Margaret Hale" })
+        .expect(403);
+      expect(refused.body.error).toMatch(/owner/);
+
+      await owner.agent.get(`/api/cases/${kase.id}`).expect(200);
+      // They can still take a copy out, which is the way forward they are told.
+      await agent.get(`/api/cases/${kase.id}/export`).expect(200);
+    });
+  }
+
+  it("is refused before the case is looked up, so it reveals nothing", async () => {
+    const owner = await signUpHome();
+    const agent = await colleague(owner, "director");
+
+    await agent
+      .post(`/api/cases/999999/delete`)
+      .send({ confirmName: "Nobody" })
+      .expect(403);
+  });
+
+  it("still works for the owner", async () => {
+    const owner = await signUpHome();
+    const kase = await createCase(owner);
+
+    await owner.agent
+      .post(`/api/cases/${kase.id}/delete`)
+      .send({ confirmName: "Margaret Hale" })
+      .expect(204);
+    await owner.agent.get(`/api/cases/${kase.id}`).expect(404);
+  });
+});

@@ -19,7 +19,8 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import { toast } from "@/hooks/use-toast";
-import { Download, Loader2, Trash2, HeartCrack } from "lucide-react";
+import { useSession } from "@/lib/session";
+import { Download, Loader2, Lock, Trash2, HeartCrack } from "lucide-react";
 
 /**
  * The three things a home does with a case that are not working the case:
@@ -197,6 +198,31 @@ function EraseCase({
   // Compared the same way the server does, so the button's state never
   // disagrees with what happens when it is pressed.
   const matches = typed.trim().toLowerCase() === displayName.trim().toLowerCase();
+
+  /*
+   * The owner's decision only; the server refuses anyone else. Explained
+   * rather than hidden, so a director whom a family has asked knows the way
+   * forward instead of hunting for a button that is not there.
+   */
+  const { session } = useSession();
+  const isOwner = session?.user.role === "owner";
+
+  if (!isOwner) {
+    return (
+      <div className="rounded-lg border p-4">
+        <p className="font-medium mb-1">Erase this case</p>
+        <p className="text-sm text-muted-foreground mb-3">
+          Only the home&rsquo;s owner can erase a case, because it cannot be
+          undone and the home may be required to keep the record. If a family
+          has asked for it, export the case and ask the owner to erase it.
+        </p>
+        <Button variant="outline" size="sm" disabled>
+          <Lock className="size-4" aria-hidden />
+          Erase (owner only)
+        </Button>
+      </div>
+    );
+  }
 
   return (
     <div className="rounded-lg border border-destructive/40 p-4">

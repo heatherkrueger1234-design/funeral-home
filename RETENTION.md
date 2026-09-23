@@ -76,6 +76,13 @@ close the book. Both are one click and both take effect immediately.
 
 `Erase this case` on the case, or `POST /api/cases/:id/delete`.
 
+Only the home's **owner** can do it. Erasing is how a home applies its own
+retention rule, and that rule is the home's legal obligation, not any one
+employee's; it sits with the person who also holds billing and who works here.
+A director or member of staff sees the section with the reason and is refused
+by the server. If a family asks them, they export the case and take it to the
+owner.
+
 It requires the deceased's name typed out, not a confirmation button. That is
 because this destroys the only copy of a family's photographs of their mother
 that exists anywhere outside your backups, and an "OK" button is something a
