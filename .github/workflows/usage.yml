@@ -31,6 +31,11 @@ concurrency:
   group: usage
   cancel-in-progress: false
 
+# No checkout, no push, no PR/issue access — just one authenticated curl.
+# Left out, this job ran with the repository's default token scope, which on
+# an older repository is read/write on everything, for a step that needs none.
+permissions: {}
+
 jobs:
   report:
     runs-on: ubuntu-latest
