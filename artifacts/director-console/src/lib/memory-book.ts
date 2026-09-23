@@ -2,6 +2,7 @@
  * The arithmetic behind the memory book tab, kept out of the component so it
  * can be tested without rendering one.
  */
+import { fromHomeInput, toHomeInput } from "./utils";
 
 /** Anything with an id and a place in the book. */
 type Positioned = { id: number; position: number };
@@ -112,18 +113,24 @@ export function bookStatus(
     : "Open — the family can add to it";
 }
 
-/** The end of a chosen day, in the home's browser, as an ISO string. */
-export function endOfDay(dateInput: string): string | null {
+/**
+ * The end of a chosen day at the home, as an ISO string.
+ *
+ * The book closes at midnight in the home's town. It used to be the end of
+ * the day in whichever browser picked the date, so a book closed from a
+ * laptop in London shut at five in the afternoon in Denver while the family
+ * were still writing in it.
+ */
+export function endOfDay(
+  dateInput: string,
+  zone?: string | null,
+): string | null {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(dateInput)) return null;
-  const [year, month, day] = dateInput.split("-").map(Number) as [number, number, number];
-  return new Date(year, month - 1, day, 23, 59, 59).toISOString();
+  const minute = fromHomeInput(`${dateInput}T23:59`, zone);
+  return minute ? new Date(Date.parse(minute) + 59_000).toISOString() : null;
 }
 
-/** A stored date as a `<input type="date">` value, in local time. */
-export function toDateInput(value: string | null): string {
-  if (!value) return "";
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return "";
-  const pad = (n: number) => String(n).padStart(2, "0");
-  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
+/** A stored date as a `<input type="date">` value, on the home's calendar. */
+export function toDateInput(value: string | null, zone?: string | null): string {
+  return toHomeInput(value, zone).slice(0, 10);
 }

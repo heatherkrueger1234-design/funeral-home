@@ -14,6 +14,8 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
+import { formatAtHome } from "@/lib/utils";
+import { useHomeZone } from "@/lib/session";
 import { Loader2, Upload, TriangleAlert, Check } from "lucide-react";
 
 /**
@@ -47,6 +49,7 @@ async function postCsv<T>(path: string, file: File): Promise<T> {
 }
 
 export function ImportCases() {
+  const zone = useHomeZone();
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const fileInput = useRef<HTMLInputElement>(null);
@@ -219,7 +222,7 @@ export function ImportCases() {
                       </td>
                       <td className="px-3 py-2 text-muted-foreground">
                         {row.serviceAt
-                          ? new Date(row.serviceAt).toLocaleString(undefined, {
+                          ? formatAtHome(row.serviceAt, zone, {
                               day: "numeric",
                               month: "short",
                               hour: "numeric",

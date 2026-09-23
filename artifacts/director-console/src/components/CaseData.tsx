@@ -19,7 +19,8 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import { toast } from "@/hooks/use-toast";
-import { useSession } from "@/lib/session";
+import { useHomeZone, useSession } from "@/lib/session";
+import { fromHomeInput, zoneHint } from "@/lib/utils";
 import { Download, Loader2, Lock, Trash2, HeartCrack } from "lucide-react";
 
 /**
@@ -79,6 +80,7 @@ function ConvertToAtNeed({
   const [open, setOpen] = useState(false);
   const [dateOfDeath, setDateOfDeath] = useState("");
   const [serviceAt, setServiceAt] = useState("");
+  const zone = useHomeZone();
 
   const convert = useConvertCaseToAtNeed({
     mutation: {
@@ -137,6 +139,9 @@ function ConvertToAtNeed({
                 value={serviceAt}
                 onChange={(event) => setServiceAt(event.target.value)}
               />
+              {zoneHint(zone) && (
+                <p className="mt-1 text-xs text-muted-foreground">{zoneHint(zone)}</p>
+              )}
             </div>
           </div>
           <DialogFooter>
@@ -149,9 +154,13 @@ function ConvertToAtNeed({
                 convert.mutate({
                   caseId,
                   data: {
+                    // A calendar date, kept as midnight UTC on that day, which
+                    // is how every date of death is stored and read back
+                    // (`formatCalendarDate`); the service is a moment, typed
+                    // on the home's clock.
                     dateOfDeath: new Date(dateOfDeath).toISOString(),
                     serviceAt: serviceAt
-                      ? new Date(serviceAt).toISOString()
+                      ? fromHomeInput(serviceAt, zone)
                       : null,
                   },
                 })

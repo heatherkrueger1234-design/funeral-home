@@ -89,6 +89,16 @@ describe("years and dates", () => {
     expect(toDateInput(iso)).toBe("2027-03-14");
     expect(endOfDay("14/03/2027")).toBeNull();
   });
+
+  it("closes at midnight in the home's town, not the browser's", () => {
+    // 23:59:59 in Denver in March (MDT, UTC-6) is 05:59:59 the next day UTC.
+    const iso = endOfDay("2027-03-14", "America/Denver");
+    expect(iso).toBe("2027-03-15T05:59:59.000Z");
+    expect(toDateInput(iso, "America/Denver")).toBe("2027-03-14");
+    // Read in London the same instant is already the fifteenth, which is
+    // why the input has to be read on the home's calendar.
+    expect(toDateInput(iso, "Europe/London")).toBe("2027-03-15");
+  });
 });
 
 describe("the status line", () => {

@@ -14,6 +14,7 @@ import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import { endOfDay, readYear, toDateInput } from "@/lib/memory-book";
+import { useHomeZone } from "@/lib/session";
 
 /**
  * The book's own settings: its title, which sections print, the day itself,
@@ -57,6 +58,7 @@ export function MemoryBookSettings({
   displayName: string;
 }) {
   const queryClient = useQueryClient();
+  const zone = useHomeZone();
   const update = useUpdateMemoryBook({
     mutation: {
       onSuccess: () =>
@@ -116,12 +118,13 @@ export function MemoryBookSettings({
             key={book.closesAt ?? "open"}
             type="date"
             className="w-auto"
-            defaultValue={toDateInput(book.closesAt)}
+            defaultValue={toDateInput(book.closesAt, zone)}
             onBlur={(event) => {
               const value = event.target.value;
-              const next = value ? endOfDay(value) : null;
+              // The end of that day at the home, not in this browser.
+              const next = value ? endOfDay(value, zone) : null;
               if (value && !next) return;
-              if (toDateInput(next) === toDateInput(book.closesAt)) return;
+              if (toDateInput(next, zone) === toDateInput(book.closesAt, zone)) return;
               save({ closesAt: next });
             }}
           />

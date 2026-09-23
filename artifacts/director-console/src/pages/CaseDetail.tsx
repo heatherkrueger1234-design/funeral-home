@@ -34,20 +34,25 @@ import { MemoryBookPanel } from "@/components/case/MemoryBookPanel";
 import { DetailsPanel } from "@/components/case/DetailsPanel";
 import { CaseData } from "@/components/CaseData";
 import { Empty, Loading } from "@/components/page";
+import { formatAtHome } from "@/lib/utils";
+import { useHomeZone } from "@/lib/session";
 import { ArrowLeft, CalendarX, FileQuestion } from "lucide-react";
 
-/** "Sat 26 Sep, 4:51 pm" — the day of the week is half of how a date is read here. */
-const serviceFormat = new Intl.DateTimeFormat(undefined, {
-  weekday: "short",
-  day: "numeric",
-  month: "short",
-  hour: "numeric",
-  minute: "2-digit",
-});
-
-function serviceLabel(value: string | Date): string {
-  const date = value instanceof Date ? value : new Date(value);
-  return Number.isNaN(date.getTime()) ? "—" : serviceFormat.format(date);
+/**
+ * "Sat 26 Sep, 4:51 pm" — the day of the week is half of how a date is read
+ * here. On the home's clock (`formatAtHome`), so a director away from the
+ * office reads the hour the family will arrive, not the hour where they are.
+ */
+function serviceLabel(value: string | Date, zone: string | undefined): string {
+  return (
+    formatAtHome(value, zone, {
+      weekday: "short",
+      day: "numeric",
+      month: "short",
+      hour: "numeric",
+      minute: "2-digit",
+    }) || "—"
+  );
 }
 
 export default function CaseDetail() {
@@ -56,6 +61,7 @@ export default function CaseDetail() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const [tab, setTab] = useState("family");
+  const zone = useHomeZone();
 
   const row = useGetCase(caseId, {
     query: {
@@ -164,7 +170,7 @@ export default function CaseDetail() {
               <p className="mt-2 text-sm">
                 <span className="eyebrow mr-2">Service</span>
                 <span className="tabular font-semibold">
-                  {serviceLabel(detail.serviceAt)}
+                  {serviceLabel(detail.serviceAt, zone)}
                 </span>
                 {detail.serviceLocation && (
                   <span className="text-muted-foreground">
