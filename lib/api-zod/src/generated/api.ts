@@ -1665,6 +1665,12 @@ export const GetCaseResponse = zod
           revokedAt: zod.date().nullable(),
           firstSeenAt: zod.date().nullable(),
           lastSeenAt: zod.date().nullable(),
+          invitedByContactId: zod
+            .number()
+            .nullable()
+            .describe(
+              "Set when somebody on the family's side added this person, rather than the home.",
+            ),
           createdAt: zod.date(),
         }),
       ),
@@ -1804,6 +1810,12 @@ export const CloseCaseResponse = zod
           revokedAt: zod.date().nullable(),
           firstSeenAt: zod.date().nullable(),
           lastSeenAt: zod.date().nullable(),
+          invitedByContactId: zod
+            .number()
+            .nullable()
+            .describe(
+              "Set when somebody on the family's side added this person, rather than the home.",
+            ),
           createdAt: zod.date(),
         }),
       ),
@@ -1830,6 +1842,12 @@ export const GetCaseContactsResponseItem = zod.object({
   revokedAt: zod.date().nullable(),
   firstSeenAt: zod.date().nullable(),
   lastSeenAt: zod.date().nullable(),
+  invitedByContactId: zod
+    .number()
+    .nullable()
+    .describe(
+      "Set when somebody on the family's side added this person, rather than the home.",
+    ),
   createdAt: zod.date(),
 });
 export const GetCaseContactsResponse = zod.array(GetCaseContactsResponseItem);
@@ -1883,6 +1901,12 @@ export const UpdateContactResponse = zod.object({
   revokedAt: zod.date().nullable(),
   firstSeenAt: zod.date().nullable(),
   lastSeenAt: zod.date().nullable(),
+  invitedByContactId: zod
+    .number()
+    .nullable()
+    .describe(
+      "Set when somebody on the family's side added this person, rather than the home.",
+    ),
   createdAt: zod.date(),
 });
 
@@ -1919,6 +1943,12 @@ export const SendContactLinkResponse = zod
     revokedAt: zod.date().nullable(),
     firstSeenAt: zod.date().nullable(),
     lastSeenAt: zod.date().nullable(),
+    invitedByContactId: zod
+      .number()
+      .nullable()
+      .describe(
+        "Set when somebody on the family's side added this person, rather than the home.",
+      ),
     createdAt: zod.date(),
   })
   .and(
@@ -1960,6 +1990,12 @@ export const ReissueContactLinkResponse = zod
     revokedAt: zod.date().nullable(),
     firstSeenAt: zod.date().nullable(),
     lastSeenAt: zod.date().nullable(),
+    invitedByContactId: zod
+      .number()
+      .nullable()
+      .describe(
+        "Set when somebody on the family's side added this person, rather than the home.",
+      ),
     createdAt: zod.date(),
   })
   .and(
@@ -4588,6 +4624,12 @@ export const GetFamilySessionResponse = zod
       revokedAt: zod.date().nullable(),
       firstSeenAt: zod.date().nullable(),
       lastSeenAt: zod.date().nullable(),
+      invitedByContactId: zod
+        .number()
+        .nullable()
+        .describe(
+          "Set when somebody on the family's side added this person, rather than the home.",
+        ),
       createdAt: zod.date(),
     }),
     home: zod
@@ -5288,6 +5330,73 @@ export const SetFamilyAftercareConsentResponse = zod.object({
       failedAt: zod.date().nullable(),
     }),
   ),
+});
+
+/**
+ * Only the relatives this contact added themselves. Somebody who cannot
+invite gets `canInvite: false` and an empty list rather than an error,
+so the portal can simply not offer the screen.
+
+ * @summary Whether this person can pass the link on, and to whom they have
+ */
+export const GetFamilyRelativesResponse = zod.object({
+  canInvite: zod.boolean(),
+  cap: zod
+    .number()
+    .describe(
+      "How many relatives the family's side may add to this case in all.",
+    ),
+  remaining: zod.number(),
+  relatives: zod.array(
+    zod
+      .object({
+        id: zod.number(),
+        name: zod.string(),
+        relationship: zod.string().nullable(),
+        phone: zod.string().nullable(),
+        email: zod.string().nullable(),
+        firstSeenAt: zod
+          .date()
+          .nullable()
+          .describe(
+            "When they first opened their link, so the inviter knows it landed.",
+          ),
+        revoked: zod
+          .boolean()
+          .describe("The home has since stopped this person's link."),
+        createdAt: zod.date(),
+      })
+      .describe("A relative as the person who added them sees them."),
+  ),
+});
+
+/**
+ * Only for a contact the home has allowed to invite (`canInvite`). The
+new contact is a contributor on the same case, with a link of their
+own and no power to invite anybody further. Their link is texted
+and/or emailed; if neither could go, it is returned once, to copy, and
+is never retrievable again -- only its digest is stored. The home is
+told who added whom. At most `cap` relatives per case, however many
+of them have since been removed.
+
+ * @summary Give a relative their own link to the same arrangements
+ */
+export const inviteFamilyRelativeBodyNameMax = 120;
+
+export const inviteFamilyRelativeBodyRelationshipMax = 60;
+
+export const inviteFamilyRelativeBodyPhoneMax = 40;
+
+export const inviteFamilyRelativeBodyEmailMax = 254;
+
+export const InviteFamilyRelativeBody = zod.object({
+  name: zod.string().min(1).max(inviteFamilyRelativeBodyNameMax),
+  relationship: zod
+    .string()
+    .max(inviteFamilyRelativeBodyRelationshipMax)
+    .nullish(),
+  phone: zod.string().max(inviteFamilyRelativeBodyPhoneMax).nullish(),
+  email: zod.string().max(inviteFamilyRelativeBodyEmailMax).nullish(),
 });
 
 /**

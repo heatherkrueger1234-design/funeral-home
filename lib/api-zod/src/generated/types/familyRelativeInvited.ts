@@ -17,22 +17,15 @@ Two audiences, two authentication schemes, and the split is load-bearing:
 
  * OpenAPI spec version: 0.1.0
  */
-import type { FamilyContactRole } from "./familyContactRole";
+import type { FamilyRelative } from "./familyRelative";
 
-export interface FamilyContact {
-  id: number;
-  caseId: number;
-  name: string;
-  relationship: string | null;
-  phone: string | null;
-  email: string | null;
-  role: FamilyContactRole;
-  canInvite: boolean;
-  expiresAt: Date;
-  revokedAt: Date | null;
-  firstSeenAt: Date | null;
-  lastSeenAt: Date | null;
-  /** Set when somebody on the family's side added this person, rather than the home. */
-  invitedByContactId: number | null;
-  createdAt: Date;
+export interface FamilyRelativeInvited {
+  relative: FamilyRelative;
+  sentBySms: boolean;
+  sentByEmail: boolean;
+  /** Only when neither a text nor an email could go: the working link,
+shown once to copy and pass on by hand. Null whenever it was sent.
+ */
+  link: string | null;
+  remaining: number;
 }

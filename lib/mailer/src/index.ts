@@ -429,6 +429,84 @@ export async function sendStaffInviteEmail(options: {
 }
 
 /**
+ * A relative's own link to the family's page, sent because somebody in the
+ * family asked for them to have one.
+ *
+ * It names both the home and the relative who asked, in the first line,
+ * because a link to "the arrangements" arriving from an unknown address a
+ * few days after a death reads like a scam unless it says who it is from and
+ * who they know. It does not name the person who died: the subject line of
+ * an email is shown on lock screens and in shared inboxes, and that news may
+ * not have reached everyone who can see this one.
+ *
+ * Throws `MailNotSentError` when it cannot go, so the caller can fall back to
+ * showing the link once to copy. The link is the credential, so it is never
+ * written to the log in the clear.
+ */
+export async function sendFamilyLinkEmail(options: {
+  to: string;
+  homeName: string;
+  invitedBy: string;
+  link: string;
+  replyTo?: string | null;
+}): Promise<void> {
+  const { to, homeName, invitedBy, link, replyTo } = options;
+
+  const text = [
+    `${invitedBy} asked ${homeName} to send you this.`,
+    "",
+    "It is your own private page for the funeral arrangements, where the",
+    "family is sharing photographs, the order of service and the plans for",
+    "the day. You can add photographs and memories there too, if you would",
+    "like to.",
+    "",
+    link,
+    "",
+    "The link is yours alone. Nothing needs setting up, and nothing needs",
+    "doing today.",
+    "",
+    `— ${homeName}`,
+  ].join("\n");
+
+  const html = `
+<div style="font-family:-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;
+            max-width:520px;margin:0 auto;padding:32px 24px;color:#1f2937;
+            line-height:1.6;font-size:15px">
+  <p style="margin:0 0 16px">
+    ${esc(invitedBy)} asked <strong>${esc(homeName)}</strong> to send you this.
+  </p>
+  <p style="margin:0 0 24px">
+    It is your own private page for the funeral arrangements, where the family
+    is sharing photographs, the order of service and the plans for the day.
+    You can add photographs and memories there too, if you would like to.
+  </p>
+  <p style="margin:0 0 24px">
+    <a href="${esc(link)}"
+       style="display:inline-block;background:#1f4e46;color:#ffffff;
+              text-decoration:none;padding:12px 26px;border-radius:999px;
+              font-weight:600">Open the page</a>
+  </p>
+  <p style="margin:0 0 20px;color:#6b7280;font-size:13px">
+    The link is yours alone. Nothing needs setting up, and nothing needs doing
+    today. If the button doesn't work, paste this into your browser:<br>
+    <span style="word-break:break-all">${esc(link)}</span>
+  </p>
+  <p style="margin:24px 0 0;color:#9ca3af;font-size:12px">— ${esc(homeName)}</p>
+</div>`.trim();
+
+  await send({
+    to,
+    subject: `${invitedBy} shared the arrangements with you`,
+    text,
+    html,
+    logText: text.replace(link, link.replace(/\/f\/[^/\s?#]+/, "/f/REDACTED")),
+    senderName: homeName,
+    replyTo,
+    rethrow: true,
+  });
+}
+
+/**
  * A grief check-in.
  *
  * Plain text with a minimal HTML twin, and no images, tracking pixel or

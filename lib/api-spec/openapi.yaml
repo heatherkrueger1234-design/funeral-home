@@ -2997,6 +2997,54 @@ paths:
               schema:
                 $ref: "#/components/schemas/AftercareEnrollment"
 
+  /family/relatives:
+    get:
+      operationId: getFamilyRelatives
+      tags: [family]
+      summary: Whether this person can pass the link on, and to whom they have
+      description: |
+        Only the relatives this contact added themselves. Somebody who cannot
+        invite gets `canInvite: false` and an empty list rather than an error,
+        so the portal can simply not offer the screen.
+      responses:
+        "200":
+          description: This person's invitations
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FamilyRelatives"
+    post:
+      operationId: inviteFamilyRelative
+      tags: [family]
+      summary: Give a relative their own link to the same arrangements
+      description: |
+        Only for a contact the home has allowed to invite (`canInvite`). The
+        new contact is a contributor on the same case, with a link of their
+        own and no power to invite anybody further. Their link is texted
+        and/or emailed; if neither could go, it is returned once, to copy, and
+        is never retrievable again -- only its digest is stored. The home is
+        told who added whom. At most `cap` relatives per case, however many
+        of them have since been removed.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/FamilyRelativeInput"
+      responses:
+        "201":
+          description: Added
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FamilyRelativeInvited"
+        "400":
+          description: No name, neither a mobile number nor an email address, or one that cannot be used
+        "403":
+          description: This person has not been asked to invite others
+        "409":
+          description: The case is closed, or the family has already added as many people as a case allows
+
   /family/memory-book:
     get:
       operationId: getFamilyMemoryBook
@@ -4750,6 +4798,10 @@ components:
           type: string
           format: date-time
           nullable: true
+        invitedByContactId:
+          type: integer
+          nullable: true
+          description: Set when somebody on the family's side added this person, rather than the home.
         createdAt:
           type: string
           format: date-time
@@ -4767,8 +4819,96 @@ components:
           revokedAt,
           firstSeenAt,
           lastSeenAt,
+          invitedByContactId,
           createdAt,
         ]
+
+    FamilyRelative:
+      type: object
+      description: A relative as the person who added them sees them.
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        relationship:
+          type: string
+          nullable: true
+        phone:
+          type: string
+          nullable: true
+        email:
+          type: string
+          nullable: true
+        firstSeenAt:
+          type: string
+          format: date-time
+          nullable: true
+          description: When they first opened their link, so the inviter knows it landed.
+        revoked:
+          type: boolean
+          description: The home has since stopped this person's link.
+        createdAt:
+          type: string
+          format: date-time
+      required:
+        [id, name, relationship, phone, email, firstSeenAt, revoked, createdAt]
+
+    FamilyRelatives:
+      type: object
+      properties:
+        canInvite:
+          type: boolean
+        cap:
+          type: integer
+          description: How many relatives the family's side may add to this case in all.
+        remaining:
+          type: integer
+        relatives:
+          type: array
+          items:
+            $ref: "#/components/schemas/FamilyRelative"
+      required: [canInvite, cap, remaining, relatives]
+
+    FamilyRelativeInput:
+      type: object
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 120
+        relationship:
+          type: string
+          nullable: true
+          maxLength: 60
+        phone:
+          type: string
+          nullable: true
+          maxLength: 40
+        email:
+          type: string
+          nullable: true
+          maxLength: 254
+      required: [name]
+
+    FamilyRelativeInvited:
+      type: object
+      properties:
+        relative:
+          $ref: "#/components/schemas/FamilyRelative"
+        sentBySms:
+          type: boolean
+        sentByEmail:
+          type: boolean
+        link:
+          type: string
+          nullable: true
+          description: |
+            Only when neither a text nor an email could go: the working link,
+            shown once to copy and pass on by hand. Null whenever it was sent.
+        remaining:
+          type: integer
+      required: [relative, sentBySms, sentByEmail, link, remaining]
 
     FamilyContactWithLink:
       description: |

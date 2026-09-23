@@ -894,6 +894,8 @@ export interface FamilyContact {
   revokedAt: string | null;
   firstSeenAt: string | null;
   lastSeenAt: string | null;
+  /** Set when somebody on the family's side added this person, rather than the home. */
+  invitedByContactId: number | null;
   createdAt: string;
 }
 
@@ -961,6 +963,55 @@ export interface CaseUpdate {
   leadDirectorId?: number | null;
   status?: CaseUpdateStatus;
   messagesLockAt?: string | null;
+}
+
+/**
+ * A relative as the person who added them sees them.
+ */
+export interface FamilyRelative {
+  id: number;
+  name: string;
+  relationship: string | null;
+  phone: string | null;
+  email: string | null;
+  /** When they first opened their link, so the inviter knows it landed. */
+  firstSeenAt: string | null;
+  /** The home has since stopped this person's link. */
+  revoked: boolean;
+  createdAt: string;
+}
+
+export interface FamilyRelatives {
+  canInvite: boolean;
+  /** How many relatives the family's side may add to this case in all. */
+  cap: number;
+  remaining: number;
+  relatives: FamilyRelative[];
+}
+
+export interface FamilyRelativeInput {
+  /**
+   * @minLength 1
+   * @maxLength 120
+   */
+  name: string;
+  /** @maxLength 60 */
+  relationship?: string | null;
+  /** @maxLength 40 */
+  phone?: string | null;
+  /** @maxLength 254 */
+  email?: string | null;
+}
+
+export interface FamilyRelativeInvited {
+  relative: FamilyRelative;
+  sentBySms: boolean;
+  sentByEmail: boolean;
+  /** Only when neither a text nor an email could go: the working link,
+shown once to copy and pass on by hand. Null whenever it was sent.
+ */
+  link: string | null;
+  remaining: number;
 }
 
 /**
