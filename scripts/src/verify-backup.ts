@@ -72,6 +72,37 @@ async function counts(url: string): Promise<Record<string, number>> {
   }
 }
 
+/**
+ * Which database a URL actually reaches, as the server itself reports it.
+ *
+ * Comparing the two URLs as strings is not enough, and it was the only check
+ * this script had: `localhost` and `127.0.0.1`, a `?sslmode=` suffix, a
+ * pooler's hostname in front of the same server, or a different user on the
+ * same database all spell one database two ways. Each of those passed the
+ * string check, restored the dump over the live database, and then reported
+ * "every table matching" -- because it was counting the same rows twice.
+ *
+ * So ask the server. The database's own oid and the postmaster's start time
+ * together name one database on one running cluster; two different clusters
+ * agreeing on both is not a coincidence worth designing for. Both are readable
+ * by any role that can connect, so this needs no extra privilege.
+ */
+async function fingerprint(url: string): Promise<string> {
+  const client = new pg.Client({ connectionString: url });
+  await client.connect();
+
+  try {
+    const { rows } = await client.query<{ fingerprint: string }>(
+      `select current_database()
+          || ':' || (select oid from pg_database where datname = current_database())::text
+          || ':' || pg_postmaster_start_time()::text as fingerprint`,
+    );
+    return rows[0]?.fingerprint ?? "";
+  } finally {
+    await client.end();
+  }
+}
+
 function psql(url: string, file: string): Promise<void> {
   return new Promise((resolve, reject) => {
     const child = spawn(
@@ -125,6 +156,19 @@ async function main(): Promise<void> {
     fail(
       "VERIFY_DATABASE_URL is the same as DATABASE_URL. Restoring over the " +
         "database you are verifying would destroy it.",
+    );
+  }
+
+  const [liveId, verifyId] = await Promise.all([
+    fingerprint(DATABASE_URL),
+    fingerprint(VERIFY_DATABASE_URL),
+  ]);
+
+  if (liveId === "" || liveId === verifyId) {
+    fail(
+      "VERIFY_DATABASE_URL reaches the same database as DATABASE_URL, spelled " +
+        "differently. Restoring over the database you are verifying would " +
+        "destroy it. Point VERIFY_DATABASE_URL at a scratch database.",
     );
   }
 
