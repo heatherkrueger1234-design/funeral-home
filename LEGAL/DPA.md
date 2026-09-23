@@ -382,16 +382,13 @@ survive a restart.
 extension; a text file renamed `.jpg` is refused. Request bodies and archive
 sizes are bounded before anything is streamed.
 
-**Embedded photograph metadata — a limitation, stated rather than omitted.**
-A photograph larger than 3000 pixels on its long edge, or in a format that
-needs converting, is re-encoded on receipt, and that discards the EXIF block
-including any location the camera recorded. A photograph **smaller** than that
-is stored as the family sent it, so whatever EXIF it carries — which can
-include GPS coordinates and the device it was taken on — is retained, and is
-present in the photo pack and in a case export. Phone photographs sent through
-a messaging app are commonly resized below that threshold before they ever
-reach us. Treat a photo pack as carrying location data, and do not rely on this
-service to remove it.
+**Embedded photograph metadata.** Every photograph is stripped of its EXIF,
+XMP and IPTC metadata on receipt, which removes any location the camera
+recorded and the device it was taken on. An upright JPEG has those segments
+removed without being re-encoded, so its image data is stored exactly as sent;
+a photograph that must be rotated, resized or converted is re-encoded, which
+discards the same metadata. The photo pack and the case export therefore carry
+no location data from the camera. Colour profiles are kept.
 
 **Backups.** Taken on a schedule, encrypted, and verified by a scheduled drill
 that restores into a scratch database and compares the row counts — because a
