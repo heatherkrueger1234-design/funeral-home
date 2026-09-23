@@ -29,7 +29,7 @@ import runtimeErrorOverlay from "@replit/vite-plugin-runtime-error-modal";
  *
  * Build-time settings, all optional, all public (they end up in the HTML):
  *
- *   VITE_SITE_URL       https://holdingtoday.example -- the canonical URL,
+ *   VITE_SITE_URL       https://continuumaftercare.example -- the canonical URL,
  *                       og:url, absolute og:image, sitemap.xml and the
  *                       robots.txt Sitemap line. Unset: all of those are
  *                       left out rather than pointed somewhere wrong.

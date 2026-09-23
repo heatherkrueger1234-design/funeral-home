@@ -47,7 +47,7 @@ const nav = [
 function Wordmark() {
   return (
     <a href="#top" className="whitespace-nowrap font-display text-xl text-foreground no-underline">
-      Holding Today
+      Continuum Aftercare
     </a>
   );
 }
@@ -112,7 +112,7 @@ function Hero() {
             One link for each family. Everything they send, in one place.
           </h1>
           <p className="mx-auto mt-6 max-w-2xl text-lg leading-relaxed text-muted-foreground sm:text-xl">
-            Holding Today gives every family you serve a single link, texted to their phone, for the
+            Continuum Aftercare gives every family you serve a single link, texted to their phone, for the
             photographs, the obituary, the hymns and their questions. Your staff get one page for every
             case. It works beside the case-management system you already have, not instead of it.
           </p>
@@ -139,7 +139,7 @@ function Hero() {
           </div>
           <figcaption className="mt-6 max-w-md text-sm leading-relaxed text-muted-foreground lg:mt-8 lg:max-w-[calc(100%-18rem)]">
             <strong className="font-semibold text-foreground">Your families see your name, not ours.</strong>{" "}
-            The portal carries your home's name, mark and colour. Holding Today appears nowhere on it.
+            The portal carries your home's name, mark and colour. Continuum Aftercare appears nowhere on it.
             <span className="mt-1 block">
               Real screens from the product. Juniper Ridge and everyone in it are invented.
             </span>
@@ -420,7 +420,7 @@ function Features() {
 const isNot: { title: string; body: string }[] = [
   {
     title: "Not a case-management system",
-    body: "You already own one, and it stays. There are no contracts, invoices or venue bookings in here. Holding Today holds the part your system never did: the work with the family.",
+    body: "You already own one, and it stays. There are no contracts, invoices or venue bookings in here. Continuum Aftercare holds the part your system never did: the work with the family.",
   },
   {
     title: "No price list in front of your families",
@@ -625,7 +625,7 @@ const faqs: { q: string; a: ReactNode }[] = [
   },
   {
     q: "Does it replace our case-management system?",
-    a: "No, and it is not meant to. Keep your contracts, your price list and your records where they are. Holding Today is for the collaboration with the family, which that system was never built for.",
+    a: "No, and it is not meant to. Keep your contracts, your price list and your records where they are. Continuum Aftercare is for the collaboration with the family, which that system was never built for.",
   },
   {
     q: "Will our name or our prices appear anywhere a family can see?",

@@ -31,7 +31,7 @@ import {
  * director reaching the platform.
  */
 
-const ADMIN_EMAIL = "heather@holdingtoday.example";
+const ADMIN_EMAIL = "heather@continuumaftercare.example";
 const PASSWORD = "correct-horse-battery";
 
 /** Sign in a staff account that the platform allowlist also names. */
@@ -41,7 +41,7 @@ async function signInPlatformAdmin(): Promise<StaffSession> {
   const res = await agent
     .post("/api/auth/register")
     .send({
-      homeName: "Holding Today",
+      homeName: "Continuum Aftercare",
       email: ADMIN_EMAIL,
       password: PASSWORD,
       displayName: "Heather Krueger",
@@ -181,7 +181,7 @@ describe("the tenant boundary", () => {
      */
     await db
       .update(platformAdminsTable)
-      .set({ revokedAt: new Date(), revokedByEmail: "someone@holdingtoday.example" })
+      .set({ revokedAt: new Date(), revokedByEmail: "someone@continuumaftercare.example" })
       .where(eq(platformAdminsTable.email, ADMIN_EMAIL));
 
     await admin.agent.get("/api/admin/homes").expect(403);

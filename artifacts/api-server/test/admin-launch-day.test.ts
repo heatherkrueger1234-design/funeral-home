@@ -31,10 +31,10 @@ import {
  * none of which the console could do.
  */
 
-const ADMIN_EMAIL = "heather@holdingtoday.example";
+const ADMIN_EMAIL = "heather@continuumaftercare.example";
 const PASSWORD = "correct-horse-battery";
 
-async function register(email: string, homeName = "Holding Today") {
+async function register(email: string, homeName = "Continuum Aftercare") {
   const agent = request.agent(app);
   const res = await agent
     .post("/api/auth/register")
@@ -71,7 +71,7 @@ describe("who gets in", () => {
   });
 
   it("does not let an owner mint a platform admin by inviting a listed address", async () => {
-    const colleague = "new.colleague@holdingtoday.example";
+    const colleague = "new.colleague@continuumaftercare.example";
     await db.insert(platformAdminsTable).values({ email: colleague });
 
     const owner = await signUpHome("Anywhere Funeral Home");

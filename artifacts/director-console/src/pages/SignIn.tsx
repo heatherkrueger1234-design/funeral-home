@@ -150,7 +150,7 @@ export default function SignIn() {
             <i />
           </div>
           <h1 className="font-display text-[2rem] leading-tight">
-            Holding Today
+            Continuum Aftercare
           </h1>
           <p className="mt-1.5 text-sm leading-relaxed text-muted-foreground">
             The calm side of arrangements, for you and the families you serve.

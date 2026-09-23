@@ -27,7 +27,7 @@ describe("the sign-in payload", () => {
   });
 
   it("tells a platform admin that it is", async () => {
-    const staff = await signUpHome("Holding Today");
+    const staff = await signUpHome("Continuum Aftercare");
     await db.insert(platformAdminsTable).values({ email: staff.email });
 
     const me = await staff.agent.get("/api/auth/me").expect(200);
@@ -36,7 +36,7 @@ describe("the sign-in payload", () => {
   });
 
   it("says so on the login response, not only on /auth/me", async () => {
-    const staff = await signUpHome("Holding Today");
+    const staff = await signUpHome("Continuum Aftercare");
     await db.insert(platformAdminsTable).values({ email: staff.email });
 
     /*
@@ -70,7 +70,7 @@ describe("the sign-in payload", () => {
   });
 
   it("follows a revocation, because it is read rather than remembered", async () => {
-    const staff = await signUpHome("Holding Today");
+    const staff = await signUpHome("Continuum Aftercare");
     await db.insert(platformAdminsTable).values({ email: staff.email });
 
     expect((await staff.agent.get("/api/auth/me").expect(200)).body.platformAdmin).toBe(true);

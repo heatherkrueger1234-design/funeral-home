@@ -19,7 +19,7 @@ const sent = vi.hoisted(() => {
   process.env["SMTP_PORT"] = "587";
   process.env["SMTP_USER"] = "apikey";
   process.env["SMTP_PASS"] = "not-a-real-key";
-  process.env["SMTP_FROM"] = "Holding Today <care@holding.example>";
+  process.env["SMTP_FROM"] = "Continuum Aftercare <care@holding.example>";
   process.env["TASK_SECRET"] = "a-real-secret-value";
   process.env["FAMILY_PORTAL_URL"] = "https://family.example.com";
   return [] as Array<Record<string, unknown>>;

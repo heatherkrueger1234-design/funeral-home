@@ -611,7 +611,7 @@ describe("groups: one contract, many locations", () => {
       .set({ groupId: group.id, subscriptionStatus: "active" })
       .where(eq(funeralHomesTable.id, denver.homeId));
 
-    const admin = await signUpHome("Holding Today");
+    const admin = await signUpHome("Continuum Aftercare");
     const [adminHome] = await db
       .select()
       .from(funeralHomesTable)
@@ -705,7 +705,7 @@ describe("the platform console's side of a group contract", () => {
    * the truncation between tests takes care of it.
    */
   async function signInPlatformAdmin() {
-    const admin = await signUpHome("Holding Today");
+    const admin = await signUpHome("Continuum Aftercare");
     const { usersTable, platformAdminsTable } = await import("@workspace/db");
     const [user] = await db
       .select()

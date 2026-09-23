@@ -330,7 +330,7 @@ export async function sendPasswordResetEmail(options: {
   const { to, resetUrl, expiresInMinutes } = options;
 
   const text = [
-    "Someone asked to reset the password for your Holding Today account.",
+    "Someone asked to reset the password for your Continuum Aftercare account.",
     "",
     "Open this link to choose a new one:",
     resetUrl,
@@ -340,7 +340,7 @@ export async function sendPasswordResetEmail(options: {
     "If this wasn't you, you can ignore this email — nothing has changed, and",
     "no one has been able to sign in.",
     "",
-    "— Holding Today",
+    "— Continuum Aftercare",
   ].join("\n");
 
   const html = `
@@ -348,7 +348,7 @@ export async function sendPasswordResetEmail(options: {
             max-width:520px;margin:0 auto;padding:32px 24px;color:#1f2937;
             line-height:1.6;font-size:15px">
   <p style="margin:0 0 20px">
-    Someone asked to reset the password for your Holding&nbsp;Today account.
+    Someone asked to reset the password for your Continuum&nbsp;Aftercare account.
   </p>
   <p style="margin:0 0 28px">
     <a href="${esc(resetUrl)}"
@@ -365,12 +365,12 @@ export async function sendPasswordResetEmail(options: {
     If this wasn't you, you can ignore this email — nothing has changed, and
     no one has been able to sign in.
   </p>
-  <p style="margin:24px 0 0;color:#9ca3af;font-size:12px">— Holding Today</p>
+  <p style="margin:24px 0 0;color:#9ca3af;font-size:12px">— Continuum Aftercare</p>
 </div>`.trim();
 
   await send({
     to,
-    subject: "Reset your Holding Today password",
+    subject: "Reset your Continuum Aftercare password",
     text,
     html,
     logText: text.replace(resetUrl, redactToken(resetUrl)),
@@ -387,7 +387,7 @@ export async function sendStaffInviteEmail(options: {
   const { to, homeName, invitedBy, inviteLink, expiresInMinutes } = options;
 
   const text = [
-    `${invitedBy} has added you to ${homeName} on Holding Today.`,
+    `${invitedBy} has added you to ${homeName} on Continuum Aftercare.`,
     "",
     "Choose a password to get in:",
     inviteLink,
@@ -395,7 +395,7 @@ export async function sendStaffInviteEmail(options: {
     `The link works once, and expires in ${expiresInMinutes} minutes. Ask`,
     "them to send another if it runs out.",
     "",
-    "— Holding Today",
+    "— Continuum Aftercare",
   ].join("\n");
 
   const html = `
@@ -403,7 +403,7 @@ export async function sendStaffInviteEmail(options: {
             max-width:520px;margin:0 auto;padding:32px 24px;color:#1f2937;
             line-height:1.6;font-size:15px">
   <p style="margin:0 0 20px">
-    ${esc(invitedBy)} has added you to <strong>${esc(homeName)}</strong> on Holding&nbsp;Today.
+    ${esc(invitedBy)} has added you to <strong>${esc(homeName)}</strong> on Continuum&nbsp;Aftercare.
   </p>
   <p style="margin:0 0 28px">
     <a href="${esc(inviteLink)}"
@@ -416,7 +416,7 @@ export async function sendStaffInviteEmail(options: {
     button doesn't work, paste this into your browser:<br>
     <span style="word-break:break-all">${esc(inviteLink)}</span>
   </p>
-  <p style="margin:24px 0 0;color:#9ca3af;font-size:12px">— Holding Today</p>
+  <p style="margin:24px 0 0;color:#9ca3af;font-size:12px">— Continuum Aftercare</p>
 </div>`.trim();
 
   await send({
@@ -683,7 +683,7 @@ export async function sendIntakeNotificationEmail(options: {
     "Accept or decline it here:",
     consoleUrl,
     "",
-    `— Holding Today, for ${homeName}`,
+    `— Continuum Aftercare, for ${homeName}`,
   ]
     .filter((line, index, all) => !(line === "" && all[index - 1] === ""))
     .join("\n");
@@ -708,7 +708,7 @@ export async function sendIntakeNotificationEmail(options: {
               font-weight:600">Open the request</a>
   </p>
   <p style="margin:24px 0 0;color:#9ca3af;font-size:12px">
-    — Holding Today, for ${esc(homeName)}
+    — Continuum Aftercare, for ${esc(homeName)}
   </p>
 </div>`.trim();
 
@@ -741,7 +741,7 @@ export async function sendEmailVerificationEmail(options: {
   const { to, homeName, verifyUrl, expiresInDays } = options;
 
   const text = [
-    `Thank you for setting up ${homeName} on Holding Today.`,
+    `Thank you for setting up ${homeName} on Continuum Aftercare.`,
     "",
     "Please confirm this is your address:",
     verifyUrl,
@@ -752,7 +752,7 @@ export async function sendEmailVerificationEmail(options: {
     "switches on the request form on your public page, so that the page",
     "families reach belongs to a home we have heard from.",
     "",
-    "— Holding Today",
+    "— Continuum Aftercare",
   ].join("\n");
 
   const html = `
@@ -760,7 +760,7 @@ export async function sendEmailVerificationEmail(options: {
             max-width:520px;margin:0 auto;padding:32px 24px;color:#1f2937;
             line-height:1.6;font-size:15px">
   <p style="margin:0 0 20px">
-    Thank you for setting up <strong>${esc(homeName)}</strong> on Holding&nbsp;Today.
+    Thank you for setting up <strong>${esc(homeName)}</strong> on Continuum&nbsp;Aftercare.
   </p>
   <p style="margin:0 0 28px">
     <a href="${esc(verifyUrl)}"
@@ -777,7 +777,7 @@ export async function sendEmailVerificationEmail(options: {
     Everything in your console already works. This confirmation is what
     switches on the request form on your public page.
   </p>
-  <p style="margin:24px 0 0;color:#9ca3af;font-size:12px">— Holding Today</p>
+  <p style="margin:24px 0 0;color:#9ca3af;font-size:12px">— Continuum Aftercare</p>
 </div>`.trim();
 
   await send({
@@ -839,7 +839,7 @@ export async function sendTrialReminderEmail(options: {
     "",
     "If you would rather talk it through first, reply to this message.",
     "",
-    "— Holding Today",
+    "— Continuum Aftercare",
   ].join("\n");
 
   const html = `
@@ -857,7 +857,7 @@ export async function sendTrialReminderEmail(options: {
   <p style="margin:0 0 8px;color:#6b7280;font-size:13px">
     If you would rather talk it through first, reply to this message.
   </p>
-  <p style="margin:24px 0 0;color:#9ca3af;font-size:12px">— Holding Today</p>
+  <p style="margin:24px 0 0;color:#9ca3af;font-size:12px">— Continuum Aftercare</p>
 </div>`.trim();
 
   await send({

@@ -27,7 +27,8 @@ Then fill in the ones the stack refuses to start without: `POSTGRES_PASSWORD`,
 `ACME_EMAIL`.
 
 And point DNS at the host **before** the first `up`: an A record (and AAAA,
-if the host has IPv6) for each of the three hostnames in those URLs, and
+if the host has IPv6) for each of the five hostnames in those URLs — the
+three front ends, the bare domain and www — and
 ports 80 and 443 open to the internet. Caddy asks Let's Encrypt for the
 certificates the first time each name is requested; if DNS is not there yet
 it fails, retries with back-off, and Let's Encrypt starts rate-limiting after
@@ -147,7 +148,7 @@ choice over Google Workspace: Workspace caps you at 2,000 messages a day and
 treats a burst of password resets like spam.
 
 **`SMTP_FROM`** is the platform's sender, e.g.
-`Holding Today <care@yourdomain.com>`. It must be on a domain you have
+`Continuum Aftercare <care@yourdomain.com>`. It must be on a domain you have
 verified with the provider, and with an API-key provider it is required,
 because the username there is not an address. Aftercare check-ins keep its
 address but swap in the home's own name (its "aftercare sender name", or the

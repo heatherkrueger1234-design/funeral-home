@@ -5,7 +5,7 @@
 
 const trim = (value: string | undefined) => (value ?? "").trim().replace(/\/+$/, "");
 
-/** The director console's origin, e.g. https://console.holdingtoday.example */
+/** The director console's origin, e.g. https://console.continuumaftercare.example */
 export const consoleUrl = trim(import.meta.env.VITE_CONSOLE_URL);
 
 /*

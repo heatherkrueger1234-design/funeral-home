@@ -174,7 +174,8 @@ These were chosen, and the reasoning is in the code next to them:
 
 ## Before the first pilot home
 
-1. Point DNS for the three hostnames at the host, open ports 80 and 443,
+1. Point DNS for all five hostnames at the host — the three front ends, the
+   bare domain and www — open ports 80 and 443,
    then build and bring the stack up. Caddy fetches the certificates itself;
    watch `docker compose logs caddy` until all three are obtained.
 2. `pnpm --filter @workspace/db run push`, then load the ZIP centroids.

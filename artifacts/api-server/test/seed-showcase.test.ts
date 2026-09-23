@@ -42,7 +42,7 @@ async function seedStylePasswordHash(password: string): Promise<string> {
 /* The three passwords the seed prints. If one of these ever fails the length
  * rule, the demo is broken and this is where it says so. */
 const DEMO_PASSWORDS = [
-  "HoldingAdmin2026",
+  "ContinuumAdmin2026",
   "CedarStone2026",
   "CedarTeam2026",
 ] as const;

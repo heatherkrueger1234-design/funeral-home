@@ -1,4 +1,4 @@
-# Holding Today for funeral homes
+# Continuum Aftercare
 
 A funeral home buys this to stop cat-herding grieving families through
 paperwork and photo collection by text message at midnight.
@@ -349,9 +349,11 @@ none.
 
 ## Three apps, and where a person signs in
 
-The stack serves three hostnames — the family portal, the director console and
-the platform console — and nobody outside it knows which one is theirs. So each
-sign-in screen sorts that out rather than leaving somebody to guess:
+The stack serves three front ends — the family portal, the director console and
+the platform console — on their own hostnames, and nobody outside it knows which
+one is theirs. The bare domain and `www` redirect to the console, so there is a
+single address to hand somebody, and each sign-in screen then sorts out whoever
+arrives rather than leaving them to guess:
 
 - **A funeral home's staff** sign in at the director console, which is the only
   screen that also opens an account and the only one that can send a password
@@ -450,10 +452,36 @@ None of the three has been reviewed by a lawyer, and they contract on behalf of
 a company whose name is still a placeholder. Do not put them in front of a
 paying customer yet.
 
-## Relationship to Memory-Haven
+## Two products, and which one this is
 
-This repository began as a fork of Memory-Haven (`holdingtoday.com`) at
-`6e79cb4`, for its workspace layout, auth, encrypted uploads and component set.
-The two have diverged: Memory-Haven models one bereaved person keeping a
-private archive, this models a funeral home working a case with a family.
-Nothing here changes anything there.
+**This repository is Continuum Aftercare** — the product a funeral home uses
+and pays for. The arrangement with the family, the photographs, the obituary,
+the timeline, the print studio, the director's console and the platform console
+are all it, and every name it puts in front of a director is Continuum
+Aftercare.
+
+**Holding Today is the aftercare piece**, and it is somewhere else. A family is
+handed on to it after the funeral. It lives at `holdingtoday.com`, in the
+Memory-Haven repository, and models one bereaved person keeping a private
+archive rather than a home working a case.
+
+The seam between the two is already in this code: the grief check-ins are signed
+in **the funeral home's** name, with replies going to the home, and they carry
+neither of our names. That is the right place for the hand-off, and it is why
+renaming this repository touched no family-facing string — every occurrence of
+the old name was a staff or vendor surface, which is exactly what the split
+predicts.
+
+So, when you are deciding where a name goes:
+
+| Reads it | Name |
+| --- | --- |
+| A director, about their account or their bill | Continuum Aftercare |
+| A funeral home's staff, in any email we send them | Continuum Aftercare |
+| A family, about the arrangement | the funeral home's own name |
+| A family, in a grief check-in | the funeral home's own name |
+| A family, once they are handed on afterwards | Holding Today |
+
+This repository began as a fork of Memory-Haven at `6e79cb4`, for its workspace
+layout, auth, encrypted uploads and component set. Nothing here changes anything
+there.

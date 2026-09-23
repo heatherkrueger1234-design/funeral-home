@@ -93,10 +93,10 @@ const at = (offsetDays: number, hour = 10) =>
  */
 const LOGINS = {
   platform: {
-    email: "admin@holdingtoday.demo",
-    password: "HoldingAdmin2026",
+    email: "admin@continuumaftercare.demo",
+    password: "ContinuumAdmin2026",
     displayName: "Heather Krueger",
-    title: "Holding Today",
+    title: "Continuum Aftercare",
   },
   owner: {
     email: "ruth@cedarandstone.demo",
@@ -113,7 +113,7 @@ const LOGINS = {
 } as const;
 
 const HOME_SLUG = "cedar-and-stone";
-const PLATFORM_SLUG = "holding-today-platform";
+const PLATFORM_SLUG = "continuum-aftercare-platform";
 
 /* ------------------------------------------------------------- the guard -- */
 
@@ -371,7 +371,7 @@ async function seedPlatform(): Promise<void> {
   const [home] = await db
     .insert(funeralHomesTable)
     .values({
-      name: "Holding Today",
+      name: "Continuum Aftercare",
       slug: PLATFORM_SLUG,
       /*
        * Ours, not a customer's. A platform admin needs a staff account and a
