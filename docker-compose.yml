@@ -87,6 +87,8 @@ services:
       dockerfile: Dockerfile.web
       args:
         APP: family-portal
+        VITE_FAMILY_PORTAL_URL: ${FAMILY_PORTAL_URL:-}
+        VITE_CONSOLE_URL: ${CONSOLE_URL:-}
     restart: unless-stopped
     depends_on:
       - api
@@ -101,6 +103,8 @@ services:
       dockerfile: Dockerfile.web
       args:
         APP: director-console
+        VITE_FAMILY_PORTAL_URL: ${FAMILY_PORTAL_URL:-}
+        VITE_CONSOLE_URL: ${CONSOLE_URL:-}
     restart: unless-stopped
     depends_on:
       - api

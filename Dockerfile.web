@@ -42,6 +42,16 @@ COPY . .
 # exist before Vite resolves them.
 RUN pnpm run typecheck:libs
 
+# Each app's address, for the one place each links to another: the console
+# shows a home the public page on the family portal, and the family portal
+# points a director who opened the wrong address at the console. Vite bakes
+# VITE_* into the bundle at build time, so these have to be build args rather
+# than runtime environment; unset, the links are simply not shown.
+ARG VITE_FAMILY_PORTAL_URL=""
+ARG VITE_CONSOLE_URL=""
+ENV VITE_FAMILY_PORTAL_URL=$VITE_FAMILY_PORTAL_URL
+ENV VITE_CONSOLE_URL=$VITE_CONSOLE_URL
+
 # BASE_PATH defaults to "/" in vite.config.ts, which is right here: each app
 # gets its own hostname rather than a path prefix. PORT is not set because the
 # build does not need one — nginx does the serving.

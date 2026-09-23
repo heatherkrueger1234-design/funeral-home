@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { PasteLink } from "@/components/PasteLink";
 import { Loader2, Phone, ArrowLeft, ArrowRight, Check } from "lucide-react";
 
 /**
@@ -238,7 +239,9 @@ export default function Start() {
           body="The funeral home texted or emailed you a link. Open it from that
                 message and it will remember you — there is nothing to sign in to."
           footnote="Can't find it? Telephone them and they will send another."
-        />
+        >
+          <PasteLink label="Or paste it here" />
+        </DoorCard>
 
         {h.intakeEnabled ? (
           <>
@@ -317,9 +320,9 @@ function Policies({
  * "Start" in the corner of a paragraph. Somebody reading this at 2am after a
  * death should not have to aim.
  *
- * The first card has no action at all and is not pretending to: no hover, no
- * arrow, nothing to click. It is an instruction to go and look in their
- * messages, and dressing it as a button would send them somewhere useless.
+ * The first card is not a button and is not pretending to: no hover, no
+ * arrow. It is an instruction to go and look in their messages, with a box
+ * underneath for when tapping the link from there is not an option.
  */
 function DoorCard({
   title,
@@ -327,12 +330,15 @@ function DoorCard({
   footnote,
   onClick,
   actionLabel,
+  children,
 }: {
   title: string;
   body: string;
   footnote?: string;
   onClick?: () => void;
   actionLabel?: string;
+  /** Only for a card with no action of its own; a button cannot hold a form. */
+  children?: React.ReactNode;
 }) {
   const inner = (
     <>
@@ -352,6 +358,7 @@ function DoorCard({
     return (
       <div className="rounded-xl border border-border bg-card p-5 shadow-[var(--elevation-1)]">
         {inner}
+        {children && <div className="mt-4">{children}</div>}
       </div>
     );
   }
