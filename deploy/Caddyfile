@@ -60,3 +60,13 @@
 	import app
 	reverse_proxy admin-console:80
 }
+
+# The public website: optional, like the `website` service in
+# docker-compose.yml. With WEBSITE_URL unset this block falls back to a plain
+# HTTP name under .invalid, which no DNS will ever resolve, so Caddy asks
+# Let's Encrypt for nothing and the block is inert. Set WEBSITE_URL and start
+# the service with `--profile website` to turn it on.
+{$WEBSITE_URL:http://website.invalid} {
+	encode zstd gzip
+	reverse_proxy website:80
+}

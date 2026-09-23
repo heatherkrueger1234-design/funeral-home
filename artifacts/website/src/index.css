@@ -1,0 +1,191 @@
+/*
+ * Self-hosted, like the apps: no Google Fonts request, so no third party
+ * learns who read this page, and no extra origin in front of the first word.
+ */
+@import "@fontsource-variable/lora/wght.css";
+@import "@fontsource-variable/source-sans-3/wght.css";
+@import "tailwindcss";
+
+/*
+ * The website's surface.
+ *
+ * The same paper, ink, green and elevation as the director console and the
+ * family portal, token for token (artifacts/director-console/src/index.css),
+ * because a director who clicks "Start a free trial" should arrive somewhere
+ * that is plainly the same company. Set larger and airier than the console:
+ * this is read once, at leisure, not worked in all day.
+ */
+
+@theme inline {
+  --font-sans: 'Source Sans 3 Variable', 'Source Sans 3', ui-sans-serif, system-ui, sans-serif;
+  --font-display: 'Lora Variable', 'Lora', ui-serif, Georgia, serif;
+
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-card: var(--card);
+  --color-sunken: var(--sunken);
+  --color-border: var(--border);
+  --color-border-strong: var(--border-strong);
+  --color-accent: var(--accent);
+  --color-accent-soft: var(--accent-soft);
+  --color-accent-deep: var(--accent-deep);
+  --color-notice: var(--notice);
+  --color-notice-soft: var(--notice-soft);
+
+  --radius-lg: 1rem;
+  --radius-md: 0.75rem;
+  --radius-sm: 0.5rem;
+
+  --shadow-card: var(--elevation-1);
+  --shadow-raised: var(--elevation-2);
+  --shadow-float: var(--elevation-3);
+
+  --ease-gentle: cubic-bezier(0.2, 0.6, 0.3, 1);
+}
+
+:root {
+  --background: #f8f6f1;
+  --foreground: #1b201d;
+  --muted: #efebe3;
+  --muted-foreground: #5f645d;
+  --card: #ffffff;
+  --sunken: #fbf9f5;
+  --border: #e7e0d5;
+  --border-strong: #d8cfc0;
+
+  --accent: #1f4e46;
+  --accent-soft: #eef3f1;
+  --accent-deep: #14332e;
+
+  --notice: #8a5a2b;
+  --notice-soft: #f7efe4;
+
+  --elevation-1: 0 1px 1px rgb(40 34 24 / 0.03), 0 1px 2px rgb(40 34 24 / 0.04);
+  --elevation-2:
+    0 1px 1px rgb(40 34 24 / 0.03),
+    0 2px 4px rgb(40 34 24 / 0.04),
+    0 12px 24px -16px rgb(40 34 24 / 0.16);
+  --elevation-3:
+    0 1px 2px rgb(40 34 24 / 0.05),
+    0 8px 16px -8px rgb(40 34 24 / 0.10),
+    0 24px 48px -24px rgb(40 34 24 / 0.22);
+}
+
+/*
+ * Base rules sit in the base layer so Tailwind utilities on an element can
+ * still override them (a heading set in the sans, for instance).
+ */
+@layer base {
+* {
+  border-color: var(--border);
+}
+
+html {
+  font-size: 17px;
+  -webkit-text-size-adjust: 100%;
+  scroll-behavior: smooth;
+  /* The sticky header would otherwise cover the heading an anchor lands on. */
+  scroll-padding-top: 7rem;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html { scroll-behavior: auto; }
+}
+
+body {
+  background: var(--background);
+  color: var(--foreground);
+  font-family: var(--font-sans);
+  font-optical-sizing: auto;
+  line-height: 1.6;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+  overflow-x: hidden;
+}
+
+h1, h2, h3, .font-display {
+  font-family: var(--font-display);
+  font-weight: 500;
+  letter-spacing: -0.015em;
+  text-wrap: balance;
+}
+
+h1 { line-height: 1.12; }
+h2 { line-height: 1.2; }
+h3 { line-height: 1.3; }
+
+p, li, dd { text-wrap: pretty; }
+
+.eyebrow {
+  font-size: 0.75rem;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--accent);
+}
+
+:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 3px;
+  border-radius: var(--radius-sm);
+}
+
+::selection {
+  background: var(--accent-soft);
+  color: var(--accent-deep);
+}
+
+a {
+  text-underline-offset: 0.2em;
+  text-decoration-thickness: from-font;
+}
+
+img {
+  max-width: 100%;
+  height: auto;
+}
+
+}
+
+/* The FAQ answers are <details>, so they open with no script. */
+summary {
+  cursor: pointer;
+  list-style: none;
+}
+summary::-webkit-details-marker {
+  display: none;
+}
+details[open] > summary .chevron {
+  transform: rotate(180deg);
+}
+
+.skip-link {
+  position: absolute;
+  left: 1rem;
+  top: -4rem;
+  z-index: 100;
+  padding: 0.6rem 1rem;
+  border-radius: var(--radius-sm);
+  background: var(--accent-deep);
+  color: #fff;
+  font-weight: 600;
+  text-decoration: none;
+}
+.skip-link:focus {
+  top: 1rem;
+}
+
+/*
+ * The grain of the paper behind the hero and the dark band: a faint wash of
+ * the accent, so the page is not a flat sheet, and nothing a visitor would
+ * notice as decoration.
+ */
+.wash {
+  background:
+    radial-gradient(60rem 30rem at 85% -10%, rgb(31 78 70 / 0.07), transparent 70%),
+    radial-gradient(40rem 24rem at -10% 20%, rgb(138 90 43 / 0.05), transparent 70%),
+    var(--background);
+}
