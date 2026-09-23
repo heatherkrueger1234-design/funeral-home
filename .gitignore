@@ -70,3 +70,8 @@ Thumbs.db
 /backups/
 *.sql.partial
 *.sql.enc
+
+# Playwright, from artifacts/e2e-tests
+/playwright-report/
+/test-results/
+/blob-report/
