@@ -15,6 +15,7 @@ import {
   CalendarClock,
   MessageCircle,
   HeartHandshake,
+  BookHeart,
   ChevronRight,
 } from "lucide-react";
 import type { ReactNode } from "react";
@@ -296,6 +297,19 @@ export default function Hub() {
             title="Clothing and belongings"
             detail="What they'll wear, and how they looked"
           />
+          {/*
+            Not offered on a pre-need file: a book of memories is written
+            about somebody who has died, and the person reading this one is
+            alive and planning their own funeral.
+          */}
+          {!voice.preNeed && (
+            <Card
+              href="/memory-book"
+              icon={BookHeart}
+              title="The memory book"
+              detail="Memories and the story of their life, in a book to keep"
+            />
+          )}
         </Group>
 
         <Group label="For the service">

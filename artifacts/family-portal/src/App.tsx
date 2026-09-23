@@ -34,6 +34,7 @@ const Belongings = lazy(() => import("@/pages/Belongings"));
 const Local = lazy(() => import("@/pages/Local"));
 const Vitals = lazy(() => import("@/pages/Vitals"));
 const Proofs = lazy(() => import("@/pages/Proofs"));
+const MemoryBook = lazy(() => import("@/pages/MemoryBook"));
 
 function describeError(error: unknown): string {
   const message = error instanceof Error ? error.message.trim() : "";
@@ -113,6 +114,7 @@ export default function App() {
                     <Route path="/local" component={Local} />
                     <Route path="/certificate" component={Vitals} />
                     <Route path="/proofs" component={Proofs} />
+                    <Route path="/memory-book" component={MemoryBook} />
                     <Route component={NotFound} />
                   </Switch>
                 </Suspense>
