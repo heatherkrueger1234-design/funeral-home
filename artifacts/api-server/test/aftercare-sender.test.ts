@@ -88,6 +88,9 @@ async function homeWithCheckInDue(homeName: string) {
 }
 
 async function runAftercare() {
+  // Registering a home sends its own email (the address confirmation); only
+  // what the aftercare run sends is under test here.
+  sent.length = 0;
   const res = await request(app)
     .post("/api/tasks/aftercare")
     .set("Authorization", "Bearer a-real-secret-value")
