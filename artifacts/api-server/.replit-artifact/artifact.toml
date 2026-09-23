@@ -27,6 +27,10 @@ args = ["node", "--enable-source-maps", "artifacts/api-server/dist/index.mjs"]
 [services.production.run.env]
 PORT = "8080"
 NODE_ENV = "production"
+# The links the API texts and emails. Families get /family/f/<token> and
+# nothing else; password resets and invitations go to the console at the root.
+FAMILY_PORTAL_URL = "https://continuumaftercare.com/family"
+CONSOLE_URL = "https://continuumaftercare.com"
 
 [services.production.health.startup]
 path = "/api/healthz"
