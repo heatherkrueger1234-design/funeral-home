@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useGetFamilyUpload } from "@workspace/api-client-react";
 
 /**
@@ -38,9 +38,45 @@ export function AuthedImage({
   alt: string;
   className?: string;
 }) {
+  /*
+   * Fetched when it is about to be seen, not when the list renders.
+   *
+   * The bin holds up to a thousand photographs, and every one of them used to
+   * be requested the moment the page opened: on a phone on mobile data that
+   * is every full-size picture of somebody's mother downloaded at once, most
+   * of them into rows nobody scrolled to, and — with each one its own
+   * authenticated request — enough of them to run the family's link into its
+   * own rate limit before the page had finished drawing. Now a row asks for
+   * its picture when it comes within a screen or so of the viewport, and
+   * browsers without IntersectionObserver simply load everything as before.
+   */
+  const holder = useRef<HTMLDivElement>(null);
+  const [near, setNear] = useState(
+    () => typeof IntersectionObserver === "undefined",
+  );
+
+  useEffect(() => {
+    if (near) return;
+    const element = holder.current;
+    if (!element) return;
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries.some((entry) => entry.isIntersecting)) {
+          setNear(true);
+          observer.disconnect();
+        }
+      },
+      { rootMargin: "600px 0px" },
+    );
+    observer.observe(element);
+    return () => observer.disconnect();
+  }, [near]);
+
   const { data: blob, isPending, isError } = useGetFamilyUpload(uploadId, {
     query: {
       queryKey: [`/api/family/uploads/${uploadId}`],
+      enabled: near,
       // Rows are never rewritten, only added and deleted, so a photograph
       // fetched once on this screen is good for as long as the tab is open.
       staleTime: Infinity,
@@ -80,6 +116,7 @@ export function AuthedImage({
   if (!src) {
     return (
       <div
+        ref={holder}
         role="img"
         aria-label={isError ? `${alt} (could not be shown)` : alt}
         aria-busy={isPending || undefined}

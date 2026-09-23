@@ -41,7 +41,10 @@ function ProofItem({ item }: { item: { id: number; title: string | null; templat
       */}
       <div className="overflow-hidden rounded-xl border border-[var(--border-strong)] bg-white shadow-[var(--elevation-2)]">
         {src ? (
-          <iframe title={title} src={src} className="h-[30rem] w-full" />
+          // Sandboxed: an object URL is same-origin with the portal, so
+          // without this the card would run with the family's token in
+          // reach. It is a picture of a card; it needs to run nothing.
+          <iframe title={title} src={src} sandbox="" className="h-[30rem] w-full" />
         ) : (
           <div
             role="img"

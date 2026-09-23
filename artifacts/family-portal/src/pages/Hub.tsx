@@ -1,4 +1,5 @@
 import { voiceFor } from "@/lib/voice";
+import { formatAtHome } from "@/lib/utils";
 import { Link } from "wouter";
 import {
   useGetFamilySession,
@@ -35,18 +36,20 @@ import type { ReactNode } from "react";
  * rather than by reading all ten.
  */
 
-function formatWhen(value: string | Date | null | undefined): string | null {
-  if (!value) return null;
-  const date = value instanceof Date ? value : new Date(value);
-  if (Number.isNaN(date.getTime())) return null;
-
-  return date.toLocaleString(undefined, {
-    weekday: "long",
-    day: "numeric",
-    month: "long",
-    hour: "numeric",
-    minute: "2-digit",
-  });
+/** On the home's clock — see `formatAtHome`. */
+function formatWhen(
+  value: string | Date | null | undefined,
+  timeZone: string,
+): string | null {
+  return (
+    formatAtHome(value, timeZone, {
+      weekday: "long",
+      day: "numeric",
+      month: "long",
+      hour: "numeric",
+      minute: "2-digit",
+    }) || null
+  );
 }
 
 type CardProps = {
@@ -130,7 +133,7 @@ export default function Hub() {
     aftercare,
   } = session.data;
 
-  const serviceWhen = formatWhen(deceased.serviceAt);
+  const serviceWhen = formatWhen(deceased.serviceAt, home.timezone);
   const voice = voiceFor(deceased.kind);
 
   // The soonest thing that is actually due. One is useful; a list of five on
@@ -250,7 +253,7 @@ export default function Hub() {
             <>
               <p className="font-semibold">{nextDue.title}</p>
               <p className="mt-0.5 text-sm text-muted-foreground">
-                {formatWhen(nextDue.dueAt)}
+                {formatWhen(nextDue.dueAt, home.timezone)}
               </p>
             </>
           ) : (

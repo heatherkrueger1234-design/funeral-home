@@ -21,6 +21,7 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { Empty, Loading, PageHeader } from "@/components/page";
+import { formatAtHome } from "@/lib/utils";
 import { CalendarCheck, CalendarClock, Loader2, Phone } from "lucide-react";
 
 /**
@@ -38,21 +39,18 @@ import { CalendarCheck, CalendarClock, Loader2, Phone } from "lucide-react";
  * instead, because moving an agreed funeral is a conversation with a person.
  */
 
-const dayFormat = new Intl.DateTimeFormat(undefined, {
-  weekday: "long",
-  day: "numeric",
-  month: "long",
-});
-const timeFormat = new Intl.DateTimeFormat(undefined, {
-  hour: "numeric",
-  minute: "2-digit",
-});
-
-const asDate = (value: string | Date) =>
-  value instanceof Date ? value : new Date(value);
-
-const fullWhen = (value: string | Date) =>
-  `${dayFormat.format(asDate(value))} at ${timeFormat.format(asDate(value))}`;
+/*
+ * On the home's clock, not the phone's — see `formatAtHome`. The time a
+ * family picks here is the time they will walk into the church, so it has to
+ * be the church's time whatever state the phone reading it is in.
+ */
+function formatsFor(zone: string | undefined) {
+  const day = (value: string | Date) =>
+    formatAtHome(value, zone, { weekday: "long", day: "numeric", month: "long" });
+  const time = (value: string | Date) =>
+    formatAtHome(value, zone, { hour: "numeric", minute: "2-digit" });
+  return { day, time, full: (value: string | Date) => `${day(value)} at ${time(value)}` };
+}
 
 export default function ServiceTime() {
   const queryClient = useQueryClient();
@@ -76,8 +74,25 @@ export default function ServiceTime() {
           queryKey: getGetFamilyDeadlinesQueryKey(),
         });
       },
+      /*
+       * Most often a brother on another phone chose first. The dialog used
+       * to stay open over a list that was no longer true, offering "Yes,
+       * this one" again; close it and show what was actually settled. The
+       * toast from the shared handler says why.
+       */
+      onError: () => {
+        setConfirming(null);
+        void queryClient.invalidateQueries({
+          queryKey: getGetFamilyServiceOffersQueryKey(),
+        });
+        void queryClient.invalidateQueries({
+          queryKey: getGetFamilySessionQueryKey(),
+        });
+      },
     },
   });
+
+  const { day, time, full } = formatsFor(session.data?.home.timezone);
 
   if (offers.isPending) return <Loading rows={3} />;
 
@@ -86,6 +101,11 @@ export default function ServiceTime() {
   const data = offers.data;
   const homeName = session.data?.home.name ?? "The funeral home";
   const settled = data.chosenOfferId !== null || data.serviceAt !== null;
+  // A time that has already gone by is not a choice, whatever is still in
+  // the list; the server refuses it too.
+  const upcoming = data.offers.filter(
+    (offer) => new Date(offer.startsAt).getTime() > Date.now(),
+  );
 
   if (settled) {
     return (
@@ -106,7 +126,7 @@ export default function ServiceTime() {
             Settled
           </p>
           <p className="font-display text-xl">
-            {data.serviceAt ? fullWhen(data.serviceAt) : "Confirmed"}
+            {data.serviceAt ? full(data.serviceAt) : "Confirmed"}
           </p>
           {data.serviceLocation && (
             <p className="mt-1 text-muted-foreground">{data.serviceLocation}</p>
@@ -131,7 +151,7 @@ export default function ServiceTime() {
     );
   }
 
-  if (data.offers.length === 0) {
+  if (upcoming.length === 0) {
     return (
       <div className="space-y-6">
         <PageHeader title="The service">
@@ -153,16 +173,16 @@ export default function ServiceTime() {
       </PageHeader>
 
       <ul className="space-y-3">
-        {data.offers.map((offer: ServiceOffer) => (
+        {upcoming.map((offer: ServiceOffer) => (
           <li
             key={offer.id}
             className="rounded-xl border border-border bg-card px-4 py-4 shadow-[var(--elevation-1)]"
           >
             <p className="font-display text-lg">
-              {dayFormat.format(asDate(offer.startsAt))}
+              {day(offer.startsAt)}
             </p>
             <p className="text-muted-foreground">
-              {timeFormat.format(asDate(offer.startsAt))}
+              {time(offer.startsAt)}
               {offer.location ? ` · ${offer.location}` : ""}
             </p>
             {offer.note && (
@@ -200,7 +220,7 @@ export default function ServiceTime() {
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>
-              {confirming ? fullWhen(confirming.startsAt) : ""}
+              {confirming ? full(confirming.startsAt) : ""}
             </AlertDialogTitle>
             <AlertDialogDescription>
               {homeName} will take this as settled and begin arranging around

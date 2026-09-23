@@ -34,6 +34,9 @@ const Belongings = lazy(() => import("@/pages/Belongings"));
 const Local = lazy(() => import("@/pages/Local"));
 const Vitals = lazy(() => import("@/pages/Vitals"));
 const Proofs = lazy(() => import("@/pages/Proofs"));
+// Reached from the foot of a grief check-in, often long after the texted
+// link has expired, so it sits outside the shell like the front door.
+const Stop = lazy(() => import("@/pages/Stop"));
 
 function describeError(error: unknown): string {
   const message = error instanceof Error ? error.message.trim() : "";
@@ -94,7 +97,12 @@ export default function App() {
             no bereavement either, so it carries none of that furniture.
           */}
           <Switch>
-            <Route path="/start/:slug" component={Start} />
+            <Route path="/start/:slug/:door?" component={Start} />
+            <Route path="/stop">
+              <Suspense fallback={<Loading />}>
+                <Stop />
+              </Suspense>
+            </Route>
             <Route>
               <PortalShell>
                 <Suspense fallback={<Loading />}>
