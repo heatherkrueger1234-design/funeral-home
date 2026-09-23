@@ -51,6 +51,7 @@ export * from "./caseMessage";
 export * from "./caseMessageAuthorSide";
 export * from "./casePhoto";
 export * from "./casePhotoStatus";
+export * from "./casePhotoUploadInput";
 export * from "./caseStatus";
 export * from "./caseSummary";
 export * from "./caseSummaryObituaryStatus";

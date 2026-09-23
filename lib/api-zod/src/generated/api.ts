@@ -1986,7 +1986,12 @@ export const GetCasePhotosResponseItem = zod.object({
   uploadedByName: zod
     .string()
     .nullable()
-    .describe("Who sent it, resolved for display. Null when staff added it."),
+    .describe(
+      'Who sent it, resolved for display. For a photograph staff added,\nthe home\'s name when a family asks, and \"person, home\" when staff\ndo. Null only for rows older than the staff upload.\n',
+    ),
+  addedByHome: zod
+    .boolean()
+    .describe("Added by a member of staff rather than through a family link."),
   caption: zod.string().nullable(),
   cropX: zod.number().nullable(),
   cropY: zod.number().nullable(),
@@ -2015,6 +2020,25 @@ export const GetCasePhotosResponseItem = zod.object({
 export const GetCasePhotosResponse = zod.array(GetCasePhotosResponseItem);
 
 /**
+ * For a print posted to the office or brought to the arrangement
+conference. Goes through the same checks as a family upload (type
+sniffed from the bytes, HEIC/AVIF converted, size and decompression
+limits, encrypted at rest, the bin's ceiling) and is recorded as added
+by the signed-in staff member, so the family sees it came from the
+home.
+
+ * @summary Add a photograph to the case's bin as staff
+ */
+export const UploadCasePhotoParams = zod.object({
+  caseId: zod.coerce.number(),
+});
+
+export const UploadCasePhotoBody = zod.object({
+  file: zod.instanceof(File),
+  caption: zod.string().optional(),
+});
+
+/**
  * Replaces the selection wholesale and sets its order from the list
 given. Photographs not named are deselected but never deleted -- they
 stay in the bin, because a family's picture of their own mother is not
@@ -2040,7 +2064,12 @@ export const SetPhotoSelectionResponseItem = zod.object({
   uploadedByName: zod
     .string()
     .nullable()
-    .describe("Who sent it, resolved for display. Null when staff added it."),
+    .describe(
+      'Who sent it, resolved for display. For a photograph staff added,\nthe home\'s name when a family asks, and \"person, home\" when staff\ndo. Null only for rows older than the staff upload.\n',
+    ),
+  addedByHome: zod
+    .boolean()
+    .describe("Added by a member of staff rather than through a family link."),
   caption: zod.string().nullable(),
   cropX: zod.number().nullable(),
   cropY: zod.number().nullable(),
@@ -2089,7 +2118,12 @@ export const ReorderCasePhotosResponseItem = zod.object({
   uploadedByName: zod
     .string()
     .nullable()
-    .describe("Who sent it, resolved for display. Null when staff added it."),
+    .describe(
+      'Who sent it, resolved for display. For a photograph staff added,\nthe home\'s name when a family asks, and \"person, home\" when staff\ndo. Null only for rows older than the staff upload.\n',
+    ),
+  addedByHome: zod
+    .boolean()
+    .describe("Added by a member of staff rather than through a family link."),
   caption: zod.string().nullable(),
   cropX: zod.number().nullable(),
   cropY: zod.number().nullable(),
@@ -2183,7 +2217,12 @@ export const UpdatePhotoResponse = zod.object({
   uploadedByName: zod
     .string()
     .nullable()
-    .describe("Who sent it, resolved for display. Null when staff added it."),
+    .describe(
+      'Who sent it, resolved for display. For a photograph staff added,\nthe home\'s name when a family asks, and \"person, home\" when staff\ndo. Null only for rows older than the staff upload.\n',
+    ),
+  addedByHome: zod
+    .boolean()
+    .describe("Added by a member of staff rather than through a family link."),
   caption: zod.string().nullable(),
   cropX: zod.number().nullable(),
   cropY: zod.number().nullable(),
@@ -4551,7 +4590,7 @@ export const GetFamilyPrintItemsResponse = zod.array(
 );
 
 /**
- * @summary Store bytes (the home's logo, or a staff-added photograph)
+ * @summary Store bytes that belong to no case (the home's logo). Case photographs go to POST /cases/{caseId}/photos.
  */
 export const UploadFileBody = zod.object({
   file: zod.instanceof(File),
@@ -4731,7 +4770,12 @@ export const GetFamilyPhotosResponseItem = zod.object({
   uploadedByName: zod
     .string()
     .nullable()
-    .describe("Who sent it, resolved for display. Null when staff added it."),
+    .describe(
+      'Who sent it, resolved for display. For a photograph staff added,\nthe home\'s name when a family asks, and \"person, home\" when staff\ndo. Null only for rows older than the staff upload.\n',
+    ),
+  addedByHome: zod
+    .boolean()
+    .describe("Added by a member of staff rather than through a family link."),
   caption: zod.string().nullable(),
   cropX: zod.number().nullable(),
   cropY: zod.number().nullable(),
@@ -4830,7 +4874,12 @@ export const UpdateFamilyPhotoResponse = zod.object({
   uploadedByName: zod
     .string()
     .nullable()
-    .describe("Who sent it, resolved for display. Null when staff added it."),
+    .describe(
+      'Who sent it, resolved for display. For a photograph staff added,\nthe home\'s name when a family asks, and \"person, home\" when staff\ndo. Null only for rows older than the staff upload.\n',
+    ),
+  addedByHome: zod
+    .boolean()
+    .describe("Added by a member of staff rather than through a family link."),
   caption: zod.string().nullable(),
   cropX: zod.number().nullable(),
   cropY: zod.number().nullable(),
@@ -4884,7 +4933,12 @@ export const SetFamilyReferencePhotoResponse = zod.object({
   uploadedByName: zod
     .string()
     .nullable()
-    .describe("Who sent it, resolved for display. Null when staff added it."),
+    .describe(
+      'Who sent it, resolved for display. For a photograph staff added,\nthe home\'s name when a family asks, and \"person, home\" when staff\ndo. Null only for rows older than the staff upload.\n',
+    ),
+  addedByHome: zod
+    .boolean()
+    .describe("Added by a member of staff rather than through a family link."),
   caption: zod.string().nullable(),
   cropX: zod.number().nullable(),
   cropY: zod.number().nullable(),
@@ -4928,7 +4982,12 @@ export const SetFamilyPhotoSelectionResponseItem = zod.object({
   uploadedByName: zod
     .string()
     .nullable()
-    .describe("Who sent it, resolved for display. Null when staff added it."),
+    .describe(
+      'Who sent it, resolved for display. For a photograph staff added,\nthe home\'s name when a family asks, and \"person, home\" when staff\ndo. Null only for rows older than the staff upload.\n',
+    ),
+  addedByHome: zod
+    .boolean()
+    .describe("Added by a member of staff rather than through a family link."),
   caption: zod.string().nullable(),
   cropX: zod.number().nullable(),
   cropY: zod.number().nullable(),
@@ -5005,7 +5064,12 @@ export const SetFamilyPortraitResponse = zod.object({
   uploadedByName: zod
     .string()
     .nullable()
-    .describe("Who sent it, resolved for display. Null when staff added it."),
+    .describe(
+      'Who sent it, resolved for display. For a photograph staff added,\nthe home\'s name when a family asks, and \"person, home\" when staff\ndo. Null only for rows older than the staff upload.\n',
+    ),
+  addedByHome: zod
+    .boolean()
+    .describe("Added by a member of staff rather than through a family link."),
   caption: zod.string().nullable(),
   cropX: zod.number().nullable(),
   cropY: zod.number().nullable(),

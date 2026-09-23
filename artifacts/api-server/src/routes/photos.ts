@@ -21,8 +21,14 @@ import {
   parseId,
   requireRow,
 } from "../lib/http";
-import { tenant } from "../middleware/require-auth";
-import { photosForCase, setSelection, toPhotoJson } from "../lib/media";
+import { currentUser, tenant } from "../middleware/require-auth";
+import {
+  addPhotoToCase,
+  photoUpload,
+  photosForCase,
+  setSelection,
+  toPhotoJson,
+} from "../lib/media";
 import { decryptBuffer } from "@workspace/db/crypto";
 import { ZipWriter } from "../lib/zip";
 import { formatServiceMoment } from "../lib/print-render";
@@ -65,6 +71,50 @@ router.get("/cases/:caseId/photos", async (req, res) => {
     }),
   );
 });
+
+/**
+ * A staff member adds a photograph to the case's bin.
+ *
+ * For the print a widow posts to the office, or the framed wedding picture
+ * somebody brings to the arrangement conference and the director scans at the
+ * front desk. `/uploads` used to be the only door for staff, and it stores a
+ * file with no case: the scan reached the database and never reached the
+ * bin, the pack or the slideshow.
+ *
+ * `loadCase` scopes the case to the signed-in home before a byte is read into
+ * the bin, and `addPhotoToCase` is the family's own pipeline -- the same
+ * sniffing, HEIC/AVIF conversion, size and decompression-bomb limits,
+ * encryption and bin ceiling -- with the staff member recorded as the sender.
+ * Multer has already buffered the file by the time a foreign case is refused;
+ * nothing is stored for it.
+ */
+router.post(
+  "/cases/:caseId/photos",
+  photoUpload.single("file"),
+  async (req, res) => {
+    const home = tenant(req);
+    const user = currentUser(req);
+    const row = await loadCase(req, String(req.params.caseId));
+
+    const created = await addPhotoToCase({
+      funeralHomeId: home.id,
+      caseId: row.id,
+      file: req.file,
+      caption: req.body?.caption,
+      by: { userId: user.id },
+    });
+
+    res.status(201).json(
+      toPhotoJson(created, {
+        portraitPhotoId: row.portraitPhotoId,
+        referencePhotoId: row.referencePhotoId,
+        uploadedByName: user.displayName?.trim()
+          ? `${user.displayName.trim()}, ${home.name}`
+          : home.name,
+      }),
+    );
+  },
+);
 
 /**
  * Choose what runs in the chapel.
@@ -335,8 +385,12 @@ router.get("/cases/:caseId/photo-pack", async (req, res) => {
       upload.createdAt,
     );
 
+    // A print the office scanned has no family sender; say where it came
+    // from rather than leaving the line looking like a gap.
+    const sender =
+      uploadedByName ?? (photo.uploadedByUserId != null ? home.name : null);
     manifest.push(
-      `${order}. ${caption || "(no caption)"}${uploadedByName ? ` — from ${uploadedByName}` : ""}`,
+      `${order}. ${caption || "(no caption)"}${sender ? ` — from ${sender}` : ""}`,
     );
   }
 

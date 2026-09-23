@@ -47,6 +47,7 @@ import type {
   CaseInput,
   CaseMessage,
   CasePhoto,
+  CasePhotoUploadInput,
   CaseSummary,
   CaseUpdate,
   ChosenService,
@@ -5448,6 +5449,105 @@ export function useGetCasePhotos<
 
   return { ...query, queryKey: queryOptions.queryKey };
 }
+
+/**
+ * For a print posted to the office or brought to the arrangement
+conference. Goes through the same checks as a family upload (type
+sniffed from the bytes, HEIC/AVIF converted, size and decompression
+limits, encrypted at rest, the bin's ceiling) and is recorded as added
+by the signed-in staff member, so the family sees it came from the
+home.
+
+ * @summary Add a photograph to the case's bin as staff
+ */
+export const getUploadCasePhotoUrl = (caseId: number) => {
+  return `/api/cases/${caseId}/photos`;
+};
+
+export const uploadCasePhoto = async (
+  caseId: number,
+  casePhotoUploadInput: CasePhotoUploadInput,
+  options?: RequestInit,
+): Promise<CasePhoto> => {
+  const formData = new FormData();
+  formData.append(`file`, casePhotoUploadInput.file);
+  if (casePhotoUploadInput.caption !== undefined) {
+    formData.append(`caption`, casePhotoUploadInput.caption);
+  }
+
+  return customFetch<CasePhoto>(getUploadCasePhotoUrl(caseId), {
+    ...options,
+    method: "POST",
+    body: formData,
+  });
+};
+
+export const getUploadCasePhotoMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof uploadCasePhoto>>,
+    TError,
+    { caseId: number; data: BodyType<CasePhotoUploadInput> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof uploadCasePhoto>>,
+  TError,
+  { caseId: number; data: BodyType<CasePhotoUploadInput> },
+  TContext
+> => {
+  const mutationKey = ["uploadCasePhoto"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof uploadCasePhoto>>,
+    { caseId: number; data: BodyType<CasePhotoUploadInput> }
+  > = (props) => {
+    const { caseId, data } = props ?? {};
+
+    return uploadCasePhoto(caseId, data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type UploadCasePhotoMutationResult = NonNullable<
+  Awaited<ReturnType<typeof uploadCasePhoto>>
+>;
+export type UploadCasePhotoMutationBody = BodyType<CasePhotoUploadInput>;
+export type UploadCasePhotoMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Add a photograph to the case's bin as staff
+ */
+export const useUploadCasePhoto = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof uploadCasePhoto>>,
+    TError,
+    { caseId: number; data: BodyType<CasePhotoUploadInput> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof uploadCasePhoto>>,
+  TError,
+  { caseId: number; data: BodyType<CasePhotoUploadInput> },
+  TContext
+> => {
+  return useMutation(getUploadCasePhotoMutationOptions(options));
+};
 
 /**
  * Replaces the selection wholesale and sets its order from the list
@@ -11540,7 +11640,7 @@ export function useGetFamilyPrintItems<
 }
 
 /**
- * @summary Store bytes (the home's logo, or a staff-added photograph)
+ * @summary Store bytes that belong to no case (the home's logo). Case photographs go to POST /cases/{caseId}/photos.
  */
 export const getUploadFileUrl = () => {
   return `/api/uploads`;
@@ -11605,7 +11705,7 @@ export type UploadFileMutationBody = BodyType<UploadInput>;
 export type UploadFileMutationError = ErrorType<unknown>;
 
 /**
- * @summary Store bytes (the home's logo, or a staff-added photograph)
+ * @summary Store bytes that belong to no case (the home's logo). Case photographs go to POST /cases/{caseId}/photos.
  */
 export const useUploadFile = <
   TError = ErrorType<unknown>,

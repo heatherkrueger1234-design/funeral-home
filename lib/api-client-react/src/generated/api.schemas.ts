@@ -1028,8 +1028,13 @@ export interface CasePhoto {
   caseId: number;
   uploadId: number;
   uploadedByContactId: number | null;
-  /** Who sent it, resolved for display. Null when staff added it. */
+  /** Who sent it, resolved for display. For a photograph staff added,
+the home's name when a family asks, and "person, home" when staff
+do. Null only for rows older than the staff upload.
+ */
   uploadedByName: string | null;
+  /** Added by a member of staff rather than through a family link. */
+  addedByHome: boolean;
   caption: string | null;
   cropX: number | null;
   cropY: number | null;
@@ -1159,6 +1164,11 @@ export interface PortraitInput {
 
 export interface UploadInput {
   file: Blob;
+}
+
+export interface CasePhotoUploadInput {
+  file: Blob;
+  caption?: string;
 }
 
 export interface FamilyPhotoUploadInput {

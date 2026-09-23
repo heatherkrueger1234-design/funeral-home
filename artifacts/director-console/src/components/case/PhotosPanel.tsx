@@ -1,3 +1,4 @@
+import { useRef, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import {
   useGetCasePhotos,
@@ -7,10 +8,107 @@ import {
   useSetPhotoSelection,
   getGetCasePhotosQueryKey,
   getGetCaseQueryKey,
+  postCasePhotoMultipart,
+  MAX_UPLOAD_BYTES,
+  ACCEPTED_UPLOAD_TYPES,
 } from "@workspace/api-client-react";
 import { Button } from "@/components/ui/button";
-import { Check, Download, Eye, EyeOff, Images, Scissors, Star, Trash2 } from "lucide-react";
+import { useToast } from "@/hooks/use-toast";
+import {
+  Check,
+  Download,
+  Eye,
+  EyeOff,
+  Images,
+  Loader2,
+  Scissors,
+  Star,
+  Trash2,
+  Upload,
+} from "lucide-react";
 import { Empty, Loading } from "@/components/page";
+
+/**
+ * Adding photographs from the office: the print a widow posts in, or the
+ * framed picture scanned at the arrangement conference. They go into this
+ * case's bin through the same checks as the family's own uploads, one at a
+ * time so a failure names the file it was about, and the family sees them
+ * marked as added by the home.
+ */
+function useAddPhotos(caseId: number, onDone: () => void) {
+  const { toast } = useToast();
+  const input = useRef<HTMLInputElement>(null);
+  const [progress, setProgress] = useState<{ done: number; total: number } | null>(
+    null,
+  );
+
+  async function onFilesChosen(files: FileList | null) {
+    if (!files?.length) return;
+    const chosen = Array.from(files);
+    setProgress({ done: 0, total: chosen.length });
+
+    for (const [index, file] of chosen.entries()) {
+      if (file.size > MAX_UPLOAD_BYTES) {
+        toast({
+          title: `"${file.name}" is too large`,
+          description: `Photographs need to be under ${Math.floor(MAX_UPLOAD_BYTES / (1024 * 1024))} MB.`,
+          variant: "destructive",
+        });
+      } else {
+        try {
+          await postCasePhotoMultipart(caseId, file);
+        } catch (error) {
+          toast({
+            title: `Couldn't add "${file.name}"`,
+            description:
+              error instanceof Error ? error.message : "Please try that one again.",
+            variant: "destructive",
+          });
+        }
+      }
+      setProgress({ done: index + 1, total: chosen.length });
+    }
+
+    setProgress(null);
+    onDone();
+    if (input.current) input.current.value = "";
+  }
+
+  const control = (
+    <>
+      <input
+        ref={input}
+        type="file"
+        multiple
+        accept={ACCEPTED_UPLOAD_TYPES.join(",")}
+        className="sr-only"
+        tabIndex={-1}
+        aria-hidden
+        onChange={(event) => void onFilesChosen(event.target.files)}
+      />
+      <Button
+        variant="outline"
+        size="sm"
+        disabled={progress !== null}
+        onClick={() => input.current?.click()}
+      >
+        {progress ? (
+          <>
+            <Loader2 className="size-4 animate-spin" aria-hidden />
+            Adding {Math.min(progress.done + 1, progress.total)} of {progress.total}…
+          </>
+        ) : (
+          <>
+            <Upload className="size-4" aria-hidden />
+            Add photographs
+          </>
+        )}
+      </Button>
+    </>
+  );
+
+  return control;
+}
 
 /**
  * The photographs, as the director sees them: including the ones they have
@@ -43,6 +141,7 @@ export function PhotosPanel({
   const remove = useDeletePhoto({ mutation: { onSuccess: refresh } });
   const updateCase = useUpdateCase({ mutation: { onSuccess: refresh } });
   const setSelection = useSetPhotoSelection({ mutation: { onSuccess: refresh } });
+  const addPhotos = useAddPhotos(caseId, refresh);
 
   if (photos.isPending) {
     return (
@@ -54,9 +153,10 @@ export function PhotosPanel({
 
   if (rows.length === 0) {
     return (
-      <Empty icon={Images} title="Nothing in yet">
+      <Empty icon={Images} title="Nothing in yet" action={addPhotos}>
         The family adds these from their link — go to the Family tab if they
-        have not been sent one.
+        have not been sent one. Prints posted to the office can be added
+        here.
       </Empty>
     );
   }
@@ -110,7 +210,8 @@ export function PhotosPanel({
           </span>
         </p>
 
-        <div className="ml-auto flex gap-2">
+        <div className="ml-auto flex flex-wrap gap-2">
+          {addPhotos}
           <Button
             variant="ghost"
             size="sm"
@@ -169,9 +270,11 @@ export function PhotosPanel({
               )}
             </p>
             <p className="mb-3 text-sm leading-snug text-muted-foreground">
-              {photo.uploadedByName
-                ? `From ${photo.uploadedByName}`
-                : "Added here"}
+              {photo.addedByHome
+                ? `Added by ${photo.uploadedByName ?? "the home"}`
+                : photo.uploadedByName
+                  ? `From ${photo.uploadedByName}`
+                  : "Added here"}
             </p>
 
             <div className="flex flex-wrap gap-1">

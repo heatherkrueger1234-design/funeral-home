@@ -84,6 +84,7 @@ import {
   openOfferCount,
 } from "../lib/service-offers";
 import {
+  addPhotoToCase,
   photoUpload,
   photosForCase,
   serveUpload,
@@ -265,6 +266,7 @@ router.get("/photos", async (req, res) => {
   res.json(
     await photosForCase(row.id, home.id, row.portraitPhotoId, {
       includeHidden: false,
+      audience: "family",
       referencePhotoId: row.referencePhotoId,
     }),
   );
@@ -275,50 +277,15 @@ router.post("/photos", photoUpload.single("file"), async (req, res) => {
   const row = familyCase(req);
   const home = familyHome(req);
 
-  if (!req.file) throw badRequest("Please choose a photograph.");
-
-  // Checked here rather than trusted from the client: the limit exists so a
-  // slideshow stays watchable, and a family that has already sent fifty
-  // should be told plainly rather than silently having the fifty-first
-  // dropped.
-  const [existing] = await db
-    .select({ value: count() })
-    .from(casePhotosTable)
-    .where(eq(casePhotosTable.caseId, row.id));
-
-  if (Number(existing?.value ?? 0) >= MAX_PHOTOS_PER_CASE) {
-    throw badRequest(
-      `That's the ${MAX_PHOTOS_PER_CASE}-photograph limit. Remove one to add another, or ask the funeral home.`,
-    );
-  }
-
-  const caption =
-    typeof req.body?.caption === "string" ? req.body.caption.trim() : "";
-
-  const created = await db.transaction(async (tx) => {
-    const stored = await storeUpload({
-      funeralHomeId: home.id,
-      caseId: row.id,
-      uploadedByContactId: contact.id,
-      file: req.file!,
-      // Same transaction as the photo row below: if that insert fails, the
-      // bytes must go with it rather than linger unreferenced.
-      tx,
-    });
-
-    const [photo] = await tx
-      .insert(casePhotosTable)
-      .values({
-        funeralHomeId: home.id,
-        caseId: row.id,
-        uploadId: stored.id,
-        uploadedByContactId: contact.id,
-        caption: caption || null,
-        position: Number(existing?.value ?? 0),
-      })
-      .returning();
-
-    return photo!;
+  // The same path the director's Photos panel uses, so a print scanned at
+  // the office and a phone photograph from the family are checked, converted
+  // and counted against the bin identically. See `addPhotoToCase`.
+  const created = await addPhotoToCase({
+    funeralHomeId: home.id,
+    caseId: row.id,
+    file: req.file,
+    caption: req.body?.caption,
+    by: { contactId: contact.id },
   });
 
   res.status(201).json(
@@ -445,6 +412,7 @@ router.put("/photos/selection", async (req, res) => {
   res.json(
     await photosForCase(row.id, home.id, row.portraitPhotoId, {
       includeHidden: false,
+      audience: "family",
       referencePhotoId: row.referencePhotoId,
     }),
   );
