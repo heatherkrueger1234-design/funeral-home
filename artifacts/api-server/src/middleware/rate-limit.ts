@@ -61,7 +61,7 @@ export function rateLimit(options: {
 }
 
 function clientKey(req: Request): string {
-  // `req.ip` honours `trust proxy`, which app.ts sets for the Replit router.
+  // `req.ip` honours `trust proxy`, which app.ts sets from TRUST_PROXY_HOPS.
   return req.ip ?? req.socket.remoteAddress ?? "unknown";
 }
 

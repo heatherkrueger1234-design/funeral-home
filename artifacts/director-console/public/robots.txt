@@ -1,0 +1,7 @@
+# A staff console behind a sign-in: nothing here is for a crawler. Pages also
+# carry noindex, in case this host is ever linked from somewhere public.
+#
+# Without this file the SPA fallback answered /robots.txt with index.html,
+# which crawlers read as a malformed robots file.
+User-agent: *
+Disallow: /

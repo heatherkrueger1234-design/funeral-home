@@ -296,7 +296,7 @@ export function FamilyPanel({ caseId, contacts }: Props) {
               setRole(value as "next_of_kin" | "contributor")
             }
           >
-            <SelectTrigger>
+            <SelectTrigger aria-label="Role">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>

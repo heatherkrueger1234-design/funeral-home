@@ -113,7 +113,7 @@ export function DetailsPanel({
             value={detail.leadDirectorId ? String(detail.leadDirectorId) : ""}
             onValueChange={(value) => save({ leadDirectorId: Number(value) })}
           >
-            <SelectTrigger>
+            <SelectTrigger aria-label="Lead director">
               <SelectValue placeholder="Nobody yet" />
             </SelectTrigger>
             <SelectContent>

@@ -11,7 +11,8 @@
     "load-postal-codes": "tsx ./src/load-postal-codes.ts",
     "restore-database": "tsx ./src/restore-database.ts",
     "verify-backup": "tsx ./src/verify-backup.ts",
-    "seed-demo": "tsx ./src/seed-demo.ts"
+    "seed-demo": "tsx ./src/seed-demo.ts",
+    "send-test-email": "tsx ./src/send-test-email.ts"
   },
   "devDependencies": {
     "@types/node": "catalog:",

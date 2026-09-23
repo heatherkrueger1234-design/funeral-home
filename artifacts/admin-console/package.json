@@ -10,6 +10,8 @@
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "devDependencies": {
+    "@fontsource-variable/lora": "^5.3.0",
+    "@fontsource-variable/source-sans-3": "^5.3.0",
     "@replit/vite-plugin-cartographer": "catalog:",
     "@replit/vite-plugin-dev-banner": "catalog:",
     "@replit/vite-plugin-runtime-error-modal": "catalog:",

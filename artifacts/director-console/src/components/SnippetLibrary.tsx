@@ -165,7 +165,7 @@ export function SnippetLibrary({ readOnly }: { readOnly: boolean }) {
         >
           <div className="flex flex-wrap gap-2">
             <Select value={kind} onValueChange={setKind}>
-              <SelectTrigger className="w-[9rem]">
+              <SelectTrigger aria-label="Kind of wording" className="w-[9rem]">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>

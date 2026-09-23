@@ -8,12 +8,14 @@ import { billingWebhookRouter } from "./routes/billing";
 import { logger } from "./lib/logger";
 import { errorHandler, notFoundHandler } from "./lib/http";
 import { corsOptions } from "./lib/cors";
+import { trustProxyHops } from "./lib/trust-proxy";
 
 const app: Express = express();
 
-// Replit terminates TLS and proxies to this process, so `req.ip` and the
-// `secure` cookie flag are only correct once the proxy is trusted.
-app.set("trust proxy", 1);
+// Something always terminates TLS in front of this process, so `req.ip` and
+// `req.secure` are only correct once the proxies are trusted, and only as
+// many of them as there really are. See lib/trust-proxy.ts.
+app.set("trust proxy", trustProxyHops());
 
 // Journals, letters and obituaries can be long-form; the 100kb default is
 // tight enough that a single entry could be rejected.
