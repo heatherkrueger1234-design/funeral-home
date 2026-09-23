@@ -450,3 +450,152 @@ export async function sendIntakeNotificationEmail(options: {
     html,
   });
 }
+
+/**
+ * Confirm the address a funeral home registered with.
+ *
+ * Not redacted in the log, unlike a password reset: this token proves control
+ * of an inbox and nothing else. It cannot sign anyone in, cannot change a
+ * password, and grants no access to a single case — so a deployment without
+ * SMTP can read the link out of its own log and get on with the pilot, which
+ * is exactly the situation this product is in on its first day.
+ */
+export async function sendEmailVerificationEmail(options: {
+  to: string;
+  homeName: string;
+  verifyUrl: string;
+  expiresInDays: number;
+}): Promise<void> {
+  const { to, homeName, verifyUrl, expiresInDays } = options;
+
+  const text = [
+    `Thank you for setting up ${homeName} on Holding Today.`,
+    "",
+    "Please confirm this is your address:",
+    verifyUrl,
+    "",
+    `The link works once, and lasts ${expiresInDays} days.`,
+    "",
+    "Everything in your console already works — this confirmation is what",
+    "switches on the request form on your public page, so that the page",
+    "families reach belongs to a home we have heard from.",
+    "",
+    "— Holding Today",
+  ].join("\n");
+
+  const html = `
+<div style="font-family:-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;
+            max-width:520px;margin:0 auto;padding:32px 24px;color:#1f2937;
+            line-height:1.6;font-size:15px">
+  <p style="margin:0 0 20px">
+    Thank you for setting up <strong>${esc(homeName)}</strong> on Holding&nbsp;Today.
+  </p>
+  <p style="margin:0 0 28px">
+    <a href="${esc(verifyUrl)}"
+       style="display:inline-block;background:#1f4e46;color:#ffffff;
+              text-decoration:none;padding:12px 26px;border-radius:999px;
+              font-weight:600">Confirm your address</a>
+  </p>
+  <p style="margin:0 0 20px;color:#6b7280;font-size:13px">
+    The link works once and lasts ${expiresInDays} days. If the button doesn't
+    work, paste this into your browser:<br>
+    <span style="word-break:break-all">${esc(verifyUrl)}</span>
+  </p>
+  <p style="margin:0 0 8px;color:#6b7280;font-size:13px">
+    Everything in your console already works. This confirmation is what
+    switches on the request form on your public page.
+  </p>
+  <p style="margin:24px 0 0;color:#9ca3af;font-size:12px">— Holding Today</p>
+</div>`.trim();
+
+  await send({
+    to,
+    subject: `Confirm your address for ${homeName}`,
+    text,
+    html,
+  });
+}
+
+/**
+ * Where a home stands with its trial.
+ *
+ * Three of these go out — a week before, the day before, and on the day it
+ * ends — and the copy rules are the product's own: no countdown, no urgency,
+ * no exclamation mark, and a plain sentence about what changes and what does
+ * not. What does not change is nearly everything, and saying so is the honest
+ * part: a director reading this must not think Thursday's funeral is at risk.
+ */
+export async function sendTrialReminderEmail(options: {
+  to: string;
+  homeName: string;
+  /** Days remaining. Zero means the trial has ended. */
+  daysLeft: number;
+  billingUrl: string;
+}): Promise<void> {
+  const { to, homeName, daysLeft, billingUrl } = options;
+
+  const ended = daysLeft <= 0;
+
+  const opening = ended
+    ? `The trial for ${homeName} has come to an end.`
+    : daysLeft === 1
+      ? `The trial for ${homeName} ends tomorrow.`
+      : `The trial for ${homeName} ends in ${daysLeft} days.`;
+
+  const consequence = ended
+    ? [
+        "Opening a new case now asks for a subscription first. Everything else",
+        "carries on exactly as it was: every case already open stays open, the",
+        "families working on them keep their links, the aftercare check-ins",
+        "already agreed to still go out, and you can export any case at any",
+        "time — including if you decide not to continue.",
+      ]
+    : [
+        "When it does, the only thing that changes is opening a new case.",
+        "Cases already open stay open, families keep their links, aftercare",
+        "check-ins still go out, and you can export any case at any time —",
+        "including if you decide not to continue.",
+      ];
+
+  const text = [
+    opening,
+    "",
+    ...consequence,
+    "",
+    ended ? "To carry on:" : "To set up a subscription before then:",
+    billingUrl,
+    "",
+    "If you would rather talk it through first, reply to this message.",
+    "",
+    "— Holding Today",
+  ].join("\n");
+
+  const html = `
+<div style="font-family:-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;
+            max-width:520px;margin:0 auto;padding:32px 24px;color:#1f2937;
+            line-height:1.6;font-size:15px">
+  <p style="margin:0 0 20px">${esc(opening)}</p>
+  <p style="margin:0 0 24px;color:#4b5563">${esc(consequence.join(" "))}</p>
+  <p style="margin:0 0 28px">
+    <a href="${esc(billingUrl)}"
+       style="display:inline-block;background:#1f4e46;color:#ffffff;
+              text-decoration:none;padding:12px 26px;border-radius:999px;
+              font-weight:600">${ended ? "Carry on" : "Set up a subscription"}</a>
+  </p>
+  <p style="margin:0 0 8px;color:#6b7280;font-size:13px">
+    If you would rather talk it through first, reply to this message.
+  </p>
+  <p style="margin:24px 0 0;color:#9ca3af;font-size:12px">— Holding Today</p>
+</div>`.trim();
+
+  await send({
+    to,
+    subject: ended
+      ? `${homeName}: your trial has ended`
+      : daysLeft === 1
+        ? `${homeName}: your trial ends tomorrow`
+        : `${homeName}: your trial ends in ${daysLeft} days`,
+    text,
+    html,
+  });
+}

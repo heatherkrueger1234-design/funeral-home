@@ -9,6 +9,7 @@ import type { CookieOptions, Request, Response } from "express";
 import { and, eq, gt, isNull, lt } from "drizzle-orm";
 import {
   db,
+  emailVerificationsTable,
   passwordResetsTable,
   sessionsTable,
   usersTable,
@@ -31,6 +32,18 @@ const SALT_LENGTH = 16;
 
 /** Long enough to act on after finding the email; short enough to matter. */
 export const PASSWORD_RESET_TTL_MS = 60 * 60 * 1000; // 1 hour
+
+/**
+ * Much longer than a password reset, and for a different reason.
+ *
+ * A reset is short because someone may be trying to take an account. This one
+ * is a confirmation, and the person is a funeral director who registered at
+ * four in the afternoon and did not open their inbox until the following
+ * week — because in between, somebody died. An hour here would mean a
+ * director who finally clicks the link is told it has expired, on a screen
+ * they reached while doing exactly what they bought this for.
+ */
+export const EMAIL_VERIFICATION_TTL_MS = 14 * 24 * 60 * 60 * 1000; // 14 days
 
 export const SESSION_COOKIE = "fh_session";
 export const SESSION_TTL_MS = 30 * 24 * 60 * 60 * 1000; // 30 days
@@ -185,6 +198,105 @@ export async function consumePasswordReset(
   if (marked.length === 0) return undefined;
 
   return row.user;
+}
+
+/* ---------------------------------------------------- email verification -- */
+
+/**
+ * Issues a single-use verification token, for the address as it stands now.
+ *
+ * The address is written into the row rather than read back off the user at
+ * redemption: a director who typed `.con`, corrected it to `.com` and then
+ * clicked the link in the first email must not end up with the typo marked
+ * verified. See `consumeEmailVerification`.
+ */
+export async function createEmailVerification(
+  userId: number,
+  email: string,
+): Promise<string> {
+  const token = randomBytes(32).toString("base64url");
+
+  await db.insert(emailVerificationsTable).values({
+    tokenHash: digest(token),
+    userId,
+    email: normaliseEmail(email),
+    expiresAt: new Date(Date.now() + EMAIL_VERIFICATION_TTL_MS),
+  });
+
+  return token;
+}
+
+/**
+ * Redeems a verification token and marks the account verified.
+ *
+ * Returns the account, or undefined when the token is unknown, expired, spent,
+ * or was issued for an address the account no longer uses. Callers must not
+ * distinguish between those in what they tell the client — and the last of
+ * them is the point of storing the address: a stale link proves somebody once
+ * controlled an address that is no longer on this account, which is not the
+ * thing being asked.
+ */
+export async function consumeEmailVerification(
+  token: string,
+): Promise<User | undefined> {
+  const tokenHash = digest(token);
+
+  const [row] = await db
+    .select({ user: usersTable, email: emailVerificationsTable.email })
+    .from(emailVerificationsTable)
+    .innerJoin(usersTable, eq(usersTable.id, emailVerificationsTable.userId))
+    .where(
+      and(
+        eq(emailVerificationsTable.tokenHash, tokenHash),
+        gt(emailVerificationsTable.expiresAt, new Date()),
+        isNull(emailVerificationsTable.usedAt),
+      ),
+    )
+    .limit(1);
+
+  if (!row) return undefined;
+  if (row.email !== normaliseEmail(row.user.email)) return undefined;
+
+  const marked = await db
+    .update(emailVerificationsTable)
+    .set({ usedAt: new Date() })
+    .where(
+      and(
+        eq(emailVerificationsTable.tokenHash, tokenHash),
+        isNull(emailVerificationsTable.usedAt),
+      ),
+    )
+    .returning({ tokenHash: emailVerificationsTable.tokenHash });
+
+  // Lost the race against a concurrent redemption of the same token.
+  if (marked.length === 0) return undefined;
+
+  const [updated] = await db
+    .update(usersTable)
+    .set({ emailVerified: true, updatedAt: new Date() })
+    .where(eq(usersTable.id, row.user.id))
+    .returning();
+
+  return updated ?? row.user;
+}
+
+/**
+ * Void any outstanding verification links for this account.
+ *
+ * Called when the address changes, because a link issued for the old one
+ * would otherwise still be redeemable — and, per the check above, would fail
+ * confusingly rather than harmlessly.
+ */
+export async function revokeEmailVerifications(userId: number): Promise<void> {
+  await db
+    .update(emailVerificationsTable)
+    .set({ usedAt: new Date() })
+    .where(
+      and(
+        eq(emailVerificationsTable.userId, userId),
+        isNull(emailVerificationsTable.usedAt),
+      ),
+    );
 }
 
 /** Any other outstanding links are void once one has been used. */

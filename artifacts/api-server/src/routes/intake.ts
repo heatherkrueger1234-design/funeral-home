@@ -150,7 +150,7 @@ router.post("/intake-requests/:intakeId/accept", async (req, res) => {
     invitedByUserId: user.id,
   });
 
-  void markOnboarding(home.id, "family");
+  await markOnboarding(home.id, "family");
 
   // A case with a family member on it is live, exactly as it would be had the
   // director added them by hand. Leaving it at `intake` would hide it from the

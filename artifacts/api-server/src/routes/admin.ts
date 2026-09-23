@@ -33,6 +33,12 @@ import {
 } from "../lib/http";
 import { currentUser } from "../middleware/require-auth";
 import { createPasswordReset, normaliseEmail, PASSWORD_RESET_TTL_MS } from "../lib/auth";
+import {
+  grantPlatformAdmin,
+  isPlatformAdmin,
+  listPlatformAdmins,
+  revokePlatformAdmin,
+} from "../lib/platform-auth";
 import { seedTimelineTemplate } from "../lib/timeline";
 import { seedPolicyPrompts } from "../lib/storefront";
 import { logger } from "../lib/logger";
@@ -88,55 +94,44 @@ declare global {
 }
 
 /**
- * Whether this signed-in staff account is also a platform admin.
+ * The gate. A signed-in staff account that is also on `platform_admins`.
  *
- * TODO(C1): Component 1 owns the `platform_admins` table, its session and the
- * real `requirePlatformAdmin` gate. When that lands, this function is deleted
- * and the gate below imports theirs — the rest of this file does not change.
+ * The membership check now reads a table rather than `PLATFORM_ADMIN_EMAILS`
+ * — see `lib/platform-auth.ts` for why, and for the one-time bootstrap that
+ * keeps a fresh deployment from locking everyone out. The shape of the check is
+ * unchanged, and the properties that matter are the same ones the environment
+ * variable had:
  *
- * Until then it reads an explicit operator allowlist, and that shape is
- * chosen carefully rather than for convenience:
- *
- *  - It is **closed by default**. Unset, nobody is a platform admin and every
- *    route in this file answers 403 — including to an owner, including in
- *    production. A half-built console that is reachable is worse than one
- *    that is not.
- *  - It grants nothing on its own. Being named here still requires knowing
+ *  - It is **closed by default**. An empty table means nobody is a platform
+ *    admin and every route in this file answers 403 — including to an owner,
+ *    including in production. A half-built console that is reachable is worse
+ *    than one that is not.
+ *  - It grants nothing on its own. Being on the list still requires knowing
  *    the password of a real staff account, so this is an additional condition
  *    and never an alternative one.
  *  - It is not a permission model. There is one capability and no hierarchy,
- *    because inventing a second role system while waiting for the first is
- *    exactly what `TEAM-SPLIT.md` says not to do.
- */
-function isPlatformAdmin(email: string): boolean {
-  const allowed = (process.env["PLATFORM_ADMIN_EMAILS"] ?? "")
-    .split(",")
-    .map((entry) => normaliseEmail(entry))
-    .filter(Boolean);
-
-  return allowed.includes(normaliseEmail(email));
-}
-
-/**
- * TODO(C1): replace with Component 1's `requirePlatformAdmin`.
+ *    because inventing a second role system is exactly what `TEAM-SPLIT.md`
+ *    says not to do.
  *
  * The 403 says nothing about why. A director who mistypes a URL learns that
  * the route is not theirs, and learns nothing about whether an admin console
  * exists, who is on it, or how one gets there.
  */
 const requirePlatformAdmin: RequestHandler = (req, _res, next) => {
-  try {
-    const user = currentUser(req);
+  void (async () => {
+    try {
+      const user = currentUser(req);
 
-    if (!isPlatformAdmin(user.email)) {
-      throw new HttpError(403, "Not found");
+      if (!(await isPlatformAdmin(user.email))) {
+        throw new HttpError(403, "Not found");
+      }
+
+      req.platformActor = { email: normaliseEmail(user.email) };
+      next();
+    } catch (error) {
+      next(error);
     }
-
-    req.platformActor = { email: normaliseEmail(user.email) };
-    next();
-  } catch (error) {
-    next(error);
-  }
+  })();
 };
 
 router.use("/admin", requirePlatformAdmin);
@@ -165,6 +160,10 @@ const AUDIT_ACTIONS = [
   "home.licensure.update",
   "home.practitioner.update",
   "platform.overview",
+  "platform.admins.list",
+  "platform.admin.grant",
+  "platform.admin.revoke",
+  "home.internal.update",
 ] as const;
 type AuditAction = (typeof AUDIT_ACTIONS)[number];
 
@@ -192,6 +191,21 @@ async function recordPlatformAccess(
     detail: detail ?? null,
   });
 }
+
+/**
+ * Which homes are customers.
+ *
+ * Every figure the business makes about itself is filtered on this, and it is
+ * one expression rather than four so the homes list and the counts can never
+ * disagree about who is being counted.
+ *
+ * A platform admin needs a staff account, a staff account needs a
+ * `funeral_homes` row, and that row is not a customer. Left in, it turned the
+ * overview into a lie in the least useful direction: the console reported three
+ * homes on trial when one of the three was us, which is the number a founder
+ * would quote at somebody.
+ */
+const customerHomes = eq(funeralHomesTable.internalAccount, false);
 
 /* ------------------------------------------- the cross-tenant helpers -- */
 
@@ -232,10 +246,12 @@ async function platformListHomes(
       )
     : undefined;
 
+  const scoped = filter ? and(customerHomes, filter) : customerHomes;
+
   const homes = await db
     .select()
     .from(funeralHomesTable)
-    .where(filter)
+    .where(scoped)
     .orderBy(asc(funeralHomesTable.name))
     .limit(options.limit)
     .offset(options.offset);
@@ -243,7 +259,7 @@ async function platformListHomes(
   const [totals] = await db
     .select({ total: count() })
     .from(funeralHomesTable)
-    .where(filter);
+    .where(scoped);
 
   await recordPlatformAccess(
     who,
@@ -436,6 +452,7 @@ function toAdminHome(home: FuneralHome) {
     canOpenCases: canOpenCases(home),
     suspendedAt: home.suspendedAt,
     suspendedReason: home.suspendedReason,
+    internalAccount: home.internalAccount,
     onboardingDone: home.onboardingDone
       .split(",")
       .map((step) => step.trim())
@@ -599,7 +616,7 @@ router.post("/admin/homes", async (req, res) => {
   if (ownerId !== null && ownerEmail !== null) {
     const token = await createPasswordReset(ownerId);
     const base = process.env["CONSOLE_URL"]?.replace(/\/+$/, "") ?? "";
-    inviteLink = `${base}/reset-password?token=${encodeURIComponent(token)}`;
+    inviteLink = `${base}/reset-password?invited=1&token=${encodeURIComponent(token)}`;
 
     try {
       await sendStaffInviteEmail({
@@ -856,13 +873,15 @@ router.get("/admin/overview", async (req, res) => {
       paying: sql<number>`count(*) filter (where ${funeralHomesTable.subscriptionStatus} = 'active')`.mapWith(Number),
       onTrial: sql<number>`count(*) filter (where ${funeralHomesTable.subscriptionStatus} = 'trial')`.mapWith(Number),
     })
-    .from(funeralHomesTable);
+    .from(funeralHomesTable)
+    .where(customerHomes);
 
   // Every home that has any licensure record at all, with its people. Small
   // by construction — this is a list of customers, not of cases.
   const homes = await db
     .select()
     .from(funeralHomesTable)
+    .where(customerHomes)
     .orderBy(asc(funeralHomesTable.name));
 
   const licensure = await db.select().from(homeLicensureTable);
@@ -937,6 +956,177 @@ const AuditQuery = z.object({
  * log that grew every time somebody scrolled it would bury the entries that
  * matter under entries about looking.
  */
+/* ---------------------------------------------- who may look at all this -- */
+
+/**
+ * The list itself, readable from the console.
+ *
+ * Deliberately readable by every platform admin rather than by some senior
+ * subset: there is one capability here and no hierarchy, and a list of who can
+ * see customers' data that only some of those people may read is a worse
+ * arrangement than one everybody can check.
+ *
+ * Audited like any other cross-tenant read. It names no home, so the subject is
+ * null — but "who looked at the access list" is exactly the sort of question the
+ * log exists to answer.
+ */
+router.get("/admin/admins", async (req, res) => {
+  const who = actor(req);
+  const admins = await listPlatformAdmins();
+
+  await recordPlatformAccess(
+    who,
+    "platform.admins.list",
+    null,
+    `${admins.filter((row) => row.revokedAt === null).length} active`,
+  );
+
+  res.json(
+    admins.map((row) => ({
+      id: row.id,
+      email: row.email,
+      displayName: row.displayName,
+      note: row.note,
+      addedByEmail: row.addedByEmail,
+      revokedAt: row.revokedAt,
+      revokedByEmail: row.revokedByEmail,
+      createdAt: row.createdAt,
+    })),
+  );
+});
+
+const GrantAdminBody = z.object({
+  email: z.string().trim().email().max(320),
+  displayName: z.string().trim().max(120).optional(),
+  note: z.string().trim().max(400).optional(),
+});
+
+/**
+ * Add somebody to the list.
+ *
+ * Note what this does *not* do: create an account, send an invitation, or grant
+ * anything by itself. It records that if an account with this address signs in,
+ * it may use this console. Someone named here with no staff account still
+ * cannot get in, which is the property that lets access be arranged before a
+ * new colleague's first day without opening anything early.
+ */
+router.post("/admin/admins", async (req, res) => {
+  const who = actor(req);
+  const values = parseBody(GrantAdminBody, req.body);
+
+  const granted = await grantPlatformAdmin({
+    email: values.email,
+    displayName: values.displayName ?? null,
+    note: values.note ?? null,
+    addedByEmail: who.email,
+  });
+
+  await recordPlatformAccess(
+    who,
+    "platform.admin.grant",
+    null,
+    `granted ${granted.email}`,
+  );
+
+  logger.warn(
+    { actor: who.email, granted: granted.email },
+    "Platform admin access granted",
+  );
+
+  res.status(201).json({
+    id: granted.id,
+    email: granted.email,
+    displayName: granted.displayName,
+    note: granted.note,
+    addedByEmail: granted.addedByEmail,
+    revokedAt: granted.revokedAt,
+    revokedByEmail: granted.revokedByEmail,
+    createdAt: granted.createdAt,
+  });
+});
+
+/**
+ * Take somebody off it.
+ *
+ * You cannot revoke yourself. Not for safety — a platform admin who wants out
+ * can be removed by a colleague — but because the alternative is a console with
+ * nobody in it and no way back except a redeploy, which is the exact failure the
+ * environment variable used to cause. The same reasoning guards a home owner
+ * deactivating their own account in `routes/home.ts`.
+ */
+router.delete("/admin/admins/:email", async (req, res) => {
+  const who = actor(req);
+  const email = normaliseEmail(decodeURIComponent(req.params.email ?? ""));
+
+  if (!email) throw badRequest("Which address should be removed?");
+
+  if (email === who.email) {
+    throw badRequest(
+      "You cannot remove your own access. Ask another platform admin to do it.",
+    );
+  }
+
+  const revoked = await revokePlatformAdmin({
+    email,
+    revokedByEmail: who.email,
+  });
+
+  if (!revoked) {
+    throw badRequest("That address is not on the list.");
+  }
+
+  await recordPlatformAccess(
+    who,
+    "platform.admin.revoke",
+    null,
+    `revoked ${email}`,
+  );
+
+  logger.warn(
+    { actor: who.email, revoked: email },
+    "Platform admin access revoked",
+  );
+
+  res.status(204).end();
+});
+
+/* ------------------------------------------------- ours, not a customer's -- */
+
+const InternalBody = z.object({ internalAccount: z.boolean() });
+
+/**
+ * Mark a home as ours, or as a customer's.
+ *
+ * An internal home leaves the customer list, the counts and the engagement
+ * figures, and changes in no other way — it opens cases, texts families and
+ * prints orders of service exactly as any other tenant does, which is what
+ * makes it useful for trying something before a real home sees it.
+ *
+ * This is a write that touches a tenant, so it joins suspension on the short
+ * list of them. It cannot lose anybody any data: the only thing it changes is
+ * whether the row appears in figures the vendor makes about itself.
+ */
+router.put("/admin/homes/:homeId/internal", async (req, res) => {
+  const who = actor(req);
+  const values = parseBody(InternalBody, req.body);
+  const homeId = parseId(req.params.homeId);
+
+  const home = await platformLoadHome(
+    who,
+    homeId,
+    "home.internal.update",
+    values.internalAccount ? "marked ours" : "marked a customer's",
+  );
+
+  const [updated] = await db
+    .update(funeralHomesTable)
+    .set({ internalAccount: values.internalAccount, updatedAt: new Date() })
+    .where(eq(funeralHomesTable.id, home.id))
+    .returning();
+
+  res.json(toAdminHome(updated!));
+});
+
 router.get("/admin/audit", async (req, res) => {
   const options = parseQuery(AuditQuery, req.query);
 

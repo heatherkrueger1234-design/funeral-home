@@ -38,6 +38,7 @@ beforeEach(async () => {
 
   await db.execute(
     sql`TRUNCATE TABLE
+      platform_admins,
       platform_audit,
       practitioner_licences,
       home_licensure,
@@ -53,6 +54,7 @@ beforeEach(async () => {
       uploads,
       sessions,
       password_resets,
+      email_verifications,
       users,
       funeral_homes
     RESTART IDENTITY CASCADE`,

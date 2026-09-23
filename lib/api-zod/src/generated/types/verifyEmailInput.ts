@@ -17,16 +17,7 @@ Two audiences, two authentication schemes, and the split is load-bearing:
 
  * OpenAPI spec version: 0.1.0
  */
-import type { StaffMemberRole } from "./staffMemberRole";
 
-export interface StaffMember {
-  id: number;
-  email: string;
-  displayName: string | null;
-  title: string | null;
-  role: StaffMemberRole;
-  /** Whether this address has been confirmed from the emailed link. The one thing it gates is the request form on the home's public page — see routes/public.ts. The console reads it to ask, once, calmly.
-   */
-  emailVerified: boolean;
-  deactivatedAt: Date | null;
+export interface VerifyEmailInput {
+  token: string;
 }

@@ -1,0 +1,73 @@
+# Telling homes on trial where they stand, on a schedule.
+#
+# Separate from `aftercare.yml` rather than a second step in it, and the reason
+# is the same one that made them separate endpoints: a failure while emailing a
+# proprietor about their bill must never be the reason a widow's ninety-day
+# check-in did not go out. Two workflows fail independently; two steps in one
+# job do not.
+#
+# This is the piece that decides whether any of the rest gets paid for. Before
+# it existed the only notice a home received was a banner in a console, so a
+# proprietor who had not signed in for three weeks discovered the trial had
+# ended by being refused a case on the morning somebody died.
+name: Trial reminders
+
+on:
+  schedule:
+    # 15:00 UTC daily, an hour after the aftercare run. Late morning to early
+    # afternoon across the US — a working hour, when a proprietor can act on it,
+    # and not so close to the other job that both hit a cold instance at once.
+    - cron: "0 15 * * *"
+  workflow_dispatch:
+    inputs:
+      dryRun:
+        description: "Report what is due without sending anything"
+        type: boolean
+        default: false
+
+concurrency:
+  # The run claims each reminder before sending, so overlapping runs are safe;
+  # they just waste a worker.
+  group: trial-reminders
+  cancel-in-progress: false
+
+# No checkout, no push, no PR/issue access — just one authenticated curl.
+permissions: {}
+
+jobs:
+  send:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Trigger the send
+        env:
+          API_URL: ${{ secrets.API_URL }}
+          TASK_SECRET: ${{ secrets.TASK_SECRET }}
+          DRY_RUN: ${{ inputs.dryRun && '1' || '0' }}
+        run: |
+          if [ -z "$API_URL" ] || [ -z "$TASK_SECRET" ]; then
+            echo "API_URL and TASK_SECRET must be set as repository secrets." >&2
+            exit 1
+          fi
+
+          # --fail-with-body so a 4xx/5xx fails the job *and* prints why,
+          # rather than failing silently on a schedule nobody is watching.
+          curl --fail-with-body --silent --show-error \
+            --max-time 300 \
+            -X POST "${API_URL%/}/api/tasks/trial-reminders?dryRun=${DRY_RUN}" \
+            -H "Authorization: Bearer ${TASK_SECRET}" \
+            | tee result.json
+
+          echo
+
+          python3 - <<'PY'
+          import json, sys
+          with open("result.json") as f:
+              result = json.load(f)
+          print(f"due={result['due']} sent={result['sent']} "
+                f"skipped={result['skipped']}")
+          # Most days nothing is due, which is normal and green. What is not
+          # normal is a deployment with no mail configured: the reminders are
+          # written to a log nobody reads and every trial quietly lapses.
+          if not result["mailConfigured"] and result["due"] > 0:
+              sys.exit("Reminders are due but SMTP is not configured on the server.")
+          PY

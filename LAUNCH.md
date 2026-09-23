@@ -39,7 +39,8 @@ production esbuild bundle, through the real nginx config:
   containers restores and verifies. A full restart leaves the photograph
   byte-for-byte identical.
 
-226 tests, 5 projects typechecking, 4 apps building.
+268 tests, 6 projects typechecking, 5 apps building — from a clean tree, with
+no environment variables set.
 
 ## What is not ready
 
@@ -48,7 +49,16 @@ production esbuild bundle, through the real nginx config:
 | ~~The container images have never been built or run.~~ **Done.** All four build; the stack comes up healthy, migrates, serves, backs up and restores. Two real bugs were found doing it. | Cleared | — |
 | **No production deployment exists.** Nothing is running anywhere. | **Blocking** | A host, a domain, TLS, a Postgres. Half a day. |
 | **No real family has ever used the family portal.** Every test is synthetic. | **High** | One pilot home, one real case, watch what happens. |
-| **Email and SMS are unconfigured.** Password resets, aftercare and intake alerts are written to the log instead of sent. | **High** | SMTP credentials and a Twilio number. |
+| **Email and SMS are unconfigured.** Password resets, confirmations, trial reminders, aftercare and intake alerts are written to the log instead of sent. | **High** | SMTP credentials and a Twilio number. |
+| ~~Nothing ever told a home its trial was ending.~~ **Done.** A week before, the day before, and on the day, claimed before sending so nobody gets it twice. `trial-reminders.yml` fires it daily. | Cleared | — |
+| ~~Registration checked nothing: anyone could register under a real home's name and have a public page collecting deaths.~~ **Done.** The public request form now waits on a confirmed staff address, and gates nothing else. | Cleared | — |
+| ~~Three emails linked to `/reset-password`, which did not exist — so password resets failed and every staff invitation silently went nowhere.~~ **Done.** Both landing pages exist, and a home can add its second employee. | Cleared | — |
+| ~~The platform admin list was an environment variable, so revoking access needed a redeploy and left no trace.~~ **Done.** `platform_admins`, granted and revoked from the console, both audited. | Cleared | — |
+| ~~The vendor's own tenant was counted as a customer.~~ **Done.** `internalAccount` takes it out of the list, the counts and the engagement figures. | Cleared | — |
+| **No terms of service, no privacy policy, and no data-processing agreement.** `COLORADO.md` says we are the processor and the home the controller, and that "the data-processing agreement says so" — there is no such document. | **Blocking** | A lawyer. It is the thing a home's insurer asks for before the home's director does. |
+| **There is no price.** The Stripe plumbing is correct and `STRIPE_PRICE_ID` is unset; nothing anywhere says what this costs. | **Blocking** | A decision, then one test-mode charge. |
+| **No error tracking and no uptime monitoring.** When it breaks at 2am before an 11am funeral, we find out from the director. | **High** | Sentry and a check that pages a phone. |
+| **The Colorado 72-hour clock is documented, not built.** The licensure tracker exists; the death-certificate deadline and the statutory authorisation order (C.R.S. 15-19-106) do not. Components 5 and 6 never landed. | **High** | The sales story is currently larger than the product. |
 | **Stripe has never taken a real payment.** The webhook signature check is tested; a live charge is not. | **High** | Test-mode keys, one real subscription cycle. |
 | **One API instance, one Postgres, no replication.** | Medium | Fine for a pilot. Not fine at fifty homes. |
 | **Uploads live in Postgres.** Encrypted, correct, and the wrong long-term home for gigabytes of photographs. | Medium | Object storage, when a home's database gets uncomfortable. |
@@ -91,9 +101,13 @@ These were chosen, and the reasoning is in the code next to them:
    it is issued over plain HTTP.
 2. `pnpm --filter @workspace/db run push`, then load the ZIP centroids.
 3. Configure SMTP. Without it, a director who forgets their password cannot
-   reset it without someone reading the server log.
-4. Set `TASK_SECRET` and schedule the aftercare job. It is the feature the
-   subscription is really for, and it does nothing until something triggers it.
+   reset it, a new member of staff cannot be invited, no home is ever told its
+   trial is ending, and no home can switch on its own public request form —
+   all of them land in the server log instead.
+4. Set `TASK_SECRET` and schedule **both** jobs: the aftercare sender, which
+   is the feature the subscription is really for, and the trial reminders,
+   which are how anyone comes to pay for it. Neither does anything until
+   something triggers it.
 5. Take one backup, then run `verify-backup` and watch it restore.
 6. Generate `ENCRYPTION_KEY` and **put a copy somewhere that is not the host
    and not the backup.** Losing it loses every photograph.

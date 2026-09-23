@@ -195,7 +195,7 @@ export async function openCase(
     await applyTemplateToCase(created);
   }
 
-  void markOnboarding(funeralHomeId, "case");
+  await markOnboarding(funeralHomeId, "case");
 
   return created;
 }
