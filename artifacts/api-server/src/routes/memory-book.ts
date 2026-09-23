@@ -31,6 +31,7 @@ import {
   renderMemoryBook,
 } from "../lib/memory-book";
 import { loadCase } from "./cases";
+import { sendRenderedHtml } from "./print";
 
 /**
  * The director's side of the memory book.
@@ -716,13 +717,12 @@ router.get("/cases/:caseId/memory-book/render", async (req, res) => {
   const home = tenant(req);
   const row = await loadCase(req, req.params.caseId);
 
-  const html = await renderBookFor({ case: row, home });
-
-  res.setHeader("Content-Type", "text/html; charset=utf-8");
-  res.setHeader("X-Content-Type-Options", "nosniff");
-  // One family's photographs, in one file. Never cached by a shared proxy.
-  res.setHeader("Cache-Control", "private, no-store");
-  res.send(html);
+  // The same headers as a printed card, including its CSP. `app.ts` turns
+  // CSP off for this process on the grounds that it serves no HTML; this
+  // route does, and what it prints was written by a dozen relatives. It is
+  // all escaped before it gets here -- the policy is for the day a new
+  // section forgets to be.
+  sendRenderedHtml(res, await renderBookFor({ case: row, home }));
 });
 
 export default router;

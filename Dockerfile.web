@@ -76,6 +76,7 @@ COPY deploy/nginx.conf.template /etc/nginx/templates/default.conf.template
 # Not a template: it holds no NGINX_ variables, and the locations that
 # include it need it at a fixed path rather than an expanded one.
 COPY deploy/security-headers.conf /etc/nginx/snippets/security-headers.conf
+COPY deploy/security-headers-api.conf /etc/nginx/snippets/security-headers-api.conf
 COPY --from=build /site /usr/share/nginx/html
 
 EXPOSE 80

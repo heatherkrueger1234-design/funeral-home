@@ -451,7 +451,7 @@ function sendRenderedHtml(res: Response, html: string) {
   // added to the template without going through that escaping.
   res.setHeader(
     "Content-Security-Policy",
-    "default-src 'none'; img-src data:; style-src 'unsafe-inline'; base-uri 'none'; form-action 'none'",
+    "default-src 'none'; img-src data:; style-src 'unsafe-inline'; base-uri 'none'; form-action 'none'; frame-ancestors 'self'",
   );
   res.send(html);
 }

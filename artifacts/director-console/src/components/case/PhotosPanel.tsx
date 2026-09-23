@@ -128,7 +128,14 @@ export function PhotosPanel({
             // produce an error the director has to interpret.
             className={chosen.length === 0 ? "pointer-events-none opacity-50" : ""}
           >
-            <a href={`/api/cases/${caseId}/photo-pack`} download>
+            {/* pointer-events alone left it reachable by keyboard, where
+                Enter downloaded a 400 error as a .zip file. */}
+            <a
+              href={`/api/cases/${caseId}/photo-pack`}
+              download
+              aria-disabled={chosen.length === 0}
+              tabIndex={chosen.length === 0 ? -1 : undefined}
+            >
               <Download className="size-4" />
               Download the pack
             </a>
@@ -171,6 +178,7 @@ export function PhotosPanel({
               <Button
                 variant={photo.selected ? "default" : "outline"}
                 size="sm"
+                aria-pressed={photo.selected}
                 onClick={() => toggle(photo.id)}
               >
                 <Check className="size-4" />
@@ -221,13 +229,36 @@ export function PhotosPanel({
                 {hidden ? "Show" : "Hide"}
               </Button>
 
+              {/*
+                The only irreversible button on this card, and it used to be
+                an unlabelled bin icon one tap away from Hide: no name for a
+                screen reader, and no second chance for anybody. It deletes
+                the encrypted bytes, which may be the family's only copy.
+              */}
               <Button
                 variant="ghost"
                 size="sm"
                 className="text-muted-foreground"
-                onClick={() => remove.mutate({ photoId: photo.id })}
+                aria-label={
+                  photo.caption
+                    ? `Delete the photograph "${photo.caption}" for good`
+                    : "Delete this photograph for good"
+                }
+                title="Delete for good"
+                disabled={remove.isPending}
+                onClick={() => {
+                  if (
+                    window.confirm(
+                      "Delete this photograph for good? The family's copy on " +
+                        "this page goes too, and it cannot be brought back. " +
+                        "Hide keeps it out of the slideshow without losing it.",
+                    )
+                  ) {
+                    remove.mutate({ photoId: photo.id });
+                  }
+                }}
               >
-                <Trash2 className="size-4" />
+                <Trash2 className="size-4" aria-hidden />
               </Button>
             </div>
           </li>

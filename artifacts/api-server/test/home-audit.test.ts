@@ -159,6 +159,76 @@ describe("the photo pack", () => {
   });
 });
 
+describe("people who have left", () => {
+  it("cannot be made a case's lead director", async () => {
+    const owner = await signUpHome();
+    const invited = await owner.agent
+      .post("/api/home/staff")
+      .send({ email: "gone@example.com", displayName: "Gone" })
+      .expect(201);
+    await owner.agent
+      .put(`/api/home/staff/${invited.body.id}`)
+      .send({ active: false })
+      .expect(200);
+
+    const row = await createCase(owner);
+    await owner.agent
+      .put(`/api/cases/${row.id}`)
+      .send({ leadDirectorId: invited.body.id })
+      .expect(400);
+  });
+});
+
+describe("the HTML this API serves", () => {
+  it("sends the memory book under the same policy as a printed card", async () => {
+    const staff = await signUpHome();
+    const row = await createCase(staff);
+
+    const book = await staff.agent
+      .get(`/api/cases/${row.id}/memory-book/render`)
+      .expect(200);
+
+    expect(book.headers["content-security-policy"]).toContain("default-src 'none'");
+    expect(book.headers["cache-control"]).toContain("no-store");
+  });
+
+  it("lets the console frame its own print proof, and nobody else", async () => {
+    const staff = await signUpHome();
+    const row = await createCase(staff);
+    const item = await staff.agent
+      .post(`/api/cases/${row.id}/print`)
+      .send({ templateKey: "prayer-card" })
+      .expect(201);
+
+    const rendered = await staff.agent
+      .get(`/api/print/${item.body.id}/render`)
+      .expect(200);
+    expect(rendered.headers["content-security-policy"]).toContain(
+      "frame-ancestors 'self'",
+    );
+    expect(rendered.headers["x-frame-options"]).toBe("SAMEORIGIN");
+
+    // And nginx must not stack a DENY on top of it for /api/, which is what
+    // left the Print tab's preview an empty box in production.
+    const { readFileSync } = await import("node:fs");
+    const path = await import("node:path");
+    const root = path.resolve(__dirname, "../../..");
+    const conf = readFileSync(path.join(root, "deploy/nginx.conf.template"), "utf8");
+    const apiBlock = conf.slice(conf.indexOf("location /api/"));
+    const apiBody = apiBlock.slice(0, apiBlock.indexOf("\n    }"));
+    expect(apiBody).toContain("security-headers-api.conf");
+    const apiHeaders = readFileSync(
+      path.join(root, "deploy/security-headers-api.conf"),
+      "utf8",
+    );
+    expect(apiHeaders).not.toMatch(/^add_header X-Frame-Options DENY/m);
+    expect(apiHeaders).not.toMatch(/^add_header Content-Security-Policy/m);
+    expect(readFileSync(path.join(root, "Dockerfile.web"), "utf8")).toContain(
+      "security-headers-api.conf",
+    );
+  });
+});
+
 describe("ids from a URL", () => {
   it("answers a number too large to be an id with a 400, not a 500", async () => {
     const staff = await signUpHome();

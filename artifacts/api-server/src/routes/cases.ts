@@ -1,5 +1,5 @@
 import { Router, type IRouter } from "express";
-import { and, asc, desc, eq, ilike, or, sql } from "drizzle-orm";
+import { and, asc, desc, eq, ilike, isNull, or, sql } from "drizzle-orm";
 import {
   db,
   casesTable,
@@ -219,7 +219,13 @@ async function assertStaffBelongsHere(userId: number, funeralHomeId: number) {
     .select({ id: usersTable.id })
     .from(usersTable)
     .where(
-      and(eq(usersTable.id, userId), eq(usersTable.funeralHomeId, funeralHomeId)),
+      and(
+        eq(usersTable.id, userId),
+        eq(usersTable.funeralHomeId, funeralHomeId),
+        // Someone whose access was taken away no longer works here either,
+        // and the family would be told to picture them as "your director".
+        isNull(usersTable.deactivatedAt),
+      ),
     )
     .limit(1);
 
