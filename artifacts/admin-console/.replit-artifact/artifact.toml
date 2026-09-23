@@ -1,8 +1,8 @@
 kind = "web"
-previewPath = "/console/"
-title = "Director Console"
+previewPath = "/admin/"
+title = "Admin Console"
 version = "1.0.0"
-id = "artifacts/director-console"
+id = "artifacts/admin-console"
 router = "path"
 
 [[integratedSkills]]
@@ -11,28 +11,28 @@ version = "1.0.0"
 
 [[services]]
 name = "web"
-paths = [ "/console" ]
-localPort = 21793
+paths = [ "/admin" ]
+localPort = 21794
 
 [services.development]
-run = "pnpm --filter @workspace/director-console run dev"
+run = "pnpm --filter @workspace/admin-console run dev"
 
 [services.production]
-publicDir = "artifacts/director-console/dist/public"
+publicDir = "artifacts/admin-console/dist/public"
 serve = "static"
 
 # The bundle is built for the path it is served under, so the build has to be
 # told it too; [services.env] alone is not guaranteed to reach the build step.
 [services.production.build]
-args = [ "pnpm", "--filter", "@workspace/director-console", "run", "build" ]
+args = [ "pnpm", "--filter", "@workspace/admin-console", "run", "build" ]
 
 [services.production.build.env]
-BASE_PATH = "/console"
+BASE_PATH = "/admin"
 
 [[services.production.rewrites]]
 from = "/*"
 to = "/index.html"
 
 [services.env]
-PORT = "21793"
-BASE_PATH = "/console"
+PORT = "21794"
+BASE_PATH = "/admin"

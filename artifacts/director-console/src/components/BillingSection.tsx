@@ -3,6 +3,7 @@ import { useGetBilling } from "@workspace/api-client-react";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
 import { Loader2 } from "lucide-react";
+import { BASE_PATH } from "@/lib/base";
 
 /**
  * Subscription state, and two buttons that hand off to Stripe.
@@ -34,7 +35,7 @@ export function BillingSection({ readOnly }: { readOnly: boolean }) {
         headers: { "Content-Type": "application/json" },
         credentials: "include",
         body: JSON.stringify({
-          returnUrl: `${window.location.origin}/settings`,
+          returnUrl: `${window.location.origin}${BASE_PATH}/settings`,
         }),
       });
 

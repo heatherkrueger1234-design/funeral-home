@@ -1,5 +1,5 @@
 import { useCallback } from "react";
-import { Route, Switch, useParams, Link } from "wouter";
+import { Route, Router, Switch, useParams, Link } from "wouter";
 import {
   QueryClient,
   QueryClientProvider,
@@ -14,6 +14,7 @@ import { Overview } from "@/pages/Overview";
 import { Homes } from "@/pages/Homes";
 import { HomeDetail } from "@/pages/HomeDetail";
 import { Audit } from "@/pages/Audit";
+import { BASE_PATH } from "@/lib/base";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -94,7 +95,9 @@ function NotFound() {
 export default function App() {
   return (
     <QueryClientProvider client={queryClient}>
-      <Gate />
+      <Router base={BASE_PATH}>
+        <Gate />
+      </Router>
     </QueryClientProvider>
   );
 }

@@ -1,5 +1,5 @@
 import { lazy, Suspense } from "react";
-import { Switch, Route } from "wouter";
+import { Switch, Route, Router, useLocation } from "wouter";
 import {
   MutationCache,
   QueryCache,
@@ -18,6 +18,7 @@ import {
 import { ConsoleShell } from "@/components/ConsoleShell";
 import SignIn from "@/pages/SignIn";
 import { Loading } from "@/components/page";
+import { BASE_PATH } from "@/lib/base";
 /*
  * Eager, unlike every other screen below, and on purpose: these two are where
  * an emailed link lands. Somebody who has forgotten their password, or who is
@@ -85,6 +86,7 @@ const queryClient = new QueryClient({
  */
 function Routes() {
   const { session, isPending } = useSession();
+  const [path] = useLocation();
 
   if (isPending) return null;
 
@@ -102,7 +104,6 @@ function Routes() {
    * signed in on. The token in the URL is the credential, and each one is
    * single-use.
    */
-  const path = window.location.pathname;
   if (path === "/reset-password") return <ChoosePassword />;
   if (path === "/verify-email") return <VerifyEmail />;
 
@@ -139,7 +140,9 @@ export default function App() {
     <QueryClientProvider client={queryClient}>
       <TooltipProvider>
         <SessionProvider>
-          <Routes />
+          <Router base={BASE_PATH}>
+            <Routes />
+          </Router>
           <Toaster />
         </SessionProvider>
       </TooltipProvider>
