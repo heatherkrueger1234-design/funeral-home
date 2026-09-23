@@ -15,6 +15,7 @@ import { Homes } from "@/pages/Homes";
 import { HomeDetail } from "@/pages/HomeDetail";
 import { Audit } from "@/pages/Audit";
 import { Admins } from "@/pages/Admins";
+import { BASE_PATH } from "@/lib/base";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -200,8 +201,9 @@ export default function App() {
       {/*
         "" on its own hostname; "/admin" on Replit, where one domain is split
         by path and every <Link href="/homes"> has to resolve beneath it.
+        `lib/base` owns the expression, so the three apps cannot disagree.
       */}
-      <Router base={import.meta.env.BASE_URL.replace(/\/+$/, "")}>
+      <Router base={BASE_PATH}>
         <Gate />
       </Router>
     </QueryClientProvider>

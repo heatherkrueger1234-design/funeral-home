@@ -21,9 +21,19 @@ localPort = 21794
 run = "pnpm --filter @workspace/admin-console run dev"
 
 [services.production]
-build = [ "pnpm", "--filter", "@workspace/admin-console", "run", "build" ]
 publicDir = "artifacts/admin-console/dist/public"
 serve = "static"
+
+# Vite bakes the base path into the bundle, so the *build* has to be told it
+# and not only the runtime: `[services.env]` alone is not guaranteed to reach
+# the build step, and an admin console built for "/" and served at "/admin"
+# resolves every asset and every link one level too high.
+[services.production.build]
+args = [ "pnpm", "--filter", "@workspace/admin-console", "run", "build" ]
+
+[services.production.build.env]
+BASE_PATH = "/admin"
+
 
 [[services.production.rewrites]]
 from = "/*"

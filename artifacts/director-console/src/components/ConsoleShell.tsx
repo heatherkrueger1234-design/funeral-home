@@ -23,6 +23,7 @@ import {
   Tag,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { BASE_PATH } from "@/lib/base";
 import {
   useGetIntakeRequests,
   useGetHomeInbox,
@@ -150,7 +151,7 @@ export function ConsoleShell({ children }: { children: ReactNode }) {
     mutation: {
       onSuccess: () => {
         refresh();
-        window.location.href = "/";
+        window.location.href = `${BASE_PATH}/`;
       },
     },
   });

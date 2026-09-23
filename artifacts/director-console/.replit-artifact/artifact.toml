@@ -1,5 +1,5 @@
 kind = "web"
-previewPath = "/"
+previewPath = "/console/"
 title = "Director Console"
 version = "1.0.0"
 id = "artifacts/director-console"
@@ -14,16 +14,25 @@ version = "1.0.0"
 # Clients never come here: their texted link opens /family.
 [[services]]
 name = "web"
-paths = [ "/" ]
+paths = [ "/console" ]
 localPort = 21793
 
 [services.development]
 run = "pnpm --filter @workspace/director-console run dev"
 
 [services.production]
-build = [ "pnpm", "--filter", "@workspace/director-console", "run", "build" ]
 publicDir = "artifacts/director-console/dist/public"
 serve = "static"
+
+# The bundle is built for the path it is served under, so the build has to be
+# told it too; [services.env] alone is not guaranteed to reach the build step.
+[services.production.build]
+args = [ "pnpm", "--filter", "@workspace/director-console", "run", "build" ]
+
+[services.production.build.env]
+# Must match [services.env] below. Vite bakes this into the bundle, so when the
+# two disagree it is this one that decides and the other that looks right.
+BASE_PATH = "/"
 
 [[services.production.rewrites]]
 from = "/*"
@@ -33,4 +42,9 @@ to = "/index.html"
 PORT = "21793"
 VITE_FAMILY_PORTAL_URL = "https://continuumaftercare.com/family"
 VITE_ADMIN_CONSOLE_URL = "https://continuumaftercare.com/admin"
+# "/" and not "/console". The branch this came from proposed the console at
+# /console, but the split that shipped puts the director console at the root —
+# it is the one sign-in that can deal with anybody, and the portal's forwarding
+# of a family link that lands here assumes it. Two answers to this would be one
+# too many.
 BASE_PATH = "/"

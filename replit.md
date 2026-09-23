@@ -136,6 +136,32 @@ pnpm run test                             # integration tests, real Postgres
 pnpm run build
 ```
 
+### On Replit: one hostname, three front ends
+
+Replit serves everything from one hostname, so the front ends are told apart
+by path instead of by subdomain (the Docker deployment gives each its own):
+
+| Path | App |
+| --- | --- |
+| `/` | family portal |
+| `/console` | director console |
+| `/admin` | platform admin console |
+| `/api` | the API |
+
+Each console is built with `BASE_PATH` set to its path (the
+`.replit-artifact/artifact.toml` next to it does this) and routes under it.
+The server builds its email and text links by appending to these variables,
+so on Replit they carry the path:
+
+```
+FAMILY_PORTAL_URL=https://yourdomain.com
+CONSOLE_URL=https://yourdomain.com/console
+```
+
+The consoles share an origin with the family portal here, which means they
+share cookies with it too. That is the cost of one hostname; the Docker
+deployment does not pay it.
+
 Environment the server reads:
 
 | Variable | Why |
@@ -144,7 +170,7 @@ Environment the server reads:
 | `ENCRYPTION_KEY` | 32 bytes, base64. Uploads are AES-256-GCM at rest; the server refuses to start without it. |
 | `PORT` | Required. |
 | `FAMILY_PORTAL_URL` | Origin used to build the texted link. Falls back to a relative path — an obviously incomplete link beats one that opens someone else's deployment. |
-| `CONSOLE_URL` | Origin used in staff password-reset emails. |
+| `CONSOLE_URL` | Where the director console lives, used in staff password-reset emails. On Replit that includes the path — see below. |
 | `SMTP_*` | Optional. Without it, mail is logged rather than sent, which keeps local development and the tests working. |
 | `TWILIO_ACCOUNT_SID` / `TWILIO_AUTH_TOKEN` / `TWILIO_FROM_NUMBER` | Optional. Without them a director is handed the link to send themselves rather than being told nothing happened. |
 | `SMS_DEFAULT_COUNTRY_CODE` | Defaults to `+1`. Used only for numbers typed without one. |

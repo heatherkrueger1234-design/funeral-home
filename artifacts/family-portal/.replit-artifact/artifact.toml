@@ -22,9 +22,18 @@ localPort = 21792
 run = "pnpm --filter @workspace/family-portal run dev"
 
 [services.production]
-build = [ "pnpm", "--filter", "@workspace/family-portal", "run", "build" ]
 publicDir = "artifacts/family-portal/dist/public"
 serve = "static"
+
+# Vite bakes the base path into the bundle, so the build has to be told it and
+# not only the runtime. Without this the portal is built for "/" and served at
+# "/family", which resolves every script, stylesheet and route one level too
+# high — on the one app a bereaved family ever opens.
+[services.production.build]
+args = [ "pnpm", "--filter", "@workspace/family-portal", "run", "build" ]
+
+[services.production.build.env]
+BASE_PATH = "/family"
 
 [[services.production.rewrites]]
 from = "/*"

@@ -8,6 +8,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { ArrowRight } from "lucide-react";
+import { BASE_PATH } from "@/lib/base";
 
 /**
  * What a new home sees instead of an empty console.
@@ -177,7 +178,7 @@ export function TrialBanner() {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       credentials: "include",
-      body: JSON.stringify({ returnUrl: window.location.origin + "/settings" }),
+      body: JSON.stringify({ returnUrl: `${window.location.origin}${BASE_PATH}/settings` }),
     });
 
     const payload = (await response.json()) as { url?: string; error?: string };
