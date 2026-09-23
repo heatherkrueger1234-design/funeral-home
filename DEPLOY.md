@@ -27,7 +27,8 @@ Then fill in the ones the stack refuses to start without: `POSTGRES_PASSWORD`,
 `ACME_EMAIL`.
 
 And point DNS at the host **before** the first `up`: an A record (and AAAA,
-if the host has IPv6) for each of the three hostnames in those URLs, and
+if the host has IPv6) for each of the five hostnames in those URLs — the
+three front ends, the bare domain and www — and
 ports 80 and 443 open to the internet. Caddy asks Let's Encrypt for the
 certificates the first time each name is requested; if DNS is not there yet
 it fails, retries with back-off, and Let's Encrypt starts rate-limiting after

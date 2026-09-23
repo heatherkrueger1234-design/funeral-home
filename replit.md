@@ -337,9 +337,11 @@ none.
 
 ## Three apps, and where a person signs in
 
-The stack serves three hostnames — the family portal, the director console and
-the platform console — and nobody outside it knows which one is theirs. So each
-sign-in screen sorts that out rather than leaving somebody to guess:
+The stack serves three front ends — the family portal, the director console and
+the platform console — on their own hostnames, and nobody outside it knows which
+one is theirs. The bare domain and `www` redirect to the console, so there is a
+single address to hand somebody, and each sign-in screen then sorts out whoever
+arrives rather than leaving them to guess:
 
 - **A funeral home's staff** sign in at the director console, which is the only
   screen that also opens an account and the only one that can send a password

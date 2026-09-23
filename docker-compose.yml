@@ -155,6 +155,10 @@ services:
       FAMILY_PORTAL_URL: ${FAMILY_PORTAL_URL:?set FAMILY_PORTAL_URL in .env}
       CONSOLE_URL: ${CONSOLE_URL:?set CONSOLE_URL in .env}
       ADMIN_CONSOLE_URL: ${ADMIN_CONSOLE_URL:?set ADMIN_CONSOLE_URL in .env}
+      # Required like the three above. See deploy/Caddyfile for why these are
+      # not optional: an empty site address is not a thing to guess about.
+      ROOT_URL: ${ROOT_URL:?set ROOT_URL in .env}
+      WWW_URL: ${WWW_URL:?set WWW_URL in .env}
       ACME_EMAIL: ${ACME_EMAIL:?set ACME_EMAIL in .env}
     volumes:
       - ./deploy/Caddyfile:/etc/caddy/Caddyfile:ro

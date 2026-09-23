@@ -1,14 +1,16 @@
 # TLS for the whole stack.
 #
 # Caddy is the only thing published to the internet. It obtains and renews a
-# Let's Encrypt certificate for each of the three hostnames on its own, the
+# Let's Encrypt certificate for each of the five hostnames on its own, the
 # first time each one is requested, and hands the request to that app's
 # nginx over the compose network. Nothing here needs editing: the hostnames
 # come from the same URLs in .env that the API uses to build the links it
 # texts and emails, so the certificate and the links cannot disagree.
 #
 # For certificates to be issued, before the first `docker compose up`:
-#   - each hostname's DNS A (and AAAA, if you have IPv6) record points here;
+#   - each hostname's DNS A (and AAAA, if you have IPv6) record points here.
+#     That is five: the portal, the console, the admin console, the bare
+#     domain and www;
 #   - ports 80 and 443 reach this host. Port 80 is not optional: Let's
 #     Encrypt proves you own the name over it, and Caddy uses it to redirect
 #     plain-HTTP visitors to HTTPS.
@@ -59,4 +61,37 @@
 {$ADMIN_CONSOLE_URL} {
 	import app
 	reverse_proxy admin-console:80
+}
+
+# The bare domain, and www.
+#
+# Both redirect to the console rather than serving anything of their own, and
+# that is the whole design: the console's sign-in is the one screen that can
+# deal with whoever turns up. Staff sign in there. A platform admin is passed
+# on to their own console the moment their password is accepted. A family is
+# pointed at the portal, because their texted link is the credential and no
+# password would ever have worked for them.
+#
+# A fourth app here would be a landing page with a sign-in box on it, which is
+# the console's sign-in screen at a different hostname plus a second copy of
+# everything that has to stay right about it.
+#
+# 308 rather than 302 so the method and body survive, and a form posted at the
+# bare domain is not silently turned into a GET.
+#
+# ROOT_URL and WWW_URL are required, like the other three, and deliberately not
+# made optional: an empty site address here is not something to guess about, and
+# a stack whose bare domain quietly became a catch-all would send the family
+# portal's traffic to the console. If you do not want the bare domain served,
+# delete these two blocks and drop the two variables — a visible edit to this
+# file, which is how everything else reachable from the internet is decided.
+#
+# Each needs its own DNS record and gets its own certificate, so both count
+# against Let's Encrypt's five-a-week for these names.
+{$ROOT_URL} {
+	redir {$CONSOLE_URL}{uri} 308
+}
+
+{$WWW_URL} {
+	redir {$CONSOLE_URL}{uri} 308
 }
