@@ -44,21 +44,64 @@ production esbuild bundle, through the real nginx config:
   containers restores and verifies. A full restart leaves the photograph
   byte-for-byte identical.
 
-<<<<<<< HEAD
-268 tests, 6 projects typechecking, 5 apps building — from a clean tree, with
+350 tests, 6 projects typechecking, 5 apps building — from a clean tree, with
 no environment variables set.
-=======
-294 tests, 4 projects typechecking, 3 apps building.
->>>>>>> origin/claude/funeral-home-portal-uj9bik
+
+## Lighthouse scores
+
+Run against production builds served the way nginx serves them (gzip, the
+cache headers, the real CSP from `deploy/security-headers.conf`) with a seeded
+case behind a real API. The family portal was scored as a phone on throttled
+mobile data, which is how families open it; the consoles as desktop.
+
+| Page | Performance | Accessibility | Best practices | SEO |
+| --- | --- | --- | --- | --- |
+| Family hub (`/f/<token>`) | 82 → **97** | 95 → **100** | 100 | 54 → 63* |
+| Home's front door (`/start/<slug>`) | 84 → **98** | 100 | 100 | 54 → 63* |
+| Director dashboard | 82 → **100** | 100 | 100 | 54 → 63* |
+| Case page | 100 | 95 → **100** | 100 | 54 → 63* |
+| Settings | 100 | 94 → **100** | 100 | 54 → 63* |
+| Sign-in (director, admin) | 100 | 100 | 96† | 54 → 63* |
+
+On the family hub, first paint went from 3.2s to 1.5s and layout shift from
+0.12 to 0.
+
+\* **63 is the ceiling, on purpose.** The only failing SEO audit is "page is
+blocked from indexing", and it is blocked on purpose: a search engine indexing
+a portal that names someone who has just died is the failure, not the score.
+Everything else in the category passes.
+
+† The sign-in page asks `/auth/me` whether anybody is already signed in, and
+the answer "no" is a 401, which the browser logs. It is the correct answer.
+
+What moved the numbers:
+
+- **Fonts are self-hosted.** They were an `@import` of Google Fonts inside the
+  bundled CSS, which put two extra origins and three sequential round-trips in
+  front of the first word. They are now bundled from `@fontsource-variable`,
+  the Latin files are preloaded, and the CSP no longer allows Google at all.
+  It also stops every visitor's IP address going to a third party.
+- **Screens are loaded when opened.** The hub, the front door, the sign-in
+  and the dashboard ship in the first download; everything else is its own
+  file. A stale tab after a deploy reloads itself once instead of breaking.
+- **Nothing jumps.** The dashboard waits for billing before drawing, so the
+  setup checklist no longer lands on top of the tiles; the hub draws the
+  "Next" card at once from the count it already has; the consoles reserve the
+  scrollbar gutter.
+- **Secondary grey text passes contrast** on every surface, not just the
+  paper (`#6a6f68` → `#5f645d`).
+- **Every dropdown has a name** a screen reader can say.
+- **`/robots.txt` exists.** It used to be answered with `index.html`. Every
+  response also carries `X-Robots-Tag: noindex, nofollow`.
 
 ## What is not ready
 
 | Gap | Severity | What it would take |
 | --- | --- | --- |
 | ~~The container images have never been built or run.~~ **Done.** All four build; the stack comes up healthy, migrates, serves, backs up and restores. Two real bugs were found doing it. | Cleared | — |
-| **No production deployment exists.** Nothing is running anywhere. | **Blocking** | A host, a domain, TLS, a Postgres. Half a day. |
+| **No production deployment exists.** Nothing is running anywhere. TLS is now built into the stack (Caddy, automatic Let's Encrypt), and the proxy chain was tested end to end. | **Blocking** | A host, three DNS records, `docker compose up`. An hour or two. |
 | **No real family has ever used the family portal.** Every test is synthetic. | **High** | One pilot home, one real case, watch what happens. |
-| **Email and SMS are unconfigured.** Password resets, confirmations, trial reminders, aftercare and intake alerts are written to the log instead of sent. | **High** | SMTP credentials and a Twilio number. |
+| **Email and SMS are unconfigured.** Password resets, confirmations, trial reminders, aftercare and intake alerts are written to the log instead of sent. The email side is ready and tested against a real SMTP server; it needs an account. | **High** | A mail provider account, its DNS records, and `send-test-email` passing (DEPLOY.md, "Email"). A Twilio number. |
 | ~~Nothing ever told a home its trial was ending.~~ **Done.** A week before, the day before, and on the day, claimed before sending so nobody gets it twice. `trial-reminders.yml` fires it daily. | Cleared | — |
 | ~~Registration checked nothing: anyone could register under a real home's name and have a public page collecting deaths.~~ **Done.** The public request form now waits on a confirmed staff address, and gates nothing else. | Cleared | — |
 | ~~Three emails linked to `/reset-password`, which did not exist — so password resets failed and every staff invitation silently went nowhere.~~ **Done.** Both landing pages exist, and a home can add its second employee. | Cleared | — |
@@ -131,27 +174,20 @@ These were chosen, and the reasoning is in the code next to them:
 
 ## Before the first pilot home
 
-1. Build the images and bring the stack up. **Terminate TLS** — the session
-   cookie is `Secure` in production and the server logs a specific warning if
-   it is issued over plain HTTP.
+1. Point DNS for the three hostnames at the host, open ports 80 and 443,
+   then build and bring the stack up. Caddy fetches the certificates itself;
+   watch `docker compose logs caddy` until all three are obtained.
 2. `pnpm --filter @workspace/db run push`, then load the ZIP centroids.
-3. Configure SMTP. Without it, a director who forgets their password cannot
-<<<<<<< HEAD
-   reset it, a new member of staff cannot be invited, no home is ever told its
-   trial is ending, and no home can switch on its own public request form —
-   all of them land in the server log instead.
-4. Set `TASK_SECRET` and schedule **both** jobs: the aftercare sender, which
-   is the feature the subscription is really for, and the trial reminders,
-   which are how anyone comes to pay for it. Neither does anything until
-   something triggers it.
-=======
-   reset it without someone reading the server log.
-4. Set `TASK_SECRET` and schedule the aftercare job. It is the feature the
-   subscription is really for, and it does nothing until something triggers it.
-   Schedule the usage job (`usage.yml`) in the same sitting, for the same
-   reason: it is the thing that turns funerals into revenue, and it is equally
-   silent when nothing calls it.
->>>>>>> origin/claude/funeral-home-portal-uj9bik
+3. Configure SMTP and run `send-test-email` until it lands in an inbox, not
+   spam. Without it, a director who forgets their password cannot reset it,
+   a new member of staff cannot be invited, no home is ever told its trial is
+   ending, and no home can switch on its own public request form — all of
+   them land in the server log instead.
+4. Set `TASK_SECRET` and schedule **all three** jobs: the aftercare sender,
+   which is the feature the subscription is really for; the trial reminders,
+   which are how anyone comes to pay for it; and the usage reporter
+   (`usage.yml`), which turns funerals into revenue. None of them does
+   anything until something triggers it.
 5. Take one backup, then run `verify-backup` and watch it restore.
 6. Generate `ENCRYPTION_KEY` and **put a copy somewhere that is not the host
    and not the backup.** Losing it loses every photograph.

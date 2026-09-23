@@ -1,6 +1,6 @@
 # Putting this on a host
 
-Four containers: Postgres, the API, and one nginx per front end. A fifth,
+Caddy for TLS, Postgres, the API, and one nginx per front end. One more,
 `tools`, is not a server — it is where migrations, backups and restores run.
 
 **What has actually been verified, and what has not**, because the difference
@@ -12,7 +12,9 @@ matters at 3am:
 | Run, for real | `pnpm deploy --prod --legacy` produces a tree where `sharp`, `heic-decode` and `nodemailer` resolve and `esbuild`, `vitest` and `supertest` do not. |
 | Run, for real | `backup-database` → `DROP DATABASE` → `restore-database`, with an encrypted photo matching byte-for-byte and an encrypted SSN decrypting afterwards (`pnpm --filter @workspace/scripts run verify-backup`). |
 | Run, for real | `docker build` for all four images, then `docker compose up`: four containers healthy, migrations applied through `tools`, a home registered and a real iPhone HEIC uploaded and served back through nginx, and a backup taken and restored inside the containers. A full `docker compose restart` left the photograph byte-for-byte identical. |
-| **Not run** | Any of it on a host with real TLS, a real domain, real SMTP or a real Stripe key. The stack works; the deployment around it is still untested. |
+| Run, for real | Caddy → this `nginx.conf` → the API, with TLS from Caddy's own CA on `*.localhost`: HTTPS reaches the API as HTTPS, plain HTTP redirects, and one visitor exhausting the sign-in limit does not lock out another. The same test against the previous config locked both out. |
+| Run, for real | `send-test-email` against an SMTP server on 587 with STARTTLS: delivered over TLS; a wrong password, a half-set config and an API key with no `SMTP_FROM` each fail with the reason; a server that refuses STARTTLS is refused rather than sent the password in clear. |
+| **Not run** | A real Let's Encrypt certificate on a real domain, a real mail provider, or a real Stripe key. Those need your DNS and your accounts. |
 
 ## Before anything else
 
@@ -20,8 +22,16 @@ matters at 3am:
 cp .env.example .env
 ```
 
-Then fill in the four the stack refuses to start without: `POSTGRES_PASSWORD`,
-`ENCRYPTION_KEY`, `FAMILY_PORTAL_URL`, `CONSOLE_URL`.
+Then fill in the ones the stack refuses to start without: `POSTGRES_PASSWORD`,
+`ENCRYPTION_KEY`, `FAMILY_PORTAL_URL`, `CONSOLE_URL`, `ADMIN_CONSOLE_URL` and
+`ACME_EMAIL`.
+
+And point DNS at the host **before** the first `up`: an A record (and AAAA,
+if the host has IPv6) for each of the three hostnames in those URLs, and
+ports 80 and 443 open to the internet. Caddy asks Let's Encrypt for the
+certificates the first time each name is requested; if DNS is not there yet
+it fails, retries with back-off, and Let's Encrypt starts rate-limiting after
+a handful of failures.
 
 Generate the key with:
 
@@ -49,13 +59,14 @@ docker compose run --rm tools pnpm --filter @workspace/db run push
 docker compose run --rm tools pnpm --filter @workspace/scripts run load-postal-codes
 
 docker compose up -d
-docker compose ps          # all four should report healthy
+docker compose ps
+docker compose logs -f caddy   # watch for "certificate obtained successfully"
 ```
 
-The family portal lands on `FAMILY_PORTAL_PORT` (8080), the director console
-on `CONSOLE_PORT` (8081). Neither Postgres nor the API is published: the only
-way in is through one of the two nginx containers, which is what keeps the
-session cookie same-origin.
+Caddy is the only container published, on 80 and 443. Each app is at its own
+URL from `.env`; nothing else is reachable. Not Postgres, not the API, not
+the nginx containers, which is what keeps the session cookie same-origin and
+the forwarded client address trustworthy.
 
 `pnpm install` will print `Ignored build scripts: sharp@0.34.5` during the
 build. That is expected and not a problem — sharp 0.34 ships its native code
@@ -76,33 +87,102 @@ backup that looks fine until the morning you need it. Both were observed while
 building this image; neither was visible from the host, where the versions
 happened to match.
 
-## You must terminate TLS in front of this
+## TLS
 
-Not a recommendation. In production the session cookie is always marked
-`Secure`, because this holds death certificates and social security numbers
-and a cookie that will also travel over plain HTTP is not a trade worth
-making. A browser accepts a `Secure` cookie over plain HTTP and then never
-sends it back — so over plain HTTP a director signs in, lands back on the
-sign-in page, and nothing appears to be wrong.
+`docker compose up` terminates TLS itself: the `caddy` service gets a Let's
+Encrypt certificate for each hostname and renews it, with no cron and no
+certbot. `deploy/Caddyfile` explains what it needs (DNS and ports 80/443,
+above). Certificates are kept in the `caddy-data` volume; leave it alone, or
+you will be asking Let's Encrypt again and running into its limit of five
+certificates a week for the same names.
 
-The server says so when it happens. Look for this in the API log:
+It is not optional. In production the session cookie is always marked
+`Secure`, because this holds death certificates and social security numbers.
+Over plain HTTP a browser accepts that cookie and never sends it back, so a
+director signs in and lands straight back on the sign-in page with nothing
+to say why. The API logs this when it happens:
 
 ```
 Issued a Secure session cookie over a connection this server sees as plain
 HTTP, so the browser will accept it and never send it back
 ```
 
-Two causes, and the log line names both: no TLS in front of the deployment, or
-a reverse proxy that is not setting `X-Forwarded-Proto`. Whatever terminates
-TLS — a load balancer, Caddy, another nginx — must set it. The nginx in this
-repo already does, for the hop it owns.
+## Using your own load balancer instead of Caddy
 
-## Behind another proxy
+A cloud load balancer, Cloudflare, or a proxy you already run can terminate
+TLS instead. Remove the `caddy` service, publish the nginx containers' port
+80 to wherever your proxy can reach them (and nowhere else), and check the
+two things this stack depends on:
 
-`app.ts` sets `trust proxy` to 1, meaning exactly one hop. Both `req.secure`
-and the rate limiter's idea of a client IP depend on that number being right.
-Two proxies in front and the rate limiter starts counting the inner proxy's
-address, so one family's retries throttle everybody's.
+- **The proxy sets `X-Forwarded-Proto: https`.** nginx passes that through
+  to the API; without it the API thinks every visitor is on plain HTTP and
+  logs the warning above.
+- **`TRUST_PROXY_HOPS` counts the proxies in front of the API**, nginx
+  included. Caddy + nginx is 2, which is what compose sets. Behind Cloudflare
+  *and* a load balancer *and* nginx it is 3. Too low and every visitor shares
+  the proxy's address, so one person's failed sign-ins lock every director
+  out. Too high and a visitor can pick the address the rate limiter sees by
+  sending a header. The API refuses to start on anything but a whole number.
+
+## Email
+
+Password resets, staff invitations, aftercare check-ins and intake alerts all
+go out over SMTP. Until it is set they are written to the API log. Any
+provider that speaks SMTP works; these are the settings for the usual ones:
+
+| Provider | `SMTP_HOST` | `SMTP_USER` | `SMTP_PASS` |
+| --- | --- | --- | --- |
+| Postmark | `smtp.postmarkapp.com` | Server API token | Server API token |
+| Resend | `smtp.resend.com` | `resend` | API key |
+| SendGrid | `smtp.sendgrid.net` | `apikey` | API key |
+| Amazon SES | `email-smtp.<region>.amazonaws.com` | SMTP username (not your AWS key) | SMTP password |
+| Google Workspace | `smtp.gmail.com` | the full address | an [app password](https://support.google.com/accounts/answer/185833) |
+
+`SMTP_PORT` is 587 for all of them. On 587 the mailer insists on STARTTLS,
+so a connection with encryption stripped out fails rather than sending the
+password in clear. Use 465 only if a provider requires implicit TLS.
+
+For a pilot, a transactional provider (Postmark, Resend, SES) is the better
+choice over Google Workspace: Workspace caps you at 2,000 messages a day and
+treats a burst of password resets like spam.
+
+**`SMTP_FROM`** is the platform's sender, e.g.
+`Holding Today <care@yourdomain.com>`. It must be on a domain you have
+verified with the provider, and with an API-key provider it is required,
+because the username there is not an address. Aftercare check-ins keep its
+address but swap in the home's own name (its "aftercare sender name", or the
+home's name), and set Reply-To to the home's request inbox, falling back to
+the owner, so a family who writes back reaches their director. Mail to staff
+(resets, invitations, intake alerts) goes out as `SMTP_FROM` unchanged. With it missing, or with only
+some of the four settings present, nothing is sent and the log names the
+problem.
+
+### Keep it out of spam
+
+The provider will show you the exact records during domain verification; add
+them at your DNS host. There are three kinds, and all three matter: Gmail
+and Yahoo require SPF or DKIM from every sender and all three from anyone
+sending in volume, and filter what arrives without them:
+
+- **SPF**: one TXT record on the domain listing who may send for it, e.g.
+  `v=spf1 include:spf.mtasv.net ~all` for Postmark. A domain can have only
+  one SPF record; if you already send from Google Workspace, add the
+  provider's `include:` to the existing one rather than adding a second.
+- **DKIM**: one or more TXT or CNAME records the provider generates.
+- **DMARC**: a TXT record at `_dmarc.yourdomain.com`. Start with
+  `v=DMARC1; p=none; rua=mailto:you@yourdomain.com` and tighten to
+  `p=quarantine` once reports show everything passing.
+
+### Prove it works
+
+```sh
+docker compose run --rm tools pnpm --filter @workspace/scripts run send-test-email -- you@example.com
+```
+
+It connects, signs in and sends one message, and on any failure prints the
+mail server's own reason and exits non-zero. Then check the message landed
+in the inbox and not spam. `GET /api/healthz` reports `"mail": true` once
+the settings are complete, but only this proves the provider accepts them.
 
 ## Scheduled work
 

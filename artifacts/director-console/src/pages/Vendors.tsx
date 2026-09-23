@@ -114,7 +114,7 @@ export default function Vendors() {
         <div className="space-y-1.5">
           <Label>Category</Label>
           <Select value={kind} onValueChange={setKind}>
-            <SelectTrigger className="w-[15rem]">
+            <SelectTrigger aria-label="Category" className="w-[15rem]">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>

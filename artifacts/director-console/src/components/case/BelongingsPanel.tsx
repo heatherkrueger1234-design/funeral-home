@@ -149,7 +149,10 @@ export function BelongingsPanel({ caseId }: { caseId: number }) {
                     })
                   }
                 >
-                  <SelectTrigger className="w-[8.5rem]">
+                  <SelectTrigger
+                    aria-label={`Status of ${item.description}`}
+                    className="w-[8.5rem]"
+                  >
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
@@ -170,7 +173,10 @@ export function BelongingsPanel({ caseId }: { caseId: number }) {
                     })
                   }
                 >
-                  <SelectTrigger className="w-[9.5rem]">
+                  <SelectTrigger
+                    aria-label={`What happens to ${item.description}`}
+                    className="w-[9.5rem]"
+                  >
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>

@@ -37,44 +37,95 @@ type MailerConfig = {
   user: string;
   pass: string;
   from: string;
+  /** The address inside `from`, without any display name around it. */
+  fromAddress: string;
 };
 
-function readConfig(): MailerConfig | null {
+/** "Name <a@b.com>" -> "a@b.com"; a bare address comes back as it is. */
+function bareAddress(from: string): string {
+  return (from.match(/<([^>]+)>/)?.[1] ?? from).trim();
+}
+
+/**
+ * Why mail cannot go out, in words an operator can act on, or null when the
+ * settings are complete (or deliberately absent).
+ *
+ * The two mistakes this catches both used to fail silently. Setting two of
+ * the three SMTP variables — a typo in one name is enough — fell back to
+ * writing mail to the log, so password resets simply never arrived. And with
+ * no SMTP_FROM the sender defaulted to SMTP_USER, which for Postmark,
+ * SendGrid and Resend is an API key or the word "apikey": every message then
+ * went out from an address that is not one, and the provider refused it.
+ */
+function readConfig():
+  | { config: MailerConfig; problem: null }
+  | { config: null; problem: string | null } {
   const { SMTP_HOST, SMTP_PORT, SMTP_USER, SMTP_PASS, SMTP_FROM } = process.env;
 
-  if (!SMTP_HOST || !SMTP_USER || !SMTP_PASS) {
-    return null;
+  const required = { SMTP_HOST, SMTP_USER, SMTP_PASS };
+  const missing = Object.entries(required)
+    .filter(([, value]) => !value)
+    .map(([name]) => name);
+
+  if (missing.length === 3) return { config: null, problem: null };
+  if (missing.length > 0) {
+    return {
+      config: null,
+      problem:
+        `SMTP is half configured: ${missing.join(" and ")} ` +
+        `${missing.length === 1 ? "is" : "are"} not set, so no email will be sent.`,
+    };
   }
 
-  const port = Number(SMTP_PORT ?? 587);
+  const port = Number(SMTP_PORT || 587);
 
   if (!Number.isInteger(port) || port <= 0) {
     throw new Error(`SMTP_PORT must be a positive integer, got "${SMTP_PORT}"`);
   }
 
+  const from = SMTP_FROM || SMTP_USER!;
+  if (!from.includes("@")) {
+    return {
+      config: null,
+      problem:
+        `SMTP_FROM is not set, and SMTP_USER ("${SMTP_USER}") is not an email ` +
+        "address, so there is no sender to put on the message. Set SMTP_FROM " +
+        'to the address families should see, e.g. "Willowbank Funeral Home ' +
+        '<care@willowbank.example>", on a domain the provider has verified.',
+    };
+  }
+
   return {
-    host: SMTP_HOST,
-    port,
-    // 465 is implicit TLS; 587 upgrades with STARTTLS.
-    secure: port === 465,
-    user: SMTP_USER,
-    pass: SMTP_PASS,
-    from: SMTP_FROM ?? SMTP_USER,
+    config: {
+      host: SMTP_HOST!,
+      port,
+      // 465 is implicit TLS; 587 upgrades with STARTTLS.
+      secure: port === 465,
+      user: SMTP_USER!,
+      pass: SMTP_PASS!,
+      from,
+      fromAddress: bareAddress(from),
+    },
+    problem: null,
   };
 }
 
-let cached: { transport: Transporter; from: string } | null | undefined;
+type Mailer = { transport: Transporter; from: string; fromAddress: string };
 
-function getTransport(): { transport: Transporter; from: string } | null {
+let cached: Mailer | null | undefined;
+
+function getTransport(): Mailer | null {
   if (cached !== undefined) return cached;
 
-  const config = readConfig();
+  const { config, problem } = readConfig();
 
   if (!config) {
-    logger.warn(
-      "SMTP is not configured. Password reset emails will be written to this " +
-        "log instead of sent. Set SMTP_HOST, SMTP_USER and SMTP_PASS to send them.",
-    );
+    if (problem) logger.error(problem);
+    else
+      logger.warn(
+        "SMTP is not configured. Password reset emails will be written to this " +
+          "log instead of sent. Set SMTP_HOST, SMTP_USER and SMTP_PASS to send them.",
+      );
     cached = null;
     return cached;
   }
@@ -84,12 +135,65 @@ function getTransport(): { transport: Transporter; from: string } | null {
       host: config.host,
       port: config.port,
       secure: config.secure,
+      // Port 587 is the submission port, and every provider that listens on
+      // it offers STARTTLS. Insisting on it means a connection that has had
+      // STARTTLS stripped out fails instead of sending the password in clear.
+      requireTLS: config.port === 587,
       auth: { user: config.user, pass: config.pass },
     }),
     from: config.from,
+    fromAddress: config.fromAddress,
   };
 
   return cached;
+}
+
+/**
+ * Check the settings from end to end: connect, authenticate, and send one
+ * message to `to`. Throws with the provider's own explanation on any step,
+ * which is the point — this is what `send-test-email` runs, so that a wrong
+ * password is found by whoever is setting the server up, not by a director
+ * who cannot reset theirs.
+ */
+export async function sendTestEmail(to: string): Promise<{
+  host: string;
+  port: number;
+  from: string;
+}> {
+  const { config, problem } = readConfig();
+  if (!config) {
+    throw new MailNotSentError(
+      problem ??
+        "SMTP is not configured: set SMTP_HOST, SMTP_USER, SMTP_PASS and SMTP_FROM.",
+    );
+  }
+
+  const mailer = getTransport()!;
+  try {
+    await mailer.transport.verify();
+  } catch (err) {
+    throw new MailNotSentError(
+      `Could not sign in to ${config.host}:${config.port}: ` +
+        (err instanceof Error ? err.message : String(err)),
+    );
+  }
+
+  await send({
+    to,
+    subject: "Test email from your funeral home software",
+    text:
+      "If you are reading this, email is set up correctly: password resets, " +
+      "staff invitations and aftercare check-ins will be delivered.\n\n" +
+      `Sent through ${config.host}:${config.port} as ${config.from}.`,
+    html:
+      "<p>If you are reading this, email is set up correctly: password resets, " +
+      "staff invitations and aftercare check-ins will be delivered.</p>" +
+      `<p style="color:#5f645d">Sent through ${esc(config.host)}:${config.port} ` +
+      `as ${esc(config.from)}.</p>`,
+    rethrow: true,
+  });
+
+  return { host: config.host, port: config.port, from: config.from };
 }
 
 /** True when real email can actually go out. Exposed for the health check. */
@@ -160,6 +264,15 @@ async function send(message: {
    * the delivery rather than mark it sent and move on.
    */
   rethrow?: boolean;
+  /**
+   * Whose name the recipient sees as the sender. The address stays
+   * SMTP_FROM's own, because that is the domain SPF and DKIM vouch for; a
+   * home's name on the platform's address is what lands in the inbox, a
+   * home's own address from the platform's servers is what lands in spam.
+   */
+  senderName?: string;
+  /** Where a reply goes, when it should not come back to SMTP_FROM. */
+  replyTo?: string | null;
 }): Promise<void> {
   const mailer = getTransport();
 
@@ -179,10 +292,18 @@ async function send(message: {
   }
 
   try {
-    const { rethrow, logText, ...payload } = message;
+    const { rethrow, logText, senderName, replyTo, ...payload } = message;
     void rethrow;
     void logText;
-    await mailer.transport.sendMail({ from: mailer.from, ...payload });
+    await mailer.transport.sendMail({
+      // As an object, not a formatted string, so nodemailer quotes the name:
+      // "Horan & McConaty, Ltd" would otherwise be read as two addresses.
+      from: senderName?.trim()
+        ? { name: senderName.trim(), address: mailer.fromAddress }
+        : mailer.from,
+      ...(replyTo ? { replyTo } : {}),
+      ...payload,
+    });
     logger.info({ to: message.to, subject: message.subject }, "Email sent");
   } catch (err) {
     // Never rethrow to the caller: /auth/forgot-password must answer the same
@@ -319,8 +440,14 @@ export async function sendAftercareEmail(options: {
   subject: string;
   body: string;
   brandedAs: string;
+  /**
+   * The home's own inbox. A family who answers "thank you, it was a hard
+   * week" is writing to their funeral director, and that is who should read
+   * it, not a no-reply mailbox at the software company.
+   */
+  replyTo?: string | null;
 }): Promise<void> {
-  const { to, subject, body, brandedAs } = options;
+  const { to, subject, body, brandedAs, replyTo } = options;
 
   const text = `${body}\n\n— Provided in care with ${brandedAs}`;
 
@@ -345,7 +472,15 @@ export async function sendAftercareEmail(options: {
   </p>
 </div>`.trim();
 
-  await send({ to, subject, text, html, rethrow: true });
+  await send({
+    to,
+    subject,
+    text,
+    html,
+    rethrow: true,
+    senderName: brandedAs,
+    replyTo,
+  });
 }
 
 /**

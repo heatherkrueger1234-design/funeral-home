@@ -1,3 +1,4 @@
+import { lazy, Suspense } from "react";
 import { Switch, Route } from "wouter";
 import {
   MutationCache,
@@ -10,20 +11,29 @@ import { toast } from "@/hooks/use-toast";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { LinkProvider, isUnauthorized } from "@/lib/link";
 import { PortalShell } from "@/components/PortalShell";
+import { Loading } from "@/components/page";
 import Hub from "@/pages/Hub";
-import Photos from "@/pages/Photos";
-import Obituary from "@/pages/Obituary";
-import Selections from "@/pages/Selections";
-import Timeline from "@/pages/Timeline";
-import ServiceTime from "@/pages/ServiceTime";
-import Messages from "@/pages/Messages";
-import Aftercare from "@/pages/Aftercare";
-import Belongings from "@/pages/Belongings";
-import Local from "@/pages/Local";
-import Vitals from "@/pages/Vitals";
-import Proofs from "@/pages/Proofs";
 import Start from "@/pages/Start";
 import NotFound from "@/pages/NotFound";
+
+/*
+ * The two screens anybody lands on — the hub a texted link opens, and the
+ * home's public front door — are in the first download. Everything else is
+ * fetched when it is first opened. The family reads this on a phone, often on
+ * mobile data in a hospital car park, and the first screen should not wait
+ * on the code for a death-certificate form they may never open.
+ */
+const Photos = lazy(() => import("@/pages/Photos"));
+const Obituary = lazy(() => import("@/pages/Obituary"));
+const Selections = lazy(() => import("@/pages/Selections"));
+const Timeline = lazy(() => import("@/pages/Timeline"));
+const ServiceTime = lazy(() => import("@/pages/ServiceTime"));
+const Messages = lazy(() => import("@/pages/Messages"));
+const Aftercare = lazy(() => import("@/pages/Aftercare"));
+const Belongings = lazy(() => import("@/pages/Belongings"));
+const Local = lazy(() => import("@/pages/Local"));
+const Vitals = lazy(() => import("@/pages/Vitals"));
+const Proofs = lazy(() => import("@/pages/Proofs"));
 
 function describeError(error: unknown): string {
   const message = error instanceof Error ? error.message.trim() : "";
@@ -86,25 +96,27 @@ export default function App() {
           <Switch>
             <Route path="/start/:slug" component={Start} />
             <Route>
-          <PortalShell>
-            <Switch>
-              <Route path="/" component={Hub} />
-              {/* The link's own URL, before it is rewritten to "/". */}
-              <Route path="/f/:token" component={Hub} />
-              <Route path="/photos" component={Photos} />
-              <Route path="/obituary" component={Obituary} />
-              <Route path="/service" component={Selections} />
-              <Route path="/timeline" component={Timeline} />
-              <Route path="/service-time" component={ServiceTime} />
-              <Route path="/messages" component={Messages} />
-              <Route path="/aftercare" component={Aftercare} />
-              <Route path="/belongings" component={Belongings} />
-              <Route path="/local" component={Local} />
-              <Route path="/certificate" component={Vitals} />
-              <Route path="/proofs" component={Proofs} />
-              <Route component={NotFound} />
-            </Switch>
-          </PortalShell>
+              <PortalShell>
+                <Suspense fallback={<Loading />}>
+                  <Switch>
+                    <Route path="/" component={Hub} />
+                    {/* The link's own URL, before it is rewritten to "/". */}
+                    <Route path="/f/:token" component={Hub} />
+                    <Route path="/photos" component={Photos} />
+                    <Route path="/obituary" component={Obituary} />
+                    <Route path="/service" component={Selections} />
+                    <Route path="/timeline" component={Timeline} />
+                    <Route path="/service-time" component={ServiceTime} />
+                    <Route path="/messages" component={Messages} />
+                    <Route path="/aftercare" component={Aftercare} />
+                    <Route path="/belongings" component={Belongings} />
+                    <Route path="/local" component={Local} />
+                    <Route path="/certificate" component={Vitals} />
+                    <Route path="/proofs" component={Proofs} />
+                    <Route component={NotFound} />
+                  </Switch>
+                </Suspense>
+              </PortalShell>
             </Route>
           </Switch>
           <Toaster />

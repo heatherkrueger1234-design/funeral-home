@@ -231,7 +231,13 @@ export default function Hub() {
         </section>
       )}
 
-      {nextDue && (
+      {/*
+        The session already says how many things are outstanding, and it
+        arrives first. When there are some, the card is drawn at once and its
+        words fill in when the list lands, rather than the card appearing a
+        beat later and pushing everything below it down the screen.
+      */}
+      {(nextDue || (deadlines.isPending && outstandingDeadlines > 0)) && (
         <section className="relative overflow-hidden rounded-xl border border-border bg-card px-4 py-4 pl-5 shadow-[var(--elevation-1)]">
           {/* A rule in the home's colour down the edge, rather than a full
               wash. It marks the card as the live one without shouting. */}
@@ -240,10 +246,23 @@ export default function Hub() {
             className="absolute inset-y-0 left-0 w-1 bg-[var(--accent)]"
           />
           <p className="eyebrow mb-1">Next</p>
-          <p className="font-semibold">{nextDue.title}</p>
-          <p className="mt-0.5 text-sm text-muted-foreground">
-            {formatWhen(nextDue.dueAt)}
-          </p>
+          {nextDue ? (
+            <>
+              <p className="font-semibold">{nextDue.title}</p>
+              <p className="mt-0.5 text-sm text-muted-foreground">
+                {formatWhen(nextDue.dueAt)}
+              </p>
+            </>
+          ) : (
+            <div className="animate-pulse" role="status" aria-label="Loading">
+              <p className="font-semibold">
+                <span className="inline-block h-4 w-2/3 rounded bg-[var(--muted)] align-middle" />
+              </p>
+              <p className="mt-0.5 text-sm">
+                <span className="inline-block h-3 w-1/3 rounded bg-[var(--muted)]/70 align-middle" />
+              </p>
+            </div>
+          )}
         </section>
       )}
 

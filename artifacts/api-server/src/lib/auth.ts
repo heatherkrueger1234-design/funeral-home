@@ -335,9 +335,10 @@ function cookieOptions(): CookieOptions {
  * never sends, so the director signs in, lands back on the sign-in page, and
  * there is nothing in the log to say why.
  *
- * `req.secure` reads X-Forwarded-Proto because app.ts trusts one proxy hop.
- * So this fires for exactly two mistakes, and names both: no TLS in front of
- * the deployment, or a reverse proxy that is not forwarding the header.
+ * `req.secure` reads X-Forwarded-Proto from the proxies app.ts trusts. So
+ * this fires for three mistakes: no TLS in front of the deployment, a reverse
+ * proxy that is not forwarding the header, or TRUST_PROXY_HOPS set lower than
+ * the number of proxies actually in front.
  */
 function warnIfCookieCannotReturn(req: Request, res: Response): void {
   if (!cookieOptions().secure || req.secure) return;

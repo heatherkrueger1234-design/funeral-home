@@ -138,7 +138,7 @@ function Studio({
                   })
                 }
               >
-                <SelectTrigger>
+                <SelectTrigger aria-label={slot.label}>
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -193,7 +193,7 @@ function Studio({
                   if (snippet) save({ [slot.key]: snippet.body });
                 }}
               >
-                <SelectTrigger>
+                <SelectTrigger aria-label={`Use saved wording for ${slot.label}`}>
                   <SelectValue placeholder="Use one of ours…" />
                 </SelectTrigger>
                 <SelectContent>

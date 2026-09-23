@@ -152,7 +152,7 @@ export function StandardSchedule({ readOnly }: { readOnly: boolean }) {
           <div className="space-y-1.5">
             <Label>When</Label>
             <Select value={offset} onValueChange={setOffset}>
-              <SelectTrigger className="w-[10rem]">
+              <SelectTrigger aria-label="When" className="w-[10rem]">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
