@@ -17,6 +17,7 @@ import {
   createCase,
   inviteFamily,
   asFamily,
+  markEmailVerified,
   type StaffSession,
 } from "./helpers";
 
@@ -46,6 +47,9 @@ async function signInPlatformAdmin(): Promise<StaffSession> {
       displayName: "Heather Krueger",
     })
     .expect(201);
+
+  // The console requires a confirmed address -- see `requirePlatformAdmin`.
+  await markEmailVerified(ADMIN_EMAIL);
 
   return {
     agent,
@@ -126,6 +130,17 @@ describe("the tenant boundary", () => {
       ["put", `/api/admin/homes/${home.homeId}/practitioners/1`],
       ["delete", `/api/admin/homes/${home.homeId}/practitioners/1`],
       ["get", "/api/admin/audit"],
+      ["get", "/api/admin/me"],
+      ["get", "/api/admin/admins"],
+      ["post", "/api/admin/admins"],
+      ["delete", "/api/admin/admins/someone%40example.com"],
+      ["put", `/api/admin/homes/${home.homeId}/internal`],
+      ["put", `/api/admin/homes/${home.homeId}/group`],
+      ["post", `/api/admin/homes/${home.homeId}/staff/${home.userId}/password-reset`],
+      ["get", "/api/admin/groups"],
+      ["post", "/api/admin/groups"],
+      ["get", "/api/admin/groups/1"],
+      ["post", "/api/admin/groups/1/checkout"],
     ];
 
     for (const [method, path] of routes) {

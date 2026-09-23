@@ -9,7 +9,7 @@ import {
 } from "@workspace/db";
 import { eq } from "drizzle-orm";
 import { bootstrapPlatformAdmins } from "../src/lib/platform-auth";
-import { signUpHome } from "./helpers";
+import { markEmailVerified, signUpHome } from "./helpers";
 
 /**
  * Who at the vendor may look across the tenant boundary, and who is a customer.
@@ -36,6 +36,9 @@ async function signInAdmin(email = ADMIN) {
     .post("/api/auth/register")
     .send({ homeName: "Holding Today", email, password: PASSWORD })
     .expect(201);
+
+  // The console requires a confirmed address -- see `requirePlatformAdmin`.
+  await markEmailVerified(email);
 
   return { agent, homeId: res.body.home.id as number };
 }

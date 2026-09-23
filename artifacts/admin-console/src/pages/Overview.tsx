@@ -1,6 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "wouter";
-import { api, type PlatformOverview } from "@/lib/api";
+import { api, formatDateTime, type PlatformOverview } from "@/lib/api";
 import {
   Card,
   CardTitle,
@@ -72,8 +72,60 @@ export function Overview() {
         </div>
       </Card>
 
+      <Delivery delivery={query.data.delivery} />
+
       <Attention attention={attention} anyHomes={homes.homes > 0} />
     </div>
+  );
+}
+
+/**
+ * Whether the mail is getting out.
+ *
+ * Everything this product promises after the funeral is an email, and until
+ * this card the only place a failure showed up was the server log. One or two
+ * plain sentences, and quiet when all is well -- a green tick on every visit
+ * trains the eye to skip the card on the day it matters.
+ */
+function Delivery({ delivery }: { delivery: PlatformOverview["delivery"] }) {
+  const problems: string[] = [];
+
+  if (!delivery.mailConfigured) {
+    problems.push(
+      "Mail is not set up on this deployment. Aftercare check-ins, trial reminders and password resets are being written to the server log instead of sent.",
+    );
+  }
+
+  if (delivery.aftercareFailedLast30Days > 0) {
+    problems.push(
+      `${delivery.aftercareFailedLast30Days} aftercare ${delivery.aftercareFailedLast30Days === 1 ? "check-in" : "check-ins"} at ${delivery.homesWithFailures} ${delivery.homesWithFailures === 1 ? "home" : "homes"} could not be sent in the last thirty days, most recently ${formatDateTime(delivery.lastFailureAt)}.`,
+    );
+  }
+
+  if (!delivery.smsConfigured) {
+    problems.push(
+      "Text messages are not set up, so directors are handed each family link to send themselves.",
+    );
+  }
+
+  if (problems.length === 0) {
+    return (
+      <p className="text-sm text-[var(--muted-foreground)]">
+        Mail and text messages are set up, and nothing has failed to send in
+        the last thirty days.
+      </p>
+    );
+  }
+
+  return (
+    <Card className="border-[var(--notice)]/40 bg-[var(--notice-soft)]">
+      <CardTitle>Messages</CardTitle>
+      <ul className="flex max-w-prose flex-col gap-2 text-sm leading-relaxed">
+        {problems.map((problem) => (
+          <li key={problem}>{problem}</li>
+        ))}
+      </ul>
+    </Card>
   );
 }
 

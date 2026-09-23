@@ -1,5 +1,5 @@
 import { Router, type IRouter, type RequestHandler } from "express";
-import { and, asc, count, desc, eq, ilike, inArray, or, sql } from "drizzle-orm";
+import { and, asc, count, desc, eq, gte, ilike, inArray, isNull, or, sql } from "drizzle-orm";
 import { z } from "zod";
 import {
   db,
@@ -9,6 +9,7 @@ import {
   familyContactsTable,
   casePhotosTable,
   aftercareEnrollmentsTable,
+  aftercareDeliveriesTable,
   homeGroupsTable,
   homeLicensureTable,
   practitionerLicencesTable,
@@ -28,7 +29,12 @@ import {
   type HomeLicensure,
   type PractitionerLicence,
 } from "@workspace/db";
-import { sendStaffInviteEmail } from "@workspace/mailer";
+import {
+  isMailConfigured,
+  sendPasswordResetEmail,
+  sendStaffInviteEmail,
+} from "@workspace/mailer";
+import { isSmsConfigured } from "../lib/sms";
 import {
   badRequest,
   HttpError,
@@ -86,6 +92,11 @@ import {
  * one, and the compliance reason against it is in Section 2 of `COLORADO.md`
  * — we are the processor, the home is the controller, and a processor that
  * can quietly rewrite a family's obituary is not a processor.
+ *
+ * (Two more have joined that list since, and both are narrower than they
+ * sound: marking a home as our own, which changes only which figures it is
+ * counted in, and emailing a director a password-reset link to their own
+ * inbox, which never shows the link here -- see that route for why.)
  */
 
 const router: IRouter = Router();
@@ -126,13 +137,26 @@ declare global {
  * The 403 says nothing about why. A director who mistypes a URL learns that
  * the route is not theirs, and learns nothing about whether an admin console
  * exists, who is on it, or how one gets there.
+ *
+ * **The address must be confirmed.** The list names email addresses, and
+ * registration is open and never checked that the person typing an address
+ * owns it -- that is a deliberate trade for directors (see `replit.md`), and
+ * it is exactly the wrong trade here. Without this line anybody could register
+ * a home under an address on the list that had no account yet -- the seeded
+ * bootstrap address before its owner first signs up, or a colleague granted
+ * access ahead of their first day, which the Admins page invites -- and walk
+ * straight into every customer's account list. The same went for an owner
+ * inviting that address into their own home and redeeming the invitation link
+ * handed back on screen. A confirmation link only ever reaches the real inbox,
+ * so requiring it is what makes the list mean the *person* rather than the
+ * string.
  */
 const requirePlatformAdmin: RequestHandler = (req, _res, next) => {
   void (async () => {
     try {
       const user = currentUser(req);
 
-      if (!(await isPlatformAdmin(user.email))) {
+      if (!user.emailVerified || !(await isPlatformAdmin(user.email))) {
         throw new HttpError(403, "Not found");
       }
 
@@ -153,6 +177,23 @@ function actor(req: { platformActor?: PlatformActor }): PlatformActor {
   }
   return req.platformActor;
 }
+
+/**
+ * Whether the signed-in account may use this console at all.
+ *
+ * The console asks this once, before it draws anything, so that a director who
+ * follows a link here is told once that there is nothing for them -- rather
+ * than being shown the platform's navigation, an "Add a home" button and a
+ * row of "Not found" errors, which is what happened while the only way to find
+ * out was to try a real screen and fail.
+ *
+ * Not audited, and it is the second route besides the log that is not. It
+ * reads no home and names no customer; it only repeats back what the gate
+ * above already decided.
+ */
+router.get("/admin/me", (req, res) => {
+  res.json({ email: actor(req).email });
+});
 
 /* ------------------------------------------------------------ the audit -- */
 
@@ -179,6 +220,7 @@ const AUDIT_ACTIONS = [
   "platform.admin.grant",
   "platform.admin.revoke",
   "home.internal.update",
+  "home.staff.reset",
 ] as const;
 type AuditAction = (typeof AUDIT_ACTIONS)[number];
 
@@ -254,10 +296,29 @@ async function platformListHomes(
   options: { search?: string | undefined; limit: number; offset: number },
 ): Promise<{ homes: FuneralHome[]; total: number }> {
   const search = options.search?.trim();
+  // `%` and `_` are wildcards to ILIKE, so a search for "100%" or "a_b" was
+  // matching far more than it said. Escaped, so what is typed is what is found.
+  const pattern = search ? `%${search.replace(/[\\%_]/g, "\\$&")}%` : "";
+
+  /*
+   * An exact staff address finds the home it belongs to.
+   *
+   * The first thing a locked-out director on the telephone can give you is
+   * their email address, and before this the console could not turn that into
+   * a home: it searched names and web addresses only, and deliberately shows
+   * nobody's address. Exact rather than partial, so this answers "whose
+   * account is this" and cannot be used to browse a customer's staff list a
+   * letter at a time -- and the address still never comes back in the answer.
+   */
+  const byStaffEmail = search?.includes("@")
+    ? sql`${funeralHomesTable.id} in (select ${usersTable.funeralHomeId} from ${usersTable} where ${usersTable.email} = ${normaliseEmail(search)})`
+    : undefined;
+
   const filter = search
     ? or(
-        ilike(funeralHomesTable.name, `%${search}%`),
-        ilike(funeralHomesTable.slug, `%${search}%`),
+        ilike(funeralHomesTable.name, pattern),
+        ilike(funeralHomesTable.slug, pattern),
+        ...(byStaffEmail ? [byStaffEmail] : []),
       )
     : undefined;
 
@@ -674,6 +735,13 @@ router.get("/admin/homes/:homeId", async (req, res) => {
       role: usersTable.role,
       deactivatedAt: usersTable.deactivatedAt,
       lastInvitedAt: usersTable.createdAt,
+      // Whether they have ever set a password, and whether their address is
+      // confirmed -- the two facts that explain most "I can't get in" calls
+      // ("you never finished the invitation", "that address has never
+      // received anything from us"). Derived booleans, so the hash itself is
+      // never selected into this handler.
+      hasPassword: sql<boolean>`${usersTable.passwordHash} is not null`,
+      emailVerified: usersTable.emailVerified,
     })
     .from(usersTable)
     .where(eq(usersTable.funeralHomeId, home.id))
@@ -736,6 +804,80 @@ router.put("/admin/homes/:homeId/suspension", async (req, res) => {
 
   res.json(toAdminHome(updated!));
 });
+
+/* ------------------------------------------------ a director locked out -- */
+
+/**
+ * Email somebody at a home a fresh password-reset link.
+ *
+ * The call this is for: a director cannot get in, the "forgot password" email
+ * never arrived or was deleted, the owner is at a graveside, and they have
+ * rung us. Before this the console could see their name and nothing else, so
+ * the answer was "try again" -- which on a shared funeral-home mail host is
+ * the answer that already failed.
+ *
+ * What it deliberately does **not** do is hand the link to the platform admin.
+ * The link goes to the address on the account and nowhere else, exactly as the
+ * account holder's own "forgot password" would send it. A console that showed
+ * the link could sign in as any director at any home, which is the one thing a
+ * processor must never be able to do quietly; this way the most a platform
+ * admin can do is cause an email to arrive in somebody's own inbox, and the
+ * log says who caused it.
+ *
+ * Refused for a deactivated account -- the owner took them off, and a reset
+ * link is not how they come back -- and scoped on the home in the path as well
+ * as the id, for the same reason `loadPractitioner` is.
+ */
+router.post(
+  "/admin/homes/:homeId/staff/:userId/password-reset",
+  async (req, res) => {
+    const who = actor(req);
+    const homeId = parseId(req.params.homeId);
+    const userId = parseId(req.params.userId);
+
+    // The home first, so the log row is written before anything about the
+    // person is read -- the rule every other route in this file keeps.
+    const home = await platformLoadHome(
+      who,
+      homeId,
+      "home.staff.reset",
+      `emailed a password reset to staff #${userId}`,
+    );
+
+    const [person] = await db
+      .select({
+        id: usersTable.id,
+        email: usersTable.email,
+        deactivatedAt: usersTable.deactivatedAt,
+      })
+      .from(usersTable)
+      .where(and(eq(usersTable.id, userId), eq(usersTable.funeralHomeId, home.id)))
+      .limit(1);
+
+    const found = requireRow(person, "That person could not be found at this home.");
+
+    if (found.deactivatedAt !== null) {
+      throw badRequest(
+        "That account has been switched off by the home. Their owner can " +
+          "switch it back on; a reset link will not.",
+      );
+    }
+
+    const token = await createPasswordReset(found.id);
+    const base = process.env["CONSOLE_URL"]?.replace(/\/+$/, "") ?? "";
+
+    await sendPasswordResetEmail({
+      to: found.email,
+      resetUrl: `${base}/reset-password?token=${encodeURIComponent(token)}`,
+      expiresInMinutes: Math.round(PASSWORD_RESET_TTL_MS / 60000),
+    });
+
+    // Whether it actually left the building. Without SMTP the email is only
+    // logged, and telling the person on the phone "it's on its way" would be
+    // the one untrue sentence in the call.
+    res.status(202).json({ mailConfigured: isMailConfigured() });
+  },
+);
 
 /* ----------------------------------------------------------- licensure -- */
 
@@ -949,7 +1091,54 @@ router.get("/admin/overview", async (req, res) => {
     `${homes.length} homes`,
   );
 
-  res.json({ homes: totals, engagement: platformTotals, attention });
+  /*
+   * Is mail actually leaving the building?
+   *
+   * Every promise this product makes after the funeral is an email -- the
+   * aftercare check-ins, the trial reminders, a director's password reset --
+   * and before this the platform had no way to see that they were failing
+   * short of reading the server log. `/healthz` says whether SMTP is
+   * configured; it cannot say that the provider has been refusing everything
+   * since Tuesday. The aftercare sender already writes `failedAt` against the
+   * delivery it could not send, so this is a count of those, across every
+   * customer, over the last month -- a number, not whose check-in it was.
+   */
+  const since = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+  const [failures] = await db
+    .select({
+      failed: count(),
+      homes: sql<number>`count(distinct ${aftercareEnrollmentsTable.funeralHomeId})`.mapWith(Number),
+      latest: sql<string | null>`max(${aftercareDeliveriesTable.failedAt})`,
+    })
+    .from(aftercareDeliveriesTable)
+    .innerJoin(
+      aftercareEnrollmentsTable,
+      eq(aftercareEnrollmentsTable.id, aftercareDeliveriesTable.enrollmentId),
+    )
+    .innerJoin(
+      funeralHomesTable,
+      eq(funeralHomesTable.id, aftercareEnrollmentsTable.funeralHomeId),
+    )
+    .where(
+      and(
+        customerHomes,
+        isNull(aftercareDeliveriesTable.sentAt),
+        gte(aftercareDeliveriesTable.failedAt, since),
+      ),
+    );
+
+  res.json({
+    homes: totals,
+    engagement: platformTotals,
+    attention,
+    delivery: {
+      mailConfigured: isMailConfigured(),
+      smsConfigured: isSmsConfigured(),
+      aftercareFailedLast30Days: failures?.failed ?? 0,
+      homesWithFailures: failures?.homes ?? 0,
+      lastFailureAt: failures?.latest ?? null,
+    },
+  });
 });
 
 /* ---------------------------------------------------------- the log -- */

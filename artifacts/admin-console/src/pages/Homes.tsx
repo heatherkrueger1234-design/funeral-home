@@ -74,7 +74,7 @@ export function Homes() {
           label="Find a home"
           type="search"
           value={search}
-          placeholder="Name or web address"
+          placeholder="Name, web address or a staff email"
           onChange={(event) => {
             setSearch(event.target.value);
             setPage(0);

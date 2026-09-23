@@ -287,7 +287,19 @@ named in the `platform_admins` table. That is on purpose: one way to authenticat
 in this application means one cookie to protect, not two. Being on the list is
 an *additional* condition and never an alternative one, and an empty list
 means nobody. `routes/admin.ts` applies that check under `/admin`, below the
-ordinary session gate.
+ordinary session gate. The account's address must also be **confirmed**: the
+list names addresses and registration never checks them, so without that
+anybody could register under a listed address nobody had claimed yet (the
+bootstrap address before its owner signs up is the obvious one) and walk in.
+On a fresh deployment, register, click the confirmation link, then sign in.
+
+**What an operator can do for a caller.** Find their home from the exact
+address they give (never shown back), see whether each person at the home
+has finished their invitation and confirmed their address, and email any of
+them a fresh password-reset link — to their own inbox, audited, and never
+shown in the console, because a link the platform could see is a sign-in as
+that director. The overview says whether mail and SMS are configured and how
+many aftercare check-ins failed to send in the last thirty days.
 
 The list is `platform_admins`, and access can be granted and revoked from the
 console's own Admins page — both audited. It used to be an environment

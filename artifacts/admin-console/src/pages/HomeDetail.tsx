@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link } from "wouter";
 import {
@@ -139,29 +139,144 @@ export function HomeDetail({ homeId }: { homeId: number }) {
             detail="This home has no staff accounts, so nobody can reach it. An owner has to be invited before it is any use to them."
           />
         ) : (
-          <ul className="flex flex-col gap-2">
+          <ul className="flex flex-col divide-y divide-[var(--border)]">
             {home.staff.map((person) => (
-              <li
-                key={person.id}
-                className="flex flex-wrap items-baseline gap-x-3 gap-y-1"
-              >
-                <span>{person.displayName ?? "Not named yet"}</span>
-                <span className="text-sm text-[var(--muted-foreground)]">
-                  {[person.title, person.role].filter(Boolean).join(" · ")}
-                  {person.deactivatedAt && " · no longer here"}
-                </span>
-              </li>
+              <StaffRow key={person.id} homeId={home.id} person={person} />
             ))}
           </ul>
         )}
         <p className="mt-4 max-w-prose text-sm text-[var(--muted-foreground)]">
           Names and roles only. Their email addresses are the home's business,
-          not ours.
+          not ours — a reset link goes to the address on their account, and
+          is never shown here.
         </p>
       </Card>
 
       <SuspensionCard home={home} />
+
+      <OursCard home={home} />
     </div>
+  );
+}
+
+/**
+ * One person at the home, and the "I can't get in" call.
+ *
+ * The two facts that explain most of those calls sit next to the name: they
+ * never finished their invitation, or their address has never received
+ * anything from us. And the one thing the platform can do about it: email a
+ * fresh reset link to the address on their own account. The link is never
+ * shown here -- a console that could show it could sign in as them.
+ */
+function StaffRow({
+  homeId,
+  person,
+}: {
+  homeId: number;
+  person: AdminHomeDetail["staff"][number];
+}) {
+  const queryClient = useQueryClient();
+
+  const reset = useMutation({
+    mutationFn: () =>
+      api.post<{ mailConfigured: boolean }>(
+        `/admin/homes/${homeId}/staff/${person.id}/password-reset`,
+      ),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ["audit"] });
+    },
+  });
+
+  const state = person.deactivatedAt
+    ? "No longer here"
+    : !person.hasPassword
+      ? "Has not finished their invitation"
+      : !person.emailVerified
+        ? "Address not confirmed yet"
+        : null;
+
+  return (
+    <li className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 py-3 first:pt-0 last:pb-0">
+      <div className="min-w-0">
+        <span>{person.displayName ?? "Not named yet"}</span>
+        <span className="ml-3 text-sm text-[var(--muted-foreground)]">
+          {[person.title, person.role].filter(Boolean).join(" · ")}
+        </span>
+        {state && (
+          <p className="text-sm text-[var(--muted-foreground)]">{state}</p>
+        )}
+        {reset.isSuccess && (
+          <p role="status" className="text-sm">
+            {reset.data.mailConfigured
+              ? "A reset link is on its way to the address on their account. It works once, for an hour."
+              : "Mail is not set up on this deployment, so nothing was sent. (The server log records that a reset was asked for, never the link itself.)"}
+          </p>
+        )}
+        {reset.error instanceof Error && (
+          <p role="alert" className="text-sm text-[var(--notice)]">
+            {reset.error.message}
+          </p>
+        )}
+      </div>
+      {!person.deactivatedAt && (
+        <Button
+          disabled={reset.isPending || reset.isSuccess}
+          onClick={() => reset.mutate()}
+        >
+          {reset.isPending
+            ? "Sending…"
+            : reset.isSuccess
+              ? "Sent"
+              : "Email a reset link"}
+        </Button>
+      )}
+    </li>
+  );
+}
+
+/**
+ * Ours, or a customer's.
+ *
+ * The API has had this for a while; the console never showed it, so the only
+ * way to take the platform's own home out of the customer figures was curl --
+ * and a deployment whose admin signed up *after* the bootstrap ran (the
+ * ordinary order) always had one extra "home on trial" that was us.
+ */
+function OursCard({ home }: { home: AdminHomeDetail }) {
+  const queryClient = useQueryClient();
+
+  const change = useMutation({
+    mutationFn: (internalAccount: boolean) =>
+      api.put(`/admin/homes/${home.id}/internal`, { internalAccount }),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ["home", home.id] });
+      void queryClient.invalidateQueries({ queryKey: ["homes"] });
+      void queryClient.invalidateQueries({ queryKey: ["overview"] });
+    },
+  });
+
+  return (
+    <Card>
+      <CardTitle>
+        {home.internalAccount ? "This home is ours" : "A customer"}
+      </CardTitle>
+      <p className="mb-4 max-w-prose text-sm text-[var(--muted-foreground)]">
+        {home.internalAccount
+          ? "It is left out of the homes list and every figure on the overview. It works exactly like any other home."
+          : "If this is one of ours — a demo, or the account a platform admin signs in with — marking it ours takes it out of the customer figures. Nothing else about it changes."}
+      </p>
+      {change.error instanceof Error && (
+        <p role="alert" className="mb-3 text-sm text-[var(--notice)]">
+          {change.error.message}
+        </p>
+      )}
+      <Button
+        disabled={change.isPending}
+        onClick={() => change.mutate(!home.internalAccount)}
+      >
+        {home.internalAccount ? "It's a customer" : "Mark as ours"}
+      </Button>
+    </Card>
   );
 }
 
@@ -177,13 +292,24 @@ function SuspensionCard({ home }: { home: AdminHomeDetail }) {
   const queryClient = useQueryClient();
   const [reason, setReason] = useState("");
   const [confirming, setConfirming] = useState(false);
+  // `disabled={change.isPending}` only takes effect after a re-render, so a
+  // double-click sent the request twice and wrote two "Suspended a home"
+  // lines to the log shown to customers. A ref closes the gap synchronously.
+  const inFlight = useRef(false);
 
   const change = useMutation({
-    mutationFn: (suspended: boolean) =>
-      api.put(`/admin/homes/${home.id}/suspension`, {
-        suspended,
-        ...(suspended ? { reason: reason.trim() } : {}),
-      }),
+    mutationFn: async (suspended: boolean) => {
+      if (inFlight.current) return;
+      inFlight.current = true;
+      try {
+        await api.put(`/admin/homes/${home.id}/suspension`, {
+          suspended,
+          ...(suspended ? { reason: reason.trim() } : {}),
+        });
+      } finally {
+        inFlight.current = false;
+      }
+    },
     onSuccess: () => {
       setConfirming(false);
       setReason("");
