@@ -29,8 +29,13 @@ import { sendAftercareEmail, isMailConfigured } from "./index";
  *  2. **Consent is checked at send time**, not when the schedule was written.
  *     Somebody who unsubscribed last week must not receive something queued
  *     a month ago.
- *  3. **One failure does not stop the run.** A bad address in the third row
- *     must not cancel the ninety-day check-in for everyone after it.
+ *  3. **One failure does not stop the run, and does not stop the message
+ *     either.** A bad address in the third row must not cancel the
+ *     ninety-day check-in for everyone after it, and a delivery that fails
+ *     once (an SMTP hiccup, a full inbox) is retried on the next run rather
+ *     than dropped for good. An enrolment is only ever marked `done` once
+ *     every one of its deliveries has actually been sent, never merely
+ *     attempted.
  */
 
 const MESSAGES: Record<number, { subject: string; body: (name: string) => string }> = {
@@ -148,7 +153,10 @@ export async function runAftercare(
       and(
         lte(aftercareDeliveriesTable.dueAt, now),
         isNull(aftercareDeliveriesTable.sentAt),
-        isNull(aftercareDeliveriesTable.failedAt),
+        // A delivery that failed once is retried on the next run rather than
+        // dropped for good — see the "outstanding" check below, which relies
+        // on exactly this to keep an enrolment from being marked `done` while
+        // one of its check-ins never actually went out.
         eq(aftercareEnrollmentsTable.status, "active"),
         isNull(aftercareEnrollmentsTable.unsubscribedAt),
       ),
@@ -303,8 +311,12 @@ export async function runAftercare(
         .where(
           and(
             eq(aftercareDeliveriesTable.enrollmentId, enrollmentId),
+            // Not `sentAt` alone: a delivery that failed and will be retried
+            // on the next run is still outstanding, not done. Marking the
+            // enrolment `done` here previously required only `sentAt` to be
+            // null-free of a *permanent* failure record, which a delivery
+            // that had merely failed once already satisfied.
             isNull(aftercareDeliveriesTable.sentAt),
-            isNull(aftercareDeliveriesTable.failedAt),
           ),
         )
         .limit(1);

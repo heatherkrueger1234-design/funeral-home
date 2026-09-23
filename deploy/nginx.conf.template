@@ -31,15 +31,18 @@ server {
 
     # Belt and braces. The API sets its own headers via helmet; these apply to
     # the static documents nginx serves without ever reaching the API.
-    add_header X-Content-Type-Options nosniff always;
-    add_header X-Frame-Options DENY always;
-    add_header Referrer-Policy strict-origin-when-cross-origin always;
+    #
+    # Included, not written inline, and repeated inside every location that
+    # sets a header of its own -- see the file for why nginx leaves us no
+    # choice about that.
+    include /etc/nginx/snippets/security-headers.conf;
 
     # nginx's own liveness. Deliberately not proxied to the API: this answers
     # "is the web container serving files", which is a different question from
     # "is the API up", and conflating them takes both out at once.
     location = /healthz {
         access_log off;
+        include /etc/nginx/snippets/security-headers.conf;
         add_header Content-Type text/plain;
         return 200 "ok\n";
     }
@@ -84,6 +87,7 @@ server {
     # nothing.
     location /assets/ {
         access_log off;
+        include /etc/nginx/snippets/security-headers.conf;
         # One header, not `expires 1y` plus an add_header: those emit two
         # Cache-Control lines, and an intermediary that reads the first and
         # stops gets a different answer than the browser does.
@@ -95,6 +99,7 @@ server {
     # fingerprinted bundles, and a stale copy pins a browser to a deployment
     # that no longer exists.
     location = /index.html {
+        include /etc/nginx/snippets/security-headers.conf;
         add_header Cache-Control "no-store, must-revalidate" always;
     }
 

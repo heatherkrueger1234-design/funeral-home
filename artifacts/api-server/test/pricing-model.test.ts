@@ -453,7 +453,7 @@ describe("groups: one contract, many locations", () => {
       customer: "cus_group_1",
       current_period_end: Math.floor((Date.now() + 30 * DAY) / 1000),
       items: { data: [{ price: { id: "price_aftercare_test" } }] },
-    } as never);
+    } as never, new Date());
 
     expect(applied).toBe(true);
 
@@ -475,6 +475,66 @@ describe("groups: one contract, many locations", () => {
       expect(home!.stripeSubscriptionId).toBeNull();
       expect(home!.stripeCustomerId).toBeNull();
     }
+  });
+
+  it("does not let a stale Stripe event un-cancel forty locations", async () => {
+    const group = await makeGroup("Consolidated Care");
+    const denver = await signUpHome("Denver Chapel");
+
+    await db
+      .update(funeralHomesTable)
+      .set({ groupId: group.id })
+      .where(eq(funeralHomesTable.id, denver.homeId));
+
+    const cancelledAt = new Date();
+    const event = (status: string) =>
+      ({
+        id: "sub_group_1",
+        status,
+        customer: "cus_group_1",
+        items: { data: [] },
+      }) as never;
+
+    await applySubscription(event("canceled"), cancelledAt);
+
+    /*
+     * Stripe does not guarantee delivery order, so an `updated` queued
+     * before this `deleted` can land after it. On a single home that stale
+     * event silently re-activates one account; on a group it re-activates
+     * every location under the contract, because the answer is written down
+     * onto all of them in one statement.
+     */
+    const applied = await applySubscription(
+      event("active"),
+      new Date(cancelledAt.getTime() - 60_000),
+    );
+
+    // Handled — Stripe must not be told to retry — but not applied.
+    expect(applied).toBe(true);
+
+    const [groupRow] = await db
+      .select()
+      .from(homeGroupsTable)
+      .where(eq(homeGroupsTable.id, group.id));
+    expect(groupRow!.subscriptionStatus).toBe("canceled");
+
+    const [home] = await db
+      .select()
+      .from(funeralHomesTable)
+      .where(eq(funeralHomesTable.id, denver.homeId));
+    expect(home!.subscriptionStatus).toBe("canceled");
+
+    // And a genuinely newer event still gets through.
+    await applySubscription(
+      event("active"),
+      new Date(cancelledAt.getTime() + 60_000),
+    );
+
+    const [reopened] = await db
+      .select()
+      .from(funeralHomesTable)
+      .where(eq(funeralHomesTable.id, denver.homeId));
+    expect(reopened!.subscriptionStatus).toBe("active");
   });
 
   it("bills a location's funerals to the group", async () => {

@@ -72,6 +72,18 @@ export const homeGroupsTable = pgTable(
     currentPeriodEndsAt: timestamp("current_period_ends_at"),
 
     /**
+     * When the most recently *applied* webhook event was created, per Stripe
+     * (`event.created`). The same guard `funeral_homes` carries, and it
+     * matters more here: Stripe does not guarantee delivery order, so a
+     * `subscription.updated` queued before a later `subscription.deleted`
+     * can arrive after it. On a single home that stale event silently
+     * re-activates one account. On a group it re-activates **every location
+     * under the contract**, because the answer is written down onto all of
+     * them. An incoming event older than this is ignored.
+     */
+    stripeEventCreatedAt: timestamp("stripe_event_created_at"),
+
+    /**
      * Which add-ons the contract covers, as a comma-separated list of keys.
      * Bought once for the estate and fanned out to the locations by the
      * webhook, in the same movement as the status above.

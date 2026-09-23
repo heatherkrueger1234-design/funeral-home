@@ -347,7 +347,12 @@ export default function Hub() {
         )}
       </div>
 
-      <p className="border-t border-border pt-6 text-sm leading-relaxed text-muted-foreground">
+      {/*
+        No rule above this. The shell draws one immediately below it, to carry
+        the 24-hour number, and two hairlines forty pixels apart with one
+        sentence between them is a line nobody meant to draw.
+      */}
+      <p className="pt-1 text-sm leading-relaxed text-muted-foreground">
         Take these in any order, and leave them half-finished if you need to.
         Everything saves as you go.
       </p>

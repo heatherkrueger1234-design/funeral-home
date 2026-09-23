@@ -5,6 +5,12 @@ on:
   pull_request:
   workflow_dispatch:
 
+# Read-only checkout and a build/test run — this job never pushes, comments,
+# or touches issues/PRs, so the default (broader) GITHUB_TOKEN scope has
+# nothing to do here.
+permissions:
+  contents: read
+
 concurrency:
   group: ci-${{ github.ref }}
   cancel-in-progress: true

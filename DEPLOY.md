@@ -30,11 +30,13 @@ pnpm --filter @workspace/scripts run generate-encryption-key
 ```
 
 **`ENCRYPTION_KEY` is the one that cannot be recovered.** Every uploaded file
-and every social security number in the database and in every backup is
-AES-256-GCM under it. Lose it and the photographs are gone — the ciphertext is
-still there and is worth nothing. Changing it does not re-encrypt anything;
-existing files simply stop opening. Keep a copy somewhere that is neither this
-host nor the backup.
+and every social security number in the database is AES-256-GCM under it, and
+every backup file (`backup-database`'s `.sql.enc` output) is encrypted whole
+under the same key — not just those two columns. Lose it and the photographs
+are gone — the ciphertext is still there and is worth nothing. Changing it
+does not re-encrypt anything; existing files simply stop opening, and no
+existing backup will decrypt. Keep a copy somewhere that is neither this host
+nor the backup.
 
 ## Bring it up
 
@@ -169,6 +171,22 @@ build — a Vite SPA that calls `/api` on its own origin. The nginx config is a
 template expanded at container start; override `NGINX_API_ORIGIN` to point at
 an API somewhere else, and `NGINX_RESOLVER` if you are not on Docker's
 embedded DNS (on Kubernetes, the cluster DNS service address).
+
+The security headers — `X-Frame-Options`, `X-Content-Type-Options`,
+`Referrer-Policy` and the Content-Security-Policy — live in
+`deploy/security-headers.conf`, which is copied in beside the template and
+`include`d rather than written into it. That is not tidiness: an nginx
+`location` inherits `add_header` from the server block only while it declares
+none of its own, so the three locations here that set a `Content-Type` or a
+`Cache-Control` were silently being served with no security headers at all —
+including the one that serves `index.html`, and the one that serves every
+script and stylesheet. `include` is the only mechanism nginx offers for
+putting them back. **Add a header to a `location` and you must include that
+file beside it**, or you have just dropped the rest.
+
+If you put a CDN or a WAF in front of these containers, check it is not adding
+a second `Content-Security-Policy`: two of them are intersected, not
+overridden, and the result is usually a blank page nobody can explain.
 
 ## Health checks
 

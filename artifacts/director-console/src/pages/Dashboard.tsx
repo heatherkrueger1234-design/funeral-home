@@ -7,14 +7,13 @@ import type {
   DashboardDeadline,
   DashboardService,
 } from "@workspace/api-client-react";
-import { Button } from "@/components/ui/button";
 import { SetupChecklist, TrialBanner } from "@/components/SetupChecklist";
 import { Divider, Empty, Loading, PageHeader } from "@/components/page";
 import { cn } from "@/lib/utils";
 import {
   CalendarClock,
-  CalendarX,
   CheckCircle2,
+  ChevronRight,
   Inbox,
   MessageSquare,
   Store,
@@ -56,6 +55,10 @@ function whenLabel(value: string | Date): string {
   return `${dayFormat.format(date)}, ${timeFormat.format(date)}`;
 }
 
+/** Midnight local time on the day a given instant falls in. */
+const startOfDay = (date: Date) =>
+  new Date(date.getFullYear(), date.getMonth(), date.getDate()).getTime();
+
 /**
  * "3 days ago", "in 2 days". Plain words, because that is how it is said.
  *
@@ -64,11 +67,20 @@ function whenLabel(value: string | Date): string {
  * against rows in a list headed **Past due** — a director reading that has
  * been told the opposite of the truth about something that has already
  * slipped, on the one screen whose whole job is to be believed.
+ *
+ * "Today", "tomorrow" and "yesterday" are counted in calendar days rather
+ * than in multiples of 86,400,000 milliseconds, which is the same class of
+ * mistake one layer down. Rounding the elapsed time meant that a director
+ * looking at the console at nine in the morning was told a service at eleven
+ * *tonight* was "tomorrow", and that a step which slipped at ten o'clock last
+ * night was "yesterday" when they had walked past it on their way in. Both
+ * are off by a day in the direction that costs something: a funeral is this
+ * evening or it is not, and a diary does not round.
  */
 function relative(value: string | Date): string {
-  const ms = asDate(value).getTime() - Date.now();
+  const date = asDate(value);
+  const ms = date.getTime() - Date.now();
   const past = ms < 0;
-  const days = Math.round(ms / 86_400_000);
 
   if (Math.abs(ms) < 60_000) return "now";
   if (Math.abs(ms) < 3_600_000) {
@@ -76,6 +88,11 @@ function relative(value: string | Date): string {
     const unit = `${minutes} min`;
     return past ? `${unit} ago` : `in ${unit}`;
   }
+
+  const days = Math.round(
+    (startOfDay(date) - startOfDay(new Date())) / 86_400_000,
+  );
+
   if (days === 0) return past ? "earlier today" : "later today";
   if (days === 1) return "tomorrow";
   if (days === -1) return "yesterday";
@@ -260,18 +277,41 @@ export default function Dashboard() {
         </section>
       )}
 
-      <Empty
-        icon={Store}
-        title="Your own page"
-        action={
-          <Button asChild variant="outline" size="sm">
-            <Link href="/storefront">Edit your page and policies</Link>
-          </Button>
-        }
+      {/*
+        The one standing invitation on this screen, and the only thing here
+        that is not about this week.
+
+        It used to borrow the `Empty` component, which was wrong twice over.
+        `Empty` means "there is nothing here", and there is: this home has a
+        page whether or not they have written anything on it. And `Empty` is
+        built to be a calm full-stop at the end of a list, so a promotion
+        wearing it took four hundred pixels of centred whitespace at the
+        bottom of the master page to say one sentence — the loudest thing on
+        the quietest screen in the product. A single ruled row says the same
+        thing and then gets out of the way.
+      */}
+      <Link
+        href="/storefront"
+        className="lift group mt-2 flex items-center gap-4 rounded-xl border border-border bg-card
+                   px-4 py-3.5 no-underline shadow-[var(--elevation-1)] transition-gentle
+                   hover:border-[var(--accent)]"
       >
-        What families read before they ring you, and the policies you find
-        yourself repeating at every kitchen table.
-      </Empty>
+        <span className="grid size-10 shrink-0 place-items-center rounded-full bg-[var(--accent-soft)] text-[var(--accent-deep)]">
+          <Store className="size-4" strokeWidth={1.75} />
+        </span>
+        <span className="min-w-0 flex-1">
+          <span className="block font-semibold">Your own page</span>
+          <span className="block text-sm leading-snug text-muted-foreground">
+            What families read before they ring you, and the policies you find
+            yourself repeating at every kitchen table.
+          </span>
+        </span>
+        <ChevronRight
+          className="size-5 shrink-0 text-muted-foreground/60 transition-gentle
+                     group-hover:translate-x-0.5 group-hover:text-[var(--accent)]"
+          aria-hidden
+        />
+      </Link>
     </div>
   );
 }

@@ -5,7 +5,7 @@ import { familyRateLimit, publicRateLimit } from "../middleware/rate-limit";
 import healthRouter from "./health";
 import authRouter from "./auth";
 import tasksRouter from "./tasks";
-import billingRouter, { billingWebhookRouter } from "./billing";
+import billingRouter from "./billing";
 import familyRouter from "./family";
 import publicRouter from "./public";
 import intakeRouter from "./intake";
@@ -78,11 +78,12 @@ router.use("/public", publicRateLimit, publicRouter);
 router.use(tasksRouter);
 
 /**
- * Stripe's webhook only. It has no session and needs the raw request body,
- * so it carries its own signature check and its own body parser. The rest of
- * billing is a staff surface and is mounted below the gate.
+ * Stripe's webhook is not mounted here. It has no session and needs the raw
+ * request body, which the global JSON parser in `app.ts` would already have
+ * consumed by the time a request reaches this router — so it is mounted
+ * directly on `app`, ahead of that parser, in `app.ts`. The rest of billing
+ * is a staff surface and is mounted below the gate.
  */
-router.use(billingWebhookRouter);
 
 /**
  * The family surface, mounted under `/family` so the gate applies to those

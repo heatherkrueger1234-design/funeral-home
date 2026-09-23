@@ -250,13 +250,22 @@ function mapStatus(stripeStatus: string): string {
  * Finds the home by the metadata we set at checkout, falling back to the
  * customer id — the fallback matters because a subscription changed from
  * Stripe's dashboard, rather than through checkout, carries no metadata.
+ *
+ * `eventCreatedAt` is the *webhook event's* own timestamp, not anything on
+ * the subscription object. Stripe does not guarantee delivery order, so an
+ * event that was queued earlier can arrive after a later one; applying
+ * whichever lands last could un-cancel a home that has already cancelled. An
+ * incoming event older than the last one actually applied is dropped rather
+ * than applied, so events may arrive out of order without the state ever
+ * moving backwards.
  */
 export async function applySubscription(
   subscription: StripeSubscription,
+  eventCreatedAt: Date,
 ): Promise<boolean> {
   // A group's contract is checked for first. A subscription can only belong
   // to one of the two, and a group's covers every location under it.
-  if (await applyGroupSubscription(subscription)) return true;
+  if (await applyGroupSubscription(subscription, eventCreatedAt)) return true;
 
   const byMetadata = Number(subscription.metadata?.funeralHomeId);
 
@@ -282,6 +291,14 @@ export async function applySubscription(
     return false;
   }
 
+  if (home.stripeEventCreatedAt && home.stripeEventCreatedAt >= eventCreatedAt) {
+    logger.warn(
+      { funeralHomeId: home.id, subscription: subscription.id },
+      "Ignoring a Stripe event older than the one already applied",
+    );
+    return true;
+  }
+
   await db
     .update(funeralHomesTable)
     .set({
@@ -291,6 +308,7 @@ export async function applySubscription(
         ? new Date(subscription.current_period_end * 1000)
         : null,
       entitlements: entitlementsFrom(subscription),
+      stripeEventCreatedAt: eventCreatedAt,
       updatedAt: new Date(),
     })
     .where(eq(funeralHomesTable.id, home.id));
@@ -321,6 +339,7 @@ export async function applySubscription(
  */
 async function applyGroupSubscription(
   subscription: StripeSubscription,
+  eventCreatedAt: Date,
 ): Promise<boolean> {
   const byMetadata = Number(subscription.metadata?.homeGroupId);
 
@@ -341,6 +360,24 @@ async function applyGroupSubscription(
 
   if (!group) return false;
 
+  /*
+   * The same staleness guard the single-home path applies, and the reason
+   * it is repeated rather than shared is that the two paths write different
+   * rows and each has to check its own.
+   *
+   * It matters more here. A stale `subscription.updated` arriving after a
+   * `subscription.deleted` re-activates one account on a single home; on a
+   * group it re-activates every location under the contract, because the
+   * answer below is written down onto all of them in one statement.
+   */
+  if (group.stripeEventCreatedAt && group.stripeEventCreatedAt >= eventCreatedAt) {
+    logger.warn(
+      { homeGroupId: group.id, subscription: subscription.id },
+      "Ignoring a Stripe event older than the one already applied to this group",
+    );
+    return true;
+  }
+
   const status = mapStatus(subscription.status);
   const entitlements = entitlementsFrom(subscription);
   const periodEnd = subscription.current_period_end
@@ -356,6 +393,7 @@ async function applyGroupSubscription(
         stripeSubscriptionId: subscription.id,
         currentPeriodEndsAt: periodEnd,
         entitlements,
+        stripeEventCreatedAt: eventCreatedAt,
         updatedAt: now,
       })
       .where(eq(homeGroupsTable.id, group.id));
@@ -367,6 +405,10 @@ async function applyGroupSubscription(
         currentPeriodEndsAt: periodEnd,
         trialEndsAt: group.trialEndsAt,
         entitlements,
+        // Stamped on the locations too, so each row records which event
+        // shaped it and a later home-level event cannot be mistaken for an
+        // earlier one.
+        stripeEventCreatedAt: eventCreatedAt,
         updatedAt: now,
       })
       .where(eq(funeralHomesTable.groupId, group.id));

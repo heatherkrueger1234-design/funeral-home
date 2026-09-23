@@ -15,6 +15,7 @@
 import { spawn } from "node:child_process";
 import { mkdir, readdir, rename, rm, stat } from "node:fs/promises";
 import path from "node:path";
+import { encryptFile } from "./backup-crypto";
 
 const DATABASE_URL = process.env.DATABASE_URL;
 const BACKUP_DIR = process.env.BACKUP_DIR ?? "./backups";
@@ -27,7 +28,9 @@ function fail(message: string): never {
 
 if (!DATABASE_URL) fail("DATABASE_URL is not set. Nothing to back up.");
 if (!Number.isFinite(RETAIN_DAYS) || RETAIN_DAYS < 1) {
-  fail(`BACKUP_RETAIN_DAYS must be a positive number, got "${process.env.BACKUP_RETAIN_DAYS}".`);
+  fail(
+    `BACKUP_RETAIN_DAYS must be a positive number, got "${process.env.BACKUP_RETAIN_DAYS}".`,
+  );
 }
 
 /** A filename that sorts chronologically and is safe on every filesystem. */
@@ -50,13 +53,16 @@ function capture(command: string, args: string[]): Promise<string> {
       );
     });
     child.on("close", (code) =>
-      code === 0 ? resolve(out) : reject(new Error(`${command} exited with ${code}.`)),
+      code === 0
+        ? resolve(out)
+        : reject(new Error(`${command} exited with ${code}.`)),
     );
   });
 }
 
 function majorOf(text: string): number | null {
-  const match = /PostgreSQL\)?\s+(\d+)\./.exec(text) ?? /^\s*(\d+)\./.exec(text);
+  const match =
+    /PostgreSQL\)?\s+(\d+)\./.exec(text) ?? /^\s*(\d+)\./.exec(text);
   return match ? Number(match[1]) : null;
 }
 
@@ -123,7 +129,15 @@ function runPgDump(target: string): Promise<void> {
     // you are restoring at 3am.
     const child = spawn(
       "pg_dump",
-      ["--clean", "--if-exists", "--no-owner", "--no-privileges", "--file", target, DATABASE_URL!],
+      [
+        "--clean",
+        "--if-exists",
+        "--no-owner",
+        "--no-privileges",
+        "--file",
+        target,
+        DATABASE_URL!,
+      ],
       { stdio: ["ignore", "inherit", "inherit"] },
     );
 
@@ -151,7 +165,10 @@ async function prune(dir: string): Promise<void> {
   const entries = await readdir(dir);
 
   for (const name of entries) {
-    if (!/^holding-today-\d.*\.sql$/.test(name)) continue;
+    // .sql.enc is what this version writes; bare .sql is still matched so a
+    // deployment upgrading from before backups were encrypted keeps pruning
+    // whatever it already has on disk.
+    if (!/^holding-today-\d.*\.sql(\.enc)?$/.test(name)) continue;
     const full = path.join(dir, name);
     const info = await stat(full);
     if (info.mtimeMs < cutoff) {
@@ -165,21 +182,35 @@ async function main(): Promise<void> {
   await assertVersionsMatch();
   await mkdir(BACKUP_DIR, { recursive: true });
 
-  const final = path.join(BACKUP_DIR, `holding-today-${timestamp()}.sql`);
+  const plain = path.join(BACKUP_DIR, `holding-today-${timestamp()}.sql`);
   // Dump to a partial name first. A half-written file that is named like a
   // finished backup is worse than no file: it looks like a backup.
-  const partial = `${final}.partial`;
+  const partial = `${plain}.partial`;
 
-  console.log(`backing up to ${final}`);
+  console.log(`backing up to ${plain}`);
   await runPgDump(partial);
-  await rename(partial, final);
+  await rename(partial, plain);
 
-  const { size } = await stat(final);
-  if (size === 0) fail(`${final} is empty. Treating this as a failed backup.`);
-  console.log(`wrote ${final} (${(size / 1024 / 1024).toFixed(1)} MB)`);
+  const { size } = await stat(plain);
+  if (size === 0) fail(`${plain} is empty. Treating this as a failed backup.`);
+
+  // A pg_dump is mostly plaintext SQL — names, addresses, vital statistics,
+  // message bodies. Only the columns the application already encrypts (SSNs,
+  // uploaded file bytes) come out as ciphertext on their own. Encrypting the
+  // whole file is what makes it safe for the copy-it-off-this-host step
+  // below to land somewhere with weaker access control than this database.
+  const final = `${plain}.enc`;
+  await encryptFile(plain, final);
+
+  const { size: encryptedSize } = await stat(final);
+  console.log(
+    `wrote ${final} (${(encryptedSize / 1024 / 1024).toFixed(1)} MB, encrypted)`,
+  );
 
   await prune(BACKUP_DIR);
-  console.log("done. Now make sure a copy of this directory lives off this host.");
+  console.log(
+    "done. Now make sure a copy of this directory lives off this host.",
+  );
 }
 
 main().catch((error: unknown) => {

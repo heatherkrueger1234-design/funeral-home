@@ -6,6 +6,7 @@ import {
   aftercareEnrollmentsTable,
   caseBelongingsTable,
   casePreparationTable,
+  casePrintItemsTable,
   vendorsTable,
   vendorQuotesTable,
   vitalStatisticsTable,
@@ -100,7 +101,7 @@ import {
   vitalsForCase,
 } from "../lib/vitals";
 import { quotesForCase } from "./vendors";
-import { printItemsForCase } from "./print";
+import { printItemsForCase, renderPrintItemHtml, sendRenderedHtml } from "./print";
 import {
   belongingsForCase,
   ensureBelongingPrompts,
@@ -989,6 +990,38 @@ router.get("/print", async (req, res) => {
   res.json(all.filter((item) => item.sharedWithFamily));
 });
 
+/**
+ * The actual rendered card behind a proof — what the "Things to check" iframe
+ * and its "Open it full size" link point at.
+ *
+ * Scoped to this case *and* to items the home has explicitly shared: a draft
+ * a director is still moving around is not something a guessed id should be
+ * able to pull up. This mirrors `GET /print/:printItemId/render` on the staff
+ * side, which a family member cannot reach — that route sits behind the
+ * cookie session gate, and the portal has no cookie, only this link token.
+ */
+router.get("/print/:printItemId/render", async (req, res) => {
+  const row = familyCase(req);
+  const home = familyHome(req);
+  const id = parseId(req.params.printItemId);
+
+  const [existing] = await db
+    .select()
+    .from(casePrintItemsTable)
+    .where(
+      and(
+        eq(casePrintItemsTable.id, id),
+        eq(casePrintItemsTable.caseId, row.id),
+        eq(casePrintItemsTable.sharedWithFamily, true),
+      ),
+    )
+    .limit(1);
+
+  const item = requireRow(existing, "That could not be found.");
+
+  sendRenderedHtml(res, await renderPrintItemHtml(item, row, home));
+});
+
 /* ------------------------------------------------------------ messages --- */
 
 router.get("/messages", async (req, res) => {
@@ -1205,6 +1238,15 @@ router.post("/aftercare", async (req, res) => {
     existing,
     "There is no aftercare on this case yet.",
   );
+
+  // "No" is final. Without this, a replayed request, a stale tab still
+  // holding a "Yes, please" button, or a direct call against the family
+  // token could set `unsubscribedAt` back to null and re-enrol someone who
+  // has already said no — exactly what the comment above promises never
+  // happens.
+  if (values.consent && found.unsubscribedAt !== null) {
+    throw badRequest("This family already declined and cannot be re-enrolled.");
+  }
 
   const now = new Date();
 

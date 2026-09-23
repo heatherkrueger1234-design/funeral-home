@@ -10,7 +10,7 @@ id = "artifacts/family-portal"
 id = "artifacts/director-console"
 
 [[artifacts]]
-id = "artifacts/mockup-sandbox"
+id = "artifacts/admin-console"
 
 [deployment]
 router = "application"

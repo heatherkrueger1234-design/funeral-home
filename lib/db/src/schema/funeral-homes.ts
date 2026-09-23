@@ -203,6 +203,15 @@ export const funeralHomesTable = pgTable(
     stripeSubscriptionId: text("stripe_subscription_id"),
     /** When the paid period ends. Set from Stripe, never calculated here. */
     currentPeriodEndsAt: timestamp("current_period_ends_at"),
+    /**
+     * When the most recently *applied* webhook event was created, per Stripe
+     * (`event.created`). Stripe does not guarantee delivery order, so a
+     * `subscription.updated` that was queued before a later
+     * `subscription.deleted` can arrive after it; without this, the stale
+     * event would win and silently re-activate a home that had just
+     * cancelled. An incoming event older than this is ignored.
+     */
+    stripeEventCreatedAt: timestamp("stripe_event_created_at"),
 
     /**
      * Which add-ons this home is entitled to, as a comma-separated list of
