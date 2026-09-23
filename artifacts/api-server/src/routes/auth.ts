@@ -42,6 +42,7 @@ import {
   sendPasswordResetEmail,
 } from "@workspace/mailer";
 import { authRateLimit } from "../middleware/rate-limit";
+import { isPlatformAdmin } from "../lib/platform-auth";
 import { seedTimelineTemplate } from "../lib/timeline";
 import { seedPolicyPrompts } from "../lib/storefront";
 import { currentUser, requireAuth, tenant } from "../middleware/require-auth";
@@ -53,9 +54,23 @@ import { currentUser, requireAuth, tenant } from "../middleware/require-auth";
 
 const router: IRouter = Router();
 
-/** The API's view of a signed-in staff member: them, and where they work. */
-function authPayload(user: User, home: FuneralHome) {
-  return { user: toPublicUser(user), home };
+/**
+ * The API's view of a signed-in staff member: them, where they work, and
+ * whether the platform console is also theirs.
+ *
+ * That last flag is here rather than left for the client to discover by
+ * probing `/admin` and reading the 403. There are three apps on three
+ * hostnames, and somebody who has just typed their password correctly should
+ * be told which of them they can use — not sent back to guess. It is a fact
+ * about the caller's own account, so it discloses nothing: a director learns
+ * `false`, which they could work out by trying.
+ */
+async function authPayload(user: User, home: FuneralHome) {
+  return {
+    user: toPublicUser(user),
+    home,
+    platformAdmin: await isPlatformAdmin(user.email),
+  };
 }
 
 /**
@@ -165,7 +180,7 @@ router.post("/auth/register", authRateLimit, async (req, res) => {
   // back because of a mail server is a lost customer.
   await sendVerification(user, home.name);
 
-  res.status(201).json(authPayload(user, home));
+  res.status(201).json(await authPayload(user, home));
 });
 
 /**
@@ -270,7 +285,7 @@ router.post("/auth/login", authRateLimit, async (req, res) => {
   if (!home) throw new HttpError(401, "That email address and password do not match.");
 
   setSessionCookie(req, res, await createSession(user.id));
-  res.json(authPayload(user, home));
+  res.json(await authPayload(user, home));
 });
 
 router.post("/auth/logout", async (req, res) => {
@@ -284,8 +299,8 @@ router.post("/auth/logout", async (req, res) => {
   res.status(204).end();
 });
 
-router.get("/auth/me", requireAuth, (req, res) => {
-  res.json(authPayload(currentUser(req), tenant(req)));
+router.get("/auth/me", requireAuth, async (req, res) => {
+  res.json(await authPayload(currentUser(req), tenant(req)));
 });
 
 /**

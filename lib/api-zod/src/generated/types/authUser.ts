@@ -23,4 +23,7 @@ import type { StaffMember } from "./staffMember";
 export interface AuthUser {
   user: StaffMember;
   home: FuneralHome;
+  /** Whether this account may also use the platform console. A fact about the signed-in account and nobody else, so it says nothing a stranger could use — and the sign-in page needs it, because there are three apps on three hostnames and somebody who has just typed a password should be told which of them is theirs rather than left to guess.
+   */
+  platformAdmin: boolean;
 }

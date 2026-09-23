@@ -12,24 +12,67 @@ import { useToast } from "@/hooks/use-toast";
 import { Loader2 } from "lucide-react";
 
 /**
- * The front door.
+ * The front door, for everybody.
  *
  * Sign-in and opening an account share one screen because a funeral home does
  * this exactly twice — once when they sign up, and every morning after — and
  * a separate marketing-style registration flow would be two pages nobody
  * needs.
+ *
+ * It also has to be the screen that sorts out who is at the wrong address,
+ * because this product is three apps on three hostnames and nobody outside it
+ * knows that. A family reaching for their photographs, a director opening the
+ * console on a Monday and somebody at the platform looking at customers all
+ * arrive with "the link somebody sent me", and two of those three used to hit
+ * a sign-in box that could not help them:
+ *
+ *  - **A family has no password at all**, by design — their texted link is
+ *    the credential. Typing an address here would tell them, correctly and
+ *    uselessly, that they cannot sign in. So they are pointed at the portal,
+ *    which has a box to paste a link into.
+ *  - **A platform admin signs in right here**, on the same cookie as any
+ *    other staff account, and then needs a different app. The session says
+ *    whether the console is theirs, so it can be offered rather than guessed
+ *    at.
  */
 export default function SignIn() {
   const { toast } = useToast();
   const { refresh } = useSession();
   const [mode, setMode] = useState<"signIn" | "register">("signIn");
 
+  /*
+   * Where the other two apps live, baked in at build time.
+   *
+   * Empty is a normal state — a dev server, or a deployment that only set the
+   * one URL — and every use below is behind a check, because a button reading
+   * "Open the platform console" that goes to "/" is worse than no button.
+   */
+  const familyPortalUrl = (import.meta.env["VITE_FAMILY_PORTAL_URL"] ?? "")
+    .toString()
+    .replace(/\/+$/, "");
+  const adminConsoleUrl = (import.meta.env["VITE_ADMIN_CONSOLE_URL"] ?? "")
+    .toString()
+    .replace(/\/+$/, "");
+
   const [homeName, setHomeName] = useState("");
   const [displayName, setDisplayName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
 
-  const onSuccess = () => {
+  const onSuccess = (payload: { platformAdmin?: boolean }) => {
+    /*
+     * Somebody at the platform who signed in here wanted the other console —
+     * there is no reason for them to be on this one, and making them find it
+     * by typing a second hostname is the sort of small friction that ends in
+     * "which address was it again?". Sent straight there when the build knows
+     * where it is; when it does not, `refresh()` below still drops them into
+     * a working director console rather than nowhere.
+     */
+    if (payload?.platformAdmin && adminConsoleUrl) {
+      window.location.href = adminConsoleUrl;
+      return;
+    }
+
     refresh();
   };
 
@@ -205,6 +248,34 @@ export default function SignIn() {
             ? "We already have an account"
             : "Set up a new funeral home"}
         </button>
+
+        {/*
+          The way out for somebody who is not staff at all.
+
+          This is the screen a bereaved family reaches when they open the wrong
+          one of three addresses, and the worst thing it could do is sit there
+          asking for a password they were never given. They have no account by
+          design — the link a funeral home texted them is the credential — so
+          this sends them to the portal, which has a box to paste it into.
+
+          Deliberately last, quiet, and in plain words. The person reading it
+          may have been told this morning that their mother died, and "Families
+          are in a different place" is the sentence that gets them there.
+        */}
+        {!registering && familyPortalUrl && (
+          <p className="mt-7 border-t border-border pt-5 text-center text-sm leading-relaxed text-muted-foreground">
+            Were you sent a link by a funeral home?{" "}
+            <a
+              href={familyPortalUrl}
+              className="text-foreground underline decoration-[var(--border-strong)] underline-offset-4
+                         transition-colors duration-200 hover:decoration-[var(--accent)]"
+            >
+              Open it here
+            </a>
+            . You do not need a password — the link is all you need, and you can
+            paste it in on that page.
+          </p>
+        )}
       </div>
     </div>
   );

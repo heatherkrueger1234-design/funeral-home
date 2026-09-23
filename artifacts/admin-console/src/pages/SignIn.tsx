@@ -16,6 +16,12 @@ export function SignIn({ onSignedIn }: { onSignedIn: () => void }) {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
 
+  /* Baked in at build time; empty on a dev server, and the link below is
+   * behind a check because one that goes nowhere is worse than none. */
+  const consoleUrl = (import.meta.env["VITE_CONSOLE_URL"] ?? "")
+    .toString()
+    .replace(/\/+$/, "");
+
   const signIn = useMutation({
     mutationFn: () => api.post("/auth/login", { email, password }),
     onSuccess: onSignedIn,
@@ -70,6 +76,29 @@ export function SignIn({ onSignedIn }: { onSignedIn: () => void }) {
           </Button>
         </form>
         </Card>
+
+        {/*
+          For whoever opened the wrong address.
+
+          This console is for the vendor's own staff, and a funeral director
+          who lands on it can sign in successfully and then be told there is
+          nothing here for them — which reads as a broken account rather than
+          a wrong turn. Naming the other app costs nothing and discloses
+          nothing: the console's hostname is already public to anyone who can
+          read a certificate log.
+        */}
+        {consoleUrl && (
+          <p className="mt-7 border-t border-[var(--border)] pt-5 text-center text-sm leading-relaxed text-[var(--muted-foreground)]">
+            Work at a funeral home?{" "}
+            <a
+              href={consoleUrl}
+              className="text-[var(--foreground)] underline underline-offset-4"
+            >
+              Your console is here
+            </a>
+            .
+          </p>
+        )}
       </div>
     </div>
   );

@@ -105,6 +105,9 @@ services:
         APP: director-console
         VITE_FAMILY_PORTAL_URL: ${FAMILY_PORTAL_URL:-}
         VITE_CONSOLE_URL: ${CONSOLE_URL:-}
+        # Sign-in sends a platform admin straight to their own console rather
+        # than leaving them to remember a second hostname.
+        VITE_ADMIN_CONSOLE_URL: ${ADMIN_CONSOLE_URL:-}
     restart: unless-stopped
     depends_on:
       - api
@@ -122,6 +125,10 @@ services:
       dockerfile: Dockerfile.web
       args:
         APP: admin-console
+        # So its sign-in can point a funeral director who opened the wrong
+        # address at the one that is theirs.
+        VITE_CONSOLE_URL: ${CONSOLE_URL:-}
+        VITE_FAMILY_PORTAL_URL: ${FAMILY_PORTAL_URL:-}
     restart: unless-stopped
     depends_on:
       - api

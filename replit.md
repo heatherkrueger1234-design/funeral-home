@@ -335,6 +335,32 @@ function's body becomes a call to theirs and its shape stays. Do not add
 cleverness to it in the meantime — two definitions of "engaged" is worse than
 none.
 
+## Three apps, and where a person signs in
+
+The stack serves three hostnames — the family portal, the director console and
+the platform console — and nobody outside it knows which one is theirs. So each
+sign-in screen sorts that out rather than leaving somebody to guess:
+
+- **A funeral home's staff** sign in at the director console, which is the only
+  screen that also opens an account and the only one that can send a password
+  reset. Both were added because the endpoints existed with nothing anywhere
+  asking for them.
+- **A platform admin** signs in at that same screen, on the same cookie — one
+  way to authenticate in this application, not two — and is sent straight on to
+  the platform console. The session payload carries `platformAdmin` so the page
+  can route on it instead of probing `/admin` and reading the 403. It is read
+  per request rather than baked into the session, so revoking somebody takes
+  effect at once instead of at the end of their thirty days.
+- **A family has no password at all**, by design: their texted link is the
+  credential. Typing an address at a sign-in box would tell them, correctly and
+  uselessly, that they cannot sign in — so both consoles point them at the
+  portal, which has a box to paste a link into.
+
+`VITE_FAMILY_PORTAL_URL`, `VITE_CONSOLE_URL` and `VITE_ADMIN_CONSOLE_URL` are
+build args, because Vite bakes them in. Each is optional and every use is behind
+a check: a button reading "Open the platform console" that goes to `/` is worse
+than no button.
+
 ## Demoing it
 
 `seed-showcase` builds an account that looks like a working one, with three

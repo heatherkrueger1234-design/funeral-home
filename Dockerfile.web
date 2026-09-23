@@ -49,8 +49,10 @@ RUN pnpm run typecheck:libs
 # than runtime environment; unset, the links are simply not shown.
 ARG VITE_FAMILY_PORTAL_URL=""
 ARG VITE_CONSOLE_URL=""
+ARG VITE_ADMIN_CONSOLE_URL=""
 ENV VITE_FAMILY_PORTAL_URL=$VITE_FAMILY_PORTAL_URL
 ENV VITE_CONSOLE_URL=$VITE_CONSOLE_URL
+ENV VITE_ADMIN_CONSOLE_URL=$VITE_ADMIN_CONSOLE_URL
 
 # BASE_PATH defaults to "/" in vite.config.ts, which is right here: each app
 # gets its own hostname rather than a path prefix. PORT is not set because the
