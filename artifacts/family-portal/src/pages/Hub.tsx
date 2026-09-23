@@ -17,6 +17,7 @@ import {
   MessageCircle,
   HeartHandshake,
   BookHeart,
+  Users,
   ChevronRight,
 } from "lucide-react";
 import type { ReactNode } from "react";
@@ -122,6 +123,7 @@ export default function Hub() {
 
   const {
     case: deceased,
+    contact,
     home,
     leadDirector,
     photoCount,
@@ -314,6 +316,22 @@ export default function Hub() {
             />
           )}
         </Group>
+
+        {/*
+          Only for somebody the home has allowed to pass the link on (the
+          next of kin, by default), and not once the arrangements are closed
+          -- the route refuses both, so the card would be a dead end.
+        */}
+        {contact.canInvite && deceased.status !== "closed" && (
+          <Group label="Family">
+            <Card
+              href="/family"
+              icon={Users}
+              title="Bring in family"
+              detail="Give a relative their own link, so they can help too"
+            />
+          </Group>
+        )}
 
         <Group label="For the service">
           <Card

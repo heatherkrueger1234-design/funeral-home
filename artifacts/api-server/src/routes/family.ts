@@ -1,5 +1,5 @@
 import { Router, type IRouter } from "express";
-import { and, asc, count, eq, isNull, max } from "drizzle-orm";
+import { and, asc, count, eq, gt, isNotNull, isNull, max } from "drizzle-orm";
 import {
   db,
   aftercareDeliveriesTable,
@@ -26,6 +26,8 @@ import {
   memoryEntriesTable,
   lifeChaptersTable,
   MAX_PHOTOS_PER_CASE,
+  familyContactsTable,
+  FAMILY_INVITE_CAP,
 } from "@workspace/db";
 import {
   UpdateFamilyPhotoBody,
@@ -44,7 +46,11 @@ import {
   RequestFamilyQuoteBody,
   GetFamilyVendorsQueryParams,
   UpdateFamilyVitalsBody,
+  InviteFamilyRelativeBody,
 } from "@workspace/api-zod";
+import { MailNotSentError, sendFamilyLinkEmail } from "@workspace/mailer";
+import { linkUrl, mintLink } from "../lib/family-link";
+import { normalisePhone, sendSms, SmsNotSentError } from "../lib/sms";
 import {
   assertPhotoBelongs,
   bookIsOpen,
@@ -84,6 +90,7 @@ import {
   openOfferCount,
 } from "../lib/service-offers";
 import {
+  mergeCrop,
   photoUpload,
   photosForCase,
   serveUpload,
@@ -361,7 +368,7 @@ router.patch("/photos/:photoId", async (req, res) => {
 
   const [updated] = await db
     .update(casePhotosTable)
-    .set({ ...values, updatedAt: new Date() })
+    .set({ ...values, ...mergeCrop(photo, values), updatedAt: new Date() })
     .where(eq(casePhotosTable.id, photo.id))
     .returning();
 
@@ -503,6 +510,9 @@ router.put("/portrait", async (req, res) => {
     .limit(1);
 
   const found = requireRow(photo, "That photograph could not be found.");
+  // Checked before anything is written, so a bad framing does not still move
+  // the portrait to this photograph.
+  const crop = mergeCrop(found, values);
 
   const [updated] = await db.transaction(async (tx) => {
     await tx
@@ -512,13 +522,7 @@ router.put("/portrait", async (req, res) => {
 
     return tx
       .update(casePhotosTable)
-      .set({
-        cropX: values.cropX ?? found.cropX,
-        cropY: values.cropY ?? found.cropY,
-        cropWidth: values.cropWidth ?? found.cropWidth,
-        cropHeight: values.cropHeight ?? found.cropHeight,
-        updatedAt: new Date(),
-      })
+      .set({ ...crop, updatedAt: new Date() })
       .where(eq(casePhotosTable.id, found.id))
       .returning();
   });
@@ -1341,6 +1345,298 @@ router.post("/aftercare", async (req, res) => {
   );
 });
 
+
+/* ----------------------------------------------------------- relatives --- */
+
+/**
+ * Passing the link on, the way `family-contacts.ts` says it should work:
+ * the family *wants* the brother in Ohio adding photographs, and `canInvite`
+ * lets the next of kin give him a way in without ringing the director to key
+ * in another phone number.
+ *
+ * Forwarding the texted link already works, and always will — but it hands
+ * the brother the sister's own credential, signs his photographs with her
+ * name, and cannot be stopped for him without being stopped for her. A link
+ * of his own fixes all three, and is the reason this route exists.
+ *
+ * What it will not do, each for a reason:
+ *
+ *  - Invite for someone the home has not trusted to. `canInvite` is set by
+ *    the director (on for the next of kin by default), and a contact without
+ *    it gets a 403 rather than a quietly empty success.
+ *  - Mint a link that can mint links. The new contact is a contributor with
+ *    `canInvite` false; the home can widen that from the console. Otherwise
+ *    one forwarded message is a chain nobody can see the end of.
+ *  - Outlive the person who asked. The new link expires no later than the
+ *    inviter's own, so nothing here extends anyone's access to the case.
+ *  - Go on without limit. `FAMILY_INVITE_CAP` per case, counted over every
+ *    family-added row including the removed ones, checked under a lock on
+ *    the case so two taps at once cannot both take the last place.
+ *  - Happen behind the home's back. The row records who added whom, and a
+ *    note goes into the family's thread under the inviter's name, which is
+ *    how everything else the family does reaches the director's inbox.
+ *
+ * The token is minted by `mintLink` and stored as its SHA-256 exactly like a
+ * director's; the working value leaves this process once — in the text, the
+ * email, or (only when neither could go) the response, to copy.
+ */
+
+type RelativeRow = typeof familyContactsTable.$inferSelect;
+
+function toRelativeJson(row: RelativeRow) {
+  return {
+    id: row.id,
+    name: row.name,
+    relationship: row.relationship,
+    phone: row.phone,
+    email: row.email,
+    firstSeenAt: row.firstSeenAt,
+    revoked: row.revokedAt !== null,
+    createdAt: row.createdAt,
+  };
+}
+
+/** Everyone the family's side has added to this case, removed or not. */
+async function familyInviteCount(
+  caseId: number,
+  executor: Pick<typeof db, "select"> = db,
+): Promise<number> {
+  const [row] = await executor
+    .select({ value: count() })
+    .from(familyContactsTable)
+    .where(
+      and(
+        eq(familyContactsTable.caseId, caseId),
+        isNotNull(familyContactsTable.invitedByContactId),
+      ),
+    );
+  return Number(row?.value ?? 0);
+}
+
+/** A plain check, not RFC 5322: somebody's typo, not somebody's attack. */
+const EMAIL_SHAPE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+router.get("/relatives", async (req, res) => {
+  const contact = familyContact(req);
+  const row = familyCase(req);
+
+  if (!contact.canInvite) {
+    res.json({
+      canInvite: false,
+      cap: FAMILY_INVITE_CAP,
+      remaining: 0,
+      relatives: [],
+    });
+    return;
+  }
+
+  const [mine, used] = await Promise.all([
+    db
+      .select()
+      .from(familyContactsTable)
+      .where(
+        and(
+          eq(familyContactsTable.caseId, row.id),
+          eq(familyContactsTable.invitedByContactId, contact.id),
+        ),
+      )
+      .orderBy(asc(familyContactsTable.createdAt)),
+    familyInviteCount(row.id),
+  ]);
+
+  res.json({
+    canInvite: true,
+    cap: FAMILY_INVITE_CAP,
+    remaining: Math.max(0, FAMILY_INVITE_CAP - used),
+    relatives: mine.map(toRelativeJson),
+  });
+});
+
+router.post("/relatives", async (req, res) => {
+  const contact = familyContact(req);
+  const row = familyCase(req);
+  const home = familyHome(req);
+  const values = parseBody(InviteFamilyRelativeBody, req.body);
+
+  if (!contact.canInvite) {
+    throw new HttpError(
+      403,
+      "Adding family is something the funeral home looks after for you. Please ask them, and they'll send a link.",
+    );
+  }
+
+  if (row.status === "closed") {
+    throw new HttpError(
+      409,
+      "These arrangements have been closed, so no one new can be added. The funeral home can still help.",
+    );
+  }
+
+  const name = values.name.trim();
+  if (!name) throw badRequest("Please give their name.");
+
+  const relationship = values.relationship?.trim() || null;
+  const rawPhone = values.phone?.trim() || "";
+  const email = values.email?.trim().toLowerCase() || null;
+
+  if (!rawPhone && !email) {
+    throw badRequest(
+      "Please add a mobile number or an email address, so their link has somewhere to go.",
+    );
+  }
+
+  const phone = rawPhone ? normalisePhone(rawPhone) : null;
+  if (rawPhone && !phone) {
+    throw badRequest(
+      "That mobile number doesn't look quite right. Please check it, including the country code if they're abroad.",
+    );
+  }
+  if (email && !EMAIL_SHAPE.test(email)) {
+    throw badRequest("That email address doesn't look quite right.");
+  }
+
+  const link = mintLink();
+  // Never longer than the inviter's own access: passing the link on must not
+  // be a way to extend it.
+  const expiresAt =
+    link.expiresAt < contact.expiresAt ? link.expiresAt : contact.expiresAt;
+
+  const created = await db.transaction(async (tx) => {
+    // Serialises invitations on this case, so the cap and the duplicate
+    // check below are true when the insert lands, not merely when read.
+    await tx
+      .select({ id: casesTable.id })
+      .from(casesTable)
+      .where(eq(casesTable.id, row.id))
+      .for("update");
+
+    if ((await familyInviteCount(row.id, tx)) >= FAMILY_INVITE_CAP) {
+      throw new HttpError(
+        409,
+        `Your family has added ${FAMILY_INVITE_CAP} people already, which is as many as we can add from here. The funeral home can add anyone else.`,
+      );
+    }
+
+    /*
+     * Somebody who already has a live link does not need a second one: two
+     * links for one cousin is two things the director has to revoke, and
+     * the usual reason for asking again is that the first text was missed,
+     * which the home can resend.
+     */
+    const existing = await tx
+      .select({
+        name: familyContactsTable.name,
+        phone: familyContactsTable.phone,
+        email: familyContactsTable.email,
+      })
+      .from(familyContactsTable)
+      .where(
+        and(
+          eq(familyContactsTable.caseId, row.id),
+          isNull(familyContactsTable.revokedAt),
+          gt(familyContactsTable.expiresAt, new Date()),
+        ),
+      );
+
+    const already = existing.find(
+      (other) =>
+        (phone !== null &&
+          other.phone !== null &&
+          normalisePhone(other.phone) === phone) ||
+        (email !== null && other.email?.trim().toLowerCase() === email),
+    );
+
+    if (already) {
+      throw new HttpError(
+        409,
+        `${already.name} already has their own link. If it isn't reaching them, the funeral home can send it again.`,
+      );
+    }
+
+    const [inserted] = await tx
+      .insert(familyContactsTable)
+      .values({
+        funeralHomeId: home.id,
+        caseId: row.id,
+        name,
+        relationship,
+        phone,
+        email,
+        role: "contributor",
+        canInvite: false,
+        tokenHash: link.tokenHash,
+        expiresAt,
+        invitedByContactId: contact.id,
+      })
+      .returning();
+
+    /*
+     * The home is told the way it hears about everything else the family
+     * does: in the one thread, under the name of the person who did it. Not
+     * written once the thread has locked -- the row above still says who
+     * added whom, and the console shows it.
+     */
+    if (!isThreadLocked(row)) {
+      const now = new Date();
+      await tx.insert(caseMessagesTable).values({
+        funeralHomeId: home.id,
+        caseId: row.id,
+        authorContactId: contact.id,
+        body: `Added ${name}${relationship ? ` (${relationship})` : ""} to the family's page, with a link of their own.`,
+        sentOutsideOfficeHours: isWithinOfficeHours(home, now) ? null : now,
+      });
+    }
+
+    return inserted!;
+  });
+
+  const url = linkUrl(link.token);
+  let sentBySms = false;
+  let sentByEmail = false;
+
+  if (phone) {
+    try {
+      // Names the home first and the relative second: a link arriving from
+      // an unknown number reads like a scam unless it says who it is from.
+      await sendSms({
+        to: phone,
+        body: `${home.name}: ${contact.name} asked us to send you your own link to the arrangements. ${url}`,
+      });
+      sentBySms = true;
+    } catch (error) {
+      if (!(error instanceof SmsNotSentError)) throw error;
+    }
+  }
+
+  if (email) {
+    try {
+      await sendFamilyLinkEmail({
+        to: email,
+        homeName: home.name,
+        invitedBy: contact.name,
+        link: url,
+        replyTo: home.intakeNotifyEmail,
+      });
+      sentByEmail = true;
+    } catch (error) {
+      if (!(error instanceof MailNotSentError)) throw error;
+    }
+  }
+
+  const used = await familyInviteCount(row.id);
+
+  res.status(201).json({
+    relative: toRelativeJson(created),
+    sentBySms,
+    sentByEmail,
+    // Shown once, only when nothing else could carry it. When a text or an
+    // email did go, the working link has already reached the one person it
+    // is for, and a second copy on the inviter's screen is a copy of their
+    // cousin's key that nobody needs.
+    link: sentBySms || sentByEmail ? null : url,
+    remaining: Math.max(0, FAMILY_INVITE_CAP - used),
+  });
+});
 
 /* --------------------------------------------------------- memory book --- */
 

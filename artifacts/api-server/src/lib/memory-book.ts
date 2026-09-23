@@ -1,4 +1,3 @@
-import sharp from "sharp";
 import { and, asc, eq, inArray } from "drizzle-orm";
 import {
   db,
@@ -22,6 +21,11 @@ import {
 } from "@workspace/db";
 import { decryptBuffer } from "@workspace/db/crypto";
 import { logger } from "./logger";
+import {
+  cropInstructionsOf,
+  uprightWithCrop,
+  type CropInstructions,
+} from "./images";
 
 /**
  * Turning a case's photographs and its family's memories into a book.
@@ -130,8 +134,16 @@ export type BookContents = {
  * missing picture still prints and is still worth having; a 500 in the
  * middle of a family trying to print their mother's memorial book is not a
  * trade this makes. The same judgement `dataUri` makes in `print.ts`.
+ *
+ * `crop` is passed for the portrait only, which is framed on the cover the
+ * way the family framed it in the portal and on the prayer card. Every other
+ * picture in the book is a plate, shown whole: a crop is chosen for the one
+ * photograph that stands for the person, not for the snapshots.
  */
-async function embedPhoto(uploadId: number): Promise<string | null> {
+async function embedPhoto(
+  uploadId: number,
+  crop: CropInstructions | null = null,
+): Promise<string | null> {
   const [upload] = await db
     .select()
     .from(uploadsTable)
@@ -146,8 +158,7 @@ async function embedPhoto(uploadId: number): Promise<string | null> {
     // GIFs are left alone everywhere else in this codebase because they are
     // usually a short animation somebody meant to keep. In print they are a
     // single frame anyway, so the first frame is what gets embedded.
-    const shrunk = await sharp(bytes, { failOn: "none", animated: false })
-      .rotate()
+    const shrunk = await (await uprightWithCrop(bytes, crop))
       .resize({
         width: EMBED_EDGE,
         height: EMBED_EDGE,
@@ -401,7 +412,10 @@ export async function loadBookContents(options: {
       break;
     }
 
-    const dataUri = await embedPhoto(photo.uploadId);
+    const dataUri = await embedPhoto(
+      photo.uploadId,
+      photo.id === portraitId ? cropInstructionsOf(photo) : null,
+    );
     if (!dataUri) continue;
 
     spent += dataUri.length;

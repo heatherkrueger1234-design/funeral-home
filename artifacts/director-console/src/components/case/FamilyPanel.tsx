@@ -155,6 +155,14 @@ export function FamilyPanel({ caseId, contacts }: Props) {
           {contacts.map((contact) => {
             const revoked = contact.revokedAt !== null;
             const opened = contact.firstSeenAt !== null;
+            // Somebody the family added from their own link rather than
+            // somebody keyed in here -- the question "who is this, and who
+            // let them in?" answered on the row itself.
+            const addedBy =
+              contact.invitedByContactId === null
+                ? null
+                : (contacts.find((other) => other.id === contact.invitedByContactId)
+                    ?.name ?? "the family");
 
             return (
               <li
@@ -173,6 +181,8 @@ export function FamilyPanel({ caseId, contacts }: Props) {
                   </span>
                   <span className="block text-sm text-muted-foreground truncate">
                     {contact.role === "next_of_kin" ? "Next of kin" : "Contributor"}
+                    {addedBy ? ` · added by ${addedBy}` : ""}
+                    {contact.canInvite ? " · can add family" : ""}
                     {contact.phone ? ` · ${contact.phone}` : ""}
                     {/* Whether the text ever landed — otherwise invisible
                         until the family fails to do anything. */}

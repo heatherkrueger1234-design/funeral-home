@@ -242,3 +242,60 @@ export function renameForType(filename: string, mimeType: string): string {
   if (mimeType !== "image/jpeg") return filename;
   return filename.replace(/\.(heic|heif|avif)$/i, ".jpg");
 }
+
+/** A stored portrait crop: fractions (0..1) of the photograph as displayed. */
+export type CropInstructions = {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+};
+
+/** The stored four columns as instructions, or null when there are none. */
+export function cropInstructionsOf(photo: {
+  cropX: number | null;
+  cropY: number | null;
+  cropWidth: number | null;
+  cropHeight: number | null;
+}): CropInstructions | null {
+  const { cropX, cropY, cropWidth, cropHeight } = photo;
+  if (cropX === null || cropY === null || cropWidth === null || cropHeight === null) {
+    return null;
+  }
+  if (!(cropWidth > 0) || !(cropHeight > 0)) return null;
+  return { x: cropX, y: cropY, width: cropWidth, height: cropHeight };
+}
+
+/**
+ * The photograph upright, with the family's crop applied -- for rendering
+ * only. The stored bytes are never touched (see the top of this file).
+ *
+ * Upright first, then cut, and that order is the point: the family chose the
+ * rectangle looking at the picture the way their phone's browser shows it,
+ * with EXIF orientation applied, so the fractions only mean the same thing
+ * here once sharp has applied it too. The pixels are taken out raw between
+ * the two steps because sharp does not promise to run chained operations in
+ * the order they are written.
+ *
+ * What comes back is a pipeline, so the caller chooses the size and format.
+ */
+export async function uprightWithCrop(
+  bytes: Buffer,
+  crop: CropInstructions | null,
+): Promise<Sharp> {
+  const upright = sharp(bytes, { failOn: "none", animated: false }).rotate();
+  if (!crop) return upright;
+
+  const { data, info } = await upright
+    .raw()
+    .toBuffer({ resolveWithObject: true });
+
+  const left = Math.min(info.width - 1, Math.max(0, Math.round(crop.x * info.width)));
+  const top = Math.min(info.height - 1, Math.max(0, Math.round(crop.y * info.height)));
+  const width = Math.min(info.width - left, Math.max(1, Math.round(crop.width * info.width)));
+  const height = Math.min(info.height - top, Math.max(1, Math.round(crop.height * info.height)));
+
+  return sharp(data, {
+    raw: { width: info.width, height: info.height, channels: info.channels },
+  }).extract({ left, top, width, height });
+}

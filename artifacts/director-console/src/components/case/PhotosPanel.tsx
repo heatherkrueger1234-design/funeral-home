@@ -7,10 +7,23 @@ import {
   useSetPhotoSelection,
   getGetCasePhotosQueryKey,
   getGetCaseQueryKey,
+  cropOf,
 } from "@workspace/api-client-react";
 import { Button } from "@/components/ui/button";
 import { Check, Download, Eye, EyeOff, Images, Scissors, Star, Trash2 } from "lucide-react";
 import { Empty, Loading } from "@/components/page";
+import { CroppedImg } from "@/components/CroppedImg";
+
+/** A crop that is not simply "the whole photograph". */
+function hasFraming(photo: {
+  cropX: number | null;
+  cropY: number | null;
+  cropWidth: number | null;
+  cropHeight: number | null;
+}): boolean {
+  const crop = cropOf(photo);
+  return crop !== null && (crop.width < 0.999 || crop.height < 0.999);
+}
 
 /**
  * The photographs, as the director sees them: including the ones they have
@@ -154,14 +167,33 @@ export function PhotosPanel({
               photo.selected ? "border-[var(--accent)]" : "border-border"
             }`}
           >
-            <img
-              src={`/api/uploads/${photo.uploadId}`}
-              alt={photo.caption ?? ""}
-              loading="lazy"
-              className={`mb-3 aspect-[4/3] w-full rounded-lg object-cover bg-muted ${
-                hidden ? "opacity-40" : ""
-              }`}
-            />
+            {/*
+              The portrait is drawn as it will print: a 4:5 frame through the
+              family's crop, set in the same 4:3 space as every other card so
+              the grid does not jump.
+            */}
+            {photo.isPortrait ? (
+              <div
+                className={`mb-3 flex aspect-[4/3] w-full justify-center rounded-lg bg-muted ${
+                  hidden ? "opacity-40" : ""
+                }`}
+              >
+                <CroppedImg
+                  photo={photo}
+                  alt={photo.caption ?? ""}
+                  className="h-full"
+                />
+              </div>
+            ) : (
+              <img
+                src={`/api/uploads/${photo.uploadId}`}
+                alt={photo.caption ?? ""}
+                loading="lazy"
+                className={`mb-3 aspect-[4/3] w-full rounded-lg object-cover bg-muted ${
+                  hidden ? "opacity-40" : ""
+                }`}
+              />
+            )}
 
             <p className="text-sm">
               {photo.caption || (
@@ -200,6 +232,27 @@ export function PhotosPanel({
                 />
                 Portrait
               </Button>
+
+              {/*
+                The morning-after button replit.md's crop promise exists for:
+                the family framed it at midnight, and the face is half off
+                the card. The whole photograph is one tap away, because the
+                crop was only ever instructions.
+              */}
+              {photo.isPortrait && hasFraming(photo) && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() =>
+                    update.mutate({
+                      photoId: photo.id,
+                      data: { cropX: 0, cropY: 0, cropWidth: 1, cropHeight: 1 },
+                    })
+                  }
+                >
+                  Show it whole
+                </Button>
+              )}
 
               {/* What the preparation room gets. */}
               <Button

@@ -17,22 +17,19 @@ Two audiences, two authentication schemes, and the split is load-bearing:
 
  * OpenAPI spec version: 0.1.0
  */
-import type { FamilyContactRole } from "./familyContactRole";
 
-export interface FamilyContact {
+/**
+ * A relative as the person who added them sees them.
+ */
+export interface FamilyRelative {
   id: number;
-  caseId: number;
   name: string;
   relationship: string | null;
   phone: string | null;
   email: string | null;
-  role: FamilyContactRole;
-  canInvite: boolean;
-  expiresAt: Date;
-  revokedAt: Date | null;
+  /** When they first opened their link, so the inviter knows it landed. */
   firstSeenAt: Date | null;
-  lastSeenAt: Date | null;
-  /** Set when somebody on the family's side added this person, rather than the home. */
-  invitedByContactId: number | null;
+  /** The home has since stopped this person's link. */
+  revoked: boolean;
   createdAt: Date;
 }

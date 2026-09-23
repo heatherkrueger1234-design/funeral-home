@@ -92,6 +92,18 @@ export const familyContactsTable = pgTable(
     firstSeenAt: timestamp("first_seen_at"),
 
     invitedByUserId: integer("invited_by_user_id"),
+    /**
+     * Set when a relative was added by somebody on the family's side — the
+     * `canInvite` path — rather than keyed in by a director. Exactly one of
+     * this and `invitedByUserId` is set on a row that has either.
+     *
+     * Kept on the row, not only in the thread note the invite also leaves,
+     * because it is what answers the director's question weeks later ("who
+     * is this, and who let them in?") after the thread has locked, and it is
+     * what the per-case cap on family invitations counts. Not a foreign key:
+     * a contact is revoked, never deleted, so the name it points at stays.
+     */
+    invitedByContactId: integer("invited_by_contact_id"),
     createdAt: timestamp("created_at").notNull().defaultNow(),
     updatedAt: timestamp("updated_at").notNull().defaultNow(),
   },
@@ -107,6 +119,19 @@ export type FamilyRole = (typeof FAMILY_ROLES)[number];
 
 /** Long enough to cover the service and the fortnight after it. */
 export const FAMILY_LINK_TTL_MS = 90 * 24 * 60 * 60 * 1000; // 90 days
+
+/**
+ * How many relatives the family's side may add to one case, counted over
+ * every family-added row whether or not it is still live — so revoking and
+ * re-adding cannot walk round it.
+ *
+ * Sized for a large family rather than a typical one: a mother of six with
+ * grandchildren who all want to add photographs is well inside it. What it
+ * stops is a forwarded link being used to mint links by the hundred, each a
+ * text message the home pays for and a credential the director never saw.
+ * Past it, the director can still add anybody from the console.
+ */
+export const FAMILY_INVITE_CAP = 20;
 
 export const insertFamilyContactSchema = createInsertSchema(
   familyContactsTable,

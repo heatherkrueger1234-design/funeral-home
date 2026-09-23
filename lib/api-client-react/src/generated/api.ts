@@ -68,6 +68,9 @@ import type {
   FamilyPhotoUpdate,
   FamilyPhotoUploadInput,
   FamilyPreparationUpdate,
+  FamilyRelativeInput,
+  FamilyRelativeInvited,
+  FamilyRelatives,
   FamilyServiceOffers,
   FamilySession,
   ForgotPasswordInput,
@@ -13298,6 +13301,179 @@ export const useSetFamilyAftercareConsent = <
   TContext
 > => {
   return useMutation(getSetFamilyAftercareConsentMutationOptions(options));
+};
+
+/**
+ * Only the relatives this contact added themselves. Somebody who cannot
+invite gets `canInvite: false` and an empty list rather than an error,
+so the portal can simply not offer the screen.
+
+ * @summary Whether this person can pass the link on, and to whom they have
+ */
+export const getGetFamilyRelativesUrl = () => {
+  return `/api/family/relatives`;
+};
+
+export const getFamilyRelatives = async (
+  options?: RequestInit,
+): Promise<FamilyRelatives> => {
+  return customFetch<FamilyRelatives>(getGetFamilyRelativesUrl(), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getGetFamilyRelativesQueryKey = () => {
+  return [`/api/family/relatives`] as const;
+};
+
+export const getGetFamilyRelativesQueryOptions = <
+  TData = Awaited<ReturnType<typeof getFamilyRelatives>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof getFamilyRelatives>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getGetFamilyRelativesQueryKey();
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof getFamilyRelatives>>
+  > = ({ signal }) => getFamilyRelatives({ signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof getFamilyRelatives>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type GetFamilyRelativesQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getFamilyRelatives>>
+>;
+export type GetFamilyRelativesQueryError = ErrorType<unknown>;
+
+/**
+ * @summary Whether this person can pass the link on, and to whom they have
+ */
+
+export function useGetFamilyRelatives<
+  TData = Awaited<ReturnType<typeof getFamilyRelatives>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof getFamilyRelatives>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getGetFamilyRelativesQueryOptions(options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * Only for a contact the home has allowed to invite (`canInvite`). The
+new contact is a contributor on the same case, with a link of their
+own and no power to invite anybody further. Their link is texted
+and/or emailed; if neither could go, it is returned once, to copy, and
+is never retrievable again -- only its digest is stored. The home is
+told who added whom. At most `cap` relatives per case, however many
+of them have since been removed.
+
+ * @summary Give a relative their own link to the same arrangements
+ */
+export const getInviteFamilyRelativeUrl = () => {
+  return `/api/family/relatives`;
+};
+
+export const inviteFamilyRelative = async (
+  familyRelativeInput: FamilyRelativeInput,
+  options?: RequestInit,
+): Promise<FamilyRelativeInvited> => {
+  return customFetch<FamilyRelativeInvited>(getInviteFamilyRelativeUrl(), {
+    ...options,
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(familyRelativeInput),
+  });
+};
+
+export const getInviteFamilyRelativeMutationOptions = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof inviteFamilyRelative>>,
+    TError,
+    { data: BodyType<FamilyRelativeInput> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof inviteFamilyRelative>>,
+  TError,
+  { data: BodyType<FamilyRelativeInput> },
+  TContext
+> => {
+  const mutationKey = ["inviteFamilyRelative"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof inviteFamilyRelative>>,
+    { data: BodyType<FamilyRelativeInput> }
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return inviteFamilyRelative(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type InviteFamilyRelativeMutationResult = NonNullable<
+  Awaited<ReturnType<typeof inviteFamilyRelative>>
+>;
+export type InviteFamilyRelativeMutationBody = BodyType<FamilyRelativeInput>;
+export type InviteFamilyRelativeMutationError = ErrorType<void>;
+
+/**
+ * @summary Give a relative their own link to the same arrangements
+ */
+export const useInviteFamilyRelative = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof inviteFamilyRelative>>,
+    TError,
+    { data: BodyType<FamilyRelativeInput> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof inviteFamilyRelative>>,
+  TError,
+  { data: BodyType<FamilyRelativeInput> },
+  TContext
+> => {
+  return useMutation(getInviteFamilyRelativeMutationOptions(options));
 };
 
 /**

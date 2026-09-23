@@ -17,9 +17,10 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
-import { Check, Eye, Images, Loader2, Scissors, Star, Trash2, Upload } from "lucide-react";
+import { Check, Crop, Eye, Images, Loader2, Scissors, Star, Trash2, Upload } from "lucide-react";
 import { Empty, Loading, PageHeader } from "@/components/page";
 import { AuthedImage } from "@/components/AuthedImage";
+import { CroppedPhoto, PortraitCropper } from "@/components/Portrait";
 
 /**
  * The photo bin.
@@ -81,7 +82,32 @@ export default function Photos() {
 
   const removePhoto = useDeleteFamilyPhoto({ mutation: { onSuccess: refresh } });
   const updatePhoto = useUpdateFamilyPhoto({ mutation: { onSuccess: refresh } });
+  /*
+   * Choosing the main photograph leads straight into framing it. The
+   * photograph a family chooses is nearly always a snapshot with the person
+   * somewhere off to one side, and a card printed from the middle of it is
+   * a card of the sideboard; asking now, while they are looking at it, is
+   * what stops that reaching the printer.
+   */
+  const [framing, setFraming] = useState<number | null>(null);
   const setPortrait = useSetFamilyPortrait({ mutation: { onSuccess: refresh } });
+  const choosePortrait = (photoId: number) =>
+    setPortrait.mutate(
+      { data: { photoId } },
+      { onSuccess: () => setFraming(photoId) },
+    );
+  const saveFraming = useSetFamilyPortrait({
+    mutation: {
+      onSuccess: () => {
+        refresh();
+        setFraming(null);
+        toast({
+          title: "Framing kept",
+          description: "That's how it will sit on the printed cards.",
+        });
+      },
+    },
+  });
   const setReference = useSetFamilyReferencePhoto({
     mutation: { onSuccess: refresh },
   });
@@ -112,6 +138,8 @@ export default function Photos() {
   const remaining = Math.max(0, limit - count);
 
   const chosen = (photos.data ?? []).filter((photo) => photo.selected);
+  const portrait = photos.data?.find((photo) => photo.isPortrait) ?? null;
+  const framingPhoto = photos.data?.find((photo) => photo.id === framing) ?? null;
 
   /**
    * Selection is expressed as the whole list, so a tap has to rebuild it.
@@ -212,6 +240,56 @@ export default function Photos() {
         </div>
       )}
 
+      {/*
+        The main photograph, as it will be printed. Shown framed, at the
+        cards' own proportions, because "which one is the main photograph"
+        is only half the question -- the other half is whether the face is
+        in the middle of it.
+      */}
+      {portrait && (
+        <section
+          aria-labelledby="main-photograph"
+          className="flex items-center gap-4 rounded-xl border border-border bg-card p-3.5 shadow-[var(--elevation-1)]"
+        >
+          <CroppedPhoto
+            photo={portrait}
+            alt={portrait.caption ?? "The main photograph"}
+            className="w-24 shrink-0 rounded-lg ring-1 ring-inset ring-black/5"
+          />
+          <div className="min-w-0 flex-1">
+            <h2 id="main-photograph" className="font-semibold">
+              The main photograph
+            </h2>
+            <p className="mt-0.5 text-sm leading-snug text-muted-foreground">
+              For the printed cards and the front of the memory book.
+            </p>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className="mt-2.5"
+              onClick={() => setFraming(portrait.id)}
+            >
+              <Crop className="size-4" />
+              Adjust the framing
+            </Button>
+          </div>
+        </section>
+      )}
+
+      <PortraitCropper
+        photo={framingPhoto}
+        open={framingPhoto !== null}
+        onOpenChange={(open) => {
+          if (!open) setFraming(null);
+        }}
+        saving={saveFraming.isPending}
+        onSave={(fields) =>
+          framingPhoto &&
+          saveFraming.mutate({ data: { photoId: framingPhoto.id, ...fields } })
+        }
+      />
+
       <div>
         <input
           ref={fileInput}
@@ -277,11 +355,22 @@ export default function Photos() {
                 the two reads as a mess however good the photographs are.
               */}
               <div className="relative size-24 shrink-0">
-                <AuthedImage
-                  uploadId={photo.uploadId}
-                  alt={photo.caption ?? "Photograph"}
-                  className="size-full rounded-lg bg-muted object-cover ring-1 ring-inset ring-black/5"
-                />
+                {/* The main photograph is shown as it is framed, so the
+                    square here is the middle of what the cards print. */}
+                {photo.isPortrait ? (
+                  <CroppedPhoto
+                    photo={photo}
+                    alt={photo.caption ?? "Photograph"}
+                    frameAspect={1}
+                    className="size-full rounded-lg ring-1 ring-inset ring-black/5"
+                  />
+                ) : (
+                  <AuthedImage
+                    uploadId={photo.uploadId}
+                    alt={photo.caption ?? "Photograph"}
+                    className="size-full rounded-lg bg-muted object-cover ring-1 ring-inset ring-black/5"
+                  />
+                )}
                 {photo.isPortrait && (
                   <span
                     className="absolute -right-1.5 -top-1.5 grid size-6 place-items-center rounded-full bg-[var(--accent)] text-white shadow-[var(--elevation-1)]"
@@ -345,8 +434,12 @@ export default function Photos() {
                     type="button"
                     variant={photo.isPortrait ? "secondary" : "ghost"}
                     size="sm"
+                    disabled={setPortrait.isPending}
+                    // Already the main one: the tap means "let me frame it".
                     onClick={() =>
-                      setPortrait.mutate({ data: { photoId: photo.id } })
+                      photo.isPortrait
+                        ? setFraming(photo.id)
+                        : choosePortrait(photo.id)
                     }
                   >
                     <Star
@@ -354,7 +447,7 @@ export default function Photos() {
                         photo.isPortrait ? "size-4 fill-current" : "size-4"
                       }
                     />
-                    {photo.isPortrait ? "Main photograph" : "Use as main"}
+                    {photo.isPortrait ? "Main · adjust framing" : "Use as main"}
                   </Button>
 
                   {/*

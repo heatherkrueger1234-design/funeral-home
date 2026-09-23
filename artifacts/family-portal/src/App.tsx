@@ -35,6 +35,7 @@ const Local = lazy(() => import("@/pages/Local"));
 const Vitals = lazy(() => import("@/pages/Vitals"));
 const Proofs = lazy(() => import("@/pages/Proofs"));
 const MemoryBook = lazy(() => import("@/pages/MemoryBook"));
+const Family = lazy(() => import("@/pages/Family"));
 // Reached from the foot of a grief check-in, often long after the texted
 // link has expired, so it sits outside the shell like the front door.
 const Stop = lazy(() => import("@/pages/Stop"));
@@ -65,8 +66,12 @@ const queryClient = new QueryClient({
     },
   }),
   mutationCache: new MutationCache({
-    onError: (error) => {
+    onError: (error, _variables, _context, mutation) => {
       if (isUnauthorized(error)) return;
+      // A form that shows its own refusal beside the field it is about says
+      // so with `meta: { inlineErrors: true }`; the same words again in a
+      // red box at the top of the screen is the form shouting twice.
+      if (mutation.meta?.["inlineErrors"]) return;
       toast({
         title: "That didn't save",
         description: describeError(error),
@@ -123,6 +128,7 @@ export default function App() {
                     <Route path="/certificate" component={Vitals} />
                     <Route path="/proofs" component={Proofs} />
                     <Route path="/memory-book" component={MemoryBook} />
+                    <Route path="/family" component={Family} />
                     <Route component={NotFound} />
                   </Switch>
                 </Suspense>
