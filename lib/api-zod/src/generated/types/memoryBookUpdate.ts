@@ -17,36 +17,29 @@ Two audiences, two authentication schemes, and the split is load-bearing:
 
  * OpenAPI spec version: 0.1.0
  */
-import type { PhotoUpdateStatus } from "./photoUpdateStatus";
 
-export interface PhotoUpdate {
-  caption?: string | null;
-  status?: PhotoUpdateStatus;
-  /**
-   * @minimum 0
-   * @maximum 1
-   */
-  cropX?: number;
-  /**
-   * @minimum 0
-   * @maximum 1
-   */
-  cropY?: number;
-  /**
-   * @minimum 0
-   * @maximum 1
-   */
-  cropWidth?: number;
-  /**
-   * @minimum 0
-   * @maximum 1
-   */
-  cropHeight?: number;
-  /**
-   * A year, not a date -- what is written on the back of the print.
-   * @minimum 1800
-   * @maximum 2200
-   */
-  takenYear?: number | null;
-  takenAtService?: boolean;
+/**
+ * At least one field. When and where the service was come off the case.
+ */
+export interface MemoryBookUpdate {
+  /** @maxLength 160 */
+  title?: string | null;
+  /** @maxLength 1000 */
+  dedication?: string | null;
+  includePhotos?: boolean;
+  includeObituary?: boolean;
+  includeLifeStory?: boolean;
+  includeCelebration?: boolean;
+  includeEulogies?: boolean;
+  includeServicePhotos?: boolean;
+  /** @maxLength 4000 */
+  serviceOrder?: string | null;
+  /** @maxLength 2000 */
+  music?: string | null;
+  /** @maxLength 2000 */
+  bearers?: string | null;
+  /** @maxLength 2000 */
+  reception?: string | null;
+  /** A time that has passed closes the book; null reopens it. */
+  closesAt?: Date | null;
 }

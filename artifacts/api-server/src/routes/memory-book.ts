@@ -99,9 +99,9 @@ function checkEntryLength(
 /**
  * The two things the memory book needs to know about a photograph.
  *
- * Parsed alongside the generated photo bodies rather than added to them,
- * because those are regenerated from `openapi.yaml` — the same arrangement
- * the add-on selection uses on the checkout route.
+ * Both fields are in `openapi.yaml` and so in the generated photo bodies,
+ * but this is still parsed alongside them: the generated validators drop
+ * OpenAPI's `integer` (see `lib/http.ts`), and a year has to be a whole one.
  */
 export const PhotoDatingBody = z.object({
   /*

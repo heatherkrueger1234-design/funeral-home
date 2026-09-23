@@ -1968,6 +1968,17 @@ export const GetCasePhotosResponseItem = zod.object({
   isReference: zod
     .boolean()
     .describe("The photograph given to whoever does hair and cosmetics."),
+  takenYear: zod
+    .number()
+    .nullable()
+    .describe(
+      "The year it was taken, where anybody knows it. Orders the memory book.",
+    ),
+  takenAtService: zod
+    .boolean()
+    .describe(
+      "Taken at the funeral itself; printed at the back of the memory book.",
+    ),
   createdAt: zod.date(),
 });
 export const GetCasePhotosResponse = zod.array(GetCasePhotosResponseItem);
@@ -2011,6 +2022,17 @@ export const SetPhotoSelectionResponseItem = zod.object({
   isReference: zod
     .boolean()
     .describe("The photograph given to whoever does hair and cosmetics."),
+  takenYear: zod
+    .number()
+    .nullable()
+    .describe(
+      "The year it was taken, where anybody knows it. Orders the memory book.",
+    ),
+  takenAtService: zod
+    .boolean()
+    .describe(
+      "Taken at the funeral itself; printed at the back of the memory book.",
+    ),
   createdAt: zod.date(),
 });
 export const SetPhotoSelectionResponse = zod.array(
@@ -2049,6 +2071,17 @@ export const ReorderCasePhotosResponseItem = zod.object({
   isReference: zod
     .boolean()
     .describe("The photograph given to whoever does hair and cosmetics."),
+  takenYear: zod
+    .number()
+    .nullable()
+    .describe(
+      "The year it was taken, where anybody knows it. Orders the memory book.",
+    ),
+  takenAtService: zod
+    .boolean()
+    .describe(
+      "Taken at the funeral itself; printed at the back of the memory book.",
+    ),
   createdAt: zod.date(),
 });
 export const ReorderCasePhotosResponse = zod.array(
@@ -2074,6 +2107,9 @@ export const updatePhotoBodyCropWidthMax = 1;
 export const updatePhotoBodyCropHeightMin = 0;
 export const updatePhotoBodyCropHeightMax = 1;
 
+export const updatePhotoBodyTakenYearMin = 1800;
+export const updatePhotoBodyTakenYearMax = 2200;
+
 export const UpdatePhotoBody = zod.object({
   caption: zod.string().nullish(),
   status: zod.enum(["visible", "hidden"]).optional(),
@@ -2097,6 +2133,15 @@ export const UpdatePhotoBody = zod.object({
     .min(updatePhotoBodyCropHeightMin)
     .max(updatePhotoBodyCropHeightMax)
     .optional(),
+  takenYear: zod
+    .number()
+    .min(updatePhotoBodyTakenYearMin)
+    .max(updatePhotoBodyTakenYearMax)
+    .nullish()
+    .describe(
+      "A year, not a date -- what is written on the back of the print.",
+    ),
+  takenAtService: zod.boolean().optional(),
 });
 
 export const UpdatePhotoResponse = zod.object({
@@ -2120,6 +2165,17 @@ export const UpdatePhotoResponse = zod.object({
   isReference: zod
     .boolean()
     .describe("The photograph given to whoever does hair and cosmetics."),
+  takenYear: zod
+    .number()
+    .nullable()
+    .describe(
+      "The year it was taken, where anybody knows it. Orders the memory book.",
+    ),
+  takenAtService: zod
+    .boolean()
+    .describe(
+      "Taken at the funeral itself; printed at the back of the memory book.",
+    ),
   createdAt: zod.date(),
 });
 
@@ -3331,6 +3387,453 @@ export const GetAftercareResponseItem = zod.object({
 export const GetAftercareResponse = zod.array(GetAftercareResponseItem);
 
 /**
+ * Opens the book the first time anybody looks, so this never 404s for a
+case the home can see. The director sees everything, including what
+has been taken out of the book -- an exclusion nobody can see
+afterwards is indistinguishable from a bug.
+
+Chapters come back in the order they print: by `startYear`, with
+`position` only as a tiebreak and undated chapters last. Entries come
+back by `position`, then order of arrival.
+
+ * @summary The book, every entry and chapter, and how many photographs fit
+ */
+export const GetMemoryBookParams = zod.object({
+  caseId: zod.coerce.number(),
+});
+
+export const GetMemoryBookResponse = zod
+  .object({
+    id: zod.number(),
+    caseId: zod.number(),
+    title: zod
+      .string()
+      .nullable()
+      .describe('Printed as \"Remembering <name>\" when blank.'),
+    dedication: zod.string().nullable(),
+    closesAt: zod
+      .date()
+      .nullable()
+      .describe(
+        "When contributions stop. Null -- the default -- means open: there\nis no date on which a family is too late to remember something.\n",
+      ),
+    open: zod
+      .boolean()
+      .describe("Whether the family can still add to it, right now."),
+    includePhotos: zod.boolean(),
+    includeObituary: zod.boolean(),
+    includeLifeStory: zod.boolean(),
+    includeCelebration: zod.boolean(),
+    includeEulogies: zod.boolean(),
+    includeServicePhotos: zod.boolean(),
+    serviceOrder: zod.string().nullable(),
+    music: zod.string().nullable(),
+    bearers: zod.string().nullable(),
+    reception: zod.string().nullable(),
+  })
+  .describe(
+    "One per case, opened the first time anybody looks. Every section is a\nswitch that defaults on and prints nothing when it is empty.\n",
+  )
+  .and(
+    zod.object({
+      photos: zod
+        .object({
+          selected: zod.number(),
+          limit: zod.number(),
+          note: zod.string(),
+        })
+        .describe(
+          "How many chosen photographs the book would carry, against the ceiling.",
+        ),
+      chapters: zod
+        .array(
+          zod
+            .object({
+              id: zod.number(),
+              title: zod.string().nullable(),
+              body: zod.string().nullable(),
+              startYear: zod.number().nullable(),
+              endYear: zod.number().nullable(),
+              photoId: zod.number().nullable(),
+              authorName: zod.string(),
+              authorSide: zod.enum(["family", "staff"]),
+              authorContactId: zod.number().nullable(),
+              includedInBook: zod.boolean(),
+              position: zod.number(),
+              createdAt: zod.date(),
+            })
+            .describe(
+              "A chapter of the life story. Years, not dates; `endYear` is for a span\nand null for a moment. The author is recorded but never printed.\n",
+            ),
+        )
+        .describe("Every chapter, including any taken out, in printed order."),
+      entries: zod
+        .array(
+          zod
+            .object({
+              id: zod.number(),
+              kind: zod.enum(["memory", "eulogy"]),
+              authorName: zod
+                .string()
+                .describe(
+                  "The name printed under it, snapshotted when it was written.",
+                ),
+              authorSide: zod.enum(["family", "staff"]),
+              authorContactId: zod.number().nullable(),
+              body: zod.string(),
+              whenText: zod
+                .string()
+                .nullable()
+                .describe(
+                  'Free text -- \"Christmas, some time in the eighties\" -- never a date.',
+                ),
+              photoId: zod.number().nullable(),
+              includedInBook: zod.boolean(),
+              excludedReason: zod
+                .string()
+                .nullable()
+                .describe(
+                  "A note between the home and itself. Never shown to the family.",
+                ),
+              position: zod.number(),
+              createdAt: zod.date(),
+            })
+            .describe("A memory or a eulogy, as the home sees it.")
+            .and(
+              zod.object({
+                contactNameNow: zod
+                  .string()
+                  .nullable()
+                  .describe(
+                    "The contact's name as it stands now, beside the snapshot that\nwill print, so one that reads oddly can be spotted.\n",
+                  ),
+              }),
+            ),
+        )
+        .describe("Every entry, including any taken out, in printed order."),
+    }),
+  );
+
+/**
+ * Setting `closesAt` to a time that has passed closes the book for
+printing: the family can no longer add or change anything, but
+everybody can still read and print it. `null` reopens it.
+
+ * @summary The book's own settings, which sections print, and whether it is closed
+ */
+export const UpdateMemoryBookParams = zod.object({
+  caseId: zod.coerce.number(),
+});
+
+export const updateMemoryBookBodyTitleMax = 160;
+
+export const updateMemoryBookBodyDedicationMax = 1000;
+
+export const updateMemoryBookBodyServiceOrderMax = 4000;
+
+export const updateMemoryBookBodyMusicMax = 2000;
+
+export const updateMemoryBookBodyBearersMax = 2000;
+
+export const updateMemoryBookBodyReceptionMax = 2000;
+
+export const UpdateMemoryBookBody = zod
+  .object({
+    title: zod.string().max(updateMemoryBookBodyTitleMax).nullish(),
+    dedication: zod.string().max(updateMemoryBookBodyDedicationMax).nullish(),
+    includePhotos: zod.boolean().optional(),
+    includeObituary: zod.boolean().optional(),
+    includeLifeStory: zod.boolean().optional(),
+    includeCelebration: zod.boolean().optional(),
+    includeEulogies: zod.boolean().optional(),
+    includeServicePhotos: zod.boolean().optional(),
+    serviceOrder: zod
+      .string()
+      .max(updateMemoryBookBodyServiceOrderMax)
+      .nullish(),
+    music: zod.string().max(updateMemoryBookBodyMusicMax).nullish(),
+    bearers: zod.string().max(updateMemoryBookBodyBearersMax).nullish(),
+    reception: zod.string().max(updateMemoryBookBodyReceptionMax).nullish(),
+    closesAt: zod.coerce
+      .date()
+      .nullish()
+      .describe("A time that has passed closes the book; null reopens it."),
+  })
+  .describe(
+    "At least one field. When and where the service was come off the case.",
+  );
+
+export const UpdateMemoryBookResponse = zod
+  .object({
+    id: zod.number(),
+    caseId: zod.number(),
+    title: zod
+      .string()
+      .nullable()
+      .describe('Printed as \"Remembering <name>\" when blank.'),
+    dedication: zod.string().nullable(),
+    closesAt: zod
+      .date()
+      .nullable()
+      .describe(
+        "When contributions stop. Null -- the default -- means open: there\nis no date on which a family is too late to remember something.\n",
+      ),
+    open: zod
+      .boolean()
+      .describe("Whether the family can still add to it, right now."),
+    includePhotos: zod.boolean(),
+    includeObituary: zod.boolean(),
+    includeLifeStory: zod.boolean(),
+    includeCelebration: zod.boolean(),
+    includeEulogies: zod.boolean(),
+    includeServicePhotos: zod.boolean(),
+    serviceOrder: zod.string().nullable(),
+    music: zod.string().nullable(),
+    bearers: zod.string().nullable(),
+    reception: zod.string().nullable(),
+  })
+  .describe(
+    "One per case, opened the first time anybody looks. Every section is a\nswitch that defaults on and prints nothing when it is empty.\n",
+  );
+
+/**
+ * The card that came in the post, or what somebody said at the
+graveside. `authorName` is whose memory it is, not who typed it.
+Allowed on a closed book: the home is the one that closed it.
+
+ * @summary Type up a memory on somebody's behalf
+ */
+export const CreateMemoryEntryParams = zod.object({
+  caseId: zod.coerce.number(),
+});
+
+export const createMemoryEntryBodyAuthorNameMax = 120;
+
+export const createMemoryEntryBodyBodyMax = 20000;
+
+export const createMemoryEntryBodyWhenTextMax = 120;
+
+export const CreateMemoryEntryBody = zod
+  .object({
+    authorName: zod.string().min(1).max(createMemoryEntryBodyAuthorNameMax),
+    kind: zod.enum(["memory", "eulogy"]).optional(),
+    body: zod.string().min(1).max(createMemoryEntryBodyBodyMax),
+    whenText: zod.string().max(createMemoryEntryBodyWhenTextMax).nullish(),
+    photoId: zod.number().min(1).nullish(),
+  })
+  .describe(
+    "`authorName` is whose memory it is, not who typed it. Same length rule\nas `MemoryEntryInput`.\n",
+  );
+
+/**
+ * `includedInBook: false` takes an entry out of the printed book and
+keeps the row, so "why is my memory not in it" has an answer.
+Putting it back clears `excludedReason`.
+
+ * @summary Correct, reorder, or take an entry out of the book
+ */
+export const UpdateMemoryEntryParams = zod.object({
+  caseId: zod.coerce.number(),
+  entryId: zod.coerce.number(),
+});
+
+export const updateMemoryEntryBodyBodyMax = 20000;
+
+export const updateMemoryEntryBodyWhenTextMax = 120;
+
+export const updateMemoryEntryBodyPositionMin = 0;
+
+export const updateMemoryEntryBodyExcludedReasonMax = 400;
+
+export const UpdateMemoryEntryBody = zod
+  .object({
+    body: zod.string().min(1).max(updateMemoryEntryBodyBodyMax).optional(),
+    whenText: zod.string().max(updateMemoryEntryBodyWhenTextMax).nullish(),
+    photoId: zod.number().min(1).nullish(),
+    position: zod.number().min(updateMemoryEntryBodyPositionMin).optional(),
+    includedInBook: zod.boolean().optional(),
+    excludedReason: zod
+      .string()
+      .max(updateMemoryEntryBodyExcludedReasonMax)
+      .nullish(),
+  })
+  .describe("At least one field.");
+
+export const UpdateMemoryEntryResponse = zod
+  .object({
+    id: zod.number(),
+    kind: zod.enum(["memory", "eulogy"]),
+    authorName: zod
+      .string()
+      .describe("The name printed under it, snapshotted when it was written."),
+    authorSide: zod.enum(["family", "staff"]),
+    authorContactId: zod.number().nullable(),
+    body: zod.string(),
+    whenText: zod
+      .string()
+      .nullable()
+      .describe(
+        'Free text -- \"Christmas, some time in the eighties\" -- never a date.',
+      ),
+    photoId: zod.number().nullable(),
+    includedInBook: zod.boolean(),
+    excludedReason: zod
+      .string()
+      .nullable()
+      .describe(
+        "A note between the home and itself. Never shown to the family.",
+      ),
+    position: zod.number(),
+    createdAt: zod.date(),
+  })
+  .describe("A memory or a eulogy, as the home sees it.");
+
+/**
+ * For a duplicate, or something typed into the wrong case. Taking a
+relative's words out of the book is `includedInBook: false` instead.
+
+ * @summary Delete an entry for good
+ */
+export const DeleteMemoryEntryParams = zod.object({
+  caseId: zod.coerce.number(),
+  entryId: zod.coerce.number(),
+});
+
+/**
+ * A chapter needs a title, something written in it, or a year.
+`authorName` defaults to the member of staff; it is recorded but never
+printed.
+
+ * @summary Add a chapter of the life story
+ */
+export const CreateLifeChapterParams = zod.object({
+  caseId: zod.coerce.number(),
+});
+
+export const createLifeChapterBodyAuthorNameMax = 120;
+
+export const createLifeChapterBodyTitleMax = 160;
+
+export const createLifeChapterBodyBodyMax = 6000;
+
+export const createLifeChapterBodyStartYearMin = 1800;
+export const createLifeChapterBodyStartYearMax = 2200;
+
+export const createLifeChapterBodyEndYearMin = 1800;
+export const createLifeChapterBodyEndYearMax = 2200;
+
+export const CreateLifeChapterBody = zod
+  .object({
+    authorName: zod
+      .string()
+      .min(1)
+      .max(createLifeChapterBodyAuthorNameMax)
+      .optional(),
+    title: zod.string().max(createLifeChapterBodyTitleMax).nullish(),
+    body: zod.string().max(createLifeChapterBodyBodyMax).nullish(),
+    startYear: zod
+      .number()
+      .min(createLifeChapterBodyStartYearMin)
+      .max(createLifeChapterBodyStartYearMax)
+      .nullish(),
+    endYear: zod
+      .number()
+      .min(createLifeChapterBodyEndYearMin)
+      .max(createLifeChapterBodyEndYearMax)
+      .nullish(),
+    photoId: zod.number().min(1).nullish(),
+  })
+  .describe(
+    "As `LifeChapterInput`. `authorName` defaults to the member of staff.\n",
+  );
+
+/**
+ * @summary Correct, reorder, or take a chapter out of the book
+ */
+export const UpdateLifeChapterParams = zod.object({
+  caseId: zod.coerce.number(),
+  chapterId: zod.coerce.number(),
+});
+
+export const updateLifeChapterBodyTitleMax = 160;
+
+export const updateLifeChapterBodyBodyMax = 6000;
+
+export const updateLifeChapterBodyStartYearMin = 1800;
+export const updateLifeChapterBodyStartYearMax = 2200;
+
+export const updateLifeChapterBodyEndYearMin = 1800;
+export const updateLifeChapterBodyEndYearMax = 2200;
+
+export const updateLifeChapterBodyPositionMin = 0;
+
+export const updateLifeChapterBodyExcludedReasonMax = 400;
+
+export const UpdateLifeChapterBody = zod
+  .object({
+    title: zod.string().max(updateLifeChapterBodyTitleMax).nullish(),
+    body: zod.string().max(updateLifeChapterBodyBodyMax).nullish(),
+    startYear: zod
+      .number()
+      .min(updateLifeChapterBodyStartYearMin)
+      .max(updateLifeChapterBodyStartYearMax)
+      .nullish(),
+    endYear: zod
+      .number()
+      .min(updateLifeChapterBodyEndYearMin)
+      .max(updateLifeChapterBodyEndYearMax)
+      .nullish(),
+    photoId: zod.number().min(1).nullish(),
+    position: zod.number().min(updateLifeChapterBodyPositionMin).optional(),
+    includedInBook: zod.boolean().optional(),
+    excludedReason: zod
+      .string()
+      .max(updateLifeChapterBodyExcludedReasonMax)
+      .nullish(),
+  })
+  .describe(
+    "At least one field. An `endYear` before the `startYear` is refused.",
+  );
+
+export const UpdateLifeChapterResponse = zod
+  .object({
+    id: zod.number(),
+    title: zod.string().nullable(),
+    body: zod.string().nullable(),
+    startYear: zod.number().nullable(),
+    endYear: zod.number().nullable(),
+    photoId: zod.number().nullable(),
+    authorName: zod.string(),
+    authorSide: zod.enum(["family", "staff"]),
+    authorContactId: zod.number().nullable(),
+    includedInBook: zod.boolean(),
+    position: zod.number(),
+    createdAt: zod.date(),
+  })
+  .describe(
+    "A chapter of the life story. Years, not dates; `endYear` is for a span\nand null for a moment. The author is recorded but never printed.\n",
+  );
+
+/**
+ * @summary Delete a chapter for good
+ */
+export const DeleteLifeChapterParams = zod.object({
+  caseId: zod.coerce.number(),
+  chapterId: zod.coerce.number(),
+});
+
+/**
+ * Half-letter pages with the photographs embedded, so it can be printed
+from the browser or sent to a print shop as one file. Byte for byte
+the document the family gets from `renderFamilyMemoryBook`.
+
+ * @summary The whole book as one print-ready HTML file
+ */
+export const RenderMemoryBookParams = zod.object({
+  caseId: zod.coerce.number(),
+});
+
+/**
  * @summary The home's local network, nearest first
  */
 export const getVendorsQueryRadiusMilesMax = 500;
@@ -4210,6 +4713,17 @@ export const GetFamilyPhotosResponseItem = zod.object({
   isReference: zod
     .boolean()
     .describe("The photograph given to whoever does hair and cosmetics."),
+  takenYear: zod
+    .number()
+    .nullable()
+    .describe(
+      "The year it was taken, where anybody knows it. Orders the memory book.",
+    ),
+  takenAtService: zod
+    .boolean()
+    .describe(
+      "Taken at the funeral itself; printed at the back of the memory book.",
+    ),
   createdAt: zod.date(),
 });
 export const GetFamilyPhotosResponse = zod.array(GetFamilyPhotosResponseItem);
@@ -4241,6 +4755,9 @@ export const updateFamilyPhotoBodyCropWidthMax = 1;
 export const updateFamilyPhotoBodyCropHeightMin = 0;
 export const updateFamilyPhotoBodyCropHeightMax = 1;
 
+export const updateFamilyPhotoBodyTakenYearMin = 1800;
+export const updateFamilyPhotoBodyTakenYearMax = 2200;
+
 export const UpdateFamilyPhotoBody = zod.object({
   caption: zod.string().nullish(),
   cropX: zod
@@ -4263,6 +4780,15 @@ export const UpdateFamilyPhotoBody = zod.object({
     .min(updateFamilyPhotoBodyCropHeightMin)
     .max(updateFamilyPhotoBodyCropHeightMax)
     .optional(),
+  takenYear: zod
+    .number()
+    .min(updateFamilyPhotoBodyTakenYearMin)
+    .max(updateFamilyPhotoBodyTakenYearMax)
+    .nullish()
+    .describe(
+      "A year, not a date -- what is written on the back of the print.",
+    ),
+  takenAtService: zod.boolean().optional(),
 });
 
 export const UpdateFamilyPhotoResponse = zod.object({
@@ -4286,6 +4812,17 @@ export const UpdateFamilyPhotoResponse = zod.object({
   isReference: zod
     .boolean()
     .describe("The photograph given to whoever does hair and cosmetics."),
+  takenYear: zod
+    .number()
+    .nullable()
+    .describe(
+      "The year it was taken, where anybody knows it. Orders the memory book.",
+    ),
+  takenAtService: zod
+    .boolean()
+    .describe(
+      "Taken at the funeral itself; printed at the back of the memory book.",
+    ),
   createdAt: zod.date(),
 });
 
@@ -4329,6 +4866,17 @@ export const SetFamilyReferencePhotoResponse = zod.object({
   isReference: zod
     .boolean()
     .describe("The photograph given to whoever does hair and cosmetics."),
+  takenYear: zod
+    .number()
+    .nullable()
+    .describe(
+      "The year it was taken, where anybody knows it. Orders the memory book.",
+    ),
+  takenAtService: zod
+    .boolean()
+    .describe(
+      "Taken at the funeral itself; printed at the back of the memory book.",
+    ),
   createdAt: zod.date(),
 });
 
@@ -4362,6 +4910,17 @@ export const SetFamilyPhotoSelectionResponseItem = zod.object({
   isReference: zod
     .boolean()
     .describe("The photograph given to whoever does hair and cosmetics."),
+  takenYear: zod
+    .number()
+    .nullable()
+    .describe(
+      "The year it was taken, where anybody knows it. Orders the memory book.",
+    ),
+  takenAtService: zod
+    .boolean()
+    .describe(
+      "Taken at the funeral itself; printed at the back of the memory book.",
+    ),
   createdAt: zod.date(),
 });
 export const SetFamilyPhotoSelectionResponse = zod.array(
@@ -4428,6 +4987,17 @@ export const SetFamilyPortraitResponse = zod.object({
   isReference: zod
     .boolean()
     .describe("The photograph given to whoever does hair and cosmetics."),
+  takenYear: zod
+    .number()
+    .nullable()
+    .describe(
+      "The year it was taken, where anybody knows it. Orders the memory book.",
+    ),
+  takenAtService: zod
+    .boolean()
+    .describe(
+      "Taken at the funeral itself; printed at the back of the memory book.",
+    ),
   createdAt: zod.date(),
 });
 
@@ -4687,6 +5257,289 @@ export const SetFamilyAftercareConsentResponse = zod.object({
       failedAt: zod.date().nullable(),
     }),
   ),
+});
+
+/**
+ * Everything that is in the book, plus this person's own entries and
+chapters even if the home has taken one out -- somebody who cannot
+find what they wrote concludes it was lost and writes it again. The
+home's reason for taking something out is never shown. Opens the book
+the first time anybody looks.
+
+ * @summary The memory book as far as it has got
+ */
+export const GetFamilyMemoryBookResponse = zod
+  .object({
+    id: zod.number(),
+    caseId: zod.number(),
+    title: zod
+      .string()
+      .nullable()
+      .describe('Printed as \"Remembering <name>\" when blank.'),
+    dedication: zod.string().nullable(),
+    closesAt: zod
+      .date()
+      .nullable()
+      .describe(
+        "When contributions stop. Null -- the default -- means open: there\nis no date on which a family is too late to remember something.\n",
+      ),
+    open: zod
+      .boolean()
+      .describe("Whether the family can still add to it, right now."),
+    includePhotos: zod.boolean(),
+    includeObituary: zod.boolean(),
+    includeLifeStory: zod.boolean(),
+    includeCelebration: zod.boolean(),
+    includeEulogies: zod.boolean(),
+    includeServicePhotos: zod.boolean(),
+    serviceOrder: zod.string().nullable(),
+    music: zod.string().nullable(),
+    bearers: zod.string().nullable(),
+    reception: zod.string().nullable(),
+  })
+  .describe(
+    "One per case, opened the first time anybody looks. Every section is a\nswitch that defaults on and prints nothing when it is empty.\n",
+  )
+  .and(
+    zod.object({
+      chapters: zod.array(
+        zod
+          .object({
+            id: zod.number(),
+            title: zod.string().nullable(),
+            body: zod.string().nullable(),
+            startYear: zod.number().nullable(),
+            endYear: zod.number().nullable(),
+            photoId: zod.number().nullable(),
+            authorName: zod.string(),
+            authorSide: zod.enum(["family", "staff"]),
+            authorContactId: zod.number().nullable(),
+            includedInBook: zod.boolean(),
+            position: zod.number(),
+            createdAt: zod.date(),
+          })
+          .describe(
+            "A chapter of the life story. Years, not dates; `endYear` is for a span\nand null for a moment. The author is recorded but never printed.\n",
+          )
+          .and(
+            zod.object({
+              mine: zod
+                .boolean()
+                .describe("Whether this one is theirs to change."),
+            }),
+          ),
+      ),
+      entries: zod.array(
+        zod
+          .object({
+            id: zod.number(),
+            kind: zod.enum(["memory", "eulogy"]),
+            authorName: zod.string(),
+            body: zod.string(),
+            whenText: zod.string().nullable(),
+            photoId: zod.number().nullable(),
+            includedInBook: zod
+              .boolean()
+              .describe("False only ever on the reader's own entries."),
+            mine: zod
+              .boolean()
+              .describe("Whether this one is theirs to change."),
+            createdAt: zod.date(),
+          })
+          .describe("A memory or a eulogy, as a family member sees it."),
+      ),
+    }),
+  );
+
+/**
+ * Signed with the contact's own name as the home recorded it; nobody can
+sign a paragraph with somebody else's. `whenText` is free text -- "the
+summer we had the caravan" -- never a date.
+
+ * @summary Write a memory, or send the eulogy that was read
+ */
+export const createFamilyMemoryEntryBodyBodyMax = 20000;
+
+export const createFamilyMemoryEntryBodyWhenTextMax = 120;
+
+export const CreateFamilyMemoryEntryBody = zod
+  .object({
+    kind: zod
+      .enum(["memory", "eulogy"])
+      .optional()
+      .describe("Defaults to memory."),
+    body: zod.string().min(1).max(createFamilyMemoryEntryBodyBodyMax),
+    whenText: zod
+      .string()
+      .max(createFamilyMemoryEntryBodyWhenTextMax)
+      .nullish(),
+    photoId: zod
+      .number()
+      .min(1)
+      .nullish()
+      .describe("A photograph already on this case."),
+  })
+  .describe(
+    "`body` is trimmed. A memory may run to 4000 characters and a eulogy to\n20000; the longer limit applies only when `kind` is `eulogy`.\n",
+  );
+
+/**
+ * @summary Change something this person wrote
+ */
+export const UpdateFamilyMemoryEntryParams = zod.object({
+  entryId: zod.coerce.number(),
+});
+
+export const updateFamilyMemoryEntryBodyBodyMax = 20000;
+
+export const updateFamilyMemoryEntryBodyWhenTextMax = 120;
+
+export const UpdateFamilyMemoryEntryBody = zod
+  .object({
+    kind: zod.enum(["memory", "eulogy"]).optional(),
+    body: zod
+      .string()
+      .min(1)
+      .max(updateFamilyMemoryEntryBodyBodyMax)
+      .optional(),
+    whenText: zod
+      .string()
+      .max(updateFamilyMemoryEntryBodyWhenTextMax)
+      .nullish(),
+    photoId: zod.number().min(1).nullish(),
+  })
+  .describe(
+    "At least one field. The same length rule as `MemoryEntryInput`, judged\non the `kind` sent with it (memory when none is sent).\n",
+  );
+
+export const UpdateFamilyMemoryEntryResponse = zod
+  .object({
+    id: zod.number(),
+    kind: zod.enum(["memory", "eulogy"]),
+    authorName: zod.string(),
+    body: zod.string(),
+    whenText: zod.string().nullable(),
+    photoId: zod.number().nullable(),
+    includedInBook: zod
+      .boolean()
+      .describe("False only ever on the reader's own entries."),
+    mine: zod.boolean().describe("Whether this one is theirs to change."),
+    createdAt: zod.date(),
+  })
+  .describe("A memory or a eulogy, as a family member sees it.");
+
+/**
+ * A real delete, and allowed even on a closed book. Somebody who wants
+their words gone is entitled to have them gone, not flagged.
+
+ * @summary Take back something this person wrote, for good
+ */
+export const DeleteFamilyMemoryEntryParams = zod.object({
+  entryId: zod.coerce.number(),
+});
+
+/**
+ * A chapter needs a title, something written in it, or a year. It is
+not signed in the printed book; who wrote it is recorded for the home.
+
+ * @summary Write a chapter of the life story
+ */
+export const createFamilyLifeChapterBodyTitleMax = 160;
+
+export const createFamilyLifeChapterBodyBodyMax = 6000;
+
+export const createFamilyLifeChapterBodyStartYearMin = 1800;
+export const createFamilyLifeChapterBodyStartYearMax = 2200;
+
+export const createFamilyLifeChapterBodyEndYearMin = 1800;
+export const createFamilyLifeChapterBodyEndYearMax = 2200;
+
+export const CreateFamilyLifeChapterBody = zod
+  .object({
+    title: zod.string().max(createFamilyLifeChapterBodyTitleMax).nullish(),
+    body: zod.string().max(createFamilyLifeChapterBodyBodyMax).nullish(),
+    startYear: zod
+      .number()
+      .min(createFamilyLifeChapterBodyStartYearMin)
+      .max(createFamilyLifeChapterBodyStartYearMax)
+      .nullish(),
+    endYear: zod
+      .number()
+      .min(createFamilyLifeChapterBodyEndYearMin)
+      .max(createFamilyLifeChapterBodyEndYearMax)
+      .nullish(),
+    photoId: zod.number().min(1).nullish(),
+  })
+  .describe(
+    "Needs a title, something written in it, or a start year. An `endYear`\nbefore the `startYear` is refused.\n",
+  );
+
+/**
+ * @summary Change a chapter this person wrote
+ */
+export const UpdateFamilyLifeChapterParams = zod.object({
+  chapterId: zod.coerce.number(),
+});
+
+export const updateFamilyLifeChapterBodyTitleMax = 160;
+
+export const updateFamilyLifeChapterBodyBodyMax = 6000;
+
+export const updateFamilyLifeChapterBodyStartYearMin = 1800;
+export const updateFamilyLifeChapterBodyStartYearMax = 2200;
+
+export const updateFamilyLifeChapterBodyEndYearMin = 1800;
+export const updateFamilyLifeChapterBodyEndYearMax = 2200;
+
+export const UpdateFamilyLifeChapterBody = zod
+  .object({
+    title: zod.string().max(updateFamilyLifeChapterBodyTitleMax).nullish(),
+    body: zod.string().max(updateFamilyLifeChapterBodyBodyMax).nullish(),
+    startYear: zod
+      .number()
+      .min(updateFamilyLifeChapterBodyStartYearMin)
+      .max(updateFamilyLifeChapterBodyStartYearMax)
+      .nullish(),
+    endYear: zod
+      .number()
+      .min(updateFamilyLifeChapterBodyEndYearMin)
+      .max(updateFamilyLifeChapterBodyEndYearMax)
+      .nullish(),
+    photoId: zod.number().min(1).nullish(),
+  })
+  .describe(
+    "At least one field. An `endYear` before the `startYear` is refused.",
+  );
+
+export const UpdateFamilyLifeChapterResponse = zod
+  .object({
+    id: zod.number(),
+    title: zod.string().nullable(),
+    body: zod.string().nullable(),
+    startYear: zod.number().nullable(),
+    endYear: zod.number().nullable(),
+    photoId: zod.number().nullable(),
+    authorName: zod.string(),
+    authorSide: zod.enum(["family", "staff"]),
+    authorContactId: zod.number().nullable(),
+    includedInBook: zod.boolean(),
+    position: zod.number(),
+    createdAt: zod.date(),
+  })
+  .describe(
+    "A chapter of the life story. Years, not dates; `endYear` is for a span\nand null for a moment. The author is recorded but never printed.\n",
+  )
+  .and(
+    zod.object({
+      mine: zod.boolean().describe("Whether this one is theirs to change."),
+    }),
+  );
+
+/**
+ * @summary Take back a chapter this person wrote, for good
+ */
+export const DeleteFamilyLifeChapterParams = zod.object({
+  chapterId: zod.coerce.number(),
 });
 
 /**

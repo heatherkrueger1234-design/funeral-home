@@ -17,36 +17,27 @@ Two audiences, two authentication schemes, and the split is load-bearing:
 
  * OpenAPI spec version: 0.1.0
  */
-import type { PhotoUpdateStatus } from "./photoUpdateStatus";
+import type { StaffMemoryEntryInputKind } from "./staffMemoryEntryInputKind";
 
-export interface PhotoUpdate {
-  caption?: string | null;
-  status?: PhotoUpdateStatus;
+/**
+ * `authorName` is whose memory it is, not who typed it. Same length rule
+as `MemoryEntryInput`.
+
+ */
+export interface StaffMemoryEntryInput {
   /**
-   * @minimum 0
-   * @maximum 1
+   * @minLength 1
+   * @maxLength 120
    */
-  cropX?: number;
+  authorName: string;
+  kind?: StaffMemoryEntryInputKind;
   /**
-   * @minimum 0
-   * @maximum 1
+   * @minLength 1
+   * @maxLength 20000
    */
-  cropY?: number;
-  /**
-   * @minimum 0
-   * @maximum 1
-   */
-  cropWidth?: number;
-  /**
-   * @minimum 0
-   * @maximum 1
-   */
-  cropHeight?: number;
-  /**
-   * A year, not a date -- what is written on the back of the print.
-   * @minimum 1800
-   * @maximum 2200
-   */
-  takenYear?: number | null;
-  takenAtService?: boolean;
+  body: string;
+  /** @maxLength 120 */
+  whenText?: string | null;
+  /** @minimum 1 */
+  photoId?: number | null;
 }
