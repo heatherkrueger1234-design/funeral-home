@@ -129,7 +129,7 @@ describe("when a reminder is due", () => {
       .set({ suspendedAt: new Date(), suspendedReason: "Under review" })
       .where(eq(funeralHomesTable.id, suspended.homeId));
 
-    const ours = await signUpHome("Holding Today Ltd");
+    const ours = await signUpHome("Continuum Aftercare Ltd");
     await trialEndsIn(ours, 1);
     await db
       .update(funeralHomesTable)

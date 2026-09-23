@@ -141,7 +141,7 @@ export default function SignIn() {
       <div className="w-full max-w-sm">
         <header className="mb-7 text-center">
           <h1 className="font-display text-[1.75rem] leading-tight">
-            Holding Today
+            Continuum Aftercare
           </h1>
           <p className="mt-1.5 text-sm leading-relaxed text-muted-foreground">
             The calm side of arrangements, for you and the families you serve.

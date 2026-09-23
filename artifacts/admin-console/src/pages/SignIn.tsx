@@ -32,7 +32,7 @@ export function SignIn({ onSignedIn }: { onSignedIn: () => void }) {
       <div className="w-full">
         <header className="mb-7 text-center">
           <h1 className="font-display text-[1.75rem] leading-tight">
-            Holding Today
+            Continuum Aftercare
           </h1>
           <p className="mt-1.5 text-sm text-[var(--muted-foreground)]">
             The platform console.

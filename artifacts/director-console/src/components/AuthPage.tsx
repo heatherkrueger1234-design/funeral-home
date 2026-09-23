@@ -18,7 +18,7 @@ export function AuthPage(props: {
       <div className="w-full max-w-sm">
         <header className="mb-7 text-center">
           <h1 className="font-display text-[1.75rem] leading-tight">
-            Holding Today
+            Continuum Aftercare
           </h1>
         </header>
 

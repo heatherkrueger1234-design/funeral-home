@@ -60,7 +60,7 @@ export function Shell({
       <header className="sticky top-0 z-30 border-b border-[var(--border)] bg-[var(--card)]/95 backdrop-blur-sm supports-[backdrop-filter]:bg-[var(--card)]/85">
         <div className="mx-auto flex max-w-6xl flex-wrap items-center gap-x-5 gap-y-2 px-6 py-2.5">
           <Link href="/" className="font-display text-lg no-underline">
-            Holding Today
+            Continuum Aftercare
           </Link>
 
           <span

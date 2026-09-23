@@ -1,6 +1,6 @@
 # Colorado: the law this product is built against
 
-Holding Today is being built for Colorado funeral homes first. Colorado is not
+Continuum Aftercare is being built for Colorado funeral homes first. Colorado is not
 a typical state to build this in — it spent decades as the only state in the
 country that did not license funeral directors at all, and then, after the
 Return to Nature and Sunset Mesa scandals, rewrote the whole regime in 2024.

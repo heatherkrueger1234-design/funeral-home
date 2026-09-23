@@ -26,7 +26,7 @@ import { signUpHome } from "./helpers";
  * of the three was us. That is the number a founder quotes at somebody.
  */
 
-const ADMIN = "heather@holdingtoday.example";
+const ADMIN = "heather@continuumaftercare.example";
 const PASSWORD = "correct-horse-battery";
 
 async function signInAdmin(email = ADMIN) {
@@ -34,7 +34,7 @@ async function signInAdmin(email = ADMIN) {
 
   const res = await agent
     .post("/api/auth/register")
-    .send({ homeName: "Holding Today", email, password: PASSWORD })
+    .send({ homeName: "Continuum Aftercare", email, password: PASSWORD })
     .expect(201);
 
   return { agent, homeId: res.body.home.id as number };
@@ -68,12 +68,12 @@ describe("the list", () => {
 
     await admin.agent
       .post("/api/admin/admins")
-      .send({ email: "Colleague@HoldingToday.example", displayName: "Sam Reed" })
+      .send({ email: "Colleague@ContinuumAftercare.example", displayName: "Sam Reed" })
       .expect(201);
 
     const rows = await db.select().from(platformAdminsTable);
     // Normalised, like every other address in this application.
-    expect(rows.map((row) => row.email)).toContain("colleague@holdingtoday.example");
+    expect(rows.map((row) => row.email)).toContain("colleague@continuumaftercare.example");
 
     const log = await db
       .select()
@@ -82,7 +82,7 @@ describe("the list", () => {
 
     expect(log).toHaveLength(1);
     expect(log[0]!.actorEmail).toBe(ADMIN);
-    expect(log[0]!.detail).toContain("colleague@holdingtoday.example");
+    expect(log[0]!.detail).toContain("colleague@continuumaftercare.example");
   });
 
   it("grants nothing on its own — the account still has to exist", async () => {
@@ -90,7 +90,7 @@ describe("the list", () => {
 
     await admin.agent
       .post("/api/admin/admins")
-      .send({ email: "nobody@holdingtoday.example" })
+      .send({ email: "nobody@continuumaftercare.example" })
       .expect(201);
 
     /*
@@ -103,43 +103,43 @@ describe("the list", () => {
 
   it("revokes somebody, and the revocation survives as a record", async () => {
     const admin = await signInAdmin();
-    await db.insert(platformAdminsTable).values({ email: "leaver@holdingtoday.example" });
+    await db.insert(platformAdminsTable).values({ email: "leaver@continuumaftercare.example" });
 
     await admin.agent
-      .delete(`/api/admin/admins/${encodeURIComponent("leaver@holdingtoday.example")}`)
+      .delete(`/api/admin/admins/${encodeURIComponent("leaver@continuumaftercare.example")}`)
       .expect(204);
 
     const [row] = await db
       .select()
       .from(platformAdminsTable)
-      .where(eq(platformAdminsTable.email, "leaver@holdingtoday.example"));
+      .where(eq(platformAdminsTable.email, "leaver@continuumaftercare.example"));
 
     // Marked, not deleted: who had access when outlives them losing it.
     expect(row!.revokedAt).not.toBeNull();
     expect(row!.revokedByEmail).toBe(ADMIN);
 
     await admin.agent
-      .delete(`/api/admin/admins/${encodeURIComponent("leaver@holdingtoday.example")}`)
+      .delete(`/api/admin/admins/${encodeURIComponent("leaver@continuumaftercare.example")}`)
       .expect(400);
   });
 
   it("restores a rejoiner rather than colliding with their old row", async () => {
     const admin = await signInAdmin();
     await db.insert(platformAdminsTable).values({
-      email: "rejoiner@holdingtoday.example",
+      email: "rejoiner@continuumaftercare.example",
       revokedAt: new Date(),
       revokedByEmail: ADMIN,
     });
 
     await admin.agent
       .post("/api/admin/admins")
-      .send({ email: "rejoiner@holdingtoday.example" })
+      .send({ email: "rejoiner@continuumaftercare.example" })
       .expect(201);
 
     const rows = await db
       .select()
       .from(platformAdminsTable)
-      .where(eq(platformAdminsTable.email, "rejoiner@holdingtoday.example"));
+      .where(eq(platformAdminsTable.email, "rejoiner@continuumaftercare.example"));
 
     expect(rows).toHaveLength(1);
     expect(rows[0]!.revokedAt).toBeNull();
@@ -190,7 +190,7 @@ describe("the bootstrap", () => {
        * table would bring them back on the next restart — which is worse than
        * the problem it solves, because it would fail silently.
        */
-      process.env["PLATFORM_ADMIN_EMAILS"] = "someone-else@holdingtoday.example";
+      process.env["PLATFORM_ADMIN_EMAILS"] = "someone-else@continuumaftercare.example";
       await bootstrapPlatformAdmins();
 
       const after = await db.select().from(platformAdminsTable);
