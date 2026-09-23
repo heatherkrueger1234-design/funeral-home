@@ -18,6 +18,8 @@ import {
 import { ConsoleShell } from "@/components/ConsoleShell";
 import SignIn from "@/pages/SignIn";
 import { Loading } from "@/components/page";
+import ChoosePassword from "@/pages/ChoosePassword";
+import VerifyEmail from "@/pages/VerifyEmail";
 import Dashboard from "@/pages/Dashboard";
 import NotFound from "@/pages/NotFound";
 
@@ -78,6 +80,25 @@ function Routes() {
   const { session, isPending } = useSession();
 
   if (isPending) return null;
+
+  /*
+   * The two screens an email link lands on, above the gate.
+   *
+   * These have to come before the session check, and for a while they did not
+   * exist at all — which meant the three emails pointing at `/reset-password`
+   * showed a sign-in form instead. A director could not reset their password,
+   * and every staff invitation silently went nowhere.
+   *
+   * Above it rather than inside it because the person holding the link usually
+   * has no session: they have forgotten their password, or they have never had
+   * an account here, or they are reading the email on a phone they have never
+   * signed in on. The token in the URL is the credential, and each one is
+   * single-use.
+   */
+  const path = window.location.pathname;
+  if (path === "/reset-password") return <ChoosePassword />;
+  if (path === "/verify-email") return <VerifyEmail />;
+
   if (!session) return <SignIn />;
 
   return (

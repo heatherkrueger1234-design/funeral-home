@@ -25,7 +25,9 @@ import { tenant } from "../middleware/require-auth";
 import { photosForCase, setSelection, toPhotoJson } from "../lib/media";
 import { decryptBuffer } from "@workspace/db/crypto";
 import { ZipWriter } from "../lib/zip";
+import { formatServiceMoment } from "../lib/print-render";
 import { loadCase } from "./cases";
+import { PhotoDatingBody } from "./memory-book";
 
 const router: IRouter = Router();
 
@@ -137,7 +139,12 @@ router.put("/cases/:caseId/photos/order", async (req, res) => {
 router.patch("/photos/:photoId", async (req, res) => {
   const home = tenant(req);
   const existing = await loadPhoto(req, req.params.photoId);
-  const values = assertHasUpdates(parseBody(UpdatePhotoBody, req.body));
+  // `takenYear` and `takenAtService` are parsed separately: the generated
+  // body is regenerated from `openapi.yaml` and does not carry them yet.
+  const values = assertHasUpdates({
+    ...parseBody(UpdatePhotoBody, req.body),
+    ...PhotoDatingBody.parse(req.body ?? {}),
+  });
 
   const [updated] = await db
     .update(casePhotosTable)
@@ -277,7 +284,15 @@ router.get("/cases/:caseId/photo-pack", async (req, res) => {
   const zip = new ZipWriter(res);
   const manifest: string[] = [
     decedentDisplayName(row),
-    row.serviceAt ? `Service: ${row.serviceAt.toISOString()}` : "",
+    /*
+     * Read by whoever runs the slideshow and by whoever typesets the order of
+     * service, so it says the time in the home's own words. An ISO timestamp
+     * here was not merely ugly: the servers run UTC, so a nine o'clock Denver
+     * service arrived in this file as "15:00:00.000Z".
+     */
+    row.serviceAt
+      ? `Service: ${formatServiceMoment(row.serviceAt, home.timezone)}`
+      : "",
     "",
   ].filter(Boolean);
 

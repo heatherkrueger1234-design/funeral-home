@@ -102,6 +102,17 @@ Both gates are mounted once, in `artifacts/api-server/src/routes/index.ts`.
 Being reachable without authentication requires an edit to that file rather
 than an omission somewhere else.
 
+**Confirming a staff address.** Registration is open — a funeral home should
+not have to ask us for an account — and until recently nothing checked that the
+address belonged to the person typing it, so anyone could register under a real
+home's name and have a public page, at a guessable URL, collecting the details
+of people's deaths within a minute. Confirmation gates exactly one thing: the
+request form on the home's public page. It gates nothing a director does —
+signing in, opening a case, texting a family, printing, exporting — because a
+director locked out of Thursday's funeral by an email in a spam folder would be
+a far worse product than the one this protects against. Any active member of
+staff's confirmed address counts, not only the owner's.
+
 The link-as-credential trade is made deliberately: a registration form is where
 a next of kin three days bereaved is lost, what sits behind the link is one
 case's photographs and a hymn list, only the token's SHA-256 is stored, and one
@@ -141,7 +152,7 @@ Environment the server reads:
 | `STRIPE_SECRET_KEY` / `STRIPE_PRICE_ID` | Optional. Without them the product runs on trial and charges nothing. |
 | `STRIPE_WEBHOOK_SECRET` | Required if Stripe is configured — the webhook refuses anything it cannot verify. |
 | `GOOGLE_PLACES_API_KEY` | Optional. Enables live vendor lookup; without it the directory is hand-entered. |
-| `PLATFORM_ADMIN_EMAILS` | Comma-separated staff addresses allowed into the platform admin console. **Unset means nobody**, which is the safe default — leaving it blank disables the console rather than opening it. Temporary: replaced by the `platform_admins` table when Component 1 lands. |
+| `PLATFORM_ADMIN_EMAILS` | **Bootstrap only.** Comma-separated staff addresses seeded into `platform_admins` on the first start of an empty table, so a fresh deployment is reachable. After that the table is the list and this variable is never read again — which is what makes revoking somebody's access actually work. Unset means nobody, and an empty table means nobody. |
 
 ### Scheduling the aftercare
 
@@ -168,6 +179,29 @@ about somebody who died. It needs two repository secrets, `API_URL` and
 `TASK_SECRET` set on the server the endpoint refuses every request**, which
 is deliberate: an unauthenticated endpoint that sends email is not something
 to leave open by default.
+
+### The trial reminders
+
+The other scheduled job, and the one that decides whether any of this gets
+paid for. A week before the trial ends, the day before, and on the day, the
+home's owner gets a plain note saying where they stand and what changes — which
+is almost nothing, and saying so is the honest part.
+
+```sh
+curl -X POST "$API_URL/api/tasks/trial-reminders" -H "Authorization: Bearer $TASK_SECRET"
+```
+
+`.github/workflows/trial-reminders.yml` does this daily at 15:00 UTC, an hour
+after the aftercare run. A separate workflow rather than a second step, for the
+same reason it is a separate endpoint: a mail failure while telling a
+proprietor about their bill must never be the reason a widow's ninety-day
+check-in did not go out.
+
+Each reminder is claimed with a conditional update before it is sent, so two
+overlapping runs cannot both send it. The trade is the same one aftercare
+makes, in the same direction: a crash losing one reminder is much better than
+its opposite, which is a proprietor receiving the same notice four times from
+the company holding their families' photographs.
 
 Add `?dryRun=1` to see what is due without sending or marking anything —
 that is how to check a new deployment is wired up without writing to a
@@ -249,16 +283,25 @@ list of homes, what each one is using, and — the part that earns its keep in
 Colorado this year — where each home stands with DORA.
 
 **How you get in.** A platform admin is a signed-in staff account that is also
-named in `PLATFORM_ADMIN_EMAILS`. That is on purpose: one way to authenticate
+named in the `platform_admins` table. That is on purpose: one way to authenticate
 in this application means one cookie to protect, not two. Being on the list is
 an *additional* condition and never an alternative one, and an empty list
 means nobody. `routes/admin.ts` applies that check under `/admin`, below the
 ordinary session gate.
 
-> This is a stand-in. Component 1 owns the `platform_admins` table, its
-> session and the real `requirePlatformAdmin`; the `TODO(C1)` markers in
-> `routes/admin.ts` say exactly what is replaced. Nothing else in the file
-> changes when it lands.
+The list is `platform_admins`, and access can be granted and revoked from the
+console's own Admins page — both audited. It used to be an environment
+variable, which cost two things: granting or revoking meant a redeploy, so in
+practice the list went stale, and a variable leaves no trace, so "who could
+see our families' files last March" had no answer. `PLATFORM_ADMIN_EMAILS`
+survives as a one-time bootstrap for an empty table and is never read again.
+
+A platform admin needs a staff account, a staff account needs a
+`funeral_homes` row, and that row is not a customer. Mark it with
+`internalAccount` — `PUT /admin/homes/:id/internal` — and it leaves the homes
+list, the counts and the engagement figures while staying an ordinary tenant in
+every other respect. Without it the console reported three homes on trial when
+one of the three was us.
 
 **What it may do.** See everything, change almost nothing. Creating a home and
 suspending a home are the complete list of writes that touch a tenant. There
@@ -291,6 +334,26 @@ placeholder. Component 6 owns how engagement is computed; when it lands, that
 function's body becomes a call to theirs and its shape stays. Do not add
 cleverness to it in the meantime — two definitions of "engaged" is worse than
 none.
+
+## The legal documents
+
+[`LEGAL/`](./LEGAL/) holds three drafts: the [terms](./LEGAL/TERMS.md), the
+[data-processing agreement](./LEGAL/DPA.md), and the
+[privacy policy](./LEGAL/PRIVACY.md). The DPA is the one that matters
+commercially — a funeral home's insurer asks for it before the home's director
+asks for a demo.
+
+They were written against the code rather than from a template, so their
+factual claims are checkable, and [`LEGAL/README.md`](./LEGAL/README.md) cites
+the file behind each one. That cuts both ways: writing them turned up a claim
+that was not true (photograph EXIF is only stripped from images over 3000px,
+so an ordinary upload keeps its location data), which is now disclosed rather
+than asserted away. **If you change something a claim depends on, change the
+claim.**
+
+None of the three has been reviewed by a lawyer, and they contract on behalf of
+a company whose name is still a placeholder. Do not put them in front of a
+paying customer yet.
 
 ## Relationship to Memory-Haven
 

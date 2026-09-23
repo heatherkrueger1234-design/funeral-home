@@ -11,7 +11,12 @@ import { logger } from "./logger";
  * then reflects reality rather than diligence.
  *
  * Never allowed to fail the request it rode in on: a home that opened a case
- * has opened a case, whether or not the checkbox got written.
+ * has opened a case, whether or not the checkbox got written. That promise is
+ * kept by the try/catch below — this function does not reject — which is why
+ * callers `await` it rather than dropping the promise. They used to drop it,
+ * and the ordering that hid was real: the write raced whatever the client did
+ * next, so a director could finish a step and watch the checklist claim it was
+ * still outstanding.
  */
 export async function markOnboarding(
   funeralHomeId: number,

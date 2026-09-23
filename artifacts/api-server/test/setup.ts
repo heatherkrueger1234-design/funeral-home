@@ -38,11 +38,16 @@ beforeEach(async () => {
 
   await db.execute(
     sql`TRUNCATE TABLE
+      platform_admins,
       platform_audit,
+      billable_cases,
       practitioner_licences,
       home_licensure,
       aftercare_deliveries,
       aftercare_enrollments,
+      memory_entries,
+      life_chapters,
+      memory_books,
       case_deadlines,
       case_messages,
       case_photos,
@@ -53,8 +58,10 @@ beforeEach(async () => {
       uploads,
       sessions,
       password_resets,
+      email_verifications,
       users,
-      funeral_homes
+      funeral_homes,
+      home_groups
     RESTART IDENTITY CASCADE`,
   );
 });

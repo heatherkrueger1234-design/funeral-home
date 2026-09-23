@@ -9,6 +9,7 @@ import {
   familyContactsTable,
   casePhotosTable,
   aftercareEnrollmentsTable,
+  homeGroupsTable,
   homeLicensureTable,
   practitionerLicencesTable,
   platformAuditTable,
@@ -18,7 +19,12 @@ import {
   LICENCE_STANDINGS,
   PRACTITIONER_ROLES,
   TRIAL_DAYS,
+  ADD_ONS,
+  isAddOnKey,
+  serialiseEntitlements,
+  type AddOnKey,
   type FuneralHome,
+  type HomeGroup,
   type HomeLicensure,
   type PractitionerLicence,
 } from "@workspace/db";
@@ -33,9 +39,19 @@ import {
 } from "../lib/http";
 import { currentUser } from "../middleware/require-auth";
 import { createPasswordReset, normaliseEmail, PASSWORD_RESET_TTL_MS } from "../lib/auth";
+import {
+  grantPlatformAdmin,
+  isPlatformAdmin,
+  listPlatformAdmins,
+  revokePlatformAdmin,
+} from "../lib/platform-auth";
 import { seedTimelineTemplate } from "../lib/timeline";
 import { seedPolicyPrompts } from "../lib/storefront";
 import { logger } from "../lib/logger";
+import {
+  createGroupCheckoutSession,
+  isBillingConfigured,
+} from "../lib/billing";
 
 /**
  * The platform admin console: Heather looking at her own customers.
@@ -88,55 +104,44 @@ declare global {
 }
 
 /**
- * Whether this signed-in staff account is also a platform admin.
+ * The gate. A signed-in staff account that is also on `platform_admins`.
  *
- * TODO(C1): Component 1 owns the `platform_admins` table, its session and the
- * real `requirePlatformAdmin` gate. When that lands, this function is deleted
- * and the gate below imports theirs — the rest of this file does not change.
+ * The membership check now reads a table rather than `PLATFORM_ADMIN_EMAILS`
+ * — see `lib/platform-auth.ts` for why, and for the one-time bootstrap that
+ * keeps a fresh deployment from locking everyone out. The shape of the check is
+ * unchanged, and the properties that matter are the same ones the environment
+ * variable had:
  *
- * Until then it reads an explicit operator allowlist, and that shape is
- * chosen carefully rather than for convenience:
- *
- *  - It is **closed by default**. Unset, nobody is a platform admin and every
- *    route in this file answers 403 — including to an owner, including in
- *    production. A half-built console that is reachable is worse than one
- *    that is not.
- *  - It grants nothing on its own. Being named here still requires knowing
+ *  - It is **closed by default**. An empty table means nobody is a platform
+ *    admin and every route in this file answers 403 — including to an owner,
+ *    including in production. A half-built console that is reachable is worse
+ *    than one that is not.
+ *  - It grants nothing on its own. Being on the list still requires knowing
  *    the password of a real staff account, so this is an additional condition
  *    and never an alternative one.
  *  - It is not a permission model. There is one capability and no hierarchy,
- *    because inventing a second role system while waiting for the first is
- *    exactly what `TEAM-SPLIT.md` says not to do.
- */
-function isPlatformAdmin(email: string): boolean {
-  const allowed = (process.env["PLATFORM_ADMIN_EMAILS"] ?? "")
-    .split(",")
-    .map((entry) => normaliseEmail(entry))
-    .filter(Boolean);
-
-  return allowed.includes(normaliseEmail(email));
-}
-
-/**
- * TODO(C1): replace with Component 1's `requirePlatformAdmin`.
+ *    because inventing a second role system is exactly what `TEAM-SPLIT.md`
+ *    says not to do.
  *
  * The 403 says nothing about why. A director who mistypes a URL learns that
  * the route is not theirs, and learns nothing about whether an admin console
  * exists, who is on it, or how one gets there.
  */
 const requirePlatformAdmin: RequestHandler = (req, _res, next) => {
-  try {
-    const user = currentUser(req);
+  void (async () => {
+    try {
+      const user = currentUser(req);
 
-    if (!isPlatformAdmin(user.email)) {
-      throw new HttpError(403, "Not found");
+      if (!(await isPlatformAdmin(user.email))) {
+        throw new HttpError(403, "Not found");
+      }
+
+      req.platformActor = { email: normaliseEmail(user.email) };
+      next();
+    } catch (error) {
+      next(error);
     }
-
-    req.platformActor = { email: normaliseEmail(user.email) };
-    next();
-  } catch (error) {
-    next(error);
-  }
+  })();
 };
 
 router.use("/admin", requirePlatformAdmin);
@@ -164,7 +169,16 @@ const AUDIT_ACTIONS = [
   "home.restore",
   "home.licensure.update",
   "home.practitioner.update",
+  "home.group.update",
+  "group.list",
+  "group.create",
+  "group.open",
+  "group.checkout",
   "platform.overview",
+  "platform.admins.list",
+  "platform.admin.grant",
+  "platform.admin.revoke",
+  "home.internal.update",
 ] as const;
 type AuditAction = (typeof AUDIT_ACTIONS)[number];
 
@@ -192,6 +206,21 @@ async function recordPlatformAccess(
     detail: detail ?? null,
   });
 }
+
+/**
+ * Which homes are customers.
+ *
+ * Every figure the business makes about itself is filtered on this, and it is
+ * one expression rather than four so the homes list and the counts can never
+ * disagree about who is being counted.
+ *
+ * A platform admin needs a staff account, a staff account needs a
+ * `funeral_homes` row, and that row is not a customer. Left in, it turned the
+ * overview into a lie in the least useful direction: the console reported three
+ * homes on trial when one of the three was us, which is the number a founder
+ * would quote at somebody.
+ */
+const customerHomes = eq(funeralHomesTable.internalAccount, false);
 
 /* ------------------------------------------- the cross-tenant helpers -- */
 
@@ -232,10 +261,12 @@ async function platformListHomes(
       )
     : undefined;
 
+  const scoped = filter ? and(customerHomes, filter) : customerHomes;
+
   const homes = await db
     .select()
     .from(funeralHomesTable)
-    .where(filter)
+    .where(scoped)
     .orderBy(asc(funeralHomesTable.name))
     .limit(options.limit)
     .offset(options.offset);
@@ -243,7 +274,7 @@ async function platformListHomes(
   const [totals] = await db
     .select({ total: count() })
     .from(funeralHomesTable)
-    .where(filter);
+    .where(scoped);
 
   await recordPlatformAccess(
     who,
@@ -436,6 +467,7 @@ function toAdminHome(home: FuneralHome) {
     canOpenCases: canOpenCases(home),
     suspendedAt: home.suspendedAt,
     suspendedReason: home.suspendedReason,
+    internalAccount: home.internalAccount,
     onboardingDone: home.onboardingDone
       .split(",")
       .map((step) => step.trim())
@@ -599,7 +631,7 @@ router.post("/admin/homes", async (req, res) => {
   if (ownerId !== null && ownerEmail !== null) {
     const token = await createPasswordReset(ownerId);
     const base = process.env["CONSOLE_URL"]?.replace(/\/+$/, "") ?? "";
-    inviteLink = `${base}/reset-password?token=${encodeURIComponent(token)}`;
+    inviteLink = `${base}/reset-password?invited=1&token=${encodeURIComponent(token)}`;
 
     try {
       await sendStaffInviteEmail({
@@ -856,13 +888,15 @@ router.get("/admin/overview", async (req, res) => {
       paying: sql<number>`count(*) filter (where ${funeralHomesTable.subscriptionStatus} = 'active')`.mapWith(Number),
       onTrial: sql<number>`count(*) filter (where ${funeralHomesTable.subscriptionStatus} = 'trial')`.mapWith(Number),
     })
-    .from(funeralHomesTable);
+    .from(funeralHomesTable)
+    .where(customerHomes);
 
   // Every home that has any licensure record at all, with its people. Small
   // by construction — this is a list of customers, not of cases.
   const homes = await db
     .select()
     .from(funeralHomesTable)
+    .where(customerHomes)
     .orderBy(asc(funeralHomesTable.name));
 
   const licensure = await db.select().from(homeLicensureTable);
@@ -937,6 +971,177 @@ const AuditQuery = z.object({
  * log that grew every time somebody scrolled it would bury the entries that
  * matter under entries about looking.
  */
+/* ---------------------------------------------- who may look at all this -- */
+
+/**
+ * The list itself, readable from the console.
+ *
+ * Deliberately readable by every platform admin rather than by some senior
+ * subset: there is one capability here and no hierarchy, and a list of who can
+ * see customers' data that only some of those people may read is a worse
+ * arrangement than one everybody can check.
+ *
+ * Audited like any other cross-tenant read. It names no home, so the subject is
+ * null — but "who looked at the access list" is exactly the sort of question the
+ * log exists to answer.
+ */
+router.get("/admin/admins", async (req, res) => {
+  const who = actor(req);
+  const admins = await listPlatformAdmins();
+
+  await recordPlatformAccess(
+    who,
+    "platform.admins.list",
+    null,
+    `${admins.filter((row) => row.revokedAt === null).length} active`,
+  );
+
+  res.json(
+    admins.map((row) => ({
+      id: row.id,
+      email: row.email,
+      displayName: row.displayName,
+      note: row.note,
+      addedByEmail: row.addedByEmail,
+      revokedAt: row.revokedAt,
+      revokedByEmail: row.revokedByEmail,
+      createdAt: row.createdAt,
+    })),
+  );
+});
+
+const GrantAdminBody = z.object({
+  email: z.string().trim().email().max(320),
+  displayName: z.string().trim().max(120).optional(),
+  note: z.string().trim().max(400).optional(),
+});
+
+/**
+ * Add somebody to the list.
+ *
+ * Note what this does *not* do: create an account, send an invitation, or grant
+ * anything by itself. It records that if an account with this address signs in,
+ * it may use this console. Someone named here with no staff account still
+ * cannot get in, which is the property that lets access be arranged before a
+ * new colleague's first day without opening anything early.
+ */
+router.post("/admin/admins", async (req, res) => {
+  const who = actor(req);
+  const values = parseBody(GrantAdminBody, req.body);
+
+  const granted = await grantPlatformAdmin({
+    email: values.email,
+    displayName: values.displayName ?? null,
+    note: values.note ?? null,
+    addedByEmail: who.email,
+  });
+
+  await recordPlatformAccess(
+    who,
+    "platform.admin.grant",
+    null,
+    `granted ${granted.email}`,
+  );
+
+  logger.warn(
+    { actor: who.email, granted: granted.email },
+    "Platform admin access granted",
+  );
+
+  res.status(201).json({
+    id: granted.id,
+    email: granted.email,
+    displayName: granted.displayName,
+    note: granted.note,
+    addedByEmail: granted.addedByEmail,
+    revokedAt: granted.revokedAt,
+    revokedByEmail: granted.revokedByEmail,
+    createdAt: granted.createdAt,
+  });
+});
+
+/**
+ * Take somebody off it.
+ *
+ * You cannot revoke yourself. Not for safety — a platform admin who wants out
+ * can be removed by a colleague — but because the alternative is a console with
+ * nobody in it and no way back except a redeploy, which is the exact failure the
+ * environment variable used to cause. The same reasoning guards a home owner
+ * deactivating their own account in `routes/home.ts`.
+ */
+router.delete("/admin/admins/:email", async (req, res) => {
+  const who = actor(req);
+  const email = normaliseEmail(decodeURIComponent(req.params.email ?? ""));
+
+  if (!email) throw badRequest("Which address should be removed?");
+
+  if (email === who.email) {
+    throw badRequest(
+      "You cannot remove your own access. Ask another platform admin to do it.",
+    );
+  }
+
+  const revoked = await revokePlatformAdmin({
+    email,
+    revokedByEmail: who.email,
+  });
+
+  if (!revoked) {
+    throw badRequest("That address is not on the list.");
+  }
+
+  await recordPlatformAccess(
+    who,
+    "platform.admin.revoke",
+    null,
+    `revoked ${email}`,
+  );
+
+  logger.warn(
+    { actor: who.email, revoked: email },
+    "Platform admin access revoked",
+  );
+
+  res.status(204).end();
+});
+
+/* ------------------------------------------------- ours, not a customer's -- */
+
+const InternalBody = z.object({ internalAccount: z.boolean() });
+
+/**
+ * Mark a home as ours, or as a customer's.
+ *
+ * An internal home leaves the customer list, the counts and the engagement
+ * figures, and changes in no other way — it opens cases, texts families and
+ * prints orders of service exactly as any other tenant does, which is what
+ * makes it useful for trying something before a real home sees it.
+ *
+ * This is a write that touches a tenant, so it joins suspension on the short
+ * list of them. It cannot lose anybody any data: the only thing it changes is
+ * whether the row appears in figures the vendor makes about itself.
+ */
+router.put("/admin/homes/:homeId/internal", async (req, res) => {
+  const who = actor(req);
+  const values = parseBody(InternalBody, req.body);
+  const homeId = parseId(req.params.homeId);
+
+  const home = await platformLoadHome(
+    who,
+    homeId,
+    "home.internal.update",
+    values.internalAccount ? "marked ours" : "marked a customer's",
+  );
+
+  const [updated] = await db
+    .update(funeralHomesTable)
+    .set({ internalAccount: values.internalAccount, updatedAt: new Date() })
+    .where(eq(funeralHomesTable.id, home.id))
+    .returning();
+
+  res.json(toAdminHome(updated!));
+});
+
 router.get("/admin/audit", async (req, res) => {
   const options = parseQuery(AuditQuery, req.query);
 
@@ -952,6 +1157,308 @@ router.get("/admin/audit", async (req, res) => {
     .limit(options.limit);
 
   res.json(rows);
+});
+
+/* ------------------------------------------------------------- groups -- */
+
+/**
+ * Funeral-home groups: one contract, many locations.
+ *
+ * This lives in the platform console rather than in any home's own console,
+ * and that is the right place for it. A group contract is negotiated by a
+ * person at this end talking to a person who owns forty funeral homes; it is
+ * not something a director at one branch should be able to create by
+ * clicking about in their settings.
+ *
+ * Every route here audits, like everything else under `/admin`, though these
+ * read less than the rest of the console does: a group row holds a name, a
+ * Stripe id and a status, and no family has ever appeared in one.
+ */
+
+/** How long a location gets to arrange its own billing after leaving a group. */
+const GROUP_EXIT_GRACE_DAYS = 14;
+
+async function uniqueGroupSlug(name: string): Promise<string> {
+  const base =
+    name
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, "-")
+      .replace(/^-+|-+$/g, "")
+      .slice(0, 48) || "group";
+
+  for (let attempt = 0; attempt < 100; attempt += 1) {
+    const candidate = attempt === 0 ? base : `${base}-${attempt + 1}`;
+    const [taken] = await db
+      .select({ id: homeGroupsTable.id })
+      .from(homeGroupsTable)
+      .where(eq(homeGroupsTable.slug, candidate))
+      .limit(1);
+
+    if (!taken) return candidate;
+  }
+
+  throw new HttpError(500, "Could not allocate a unique name for this group.");
+}
+
+/**
+ * A group as the console sees it. Hand-built for the same reason
+ * `toAdminHome` is: a column added to `home_groups` should not widen this
+ * by accident.
+ */
+function toAdminGroup(group: HomeGroup, locations: number) {
+  return {
+    id: group.id,
+    name: group.name,
+    slug: group.slug,
+    locations,
+    subscriptionStatus: group.subscriptionStatus,
+    trialEndsAt: group.trialEndsAt,
+    currentPeriodEndsAt: group.currentPeriodEndsAt,
+    hasSubscription: group.stripeSubscriptionId !== null,
+    entitlements: group.entitlements
+      .split(",")
+      .map((entry) => entry.trim())
+      .filter(Boolean),
+    createdAt: group.createdAt,
+  };
+}
+
+async function locationCounts(
+  groupIds: number[],
+): Promise<Map<number, number>> {
+  if (groupIds.length === 0) return new Map();
+
+  const rows = await db
+    .select({ groupId: funeralHomesTable.groupId, total: count() })
+    .from(funeralHomesTable)
+    .where(inArray(funeralHomesTable.groupId, groupIds))
+    .groupBy(funeralHomesTable.groupId);
+
+  return new Map(
+    rows.flatMap((row) => (row.groupId === null ? [] : [[row.groupId, row.total]])),
+  );
+}
+
+router.get("/admin/groups", async (req, res) => {
+  const who = actor(req);
+  await recordPlatformAccess(who, "group.list", null);
+
+  const groups = await db
+    .select()
+    .from(homeGroupsTable)
+    .orderBy(asc(homeGroupsTable.name));
+
+  const counts = await locationCounts(groups.map((group) => group.id));
+
+  res.json(
+    groups.map((group) => toAdminGroup(group, counts.get(group.id) ?? 0)),
+  );
+});
+
+const CreateGroupBody = z.object({
+  name: z.string().trim().min(1).max(160),
+});
+
+router.post("/admin/groups", async (req, res) => {
+  const who = actor(req);
+  const { name } = parseBody(CreateGroupBody, req.body);
+
+  const [created] = await db
+    .insert(homeGroupsTable)
+    .values({
+      name,
+      slug: await uniqueGroupSlug(name),
+      // A group starts on the same trial a single home gets. Nobody signs a
+      // forty-location contract without trying it on one of them first.
+      trialEndsAt: new Date(Date.now() + TRIAL_DAYS * 24 * 60 * 60 * 1000),
+    })
+    .returning();
+
+  await recordPlatformAccess(who, "group.create", null, `Created group "${name}"`);
+
+  res.status(201).json(toAdminGroup(created!, 0));
+});
+
+async function loadGroup(who: PlatformActor, raw: string | undefined) {
+  const [group] = await db
+    .select()
+    .from(homeGroupsTable)
+    .where(eq(homeGroupsTable.id, parseId(raw)))
+    .limit(1);
+
+  const row = requireRow(group, "That group could not be found.");
+  await recordPlatformAccess(who, "group.open", null, `Opened group "${row.name}"`);
+  return row;
+}
+
+router.get("/admin/groups/:groupId", async (req, res) => {
+  const who = actor(req);
+  const group = await loadGroup(who, req.params.groupId);
+
+  const locations = await db
+    .select()
+    .from(funeralHomesTable)
+    .where(eq(funeralHomesTable.groupId, group.id))
+    .orderBy(asc(funeralHomesTable.name));
+
+  res.json({
+    ...toAdminGroup(group, locations.length),
+    addOns: ADD_ONS.map((addOn) => ({
+      key: addOn.key,
+      title: addOn.title,
+      detail: addOn.detail,
+      included: group.entitlements.split(",").includes(addOn.key),
+    })),
+    locations: locations.map(toAdminHome),
+  });
+});
+
+const MoveHomeBody = z.object({
+  /** Null takes the location back out of its group. */
+  groupId: z.number().int().positive().nullable(),
+});
+
+/**
+ * Move a location into a group, or out of one.
+ *
+ * Both directions have a trap, and both are handled here rather than left to
+ * whoever is on the call with the customer.
+ *
+ * **In:** a home that already has its own Stripe subscription is refused.
+ * Letting it join would leave the group paying a consolidated invoice while
+ * the branch quietly kept paying its own, and that is discovered by somebody
+ * in accounts a quarter later, which is the worst possible way for a vendor
+ * to be wrong about money.
+ *
+ * **Out:** the location keeps working. A branch sold to an independent owner
+ * on Tuesday has funerals on Wednesday, and cutting it off the moment the
+ * paperwork changed would stop a family part-way through uploading
+ * photographs of their mother because two companies were renegotiating. It
+ * gets a fortnight to put its own card in, on a trial with a real end date.
+ */
+router.put("/admin/homes/:homeId/group", async (req, res) => {
+  const who = actor(req);
+  const { groupId } = parseBody(MoveHomeBody, req.body);
+  const home = await platformLoadHome(
+    who,
+    parseId(req.params.homeId),
+    "home.group.update",
+    groupId === null ? "Removed from its group" : `Moved into group ${groupId}`,
+  );
+
+  if (groupId === null) {
+    const graceEnds = new Date(
+      Date.now() + GROUP_EXIT_GRACE_DAYS * 24 * 60 * 60 * 1000,
+    );
+
+    const [updated] = await db
+      .update(funeralHomesTable)
+      .set({
+        groupId: null,
+        subscriptionStatus: "trial",
+        trialEndsAt: graceEnds,
+        currentPeriodEndsAt: null,
+        // The group's add-ons left with the group. The live trial above is
+        // what keeps aftercare running for the next fortnight, and after
+        // that this location buys its own.
+        entitlements: "",
+        updatedAt: new Date(),
+      })
+      .where(eq(funeralHomesTable.id, home.id))
+      .returning();
+
+    res.json(toAdminHome(updated!));
+    return;
+  }
+
+  const [group] = await db
+    .select()
+    .from(homeGroupsTable)
+    .where(eq(homeGroupsTable.id, groupId))
+    .limit(1);
+
+  const target = requireRow(group, "That group could not be found.");
+
+  if (home.stripeSubscriptionId !== null && home.groupId === null) {
+    throw new HttpError(
+      409,
+      "This home has its own subscription. Cancel it in Stripe first, or " +
+        "the group's contract and this one will both be charged.",
+    );
+  }
+
+  const [updated] = await db
+    .update(funeralHomesTable)
+    .set({
+      groupId: target.id,
+      // Adopt the contract it is now covered by. The webhook keeps these in
+      // step from here on — see `applyGroupSubscription`.
+      subscriptionStatus: target.subscriptionStatus,
+      trialEndsAt: target.trialEndsAt,
+      currentPeriodEndsAt: target.currentPeriodEndsAt,
+      entitlements: target.entitlements,
+      updatedAt: new Date(),
+    })
+    .where(eq(funeralHomesTable.id, home.id))
+    .returning();
+
+  res.json(toAdminHome(updated!));
+});
+
+const GroupCheckoutBody = z.object({
+  returnUrl: z.string().trim().min(1).max(2048),
+  email: z.string().trim().email().max(254),
+  addOns: z.array(z.string().refine(isAddOnKey)).optional(),
+});
+
+/**
+ * Start the group's subscription.
+ *
+ * The base line is quantity-per-location and the per-case line is metered
+ * across the whole estate, which is the shape a rollup actually wants: one
+ * invoice, one renewal date, and a volume number their finance team can
+ * reconcile against their own case count.
+ */
+router.post("/admin/groups/:groupId/checkout", async (req, res) => {
+  const who = actor(req);
+  const group = await loadGroup(who, req.params.groupId);
+  const body = parseBody(GroupCheckoutBody, req.body);
+
+  if (!isBillingConfigured()) {
+    throw badRequest(
+      "Billing is not set up on this deployment. Nothing is being charged.",
+    );
+  }
+
+  const [row] = await db
+    .select({ total: count() })
+    .from(funeralHomesTable)
+    .where(eq(funeralHomesTable.groupId, group.id));
+
+  const locations = row?.total ?? 0;
+
+  if (locations === 0) {
+    throw badRequest(
+      "Put at least one location in this group before starting its contract.",
+    );
+  }
+
+  await recordPlatformAccess(
+    who,
+    "group.checkout",
+    null,
+    `Started checkout for "${group.name}" (${locations} locations)`,
+  );
+
+  res.json({
+    url: await createGroupCheckoutSession({
+      group,
+      email: body.email,
+      returnUrl: body.returnUrl,
+      addOns: body.addOns as AddOnKey[] | undefined,
+      locations,
+    }),
+  });
 });
 
 export default router;

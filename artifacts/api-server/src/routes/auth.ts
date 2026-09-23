@@ -14,13 +14,17 @@ import {
   LoginBody,
   ForgotPasswordBody,
   ResetPasswordBody,
+  VerifyEmailBody,
 } from "@workspace/api-zod";
 import { badRequest, HttpError, parseBody } from "../lib/http";
 import {
+  EMAIL_VERIFICATION_TTL_MS,
   MIN_PASSWORD_LENGTH,
   PASSWORD_RESET_TTL_MS,
   clearSessionCookie,
+  consumeEmailVerification,
   consumePasswordReset,
+  createEmailVerification,
   createPasswordReset,
   createSession,
   destroyAllSessions,
@@ -33,7 +37,10 @@ import {
   SESSION_COOKIE,
   verifyPassword,
 } from "../lib/auth";
-import { sendPasswordResetEmail } from "@workspace/mailer";
+import {
+  sendEmailVerificationEmail,
+  sendPasswordResetEmail,
+} from "@workspace/mailer";
 import { authRateLimit } from "../middleware/rate-limit";
 import { seedTimelineTemplate } from "../lib/timeline";
 import { seedPolicyPrompts } from "../lib/storefront";
@@ -151,8 +158,83 @@ router.post("/auth/register", authRateLimit, async (req, res) => {
   });
 
   setSessionCookie(req, res, await createSession(user.id));
+
+  // After the session, and never allowed to fail the registration. A home
+  // whose confirmation email bounced is a home with an unverified address and
+  // a working console, which is recoverable; a home whose registration rolled
+  // back because of a mail server is a lost customer.
+  await sendVerification(user, home.name);
+
   res.status(201).json(authPayload(user, home));
 });
+
+/**
+ * Issue a confirmation link and email it.
+ *
+ * Shared by registration and by the resend route so the two cannot drift. The
+ * link lands on the console, because whoever clicks it is staff.
+ */
+async function sendVerification(user: User, homeName: string): Promise<void> {
+  const token = await createEmailVerification(user.id, user.email);
+  const base = process.env["CONSOLE_URL"]?.replace(/\/+$/, "") ?? "";
+
+  await sendEmailVerificationEmail({
+    to: user.email,
+    homeName,
+    verifyUrl: `${base}/verify-email?token=${encodeURIComponent(token)}`,
+    expiresInDays: Math.round(EMAIL_VERIFICATION_TTL_MS / 86400000),
+  });
+}
+
+/**
+ * Confirm an address from the emailed link.
+ *
+ * Deliberately outside the session gate. A director opens this on whichever
+ * device the email is on, which is often not the one they signed in on, and
+ * being told to sign in first before a link can be clicked is how a
+ * confirmation never happens. The token is the credential, it is single-use,
+ * and redeeming it grants nothing except the verified flag.
+ */
+router.post("/auth/verify-email", authRateLimit, async (req, res) => {
+  const values = parseBody(VerifyEmailBody, req.body);
+
+  const user = await consumeEmailVerification(values.token);
+
+  if (!user) {
+    throw badRequest(
+      "That confirmation link has expired or has already been used. " +
+        "Sign in and ask for another.",
+    );
+  }
+
+  res.status(204).end();
+});
+
+/**
+ * Send another confirmation link.
+ *
+ * Behind the session gate, unlike the one above: the address to confirm is the
+ * signed-in account's own, so there is nothing to supply and no way to aim a
+ * confirmation email at somebody else's inbox.
+ */
+router.post(
+  "/auth/resend-verification",
+  authRateLimit,
+  requireAuth,
+  async (req, res) => {
+    const user = currentUser(req);
+    const home = tenant(req);
+
+    // Answering 204 either way keeps this from being a way to ask whether an
+    // account is verified, and means a director who clicks twice is not told
+    // off for it.
+    if (!user.emailVerified) {
+      await sendVerification(user, home.name);
+    }
+
+    res.status(204).end();
+  },
+);
 
 router.post("/auth/login", authRateLimit, async (req, res) => {
   const values = parseBody(LoginBody, req.body);

@@ -131,7 +131,7 @@ describe("the home can grow", () => {
     // No password was set by anyone else on their behalf: they arrive with
     // none and choose their own through the invite link.
     expect(invited.body.hasPassword).toBe(false);
-    expect(invited.body.inviteLink).toContain("/reset-password?token=");
+    expect(invited.body.inviteLink).toContain("/reset-password?invited=1&token=");
   });
 
   it("refuses an owner who would lock themselves out", async () => {

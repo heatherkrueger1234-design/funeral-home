@@ -2,6 +2,7 @@ import { type ReactNode } from "react";
 import { Link, useLocation } from "wouter";
 import { useLogout } from "@workspace/api-client-react";
 import { useSession } from "@/lib/session";
+import { ConfirmAddressNotice } from "@/components/ConfirmAddressNotice";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -223,7 +224,10 @@ export function ConsoleShell({ children }: { children: ReactNode }) {
         </div>
       </header>
 
-      <main className="mx-auto w-full max-w-5xl flex-1 px-5 py-7">{children}</main>
+      <main className="mx-auto w-full max-w-5xl flex-1 px-5 py-7">
+        <ConfirmAddressNotice />
+        {children}
+      </main>
     </div>
   );
 }

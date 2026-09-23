@@ -9,6 +9,7 @@ import {
 } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
+import { homeGroupsTable } from "./home-groups";
 
 /**
  * How long after the service the case chat stays open, for a home that has
@@ -213,6 +214,36 @@ export const funeralHomesTable = pgTable(
     stripeEventCreatedAt: timestamp("stripe_event_created_at"),
 
     /**
+     * Which add-ons this home is entitled to, as a comma-separated list of
+     * keys. Same shape as `onboardingDone` above, and for the same reason:
+     * the set will change as the product does, and a boolean column per
+     * add-on is the sort of friction that stops anyone adding one.
+     *
+     * Written by the Stripe webhook from the subscription's line items, so
+     * this is a cache of what was bought rather than a second opinion about
+     * it. Note what is still absent: no price, no amount, no quantity. What
+     * was paid stays in Stripe. See `plans.ts`.
+     */
+    entitlements: text("entitlements").notNull().default(""),
+
+    /**
+     * The group this location belongs to, if it belongs to one.
+     *
+     * Null is the ordinary case -- a single home that pays its own bill.
+     * When it is set, the group's subscription is the one that counts, and
+     * the webhook writes the group's status and entitlements down onto this
+     * row. Nothing at request time joins to the group, which is deliberate:
+     * see `home-groups.ts`.
+     *
+     * `set null` on delete, emphatically. A group row is a billing
+     * arrangement; removing one must release forty funeral homes, never
+     * cascade into deleting them.
+     */
+    groupId: integer("group_id").references(() => homeGroupsTable.id, {
+      onDelete: "set null",
+    }),
+
+    /**
      * Which setup steps the home has finished.
      *
      * A comma-separated list rather than a column each, because these are a
@@ -221,6 +252,31 @@ export const funeralHomesTable = pgTable(
      * anyone adding one.
      */
     onboardingDone: text("onboarding_done").notNull().default(""),
+
+    /**
+     * Which trial reminders have already gone out.
+     *
+     * Same comma-separated shape as `onboardingDone`, and appended in SQL for
+     * the same reason: two overlapping runs of the scheduled job must not both
+     * decide a reminder is unsent. The thing being protected here is not a
+     * checkbox — it is a funeral home's owner receiving the same "your trial
+     * ends on Tuesday" email twice.
+     */
+    trialRemindersSent: text("trial_reminders_sent").notNull().default(""),
+
+    /**
+     * Ours, not a customer's.
+     *
+     * A platform admin needs a staff account to have a cookie, and a staff
+     * account needs a `funeral_homes` row. That row then sat in the customer
+     * list and in every count the business makes about itself — the admin
+     * console cheerfully reported three homes on trial when one of the three
+     * was us. Set on the vendor's own tenant, it is excluded from the homes
+     * list, the counts and the engagement figures, and from nothing else: the
+     * row is an ordinary tenant in every other respect, which is what makes it
+     * useful for trying something before a real home sees it.
+     */
+    internalAccount: boolean("internal_account").notNull().default(false),
 
     /**
      * Set when the platform suspends this home. Component 2's doing, and the
@@ -249,6 +305,36 @@ export const funeralHomesTable = pgTable(
 
 /** How long a home gets to try it with real families. */
 export const TRIAL_DAYS = 30;
+
+/**
+ * When a home hears from us about its trial, and what each message is called
+ * in `trialRemindersSent`.
+ *
+ * Three, and no more. The product's own copy rules forbid countdowns and
+ * urgency at a family, and there is no reason to hold a funeral home's owner
+ * to a lower standard — so this is a week's notice, a day's notice, and one
+ * plain note on the day it ends. `daysBefore: 0` is the last of those.
+ *
+ * Before this existed the only signal was a banner in a console, and a
+ * director who had not signed in for three weeks discovered the trial had
+ * ended by being refused a case on the morning somebody died. Nobody converts
+ * from a banner they never saw.
+ */
+export const TRIAL_REMINDERS = [
+  { key: "trial-7", daysBefore: 7 },
+  { key: "trial-1", daysBefore: 1 },
+  { key: "trial-ended", daysBefore: 0 },
+] as const;
+
+export type TrialReminderKey = (typeof TRIAL_REMINDERS)[number]["key"];
+
+/** Whether a given reminder has already been sent to this home. */
+export function trialReminderSent(
+  home: { trialRemindersSent: string },
+  key: TrialReminderKey,
+): boolean {
+  return home.trialRemindersSent.split(",").includes(key);
+}
 
 /**
  * The setup steps a home is walked through.

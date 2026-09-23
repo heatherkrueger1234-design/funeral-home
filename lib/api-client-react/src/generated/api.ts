@@ -135,6 +135,7 @@ import type {
   VendorInput,
   VendorQuote,
   VendorUpdate,
+  VerifyEmailInput,
   VitalStatistics,
   VitalsFamilyUpdate,
   VitalsStaffUpdate,
@@ -898,6 +899,175 @@ export const useResetPassword = <
   TContext
 > => {
   return useMutation(getResetPasswordMutationOptions(options));
+};
+
+/**
+ * Outside the session gate on purpose: the link is opened on whichever device the email is on. The token is single-use and grants nothing beyond the verified flag.
+
+ * @summary Confirm a staff address from the emailed link
+ */
+export const getVerifyEmailUrl = () => {
+  return `/api/auth/verify-email`;
+};
+
+export const verifyEmail = async (
+  verifyEmailInput: VerifyEmailInput,
+  options?: RequestInit,
+): Promise<void> => {
+  return customFetch<void>(getVerifyEmailUrl(), {
+    ...options,
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(verifyEmailInput),
+  });
+};
+
+export const getVerifyEmailMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof verifyEmail>>,
+    TError,
+    { data: BodyType<VerifyEmailInput> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof verifyEmail>>,
+  TError,
+  { data: BodyType<VerifyEmailInput> },
+  TContext
+> => {
+  const mutationKey = ["verifyEmail"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof verifyEmail>>,
+    { data: BodyType<VerifyEmailInput> }
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return verifyEmail(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type VerifyEmailMutationResult = NonNullable<
+  Awaited<ReturnType<typeof verifyEmail>>
+>;
+export type VerifyEmailMutationBody = BodyType<VerifyEmailInput>;
+export type VerifyEmailMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Confirm a staff address from the emailed link
+ */
+export const useVerifyEmail = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof verifyEmail>>,
+    TError,
+    { data: BodyType<VerifyEmailInput> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof verifyEmail>>,
+  TError,
+  { data: BodyType<VerifyEmailInput> },
+  TContext
+> => {
+  return useMutation(getVerifyEmailMutationOptions(options));
+};
+
+/**
+ * @summary Send another confirmation link to the signed-in account
+ */
+export const getResendVerificationUrl = () => {
+  return `/api/auth/resend-verification`;
+};
+
+export const resendVerification = async (
+  options?: RequestInit,
+): Promise<void> => {
+  return customFetch<void>(getResendVerificationUrl(), {
+    ...options,
+    method: "POST",
+  });
+};
+
+export const getResendVerificationMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof resendVerification>>,
+    TError,
+    void,
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof resendVerification>>,
+  TError,
+  void,
+  TContext
+> => {
+  const mutationKey = ["resendVerification"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof resendVerification>>,
+    void
+  > = () => {
+    return resendVerification(requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type ResendVerificationMutationResult = NonNullable<
+  Awaited<ReturnType<typeof resendVerification>>
+>;
+
+export type ResendVerificationMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Send another confirmation link to the signed-in account
+ */
+export const useResendVerification = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof resendVerification>>,
+    TError,
+    void,
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof resendVerification>>,
+  TError,
+  void,
+  TContext
+> => {
+  return useMutation(getResendVerificationMutationOptions(options));
 };
 
 /**

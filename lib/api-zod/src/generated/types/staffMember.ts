@@ -25,5 +25,8 @@ export interface StaffMember {
   displayName: string | null;
   title: string | null;
   role: StaffMemberRole;
+  /** Whether this address has been confirmed from the emailed link. The one thing it gates is the request form on the home's public page — see routes/public.ts. The console reads it to ask, once, calmly.
+   */
+  emailVerified: boolean;
   deactivatedAt: Date | null;
 }

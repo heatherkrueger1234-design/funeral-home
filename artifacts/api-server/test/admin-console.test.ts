@@ -1,9 +1,10 @@
-import { describe, it, expect, beforeEach, afterAll } from "vitest";
+import { describe, it, expect, beforeEach } from "vitest";
 import request from "supertest";
 import app from "../src/app";
 import {
   db,
   funeralHomesTable,
+  platformAdminsTable,
   platformAuditTable,
   canOpenCases,
   licensureReminders,
@@ -46,18 +47,24 @@ async function signInPlatformAdmin(): Promise<StaffSession> {
     })
     .expect(201);
 
-  return { agent, homeId: res.body.home.id, userId: res.body.user.id };
+  return {
+    agent,
+    homeId: res.body.home.id,
+    userId: res.body.user.id,
+    email: ADMIN_EMAIL,
+  };
 }
 
-const previousAllowlist = process.env["PLATFORM_ADMIN_EMAILS"];
-
-beforeEach(() => {
-  process.env["PLATFORM_ADMIN_EMAILS"] = ADMIN_EMAIL;
-});
-
-afterAll(() => {
-  if (previousAllowlist === undefined) delete process.env["PLATFORM_ADMIN_EMAILS"];
-  else process.env["PLATFORM_ADMIN_EMAILS"] = previousAllowlist;
+/**
+ * Put the test's admin on the list.
+ *
+ * The list is a table now rather than `PLATFORM_ADMIN_EMAILS`, so this is a
+ * row rather than an environment variable — which also means a test can take
+ * somebody off it and watch the console shut, without the process-wide state
+ * that made the old version order-dependent.
+ */
+beforeEach(async () => {
+  await db.insert(platformAdminsTable).values({ email: ADMIN_EMAIL });
 });
 
 /* ------------------------------------------------------ the two it is for */
@@ -140,9 +147,27 @@ describe("the tenant boundary", () => {
     await home.agent.get("/api/admin/homes").expect(403);
   });
 
-  it("is closed to everyone when the platform allowlist is not set", async () => {
-    delete process.env["PLATFORM_ADMIN_EMAILS"];
+  it("is closed to everyone when nobody is on the platform list", async () => {
+    await db.delete(platformAdminsTable);
     const admin = await signInPlatformAdmin();
+
+    await admin.agent.get("/api/admin/homes").expect(403);
+  });
+
+  it("shuts the moment access is revoked, on the same session", async () => {
+    const admin = await signInPlatformAdmin();
+    await admin.agent.get("/api/admin/homes").expect(200);
+
+    /*
+     * The point of moving the list into the database. With an environment
+     * variable, taking somebody off it needed a redeploy — so in practice a
+     * colleague who had left kept access until the next one. Their cookie is
+     * still perfectly valid here; it is the membership that is gone.
+     */
+    await db
+      .update(platformAdminsTable)
+      .set({ revokedAt: new Date(), revokedByEmail: "someone@holdingtoday.example" })
+      .where(eq(platformAdminsTable.email, ADMIN_EMAIL));
 
     await admin.agent.get("/api/admin/homes").expect(403);
   });
@@ -173,7 +198,7 @@ describe("homes", () => {
     expect(created.body.subscriptionStatus).toBe("trial");
     expect(created.body.canOpenCases).toBe(true);
     // The owner sets their own password; none was ever typed here.
-    expect(created.body.inviteLink).toContain("/reset-password?token=");
+    expect(created.body.inviteLink).toContain("/reset-password?invited=1&token=");
 
     // Blank template: the standard schedule is there, so the first case this
     // home opens gets a working timeline without anybody configuring one.
