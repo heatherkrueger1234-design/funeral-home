@@ -87,12 +87,18 @@ turn, and turning it down costs you recovery time on the day you need it.
 
 Every uploaded file and every social security number is encrypted with
 AES-256-GCM before it is written, using a key held in the application's
-environment and never in the database. Ciphertext in a stolen dump is worth
-nothing without it.
+environment and never in the database.
+
+Backups are encrypted too, as a whole file, with the same key. A dump is
+mostly plaintext SQL otherwise — names, addresses, vital statistics, message
+bodies — since only the columns above are ciphertext on their own. A stolen
+or misplaced backup is worth nothing without the key, not just the two
+columns that would otherwise stand out inside it.
 
 The corollary is the one thing a home must get right: **lose the key and the
-photographs are lost.** Not recoverable by us, not recoverable by anyone. Keep
-a copy somewhere that is neither the application host nor the backup.
+photographs, and the backups, are lost.** Not recoverable by us, not
+recoverable by anyone. Keep a copy somewhere that is neither the application
+host nor the backup.
 
 ## What leaves the building
 

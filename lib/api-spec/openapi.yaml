@@ -2715,6 +2715,27 @@ paths:
                 type: string
                 format: binary
 
+  /family/print/{printItemId}/render:
+    get:
+      operationId: renderFamilyPrintItem
+      tags: [family]
+      summary: The rendered proof behind a shared print item
+      description: |
+        Same document as the staff `renderPrintItem`, scoped to this case and
+        to items the home has shared. Fetched as a blob and handed to the
+        browser as an object URL — the portal has no cookie, only a bearer
+        token, so a plain `<iframe src>` cannot carry the credential.
+      parameters:
+        - $ref: "#/components/parameters/PrintItemId"
+      responses:
+        "200":
+          description: The document
+          content:
+            text/html:
+              schema:
+                type: string
+                format: binary
+
 components:
   parameters:
     CaseId:

@@ -1,0 +1,33 @@
+# Keep the build context small and keep secrets out of it. Everything the
+# image needs is either a manifest or source; anything built on a developer's
+# machine is rebuilt inside the image against the right libc and node version.
+
+.git
+.github
+node_modules
+**/node_modules
+dist
+**/dist
+*.tsbuildinfo
+**/*.tsbuildinfo
+
+# Secrets. A .env copied into the context ends up in an image layer, and image
+# layers travel.
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+
+# Database dumps. These hold everything every family has written.
+backups/
+*.sql
+*.sql.partial
+
+.DS_Store
+Thumbs.db
+coverage
+.vscode
+.idea
+.cache
+.local

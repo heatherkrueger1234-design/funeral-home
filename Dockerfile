@@ -101,6 +101,16 @@ RUN pg_dump --version \
 
 ENV NODE_ENV=production
 
+# The same fixed uid as runtime, not root. This container runs migrations,
+# backups and restores against a real database — a supply-chain-compromised
+# dependency or a bug in a script has no reason to execute as root just
+# because nothing here is a long-running server.
+RUN groupadd --gid 10001 app \
+  && useradd --uid 10001 --gid 10001 --no-create-home --shell /bin/bash app \
+  && mkdir -p /backups \
+  && chown -R 10001:10001 /app /backups
+USER 10001:10001
+
 # Nothing here is a server. It is run one command at a time, by a scheduler or
 # by a person at 3am, so the default is the shell that will be typed into.
 CMD ["bash"]

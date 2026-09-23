@@ -4666,3 +4666,15 @@ export const SetFamilyAftercareConsentResponse = zod.object({
 export const GetFamilyUploadParams = zod.object({
   uploadId: zod.coerce.number(),
 });
+
+/**
+ * Same document as the staff `renderPrintItem`, scoped to this case and
+to items the home has shared. Fetched as a blob and handed to the
+browser as an object URL — the portal has no cookie, only a bearer
+token, so a plain `<iframe src>` cannot carry the credential.
+
+ * @summary The rendered proof behind a shared print item
+ */
+export const RenderFamilyPrintItemParams = zod.object({
+  printItemId: zod.coerce.number(),
+});

@@ -1,0 +1,27 @@
+{
+  "name": "@workspace/scripts",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "generate-encryption-key": "node -e \"console.log(require('crypto').randomBytes(32).toString('base64'))\"",
+    "backup-database": "tsx ./src/backup-database.ts",
+    "send-aftercare": "tsx ./src/send-aftercare.ts",
+    "load-postal-codes": "tsx ./src/load-postal-codes.ts",
+    "restore-database": "tsx ./src/restore-database.ts",
+    "verify-backup": "tsx ./src/verify-backup.ts",
+    "seed-demo": "tsx ./src/seed-demo.ts"
+  },
+  "devDependencies": {
+    "@types/node": "catalog:",
+    "tsx": "catalog:",
+    "@types/pg": "^8.18.0"
+  },
+  "dependencies": {
+    "@workspace/db": "workspace:*",
+    "@workspace/mailer": "workspace:*",
+    "drizzle-orm": "catalog:",
+    "pg": "^8.20.0"
+  }
+}

@@ -1,7 +1,7 @@
 /**
  * Restore a pg_dump taken by `backup-database`.
  *
- *   pnpm --filter @workspace/scripts run restore-database -- --file ./backups/x.sql
+ *   pnpm --filter @workspace/scripts run restore-database -- --file ./backups/x.sql.enc
  *
  * This is the script somebody runs at three in the morning, having just lost
  * a database holding photographs of other people's dead relatives. Everything
@@ -12,9 +12,18 @@
  * The failure it most guards against is not a bad restore. It is a confident
  * one — running against the wrong `DATABASE_URL` and wiping production while
  * trying to test a backup.
+ *
+ * `--file` ending in `.sql.enc` (what `backup-database` now writes) is
+ * decrypted to a temporary plaintext file first, which is removed again once
+ * this script exits, restore or not. Decryption verifies the whole file
+ * authenticates before any of it is written to disk — a truncated or
+ * tampered backup fails here, not partway through a psql run against a live
+ * database. A bare `.sql` file (from before backups were encrypted) still
+ * works unchanged.
  */
 import { spawn } from "node:child_process";
-import { stat, readFile } from "node:fs/promises";
+import { stat, readFile, rm } from "node:fs/promises";
+import { decryptFile, isEncryptedBackupName } from "./backup-crypto";
 
 const DATABASE_URL = process.env.DATABASE_URL;
 
@@ -57,8 +66,10 @@ function psql(target: string): Promise<void> {
       [
         "--quiet",
         "--no-psqlrc",
-        "--set", "ON_ERROR_STOP=1",
-        "--file", target,
+        "--set",
+        "ON_ERROR_STOP=1",
+        "--file",
+        target,
         DATABASE_URL!,
       ],
       { stdio: ["ignore", "inherit", "inherit"] },
@@ -84,31 +95,54 @@ async function main(): Promise<void> {
   if (!info) fail(`${file} does not exist.`);
   if (info.size === 0) fail(`${file} is empty. That is not a backup.`);
 
-  // Read the head rather than trusting the extension: restoring a truncated
-  // or wrong file over a live database is the worst outcome available here.
-  const head = (await readFile(file!)).subarray(0, 4096).toString("utf8");
+  const encrypted = isEncryptedBackupName(file!);
+  const dumpFile = encrypted ? `${file}.restore-${process.pid}.tmp` : file!;
 
-  if (!head.includes("PostgreSQL database dump")) {
-    fail(`${file} does not look like a pg_dump. Refusing to run it.`);
-  }
+  try {
+    if (encrypted) {
+      console.log("Decrypting…");
+      await decryptFile(file!, dumpFile);
+    }
 
-  console.log(`Dump:   ${file} (${(info.size / 1024 / 1024).toFixed(1)} MB)`);
-  console.log(`Target: ${describeTarget(DATABASE_URL!)}`);
+    const dumpInfo = encrypted ? await stat(dumpFile) : info;
 
-  if (!confirmed) {
-    console.error(
-      "\nThis will DROP and replace everything in that database.\n" +
-        "Check the target above is the one you mean, then add --yes.",
+    // Read the head rather than trusting the extension: restoring a
+    // truncated or wrong file over a live database is the worst outcome
+    // available here.
+    const head = (await readFile(dumpFile)).subarray(0, 4096).toString("utf8");
+
+    if (!head.includes("PostgreSQL database dump")) {
+      throw new Error(
+        `${file} does not look like a pg_dump. Refusing to run it.`,
+      );
+    }
+
+    console.log(
+      `Dump:   ${file} (${(dumpInfo.size / 1024 / 1024).toFixed(1)} MB` +
+        `${encrypted ? ", decrypted" : ""})`,
     );
-    process.exit(1);
-  }
+    console.log(`Target: ${describeTarget(DATABASE_URL!)}`);
 
-  console.log("\nRestoring…");
-  await psql(file!);
-  console.log(
-    "Done. Check a few rows before telling anyone it worked — a restore that " +
-      "ran without errors is not the same as a restore that is complete.",
-  );
+    if (!confirmed) {
+      console.error(
+        "\nThis will DROP and replace everything in that database.\n" +
+          "Check the target above is the one you mean, then add --yes.",
+      );
+      process.exitCode = 1;
+      return;
+    }
+
+    console.log("\nRestoring…");
+    await psql(dumpFile);
+    console.log(
+      "Done. Check a few rows before telling anyone it worked — a restore that " +
+        "ran without errors is not the same as a restore that is complete.",
+    );
+  } finally {
+    // The decrypted plaintext is temporary regardless of how this exits —
+    // a successful restore, a bad dump, or the user declining to confirm.
+    if (encrypted) await rm(dumpFile, { force: true }).catch(() => {});
+  }
 }
 
 main().catch((error: unknown) => {

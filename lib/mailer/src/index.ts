@@ -128,11 +128,28 @@ function esc(value: string): string {
     .replace(/'/g, "&#39;");
 }
 
+/**
+ * Mask the single-use token out of a reset/invite link before it goes
+ * anywhere logs might end up (an aggregator, a support ticket, a sidecar).
+ * The link only ever needs to be readable end-to-end when it's actually
+ * emailed to the account holder.
+ */
+function redactToken(url: string): string {
+  return url.replace(/([?&]token=)[^&\s]+/i, "$1REDACTED");
+}
+
 async function send(message: {
   to: string;
   subject: string;
   text: string;
   html: string;
+  /**
+   * What to log in place of `text` when SMTP isn't configured and the
+   * message would otherwise be written to the log. Defaults to `text`.
+   * Set this whenever `text` embeds a working credential (a reset or
+   * invite link) so the fallback path can't leak it into logs.
+   */
+  logText?: string;
   /**
    * Report failure to the caller instead of swallowing it.
    *
@@ -148,7 +165,11 @@ async function send(message: {
 
   if (!mailer) {
     logger.warn(
-      { to: message.to, subject: message.subject, body: message.text },
+      {
+        to: message.to,
+        subject: message.subject,
+        body: message.logText ?? message.text,
+      },
       "SMTP not configured — email not sent, logged instead",
     );
     if (message.rethrow) {
@@ -158,8 +179,9 @@ async function send(message: {
   }
 
   try {
-    const { rethrow, ...payload } = message;
+    const { rethrow, logText, ...payload } = message;
     void rethrow;
+    void logText;
     await mailer.transport.sendMail({ from: mailer.from, ...payload });
     logger.info({ to: message.to, subject: message.subject }, "Email sent");
   } catch (err) {
@@ -227,6 +249,7 @@ export async function sendPasswordResetEmail(options: {
     subject: "Reset your Holding Today password",
     text,
     html,
+    logText: text.replace(resetUrl, redactToken(resetUrl)),
   });
 }
 
@@ -272,7 +295,13 @@ export async function sendStaffInviteEmail(options: {
   <p style="margin:24px 0 0;color:#9ca3af;font-size:12px">— Holding Today</p>
 </div>`.trim();
 
-  await send({ to, subject: `You've been added to ${homeName}`, text, html });
+  await send({
+    to,
+    subject: `You've been added to ${homeName}`,
+    text,
+    html,
+    logText: text.replace(inviteLink, redactToken(inviteLink)),
+  });
 }
 
 /**

@@ -1,0 +1,63 @@
+# See https://docs.github.com/en/get-started/getting-started-with-git/ignoring-files for more about ignoring files.
+
+# compiled output
+dist
+tmp
+out-tsc
+*.tsbuildinfo
+.expo
+.expo-shared
+
+# dependencies
+node_modules
+
+# IDEs and editors
+/.idea
+.project
+.classpath
+.c9/
+*.launch
+.settings/
+*.sublime-workspace
+
+# IDE - VSCode
+.vscode/*
+!.vscode/settings.json
+!.vscode/tasks.json
+!.vscode/launch.json
+!.vscode/extensions.json
+
+# misc
+/.sass-cache
+/connect.lock
+/coverage
+/libpeerconnection.log
+npm-debug.log
+yarn-error.log
+testem.log
+/typings
+
+# System Files
+.DS_Store
+Thumbs.db
+
+.cursor/rules/nx-rules.mdc
+.github/instructions/nx.instructions.md
+
+# Replit
+.cache/
+.local/
+
+# Secrets. ENCRYPTION_KEY, SMTP_PASS and the Google client secret belong in
+# the host's secret store, never in the repository — a key committed beside
+# the ciphertext it protects is not encryption.
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+
+# Database dumps from scripts/src/backup-database.ts. These contain
+# everything anyone has written here; they must never reach the repo.
+/backups/
+*.sql.partial
