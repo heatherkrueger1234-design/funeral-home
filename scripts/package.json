@@ -12,7 +12,8 @@
     "restore-database": "tsx ./src/restore-database.ts",
     "verify-backup": "tsx ./src/verify-backup.ts",
     "seed-demo": "tsx ./src/seed-demo.ts",
-    "send-test-email": "tsx ./src/send-test-email.ts"
+    "send-test-email": "tsx ./src/send-test-email.ts",
+    "seed-showcase": "tsx ./src/seed-showcase.ts"
   },
   "devDependencies": {
     "@types/node": "catalog:",
@@ -23,6 +24,7 @@
     "@workspace/db": "workspace:*",
     "@workspace/mailer": "workspace:*",
     "drizzle-orm": "catalog:",
-    "pg": "^8.20.0"
+    "pg": "^8.20.0",
+    "sharp": "^0.34.5"
   }
 }

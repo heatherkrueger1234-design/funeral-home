@@ -335,6 +335,41 @@ function's body becomes a call to theirs and its shape stays. Do not add
 cleverness to it in the meantime — two definitions of "engaged" is worse than
 none.
 
+## Demoing it
+
+`seed-showcase` builds an account that looks like a working one, with three
+sign-ins and family links that open:
+
+```sh
+pnpm --filter @workspace/db run push
+pnpm --filter @workspace/scripts run seed-showcase
+```
+
+It prints the credentials, the family links, and what is in it. Re-running
+replaces the previous demo rather than stacking another Cedar & Stone into the
+customer list, so it is safe to run again ten minutes before a meeting. It
+refuses a non-local `DATABASE_URL` without `--yes`.
+
+Four cases, deliberately at four different stages, because the screen that
+sells this is the master page and it only means anything when each of its
+buckets has something in it: one mid-arrangement with an unanswered message and
+an overdue item, one closed and in aftercare with an open memory book, one with
+no service date at all, and a pre-need file that is correctly *not* in
+aftercare. Two requests wait on the public page.
+
+Distinct from `seed-demo`, which exists for the backup drill and deliberately
+creates an account nobody can sign into. Do not conflate them.
+
+The photographs it generates are soft two-tone washes at real photograph
+proportions, not pictures of people — using somebody's actual picture of a
+relative for a fictional dead woman is not a thing to do casually. Swap in ones
+you have the rights to before a live demo; the captions will carry them.
+
+`seed-showcase.test.ts` signs in with a hash written exactly the way the seed
+writes one, because the seed puts password hashes straight into the database
+and the failure that invites is a quiet one: a director typing a password in
+front of a prospect and being told it is wrong.
+
 ## The legal documents
 
 [`LEGAL/`](./LEGAL/) holds three drafts: the [terms](./LEGAL/TERMS.md), the
