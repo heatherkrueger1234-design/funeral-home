@@ -335,6 +335,26 @@ function's body becomes a call to theirs and its shape stays. Do not add
 cleverness to it in the meantime — two definitions of "engaged" is worse than
 none.
 
+## The legal documents
+
+[`LEGAL/`](./LEGAL/) holds three drafts: the [terms](./LEGAL/TERMS.md), the
+[data-processing agreement](./LEGAL/DPA.md), and the
+[privacy policy](./LEGAL/PRIVACY.md). The DPA is the one that matters
+commercially — a funeral home's insurer asks for it before the home's director
+asks for a demo.
+
+They were written against the code rather than from a template, so their
+factual claims are checkable, and [`LEGAL/README.md`](./LEGAL/README.md) cites
+the file behind each one. That cuts both ways: writing them turned up a claim
+that was not true (photograph EXIF is only stripped from images over 3000px,
+so an ordinary upload keeps its location data), which is now disclosed rather
+than asserted away. **If you change something a claim depends on, change the
+claim.**
+
+None of the three has been reviewed by a lawyer, and they contract on behalf of
+a company whose name is still a placeholder. Do not put them in front of a
+paying customer yet.
+
 ## Relationship to Memory-Haven
 
 This repository began as a fork of Memory-Haven (`holdingtoday.com`) at
