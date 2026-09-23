@@ -31,6 +31,11 @@ import { currentUser, tenant } from "../middleware/require-auth";
 import { PRINT_TEMPLATES, findTemplate } from "../lib/print-templates";
 import { renderPrintItem, resolveSlots } from "../lib/print-render";
 import { loadCase } from "./cases";
+import {
+  cropInstructionsOf,
+  uprightWithCrop,
+  type CropInstructions,
+} from "../lib/images";
 
 const router: IRouter = Router();
 
@@ -160,23 +165,44 @@ router.delete("/snippets/:snippetId", async (req, res) => {
 
 /* ---------------------------------------------------------- print items -- */
 
-/** The photograph behind a print item: its own, else the case portrait. */
+/**
+ * The photograph behind a print item: its own, else the case portrait --
+ * with the crop the family chose for it.
+ *
+ * The crop travels with the photograph, not with "being the portrait": a
+ * director who picks the same photograph for a bookmark by hand gets the
+ * same framing the family set, because it is the same face.
+ */
 async function photoUploadFor(
   item: Pick<CasePrintItem, "photoId">,
   row: Case,
-): Promise<{ photoId: number | null; uploadId: number | null }> {
+): Promise<{
+  photoId: number | null;
+  uploadId: number | null;
+  crop: CropInstructions | null;
+}> {
   const photoId = item.photoId ?? row.portraitPhotoId;
-  if (photoId === null) return { photoId: null, uploadId: null };
+  if (photoId === null) return { photoId: null, uploadId: null, crop: null };
 
   const [photo] = await db
-    .select({ uploadId: casePhotosTable.uploadId })
+    .select({
+      uploadId: casePhotosTable.uploadId,
+      cropX: casePhotosTable.cropX,
+      cropY: casePhotosTable.cropY,
+      cropWidth: casePhotosTable.cropWidth,
+      cropHeight: casePhotosTable.cropHeight,
+    })
     .from(casePhotosTable)
     .where(
       and(eq(casePhotosTable.id, photoId), eq(casePhotosTable.caseId, row.id)),
     )
     .limit(1);
 
-  return { photoId, uploadId: photo?.uploadId ?? null };
+  return {
+    photoId,
+    uploadId: photo?.uploadId ?? null,
+    crop: photo ? cropInstructionsOf(photo) : null,
+  };
 }
 
 async function toPrintItemJson(
@@ -379,21 +405,55 @@ router.delete("/print/:printItemId", async (req, res) => {
   res.status(204).end();
 });
 
-/** Bytes as a data URI, so the rendered page is one self-contained file. */
-async function dataUri(uploadId: number | null): Promise<string | null> {
+/**
+ * Bytes as a data URI, so the rendered page is one self-contained file.
+ *
+ * Scoped to the home, like every other read of `uploads`. This used to look
+ * the id up on its own, and `home.logoUploadId` is a number a home writes
+ * itself through `PUT /home` -- so pointing it at another home's upload id
+ * and rendering any prayer card inlined that home's decrypted file (a
+ * family's photograph, or anything else stored there) into this one's page.
+ * `PUT /home` now refuses a foreign id as well; this is the half that also
+ * covers a row written before it did.
+ */
+async function dataUri(
+  uploadId: number | null,
+  funeralHomeId: number,
+  crop: CropInstructions | null = null,
+): Promise<string | null> {
   if (uploadId === null) return null;
 
   const [upload] = await db
     .select()
     .from(uploadsTable)
-    .where(eq(uploadsTable.id, uploadId))
+    .where(
+      and(
+        eq(uploadsTable.id, uploadId),
+        eq(uploadsTable.funeralHomeId, funeralHomeId),
+      ),
+    )
     .limit(1);
 
   if (!upload) return null;
 
   try {
     const bytes = decryptBuffer(upload.data);
-    return `data:${upload.mimeType};base64,${bytes.toString("base64")}`;
+    if (!crop) {
+      return `data:${upload.mimeType};base64,${bytes.toString("base64")}`;
+    }
+
+    /*
+     * Cut to the family's framing for this page only. The card's frame then
+     * covers the cut the way the portal's frame covers it (`object-fit:
+     * cover`, centred), so a 4:5 prayer card shows exactly what the family
+     * framed and the square register page loses a sliver top and bottom --
+     * the same answer `visibleRect` gives on both screens. The original is
+     * still what is stored and what the photo pack exports.
+     */
+    const cut = await (await uprightWithCrop(bytes, crop))
+      .jpeg({ quality: 90 })
+      .toBuffer();
+    return `data:image/jpeg;base64,${cut.toString("base64")}`;
   } catch {
     // A card with a missing picture still prints; a 500 helps nobody at
     // nine at night before an eleven o'clock service.
@@ -410,15 +470,15 @@ export async function renderPrintItemHtml(
   const template = findTemplate(item.templateKey);
   if (!template) throw badRequest("That template no longer exists.");
 
-  const { uploadId } = await photoUploadFor(item, row);
+  const { uploadId, crop } = await photoUploadFor(item, row);
 
   return renderPrintItem({
     template,
     case: row,
     home,
     values: (item.values ?? {}) as Record<string, string>,
-    photoDataUri: await dataUri(uploadId),
-    logoDataUri: await dataUri(home.logoUploadId),
+    photoDataUri: await dataUri(uploadId, home.id, crop),
+    logoDataUri: await dataUri(home.logoUploadId, home.id),
   });
 }
 
@@ -433,7 +493,7 @@ function sendRenderedHtml(res: Response, html: string) {
   // added to the template without going through that escaping.
   res.setHeader(
     "Content-Security-Policy",
-    "default-src 'none'; img-src data:; style-src 'unsafe-inline'; base-uri 'none'; form-action 'none'",
+    "default-src 'none'; img-src data:; style-src 'unsafe-inline'; base-uri 'none'; form-action 'none'; frame-ancestors 'self'",
   );
   res.send(html);
 }

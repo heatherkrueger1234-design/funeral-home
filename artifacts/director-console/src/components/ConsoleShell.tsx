@@ -77,14 +77,19 @@ function NavLink({
           : "text-muted-foreground hover:bg-[var(--muted)] hover:text-foreground",
       )}
     >
-      <Icon className="size-4" strokeWidth={1.75} />
-      <span className="hidden sm:inline">{label}</span>
+      <Icon className="size-4" strokeWidth={1.75} aria-hidden />
+      {/* Visually hidden on a phone, never removed: `hidden` took the only
+          name these links had, so a screen reader announced four unlabelled
+          links in a row at exactly the width a director uses at a graveside. */}
+      <span className="sr-only sm:not-sr-only">{label}</span>
       {badge !== undefined && badge > 0 && (
         <span
           className="tabular rounded-full bg-[var(--notice)] px-1.5 py-0.5 text-xs font-semibold text-white"
           title={`${badge} waiting`}
         >
+          <span className="sr-only">, </span>
           {badge}
+          <span className="sr-only"> waiting</span>
         </span>
       )}
     </Link>

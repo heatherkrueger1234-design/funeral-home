@@ -1,0 +1,6 @@
+<svg width="180" height="180" viewBox="0 0 180 180" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <!-- The apps' mark (cupped hands holding a light), redrawn in the product's own green and paper. -->
+  <rect width="180" height="180" rx="40" fill="#1f4e46"/>
+  <circle cx="90" cy="76" r="20" fill="#f8f6f1"/>
+  <path d="M40 102c0 29 22 46 50 46s50-17 50-46" stroke="#f8f6f1" stroke-width="11" stroke-linecap="round" fill="none" opacity="0.92"/>
+</svg>

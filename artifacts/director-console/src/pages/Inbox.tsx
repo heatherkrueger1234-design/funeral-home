@@ -12,7 +12,8 @@ import type { InboxEntry } from "@workspace/api-client-react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Divider, Empty, Loading, PageHeader } from "@/components/page";
-import { cn } from "@/lib/utils";
+import { cn, formatAtHome } from "@/lib/utils";
+import { useHomeZone } from "@/lib/session";
 import { Loader2, Moon, Lock, MessageSquare, Send } from "lucide-react";
 
 /**
@@ -34,12 +35,14 @@ import { Loader2, Moon, Lock, MessageSquare, Send } from "lucide-react";
  * product was sold as an alternative to.
  */
 
-const timeFormat = new Intl.DateTimeFormat(undefined, {
-  month: "short",
-  day: "numeric",
-  hour: "numeric",
-  minute: "2-digit",
-});
+/** On the home's clock -- see `formatAtHome`. */
+const messageTime = (value: string | Date, zone: string | undefined) =>
+  formatAtHome(value, zone, {
+    month: "short",
+    day: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+  });
 
 function ago(value: string | Date): string {
   const date = value instanceof Date ? value : new Date(value);
@@ -106,6 +109,7 @@ export default function Inbox() {
 }
 
 function Conversation({ row }: { row: InboxEntry }) {
+  const zone = useHomeZone();
   const queryClient = useQueryClient();
   const [reply, setReply] = useState("");
   const [open, setOpen] = useState(false);
@@ -157,7 +161,7 @@ function Conversation({ row }: { row: InboxEntry }) {
         </div>
         <div className="text-xs text-muted-foreground whitespace-nowrap text-right">
           <span className="block">{ago(row.lastMessageAt)}</span>
-          <span className="block">{timeFormat.format(new Date(row.lastMessageAt))}</span>
+          <span className="block">{messageTime(row.lastMessageAt, zone)}</span>
         </div>
       </div>
 

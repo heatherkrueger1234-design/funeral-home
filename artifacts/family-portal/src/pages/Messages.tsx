@@ -29,6 +29,58 @@ function formatMinute(minute: number): string {
   return `${hour12}:${String(minutes).padStart(2, "0")} ${suffix}`;
 }
 
+/**
+ * Whether the office is open *now*, on the home's clock.
+ *
+ * The thread carries the server's answer, but that answer is only as fresh
+ * as the moment the screen loaded — and this screen is exactly the one a
+ * family leaves open while they work out how to put something. Opened at ten
+ * to five and sent at ten past, the notice that it would not be read until
+ * the morning never appeared. Worked out again on every render (which every
+ * keystroke causes), from the same hours and zone the server uses.
+ */
+function officeOpenNow(
+  opens: number,
+  closes: number,
+  timeZone: string,
+  fallback: boolean,
+): boolean {
+  try {
+    const parts = new Intl.DateTimeFormat("en-US", {
+      timeZone,
+      hour: "2-digit",
+      minute: "2-digit",
+      hour12: false,
+    }).formatToParts(new Date());
+    const hour = Number(parts.find((p) => p.type === "hour")?.value ?? "0");
+    const minute = Number(parts.find((p) => p.type === "minute")?.value ?? "0");
+    const now = (hour % 24) * 60 + minute;
+
+    if (opens === closes) return true;
+    return opens < closes
+      ? now >= opens && now < closes
+      : now >= opens || now < closes;
+  } catch {
+    return fallback;
+  }
+}
+
+/** "Mountain time" style label, only when the reader is somewhere else. */
+function zoneNote(timeZone: string): string {
+  try {
+    if (timeZone === Intl.DateTimeFormat().resolvedOptions().timeZone) return "";
+    const name = new Intl.DateTimeFormat(undefined, {
+      timeZone,
+      timeZoneName: "short",
+    })
+      .formatToParts(new Date())
+      .find((p) => p.type === "timeZoneName")?.value;
+    return name ? ` ${name}` : "";
+  } catch {
+    return "";
+  }
+}
+
 function formatSent(value: string | Date): string {
   const date = value instanceof Date ? value : new Date(value);
   return date.toLocaleString(undefined, {
@@ -44,6 +96,7 @@ export default function Messages() {
   const thread = useGetFamilyMessages();
   const [body, setBody] = useState("");
   const endRef = useRef<HTMLDivElement>(null);
+  const sending = useRef(false);
 
   const send = usePostFamilyMessage({
     mutation: {
@@ -71,10 +124,29 @@ export default function Messages() {
 
   const {
     locked,
-    withinOfficeHours,
     officeOpensMinute,
+    officeClosesMinute,
+    timezone,
     urgentPhone,
   } = thread.data;
+
+  const withinOfficeHours = officeOpenNow(
+    officeOpensMinute,
+    officeClosesMinute,
+    timezone,
+    thread.data.withinOfficeHours,
+  );
+
+  const sendNow = () => {
+    // A double tap lands both clicks before `isPending` has re-rendered the
+    // button disabled, and posted the same message to the thread twice.
+    if (sending.current || !body.trim()) return;
+    sending.current = true;
+    send.mutate(
+      { data: { body: body.trim() } },
+      { onSettled: () => { sending.current = false; } },
+    );
+  };
 
   return (
     <div className="space-y-6">
@@ -145,7 +217,8 @@ export default function Messages() {
                 <span>
                   Send this whenever you like — it will be waiting for them.
                   Your director reads messages from{" "}
-                  {formatMinute(officeOpensMinute)}.
+                  {formatMinute(officeOpensMinute)}
+                  {zoneNote(timezone)}.
                 </span>
               </p>
               {urgentPhone && (
@@ -170,6 +243,7 @@ export default function Messages() {
               value={body}
               rows={3}
               placeholder="What would you like to ask?"
+              aria-label="Your message to the funeral home"
               className="min-h-24 resize-y border-0 bg-transparent p-1 shadow-none focus-visible:shadow-none"
               onChange={(event) => setBody(event.target.value)}
             />
@@ -177,7 +251,7 @@ export default function Messages() {
               type="button"
               className="mt-2 w-full"
               disabled={!body.trim() || send.isPending}
-              onClick={() => send.mutate({ data: { body: body.trim() } })}
+              onClick={sendNow}
             >
               {send.isPending ? (
                 <Loader2 className="size-4 animate-spin" />

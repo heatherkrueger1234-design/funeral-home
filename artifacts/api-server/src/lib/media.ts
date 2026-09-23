@@ -1,11 +1,14 @@
 import multer from "multer";
 import type { Response } from "express";
-import { and, eq } from "drizzle-orm";
+import { and, count, eq } from "drizzle-orm";
 import {
   db,
   uploadsTable,
   casePhotosTable,
   familyContactsTable,
+  funeralHomesTable,
+  usersTable,
+  MAX_PHOTOS_PER_CASE,
   type CasePhoto,
   type Upload,
 } from "@workspace/db";
@@ -201,27 +204,117 @@ export function toPhotoJson(
     uploadedByName?: string | null;
   },
 ) {
+  // The staff member's id stays on the server: a family is told the home
+  // added it, not handed a user id they have no use for.
+  const { uploadedByUserId, ...rest } = photo;
   return {
-    ...photo,
+    ...rest,
     uploadedByName: options.uploadedByName ?? null,
+    addedByHome: uploadedByUserId != null,
     isPortrait: options.portraitPhotoId === photo.id,
     isReference: (options.referencePhotoId ?? null) === photo.id,
   };
 }
 
-/** Photographs on a case, in slideshow order, with their uploader's name. */
+type CropFields = Pick<CasePhoto, "cropX" | "cropY" | "cropWidth" | "cropHeight">;
+
+/** Anything smaller than this is a mis-tap, not a framing. */
+const MIN_CROP_SIDE = 0.01;
+/** Rounding slack: the portal sends four decimal places. */
+const CROP_EPSILON = 1e-6;
+
+/**
+ * The crop a write leaves behind, checked as a whole.
+ *
+ * The contract bounds each of the four numbers to 0..1 on its own, and they
+ * arrive one field at a time -- the portrait route and both photo PATCHes
+ * merge whatever was sent over what was stored. Nothing checked the result:
+ * `cropX: 0.9` over a stored width of 0.5 was saved as a rectangle running
+ * half off the side of the photograph, and every screen that honoured it
+ * then drew half a face and half nothing. So the merged rectangle is what is
+ * checked, and it must be a real rectangle inside the picture.
+ *
+ * Returns only the fields to write -- none at all when the request did not
+ * touch the crop -- so a caption edit never rewrites a framing.
+ */
+export function mergeCrop(
+  existing: CropFields,
+  values: Partial<Record<keyof CropFields, number | undefined>>,
+): Partial<CropFields> {
+  const touched =
+    values.cropX !== undefined ||
+    values.cropY !== undefined ||
+    values.cropWidth !== undefined ||
+    values.cropHeight !== undefined;
+  if (!touched) return {};
+
+  const merged = {
+    cropX: values.cropX ?? existing.cropX,
+    cropY: values.cropY ?? existing.cropY,
+    cropWidth: values.cropWidth ?? existing.cropWidth,
+    cropHeight: values.cropHeight ?? existing.cropHeight,
+  };
+  const { cropX, cropY, cropWidth, cropHeight } = merged;
+
+  if (cropX === null || cropY === null || cropWidth === null || cropHeight === null) {
+    throw badRequest(
+      "A framing needs all four of cropX, cropY, cropWidth and cropHeight.",
+    );
+  }
+  if (
+    cropWidth < MIN_CROP_SIDE ||
+    cropHeight < MIN_CROP_SIDE ||
+    cropX + cropWidth > 1 + CROP_EPSILON ||
+    cropY + cropHeight > 1 + CROP_EPSILON
+  ) {
+    throw badRequest("That framing runs off the edge of the photograph.");
+  }
+
+  return merged;
+}
+
+/**
+ * Photographs on a case, in slideshow order, with their uploader's name.
+ *
+ * A photograph a staff member added is named for the home when a family is
+ * looking ("Added by Horan & McConaty"), and for the person as well when the
+ * home is: the family needs to know it did not come from a cousin, and the
+ * office needs to know which of them scanned it.
+ */
 export async function photosForCase(
   caseId: number,
   funeralHomeId: number,
   portraitPhotoId: number | null,
-  options: { includeHidden: boolean; referencePhotoId?: number | null },
+  options: {
+    includeHidden: boolean;
+    referencePhotoId?: number | null;
+    audience?: "staff" | "family";
+  },
 ) {
   const rows = await db
-    .select({ photo: casePhotosTable, uploadedByName: familyContactsTable.name })
+    .select({
+      photo: casePhotosTable,
+      contactName: familyContactsTable.name,
+      staffName: usersTable.displayName,
+      homeName: funeralHomesTable.name,
+    })
     .from(casePhotosTable)
     .leftJoin(
       familyContactsTable,
       eq(familyContactsTable.id, casePhotosTable.uploadedByContactId),
+    )
+    // Joined on the home as well as the id, so a staff row can only ever be
+    // named after somebody who works there.
+    .leftJoin(
+      usersTable,
+      and(
+        eq(usersTable.id, casePhotosTable.uploadedByUserId),
+        eq(usersTable.funeralHomeId, casePhotosTable.funeralHomeId),
+      ),
+    )
+    .innerJoin(
+      funeralHomesTable,
+      eq(funeralHomesTable.id, casePhotosTable.funeralHomeId),
     )
     .where(
       and(
@@ -248,13 +341,100 @@ export async function photosForCase(
       }
       return a.photo.id - b.photo.id;
     })
-    .map(({ photo, uploadedByName }) =>
+    .map(({ photo, contactName, staffName, homeName }) =>
       toPhotoJson(photo, {
         portraitPhotoId,
         referencePhotoId: options.referencePhotoId,
-        uploadedByName,
+        uploadedByName:
+          photo.uploadedByUserId != null
+            ? staffUploaderName(options.audience ?? "staff", staffName, homeName)
+            : contactName,
       }),
     );
+}
+
+function staffUploaderName(
+  audience: "staff" | "family",
+  staffName: string | null,
+  homeName: string,
+): string {
+  if (audience === "family") return homeName;
+  return staffName?.trim() ? `${staffName.trim()}, ${homeName}` : homeName;
+}
+
+/**
+ * Put one photograph into a case's bin: the single path both doors use.
+ *
+ * The family's link and the director's Photos panel arrive here with the
+ * same kind of file, so they get the same treatment -- the type sniffed from
+ * the bytes, HEIC and AVIF transcoded, anything oversized or pixel-bombed
+ * refused by `storeUpload`/`normaliseImage`, the bytes encrypted, and the
+ * bin's ceiling checked on the server rather than trusted from either
+ * client. Exactly one of `contactId` and `userId` says who added it.
+ */
+export async function addPhotoToCase(options: {
+  funeralHomeId: number;
+  caseId: number;
+  file: Express.Multer.File | undefined;
+  caption?: unknown;
+  by: { contactId: number } | { userId: number };
+}): Promise<CasePhoto> {
+  const { funeralHomeId, caseId, file } = options;
+  if (!file) throw badRequest("Please choose a photograph.");
+
+  // Checked here rather than trusted from the client: the limit exists so a
+  // broken client cannot fill the database, and whoever meets it should be
+  // told plainly rather than silently having the next one dropped.
+  const [existing] = await db
+    .select({ value: count() })
+    .from(casePhotosTable)
+    .where(
+      and(
+        eq(casePhotosTable.caseId, caseId),
+        eq(casePhotosTable.funeralHomeId, funeralHomeId),
+      ),
+    );
+
+  if (Number(existing?.value ?? 0) >= MAX_PHOTOS_PER_CASE) {
+    throw badRequest(
+      "contactId" in options.by
+        ? `That's the ${MAX_PHOTOS_PER_CASE}-photograph limit. Remove one to add another, or ask the funeral home.`
+        : `This case already holds ${MAX_PHOTOS_PER_CASE} photographs, which is the limit. Delete one to add another.`,
+    );
+  }
+
+  const caption =
+    typeof options.caption === "string" ? options.caption.trim() : "";
+  const contactId = "contactId" in options.by ? options.by.contactId : null;
+  const userId = "userId" in options.by ? options.by.userId : null;
+
+  return db.transaction(async (tx) => {
+    const stored = await storeUpload({
+      funeralHomeId,
+      caseId,
+      uploadedByContactId: contactId,
+      uploadedByUserId: userId,
+      file,
+      // Same transaction as the photo row below: if that insert fails, the
+      // bytes must go with it rather than linger unreferenced.
+      tx,
+    });
+
+    const [photo] = await tx
+      .insert(casePhotosTable)
+      .values({
+        funeralHomeId,
+        caseId,
+        uploadId: stored.id,
+        uploadedByContactId: contactId,
+        uploadedByUserId: userId,
+        caption: caption || null,
+        position: Number(existing?.value ?? 0),
+      })
+      .returning();
+
+    return photo!;
+  });
 }
 
 /**

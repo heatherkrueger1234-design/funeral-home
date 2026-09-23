@@ -69,8 +69,38 @@ export async function normaliseImage(
   const longEdge = Math.max(meta.width ?? 0, meta.height ?? 0);
   const mustTranscode = NEEDS_TRANSCODE.has(mimeType);
   const mustShrink = longEdge > MAX_EDGE;
+  /*
+   * Every phone writes where a photograph was taken into the file, and the
+   * photograph a family sends of their mother in her garden is taken at her
+   * house. Passed through, those coordinates went on into the photo pack, the
+   * slideshow files a home hands to a video company, and the printed book. A
+   * re-encode drops them (sharp keeps no metadata unless asked to), so a file
+   * that carries any is re-encoded even when it is small enough to keep. A
+   * photograph that carries none still arrives byte for byte.
+   */
+  const mustStrip = Boolean(meta.exif || meta.xmp || meta.iptc);
 
-  if (!mustTranscode && !mustShrink) {
+  /*
+   * The common case -- an upright JPEG under the size ceiling -- loses its
+   * metadata without being re-encoded: the segments that carry it are cut out
+   * and every pixel is the family's own. Only a photograph whose orientation
+   * tag still has work to do is re-encoded, because cutting the tag out of
+   * that one would turn it on its side.
+   */
+  if (
+    mustStrip &&
+    !mustTranscode &&
+    !mustShrink &&
+    mimeType === "image/jpeg" &&
+    (meta.orientation ?? 1) === 1
+  ) {
+    const stripped = stripJpegMetadata(data);
+    if (stripped) {
+      return { data: stripped, mimeType, converted: true };
+    }
+  }
+
+  if (!mustTranscode && !mustShrink && !mustStrip) {
     return { data, mimeType, converted: false };
   }
 
@@ -110,8 +140,9 @@ export async function normaliseImage(
     logger.error({ err, mimeType }, "Image conversion failed");
 
     // A conversion failure on a format the browser can already display is
-    // not worth losing the upload over.
-    if (!mustTranscode) {
+    // not worth losing the upload over -- unless keeping it would keep the
+    // location it was taken at.
+    if (!mustTranscode && !mustStrip) {
       return { data, mimeType, converted: false };
     }
 
@@ -119,6 +150,52 @@ export async function normaliseImage(
       "That photograph is in a format we couldn't convert. Sending it from your phone's Photos app usually fixes it.",
     );
   }
+}
+
+/**
+ * Cut EXIF, XMP and IPTC out of a JPEG without touching the image data.
+ *
+ * A JPEG is a run of marker segments before the compressed scan. EXIF and XMP
+ * live in APP1 (0xFFE1) and IPTC in APP13 (0xFFED); dropping those segments
+ * and copying everything else -- including the scan, byte for byte -- leaves
+ * the same picture with nothing in it that says where it was taken. ICC
+ * colour profiles (APP2) stay, because without one a photograph from a
+ * wide-gamut phone comes out dull.
+ *
+ * Returns null for anything it does not fully understand, and the caller
+ * re-encodes instead: a half-parsed file is not a file to store.
+ */
+export function stripJpegMetadata(data: Buffer): Buffer | null {
+  if (data.length < 4 || data[0] !== 0xff || data[1] !== 0xd8) return null;
+
+  const kept: Buffer[] = [data.subarray(0, 2)];
+  let offset = 2;
+
+  while (offset + 4 <= data.length) {
+    if (data[offset] !== 0xff) return null;
+    const marker = data[offset + 1]!;
+
+    // Start of scan: from here on it is the compressed image, which is kept whole.
+    if (marker === 0xda) {
+      kept.push(data.subarray(offset));
+      return Buffer.concat(kept);
+    }
+    // Fill bytes and standalone markers carry no length.
+    if (marker === 0xff) {
+      offset += 1;
+      continue;
+    }
+
+    const length = data.readUInt16BE(offset + 2);
+    if (length < 2 || offset + 2 + length > data.length) return null;
+
+    if (marker !== 0xe1 && marker !== 0xed) {
+      kept.push(data.subarray(offset, offset + 2 + length));
+    }
+    offset += 2 + length;
+  }
+
+  return null;
 }
 
 /**
@@ -164,4 +241,61 @@ async function decodeHeic(data: Buffer, mimeType: string): Promise<Sharp> {
 export function renameForType(filename: string, mimeType: string): string {
   if (mimeType !== "image/jpeg") return filename;
   return filename.replace(/\.(heic|heif|avif)$/i, ".jpg");
+}
+
+/** A stored portrait crop: fractions (0..1) of the photograph as displayed. */
+export type CropInstructions = {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+};
+
+/** The stored four columns as instructions, or null when there are none. */
+export function cropInstructionsOf(photo: {
+  cropX: number | null;
+  cropY: number | null;
+  cropWidth: number | null;
+  cropHeight: number | null;
+}): CropInstructions | null {
+  const { cropX, cropY, cropWidth, cropHeight } = photo;
+  if (cropX === null || cropY === null || cropWidth === null || cropHeight === null) {
+    return null;
+  }
+  if (!(cropWidth > 0) || !(cropHeight > 0)) return null;
+  return { x: cropX, y: cropY, width: cropWidth, height: cropHeight };
+}
+
+/**
+ * The photograph upright, with the family's crop applied -- for rendering
+ * only. The stored bytes are never touched (see the top of this file).
+ *
+ * Upright first, then cut, and that order is the point: the family chose the
+ * rectangle looking at the picture the way their phone's browser shows it,
+ * with EXIF orientation applied, so the fractions only mean the same thing
+ * here once sharp has applied it too. The pixels are taken out raw between
+ * the two steps because sharp does not promise to run chained operations in
+ * the order they are written.
+ *
+ * What comes back is a pipeline, so the caller chooses the size and format.
+ */
+export async function uprightWithCrop(
+  bytes: Buffer,
+  crop: CropInstructions | null,
+): Promise<Sharp> {
+  const upright = sharp(bytes, { failOn: "none", animated: false }).rotate();
+  if (!crop) return upright;
+
+  const { data, info } = await upright
+    .raw()
+    .toBuffer({ resolveWithObject: true });
+
+  const left = Math.min(info.width - 1, Math.max(0, Math.round(crop.x * info.width)));
+  const top = Math.min(info.height - 1, Math.max(0, Math.round(crop.y * info.height)));
+  const width = Math.min(info.width - left, Math.max(1, Math.round(crop.width * info.width)));
+  const height = Math.min(info.height - top, Math.max(1, Math.round(crop.height * info.height)));
+
+  return sharp(data, {
+    raw: { width: info.width, height: info.height, channels: info.channels },
+  }).extract({ left, top, width, height });
 }

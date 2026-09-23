@@ -21,8 +21,15 @@ import {
   parseId,
   requireRow,
 } from "../lib/http";
-import { tenant } from "../middleware/require-auth";
-import { photosForCase, setSelection, toPhotoJson } from "../lib/media";
+import { currentUser, tenant } from "../middleware/require-auth";
+import {
+  addPhotoToCase,
+  mergeCrop,
+  photoUpload,
+  photosForCase,
+  setSelection,
+  toPhotoJson,
+} from "../lib/media";
 import { decryptBuffer } from "@workspace/db/crypto";
 import { ZipWriter } from "../lib/zip";
 import { formatServiceMoment } from "../lib/print-render";
@@ -65,6 +72,50 @@ router.get("/cases/:caseId/photos", async (req, res) => {
     }),
   );
 });
+
+/**
+ * A staff member adds a photograph to the case's bin.
+ *
+ * For the print a widow posts to the office, or the framed wedding picture
+ * somebody brings to the arrangement conference and the director scans at the
+ * front desk. `/uploads` used to be the only door for staff, and it stores a
+ * file with no case: the scan reached the database and never reached the
+ * bin, the pack or the slideshow.
+ *
+ * `loadCase` scopes the case to the signed-in home before a byte is read into
+ * the bin, and `addPhotoToCase` is the family's own pipeline -- the same
+ * sniffing, HEIC/AVIF conversion, size and decompression-bomb limits,
+ * encryption and bin ceiling -- with the staff member recorded as the sender.
+ * Multer has already buffered the file by the time a foreign case is refused;
+ * nothing is stored for it.
+ */
+router.post(
+  "/cases/:caseId/photos",
+  photoUpload.single("file"),
+  async (req, res) => {
+    const home = tenant(req);
+    const user = currentUser(req);
+    const row = await loadCase(req, String(req.params.caseId));
+
+    const created = await addPhotoToCase({
+      funeralHomeId: home.id,
+      caseId: row.id,
+      file: req.file,
+      caption: req.body?.caption,
+      by: { userId: user.id },
+    });
+
+    res.status(201).json(
+      toPhotoJson(created, {
+        portraitPhotoId: row.portraitPhotoId,
+        referencePhotoId: row.referencePhotoId,
+        uploadedByName: user.displayName?.trim()
+          ? `${user.displayName.trim()}, ${home.name}`
+          : home.name,
+      }),
+    );
+  },
+);
 
 /**
  * Choose what runs in the chapel.
@@ -139,16 +190,16 @@ router.put("/cases/:caseId/photos/order", async (req, res) => {
 router.patch("/photos/:photoId", async (req, res) => {
   const home = tenant(req);
   const existing = await loadPhoto(req, req.params.photoId);
-  // `takenYear` and `takenAtService` are parsed separately: the generated
-  // body is regenerated from `openapi.yaml` and does not carry them yet.
+  // `takenYear` and `takenAtService` are parsed a second time by
+  // `PhotoDatingBody`, which is the one that insists on a whole year.
   const values = assertHasUpdates({
     ...parseBody(UpdatePhotoBody, req.body),
-    ...PhotoDatingBody.parse(req.body ?? {}),
+    ...parseBody(PhotoDatingBody, req.body),
   });
 
   const [updated] = await db
     .update(casePhotosTable)
-    .set({ ...values, updatedAt: new Date() })
+    .set({ ...values, ...mergeCrop(existing, values), updatedAt: new Date() })
     .where(eq(casePhotosTable.id, existing.id))
     .returning();
 
@@ -320,16 +371,27 @@ router.get("/cases/:caseId/photo-pack", async (req, res) => {
       ? upload.filename.slice(upload.filename.lastIndexOf(".") + 1)
       : "jpg";
     const caption = photo.caption?.trim();
-    const label = caption ? `-${caption.replace(/[^a-zA-Z0-9]+/g, "-")}` : "";
+    // The caption is what gets shortened, never the whole name: cutting the
+    // assembled name at 120 characters used to take the extension with it
+    // whenever a family wrote a long caption, and a file called "07-Mum-at-
+    // the-lake-the-summer-before" with no ".jpg" is one the slideshow
+    // software will not open.
+    const label = caption
+      ? `-${caption.replace(/[^a-zA-Z0-9]+/g, "-").slice(0, 100)}`
+      : "";
 
     await zip.addFile(
-      ZipWriter.safeName(`${order}${label}.${extension}`.slice(0, 120)),
+      ZipWriter.safeName(`${order}${label}.${extension}`),
       bytes,
       upload.createdAt,
     );
 
+    // A print the office scanned has no family sender; say where it came
+    // from rather than leaving the line looking like a gap.
+    const sender =
+      uploadedByName ?? (photo.uploadedByUserId != null ? home.name : null);
     manifest.push(
-      `${order}. ${caption || "(no caption)"}${uploadedByName ? ` — from ${uploadedByName}` : ""}`,
+      `${order}. ${caption || "(no caption)"}${sender ? ` — from ${sender}` : ""}`,
     );
   }
 

@@ -10,7 +10,8 @@ import type {
 } from "@workspace/api-client-react";
 import { SetupChecklist, TrialBanner } from "@/components/SetupChecklist";
 import { Divider, Empty, Loading, PageHeader } from "@/components/page";
-import { cn } from "@/lib/utils";
+import { cn, formatAtHome, homeDayNumber } from "@/lib/utils";
+import { useHomeZone } from "@/lib/session";
 import {
   CalendarClock,
   CheckCircle2,
@@ -37,28 +38,21 @@ import {
  * dashboard that treats it like one is one a director stops opening.
  */
 
-/** Dates in a funeral home are always read alongside the day of the week. */
-const dayFormat = new Intl.DateTimeFormat(undefined, {
-  weekday: "short",
-  month: "short",
-  day: "numeric",
-});
-const timeFormat = new Intl.DateTimeFormat(undefined, {
-  hour: "numeric",
-  minute: "2-digit",
-});
-
 const asDate = (value: string | Date) =>
   value instanceof Date ? value : new Date(value);
 
-function whenLabel(value: string | Date): string {
-  const date = asDate(value);
-  return `${dayFormat.format(date)}, ${timeFormat.format(date)}`;
+/**
+ * Dates in a funeral home are always read alongside the day of the week, and
+ * on the home's clock (`formatAtHome`): the service is at eleven where the
+ * chapel is, whatever zone the director reading this has flown to.
+ */
+function whenLabel(value: string | Date, zone: string | undefined): string {
+  return `${formatAtHome(value, zone, {
+    weekday: "short",
+    month: "short",
+    day: "numeric",
+  })}, ${formatAtHome(value, zone, { hour: "numeric", minute: "2-digit" })}`;
 }
-
-/** Midnight local time on the day a given instant falls in. */
-const startOfDay = (date: Date) =>
-  new Date(date.getFullYear(), date.getMonth(), date.getDate()).getTime();
 
 /**
  * "3 days ago", "in 2 days". Plain words, because that is how it is said.
@@ -77,8 +71,12 @@ const startOfDay = (date: Date) =>
  * night was "yesterday" when they had walked past it on their way in. Both
  * are off by a day in the direction that costs something: a funeral is this
  * evening or it is not, and a diary does not round.
+ *
+ * The calendar is the home's: "today" is today in the home's town, so a
+ * director in London at midnight is not told that tonight's Denver service
+ * was yesterday.
  */
-function relative(value: string | Date): string {
+function relative(value: string | Date, zone: string | undefined): string {
   const date = asDate(value);
   const ms = date.getTime() - Date.now();
   const past = ms < 0;
@@ -90,9 +88,7 @@ function relative(value: string | Date): string {
     return past ? `${unit} ago` : `in ${unit}`;
   }
 
-  const days = Math.round(
-    (startOfDay(date) - startOfDay(new Date())) / 86_400_000,
-  );
+  const days = homeDayNumber(date, zone) - homeDayNumber(new Date(), zone);
 
   if (days === 0) return past ? "earlier today" : "later today";
   if (days === 1) return "tomorrow";
@@ -122,6 +118,7 @@ export default function Dashboard() {
   // not a second request) means they arrive with the rest of the page instead
   // of landing a beat later and shoving the tiles down under the cursor.
   const billing = useGetBilling();
+  const zone = useHomeZone();
 
   if (dashboard.isPending || billing.isPending) return <Loading rows={4} />;
   if (!dashboard.data) return null;
@@ -228,9 +225,9 @@ export default function Dashboard() {
                     )}
                   </span>
                   <span className="whitespace-nowrap text-right text-sm">
-                    <span className="tabular block">{whenLabel(row.serviceAt)}</span>
+                    <span className="tabular block">{whenLabel(row.serviceAt, zone)}</span>
                     <span className="block text-xs text-muted-foreground">
-                      {relative(row.serviceAt)}
+                      {relative(row.serviceAt, zone)}
                     </span>
                   </span>
                 </Link>
@@ -275,7 +272,7 @@ export default function Dashboard() {
                     )}
                   </span>
                   <span className="whitespace-nowrap text-xs text-muted-foreground">
-                    opened {relative(row.openedAt)}
+                    opened {relative(row.openedAt, zone)}
                   </span>
                 </Link>
               </li>
@@ -383,6 +380,7 @@ function DeadlineSection({
   rows: DashboardDeadline[];
   urgent?: boolean;
 }) {
+  const zone = useHomeZone();
   return (
     <section className="space-y-3">
       <Divider label={label} />
@@ -405,7 +403,7 @@ function DeadlineSection({
                 </span>
               </span>
               <span className="whitespace-nowrap text-xs text-muted-foreground">
-                {relative(row.dueAt)}
+                {relative(row.dueAt, zone)}
               </span>
             </Link>
           </li>

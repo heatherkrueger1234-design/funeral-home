@@ -1,4 +1,5 @@
 import { voiceFor } from "@/lib/voice";
+import { formatAtHome } from "@/lib/utils";
 import { Link } from "wouter";
 import {
   useGetFamilySession,
@@ -15,6 +16,8 @@ import {
   CalendarClock,
   MessageCircle,
   HeartHandshake,
+  BookHeart,
+  Users,
   ChevronRight,
 } from "lucide-react";
 import type { ReactNode } from "react";
@@ -35,18 +38,20 @@ import type { ReactNode } from "react";
  * rather than by reading all ten.
  */
 
-function formatWhen(value: string | Date | null | undefined): string | null {
-  if (!value) return null;
-  const date = value instanceof Date ? value : new Date(value);
-  if (Number.isNaN(date.getTime())) return null;
-
-  return date.toLocaleString(undefined, {
-    weekday: "long",
-    day: "numeric",
-    month: "long",
-    hour: "numeric",
-    minute: "2-digit",
-  });
+/** On the home's clock — see `formatAtHome`. */
+function formatWhen(
+  value: string | Date | null | undefined,
+  timeZone: string,
+): string | null {
+  return (
+    formatAtHome(value, timeZone, {
+      weekday: "long",
+      day: "numeric",
+      month: "long",
+      hour: "numeric",
+      minute: "2-digit",
+    }) || null
+  );
 }
 
 /**
@@ -58,21 +63,18 @@ function formatWhen(value: string | Date | null | undefined): string | null {
  */
 function splitWhen(
   value: string | Date | null | undefined,
+  timeZone: string,
 ): { date: string; time: string } | null {
-  if (!value) return null;
-  const when = value instanceof Date ? value : new Date(value);
-  if (Number.isNaN(when.getTime())) return null;
+  const date = formatAtHome(value, timeZone, {
+    weekday: "long",
+    day: "numeric",
+    month: "long",
+  });
+  if (!date) return null;
 
   return {
-    date: when.toLocaleDateString(undefined, {
-      weekday: "long",
-      day: "numeric",
-      month: "long",
-    }),
-    time: when.toLocaleTimeString(undefined, {
-      hour: "numeric",
-      minute: "2-digit",
-    }),
+    date,
+    time: formatAtHome(value, timeZone, { hour: "numeric", minute: "2-digit" }),
   };
 }
 
@@ -156,6 +158,7 @@ export default function Hub() {
 
   const {
     case: deceased,
+    contact,
     home,
     leadDirector,
     photoCount,
@@ -168,7 +171,7 @@ export default function Hub() {
     aftercare,
   } = session.data;
 
-  const serviceWhen = splitWhen(deceased.serviceAt);
+  const serviceWhen = splitWhen(deceased.serviceAt, home.timezone);
   const voice = voiceFor(deceased.kind);
 
   // The soonest thing that is actually due. One is useful; a list of five on
@@ -304,7 +307,7 @@ export default function Hub() {
             <>
               <p className="font-semibold">{nextDue.title}</p>
               <p className="mt-0.5 text-sm text-muted-foreground">
-                {formatWhen(nextDue.dueAt)}
+                {formatWhen(nextDue.dueAt, home.timezone)}
               </p>
             </>
           ) : (
@@ -350,7 +353,36 @@ export default function Hub() {
             title="Clothing and belongings"
             detail="What they'll wear, and how they looked"
           />
+          {/*
+            Not offered on a pre-need file: a book of memories is written
+            about somebody who has died, and the person reading this one is
+            alive and planning their own funeral.
+          */}
+          {!voice.preNeed && (
+            <Card
+              href="/memory-book"
+              icon={BookHeart}
+              title="The memory book"
+              detail="Memories and the story of their life, in a book to keep"
+            />
+          )}
         </Group>
+
+        {/*
+          Only for somebody the home has allowed to pass the link on (the
+          next of kin, by default), and not once the arrangements are closed
+          -- the route refuses both, so the card would be a dead end.
+        */}
+        {contact.canInvite && deceased.status !== "closed" && (
+          <Group label="Family">
+            <Card
+              href="/family"
+              icon={Users}
+              title="Bring in family"
+              detail="Give a relative their own link, so they can help too"
+            />
+          </Group>
+        )}
 
         <Group label="For the service">
           <Card

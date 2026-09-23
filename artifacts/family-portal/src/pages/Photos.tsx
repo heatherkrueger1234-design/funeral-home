@@ -19,6 +19,7 @@ import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
 import {
   Check,
+  Crop,
   Eye,
   Images,
   Loader2,
@@ -30,6 +31,7 @@ import {
 } from "lucide-react";
 import { Empty, Loading, PageHeader } from "@/components/page";
 import { AuthedImage } from "@/components/AuthedImage";
+import { CroppedPhoto, PortraitCropper } from "@/components/Portrait";
 
 /**
  * The photo bin.
@@ -43,6 +45,34 @@ import { AuthedImage } from "@/components/AuthedImage";
  * data firing twenty parallel requests is how you get half of them failing
  * and a family who believes the whole thing is broken.
  */
+
+/**
+ * Send one photograph, waiting out the link's rate limit rather than failing.
+ *
+ * A family choosing three hundred pictures on good wifi can send them faster
+ * than the server's per-minute ceiling allows, and each one past it used to
+ * come back as its own red "Couldn't add" — seventy of them, for photographs
+ * that were perfectly fine. The server says how long to wait, so wait that
+ * long and send the same one again; only a refusal that is about the
+ * photograph itself is shown to the family.
+ */
+async function uploadWithPatience(file: File): Promise<void> {
+  for (let attempt = 0; ; attempt += 1) {
+    try {
+      await postFamilyPhotoMultipart(file);
+      return;
+    } catch (error) {
+      const status = (error as { status?: number }).status;
+      if (status !== 429 || attempt >= 4) throw error;
+
+      const header = (error as { headers?: Headers }).headers?.get(
+        "retry-after",
+      );
+      const seconds = Math.min(60, Math.max(1, Number(header) || 10));
+      await new Promise((resolve) => setTimeout(resolve, seconds * 1000));
+    }
+  }
+}
 
 export default function Photos() {
   const { toast } = useToast();
@@ -63,12 +93,54 @@ export default function Photos() {
 
   const removePhoto = useDeleteFamilyPhoto({ mutation: { onSuccess: refresh } });
   const updatePhoto = useUpdateFamilyPhoto({ mutation: { onSuccess: refresh } });
+  /*
+   * Choosing the main photograph leads straight into framing it. The
+   * photograph a family chooses is nearly always a snapshot with the person
+   * somewhere off to one side, and a card printed from the middle of it is
+   * a card of the sideboard; asking now, while they are looking at it, is
+   * what stops that reaching the printer.
+   */
+  const [framing, setFraming] = useState<number | null>(null);
   const setPortrait = useSetFamilyPortrait({ mutation: { onSuccess: refresh } });
+  const choosePortrait = (photoId: number) =>
+    setPortrait.mutate(
+      { data: { photoId } },
+      { onSuccess: () => setFraming(photoId) },
+    );
+  const saveFraming = useSetFamilyPortrait({
+    mutation: {
+      onSuccess: () => {
+        refresh();
+        setFraming(null);
+        toast({
+          title: "Framing kept",
+          description: "That's how it will sit on the printed cards.",
+        });
+      },
+    },
+  });
   const setReference = useSetFamilyReferencePhoto({
     mutation: { onSuccess: refresh },
   });
   const setSelection = useSetFamilyPhotoSelection({
-    mutation: { onSuccess: refresh },
+    mutation: {
+      /*
+       * The answer is the new list, so it goes straight into the cache.
+       *
+       * The button below is disabled while a toggle is in flight so the next
+       * tap cannot be built from a stale list — but "in flight" used to end
+       * when this request returned, and the list it was protecting was only
+       * brought up to date by a refetch fired after that. A family picking
+       * their fifty in quick succession had a tap land in that gap every few
+       * photographs, and each one silently undid the choice before it.
+       */
+      onSuccess: (data) => {
+        queryClient.setQueryData(getGetFamilyPhotosQueryKey(), data);
+        void queryClient.invalidateQueries({
+          queryKey: getGetFamilySessionQueryKey(),
+        });
+      },
+    },
   });
 
   const limit = session.data?.photoLimit ?? 1000;
@@ -77,6 +149,8 @@ export default function Photos() {
   const remaining = Math.max(0, limit - count);
 
   const chosen = (photos.data ?? []).filter((photo) => photo.selected);
+  const portrait = photos.data?.find((photo) => photo.isPortrait) ?? null;
+  const framingPhoto = photos.data?.find((photo) => photo.id === framing) ?? null;
 
   /**
    * Selection is expressed as the whole list, so a tap has to rebuild it.
@@ -116,7 +190,7 @@ export default function Photos() {
       }
 
       try {
-        await postFamilyPhotoMultipart(file);
+        await uploadWithPatience(file);
       } catch (error) {
         toast({
           title: `Couldn't add "${file.name}"`,
@@ -179,6 +253,56 @@ export default function Photos() {
         </div>
       )}
 
+      {/*
+        The main photograph, as it will be printed. Shown framed, at the
+        cards' own proportions, because "which one is the main photograph"
+        is only half the question -- the other half is whether the face is
+        in the middle of it.
+      */}
+      {portrait && (
+        <section
+          aria-labelledby="main-photograph"
+          className="flex items-center gap-4 rounded-xl border border-border bg-card p-3.5 shadow-[var(--elevation-1)]"
+        >
+          <CroppedPhoto
+            photo={portrait}
+            alt={portrait.caption ?? "The main photograph"}
+            className="w-24 shrink-0 rounded-lg ring-1 ring-inset ring-black/5"
+          />
+          <div className="min-w-0 flex-1">
+            <h2 id="main-photograph" className="font-semibold">
+              The main photograph
+            </h2>
+            <p className="mt-0.5 text-sm leading-snug text-muted-foreground">
+              For the printed cards and the front of the memory book.
+            </p>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className="mt-2.5"
+              onClick={() => setFraming(portrait.id)}
+            >
+              <Crop className="size-4" />
+              Adjust the framing
+            </Button>
+          </div>
+        </section>
+      )}
+
+      <PortraitCropper
+        photo={framingPhoto}
+        open={framingPhoto !== null}
+        onOpenChange={(open) => {
+          if (!open) setFraming(null);
+        }}
+        saving={saveFraming.isPending}
+        onSave={(fields) =>
+          framingPhoto &&
+          saveFraming.mutate({ data: { photoId: framingPhoto.id, ...fields } })
+        }
+      />
+
       <div>
         <input
           ref={fileInput}
@@ -186,6 +310,10 @@ export default function Photos() {
           multiple
           accept={ACCEPTED_UPLOAD_TYPES.join(",")}
           className="sr-only"
+          // The visible button below is what people press; this is only
+          // reached through it, so it is kept out of the tab order.
+          tabIndex={-1}
+          aria-label="Choose photographs"
           onChange={(event) => void onFilesChosen(event.target.files)}
         />
         <Button
@@ -241,11 +369,22 @@ export default function Photos() {
                   the two reads as a mess however good the photographs are.
                 */}
                 <div className="relative size-24 shrink-0">
-                  <AuthedImage
-                    uploadId={photo.uploadId}
-                    alt={photo.caption ?? "Photograph"}
-                    className="size-full rounded-lg bg-muted object-cover ring-1 ring-inset ring-black/5"
-                  />
+                  {/* The main photograph is shown as it is framed, so the
+                      square here is the middle of what the cards print. */}
+                  {photo.isPortrait ? (
+                    <CroppedPhoto
+                      photo={photo}
+                      alt={photo.caption ?? "Photograph"}
+                      frameAspect={1}
+                      className="size-full rounded-lg ring-1 ring-inset ring-black/5"
+                    />
+                  ) : (
+                    <AuthedImage
+                      uploadId={photo.uploadId}
+                      alt={photo.caption ?? "Photograph"}
+                      className="size-full rounded-lg bg-muted object-cover ring-1 ring-inset ring-black/5"
+                    />
+                  )}
                   {photo.isPortrait && (
                     <span
                       className="absolute -right-1.5 -top-1.5 grid size-6 place-items-center rounded-full bg-[var(--accent)] text-white shadow-[var(--elevation-1)] ring-2 ring-card"
@@ -258,14 +397,27 @@ export default function Photos() {
 
                 <div className="min-w-0 flex-1 space-y-2">
                   <Input
+                    // Re-drawn when somebody else's caption arrives, so this box
+                    // never holds a version older than the one on file.
+                    key={photo.caption ?? ""}
                     defaultValue={photo.caption ?? ""}
                     placeholder="Who's in it, and when?"
-                    aria-label="Caption"
+                    aria-label="Caption: who is in it, and when"
+                    onFocus={(event) => {
+                      event.currentTarget.dataset.before = event.currentTarget.value;
+                    }}
                     // Saved on blur rather than on every keystroke: this is a
                     // phone keyboard on mobile data, and a request per letter
                     // would be both slow and pointless.
+                    //
+                    // And only when this person actually typed something. Two
+                    // relatives captioning the same bin at once used to undo
+                    // each other just by tapping through a box: the blur sent
+                    // back whatever this screen had loaded, which was the other
+                    // person's caption from before they changed it.
                     onBlur={(event) => {
                       const caption = event.target.value.trim();
+                      if (event.target.value === event.target.dataset.before) return;
                       if (caption === (photo.caption ?? "")) return;
                       updatePhoto.mutate({
                         photoId: photo.id,
@@ -339,7 +491,13 @@ export default function Photos() {
                   icon={Star}
                   label="Main photo"
                   on={photo.isPortrait}
-                  onClick={() => setPortrait.mutate({ data: { photoId: photo.id } })}
+                  disabled={setPortrait.isPending}
+                  // Already the main one: the tap means "let me frame it".
+                  onClick={() =>
+                    photo.isPortrait
+                      ? setFraming(photo.id)
+                      : choosePortrait(photo.id)
+                  }
                 />
                 {/*
                   Asked for plainly, because the alternative is the director

@@ -1,4 +1,10 @@
-import type { ObituaryDraft } from "@workspace/db";
+import { and, eq, isNull, ne, or, sql } from "drizzle-orm";
+import {
+  db,
+  obituaryDraftsTable,
+  type Case,
+  type ObituaryDraft,
+} from "@workspace/db";
 
 /**
  * Compose an obituary draft from the fields the family filled in.
@@ -98,4 +104,64 @@ export function composeObituary(fields: Fields): string {
   if (flowers) paragraphs.push(sentence(`In lieu of flowers, ${flowers}`));
 
   return paragraphs.join("\n\n");
+}
+
+/* ------------------------------------------------ never ask twice: dates --- */
+
+/**
+ * A date the case holds, in the words an obituary uses: "March 4, 1942".
+ *
+ * Dates of birth and death are calendar days stored as midnight UTC, so they
+ * are read in UTC. Read in the home's zone, a Denver home would print every
+ * one of them a day early.
+ */
+export function obituaryDate(value: Date | null | undefined): string | null {
+  if (!value || Number.isNaN(value.getTime())) return null;
+  return value.toLocaleDateString("en-US", {
+    month: "long",
+    day: "numeric",
+    year: "numeric",
+    timeZone: "UTC",
+  });
+}
+
+/** Either the pool or an open transaction. */
+type Db = typeof db | Parameters<Parameters<typeof db.transaction>[0]>[0];
+
+/**
+ * Fill the obituary's "born" and "died" from what the case already knows.
+ *
+ * The product's rule is that nobody is asked twice. The director has usually
+ * typed both dates by the time the family opens the form, and a daughter
+ * being asked for her mother's date of death on a blank line, when the home
+ * already has it, is the exact experience this software was bought to end.
+ *
+ * Only ever into an empty field, and never into an approved obituary. What a
+ * family typed -- "spring of 1931", or a date the home had wrong -- is theirs
+ * and stays; an approved text has gone to the printer and must not change
+ * under it. Called wherever the case's dates can arrive: opening a case,
+ * importing one, editing it, and recording a pre-need planner's death.
+ */
+export async function prefillObituaryDates(
+  row: Pick<Case, "id" | "funeralHomeId" | "dateOfBirth" | "dateOfDeath">,
+  tx: Db = db,
+): Promise<void> {
+  const fill = async (key: "bornOn" | "diedOn", value: string | null) => {
+    if (!value) return;
+    const column = obituaryDraftsTable[key];
+    await tx
+      .update(obituaryDraftsTable)
+      .set({ [key]: value, updatedAt: new Date() })
+      .where(
+        and(
+          eq(obituaryDraftsTable.caseId, row.id),
+          eq(obituaryDraftsTable.funeralHomeId, row.funeralHomeId),
+          ne(obituaryDraftsTable.status, "approved"),
+          or(isNull(column), sql`btrim(${column}) = ''`),
+        ),
+      );
+  };
+
+  await fill("bornOn", obituaryDate(row.dateOfBirth));
+  await fill("diedOn", obituaryDate(row.dateOfDeath));
 }

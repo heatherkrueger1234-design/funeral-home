@@ -62,6 +62,15 @@ export function useSession(): SessionState {
   return value;
 }
 
+/**
+ * The home's zone, for `formatAtHome` and the input helpers in `utils.ts`.
+ * Undefined only before the session has loaded, where they fall back to the
+ * browser's zone rather than failing.
+ */
+export function useHomeZone(): string | undefined {
+  return useSession().session?.home.timezone;
+}
+
 export function isUnauthorized(error: unknown): boolean {
   return (error as { status?: number } | null)?.status === 401;
 }

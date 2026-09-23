@@ -758,6 +758,12 @@ export interface IntakeRequestInput {
   note?: string | null;
 }
 
+export interface AftercareUnsubscribeState {
+  /** Whose name the check-ins are signed in. */
+  homeName: string;
+  stopped: boolean;
+}
+
 export type IntakeReceiptKind =
   (typeof IntakeReceiptKind)[keyof typeof IntakeReceiptKind];
 
@@ -942,6 +948,8 @@ export interface FamilyContact {
   revokedAt: string | null;
   firstSeenAt: string | null;
   lastSeenAt: string | null;
+  /** Set when somebody on the family's side added this person, rather than the home. */
+  invitedByContactId: number | null;
   createdAt: string;
 }
 
@@ -1012,6 +1020,55 @@ export interface CaseUpdate {
 }
 
 /**
+ * A relative as the person who added them sees them.
+ */
+export interface FamilyRelative {
+  id: number;
+  name: string;
+  relationship: string | null;
+  phone: string | null;
+  email: string | null;
+  /** When they first opened their link, so the inviter knows it landed. */
+  firstSeenAt: string | null;
+  /** The home has since stopped this person's link. */
+  revoked: boolean;
+  createdAt: string;
+}
+
+export interface FamilyRelatives {
+  canInvite: boolean;
+  /** How many relatives the family's side may add to this case in all. */
+  cap: number;
+  remaining: number;
+  relatives: FamilyRelative[];
+}
+
+export interface FamilyRelativeInput {
+  /**
+   * @minLength 1
+   * @maxLength 120
+   */
+  name: string;
+  /** @maxLength 60 */
+  relationship?: string | null;
+  /** @maxLength 40 */
+  phone?: string | null;
+  /** @maxLength 254 */
+  email?: string | null;
+}
+
+export interface FamilyRelativeInvited {
+  relative: FamilyRelative;
+  sentBySms: boolean;
+  sentByEmail: boolean;
+  /** Only when neither a text nor an email could go: the working link,
+shown once to copy and pass on by hand. Null whenever it was sent.
+ */
+  link: string | null;
+  remaining: number;
+}
+
+/**
  * Returned only at the moment a link is minted. `link` is the working
 URL to paste into a text message and is never retrievable again -
 only its digest is stored.
@@ -1076,8 +1133,13 @@ export interface CasePhoto {
   caseId: number;
   uploadId: number;
   uploadedByContactId: number | null;
-  /** Who sent it, resolved for display. Null when staff added it. */
+  /** Who sent it, resolved for display. For a photograph staff added,
+the home's name when a family asks, and "person, home" when staff
+do. Null only for rows older than the staff upload.
+ */
   uploadedByName: string | null;
+  /** Added by a member of staff rather than through a family link. */
+  addedByHome: boolean;
   caption: string | null;
   cropX: number | null;
   cropY: number | null;
@@ -1090,6 +1152,10 @@ export interface CasePhoto {
   isPortrait: boolean;
   /** The photograph given to whoever does hair and cosmetics. */
   isReference: boolean;
+  /** The year it was taken, where anybody knows it. Orders the memory book. */
+  takenYear: number | null;
+  /** Taken at the funeral itself; printed at the back of the memory book. */
+  takenAtService: boolean;
   createdAt: string;
 }
 
@@ -1124,6 +1190,13 @@ export interface PhotoUpdate {
    * @maximum 1
    */
   cropHeight?: number;
+  /**
+   * A year, not a date -- what is written on the back of the print.
+   * @minimum 1800
+   * @maximum 2200
+   */
+  takenYear?: number | null;
+  takenAtService?: boolean;
 }
 
 export interface FamilyPhotoUpdate {
@@ -1148,6 +1221,13 @@ export interface FamilyPhotoUpdate {
    * @maximum 1
    */
   cropHeight?: number;
+  /**
+   * A year, not a date -- what is written on the back of the print.
+   * @minimum 1800
+   * @maximum 2200
+   */
+  takenYear?: number | null;
+  takenAtService?: boolean;
 }
 
 export interface PhotoSelectionInput {
@@ -1189,6 +1269,11 @@ export interface PortraitInput {
 
 export interface UploadInput {
   file: Blob;
+}
+
+export interface CasePhotoUploadInput {
+  file: Blob;
+  caption?: string;
 }
 
 export interface FamilyPhotoUploadInput {
@@ -2112,6 +2197,396 @@ export interface AftercareConsentInput {
   email?: string | null;
 }
 
+/**
+ * One per case, opened the first time anybody looks. Every section is a
+switch that defaults on and prints nothing when it is empty.
+
+ */
+export interface MemoryBook {
+  id: number;
+  caseId: number;
+  /** Printed as "Remembering <name>" when blank. */
+  title: string | null;
+  dedication: string | null;
+  /** When contributions stop. Null -- the default -- means open: there
+is no date on which a family is too late to remember something.
+ */
+  closesAt: string | null;
+  /** Whether the family can still add to it, right now. */
+  open: boolean;
+  includePhotos: boolean;
+  includeObituary: boolean;
+  includeLifeStory: boolean;
+  includeCelebration: boolean;
+  includeEulogies: boolean;
+  includeServicePhotos: boolean;
+  serviceOrder: string | null;
+  music: string | null;
+  bearers: string | null;
+  reception: string | null;
+}
+
+/**
+ * At least one field. When and where the service was come off the case.
+ */
+export interface MemoryBookUpdate {
+  /** @maxLength 160 */
+  title?: string | null;
+  /** @maxLength 1000 */
+  dedication?: string | null;
+  includePhotos?: boolean;
+  includeObituary?: boolean;
+  includeLifeStory?: boolean;
+  includeCelebration?: boolean;
+  includeEulogies?: boolean;
+  includeServicePhotos?: boolean;
+  /** @maxLength 4000 */
+  serviceOrder?: string | null;
+  /** @maxLength 2000 */
+  music?: string | null;
+  /** @maxLength 2000 */
+  bearers?: string | null;
+  /** @maxLength 2000 */
+  reception?: string | null;
+  /** A time that has passed closes the book; null reopens it. */
+  closesAt?: string | null;
+}
+
+/**
+ * How many chosen photographs the book would carry, against the ceiling.
+ */
+export interface MemoryBookPhotoCount {
+  selected: number;
+  limit: number;
+  note: string;
+}
+
+export type MemoryEntryKind =
+  (typeof MemoryEntryKind)[keyof typeof MemoryEntryKind];
+
+export const MemoryEntryKind = {
+  memory: "memory",
+  eulogy: "eulogy",
+} as const;
+
+export type MemoryEntryAuthorSide =
+  (typeof MemoryEntryAuthorSide)[keyof typeof MemoryEntryAuthorSide];
+
+export const MemoryEntryAuthorSide = {
+  family: "family",
+  staff: "staff",
+} as const;
+
+/**
+ * A memory or a eulogy, as the home sees it.
+ */
+export interface MemoryEntry {
+  id: number;
+  kind: MemoryEntryKind;
+  /** The name printed under it, snapshotted when it was written. */
+  authorName: string;
+  authorSide: MemoryEntryAuthorSide;
+  authorContactId: number | null;
+  body: string;
+  /** Free text -- "Christmas, some time in the eighties" -- never a date. */
+  whenText: string | null;
+  photoId: number | null;
+  includedInBook: boolean;
+  /** A note between the home and itself. Never shown to the family. */
+  excludedReason: string | null;
+  position: number;
+  createdAt: string;
+}
+
+export type StaffMemoryEntry = MemoryEntry & {
+  /** The contact's name as it stands now, beside the snapshot that
+will print, so one that reads oddly can be spotted.
+ */
+  contactNameNow: string | null;
+};
+
+export type FamilyMemoryEntryKind =
+  (typeof FamilyMemoryEntryKind)[keyof typeof FamilyMemoryEntryKind];
+
+export const FamilyMemoryEntryKind = {
+  memory: "memory",
+  eulogy: "eulogy",
+} as const;
+
+/**
+ * A memory or a eulogy, as a family member sees it.
+ */
+export interface FamilyMemoryEntry {
+  id: number;
+  kind: FamilyMemoryEntryKind;
+  authorName: string;
+  body: string;
+  whenText: string | null;
+  photoId: number | null;
+  /** False only ever on the reader's own entries. */
+  includedInBook: boolean;
+  /** Whether this one is theirs to change. */
+  mine: boolean;
+  createdAt: string;
+}
+
+/**
+ * Defaults to memory.
+ */
+export type MemoryEntryInputKind =
+  (typeof MemoryEntryInputKind)[keyof typeof MemoryEntryInputKind];
+
+export const MemoryEntryInputKind = {
+  memory: "memory",
+  eulogy: "eulogy",
+} as const;
+
+/**
+ * `body` is trimmed. A memory may run to 4000 characters and a eulogy to
+20000; the longer limit applies only when `kind` is `eulogy`.
+
+ */
+export interface MemoryEntryInput {
+  /** Defaults to memory. */
+  kind?: MemoryEntryInputKind;
+  /**
+   * @minLength 1
+   * @maxLength 20000
+   */
+  body: string;
+  /** @maxLength 120 */
+  whenText?: string | null;
+  /**
+   * A photograph already on this case.
+   * @minimum 1
+   */
+  photoId?: number | null;
+}
+
+export type MemoryEntryUpdateKind =
+  (typeof MemoryEntryUpdateKind)[keyof typeof MemoryEntryUpdateKind];
+
+export const MemoryEntryUpdateKind = {
+  memory: "memory",
+  eulogy: "eulogy",
+} as const;
+
+/**
+ * At least one field. The same length rule as `MemoryEntryInput`, judged
+on the `kind` sent with it (memory when none is sent).
+
+ */
+export interface MemoryEntryUpdate {
+  kind?: MemoryEntryUpdateKind;
+  /**
+   * @minLength 1
+   * @maxLength 20000
+   */
+  body?: string;
+  /** @maxLength 120 */
+  whenText?: string | null;
+  /** @minimum 1 */
+  photoId?: number | null;
+}
+
+export type StaffMemoryEntryInputKind =
+  (typeof StaffMemoryEntryInputKind)[keyof typeof StaffMemoryEntryInputKind];
+
+export const StaffMemoryEntryInputKind = {
+  memory: "memory",
+  eulogy: "eulogy",
+} as const;
+
+/**
+ * `authorName` is whose memory it is, not who typed it. Same length rule
+as `MemoryEntryInput`.
+
+ */
+export interface StaffMemoryEntryInput {
+  /**
+   * @minLength 1
+   * @maxLength 120
+   */
+  authorName: string;
+  kind?: StaffMemoryEntryInputKind;
+  /**
+   * @minLength 1
+   * @maxLength 20000
+   */
+  body: string;
+  /** @maxLength 120 */
+  whenText?: string | null;
+  /** @minimum 1 */
+  photoId?: number | null;
+}
+
+/**
+ * At least one field.
+ */
+export interface StaffMemoryEntryUpdate {
+  /**
+   * @minLength 1
+   * @maxLength 20000
+   */
+  body?: string;
+  /** @maxLength 120 */
+  whenText?: string | null;
+  /** @minimum 1 */
+  photoId?: number | null;
+  /** @minimum 0 */
+  position?: number;
+  includedInBook?: boolean;
+  /** @maxLength 400 */
+  excludedReason?: string | null;
+}
+
+export type LifeChapterAuthorSide =
+  (typeof LifeChapterAuthorSide)[keyof typeof LifeChapterAuthorSide];
+
+export const LifeChapterAuthorSide = {
+  family: "family",
+  staff: "staff",
+} as const;
+
+/**
+ * A chapter of the life story. Years, not dates; `endYear` is for a span
+and null for a moment. The author is recorded but never printed.
+
+ */
+export interface LifeChapter {
+  id: number;
+  title: string | null;
+  body: string | null;
+  startYear: number | null;
+  endYear: number | null;
+  photoId: number | null;
+  authorName: string;
+  authorSide: LifeChapterAuthorSide;
+  authorContactId: number | null;
+  includedInBook: boolean;
+  position: number;
+  createdAt: string;
+}
+
+export type FamilyLifeChapter = LifeChapter & {
+  /** Whether this one is theirs to change. */
+  mine: boolean;
+};
+
+/**
+ * Needs a title, something written in it, or a start year. An `endYear`
+before the `startYear` is refused.
+
+ */
+export interface LifeChapterInput {
+  /** @maxLength 160 */
+  title?: string | null;
+  /** @maxLength 6000 */
+  body?: string | null;
+  /**
+   * @minimum 1800
+   * @maximum 2200
+   */
+  startYear?: number | null;
+  /**
+   * @minimum 1800
+   * @maximum 2200
+   */
+  endYear?: number | null;
+  /** @minimum 1 */
+  photoId?: number | null;
+}
+
+/**
+ * At least one field. An `endYear` before the `startYear` is refused.
+ */
+export interface LifeChapterUpdate {
+  /** @maxLength 160 */
+  title?: string | null;
+  /** @maxLength 6000 */
+  body?: string | null;
+  /**
+   * @minimum 1800
+   * @maximum 2200
+   */
+  startYear?: number | null;
+  /**
+   * @minimum 1800
+   * @maximum 2200
+   */
+  endYear?: number | null;
+  /** @minimum 1 */
+  photoId?: number | null;
+}
+
+/**
+ * As `LifeChapterInput`. `authorName` defaults to the member of staff.
+
+ */
+export interface StaffLifeChapterInput {
+  /**
+   * @minLength 1
+   * @maxLength 120
+   */
+  authorName?: string;
+  /** @maxLength 160 */
+  title?: string | null;
+  /** @maxLength 6000 */
+  body?: string | null;
+  /**
+   * @minimum 1800
+   * @maximum 2200
+   */
+  startYear?: number | null;
+  /**
+   * @minimum 1800
+   * @maximum 2200
+   */
+  endYear?: number | null;
+  /** @minimum 1 */
+  photoId?: number | null;
+}
+
+/**
+ * At least one field. An `endYear` before the `startYear` is refused.
+ */
+export interface StaffLifeChapterUpdate {
+  /** @maxLength 160 */
+  title?: string | null;
+  /** @maxLength 6000 */
+  body?: string | null;
+  /**
+   * @minimum 1800
+   * @maximum 2200
+   */
+  startYear?: number | null;
+  /**
+   * @minimum 1800
+   * @maximum 2200
+   */
+  endYear?: number | null;
+  /** @minimum 1 */
+  photoId?: number | null;
+  /** @minimum 0 */
+  position?: number;
+  includedInBook?: boolean;
+  /** @maxLength 400 */
+  excludedReason?: string | null;
+}
+
+export type StaffMemoryBook = MemoryBook & {
+  photos: MemoryBookPhotoCount;
+  /** Every chapter, including any taken out, in printed order. */
+  chapters: LifeChapter[];
+  /** Every entry, including any taken out, in printed order. */
+  entries: StaffMemoryEntry[];
+};
+
+export type FamilyMemoryBook = MemoryBook & {
+  chapters: FamilyLifeChapter[];
+  entries: FamilyMemoryEntry[];
+};
+
 export type FamilySessionObituaryStatus =
   (typeof FamilySessionObituaryStatus)[keyof typeof FamilySessionObituaryStatus];
 
@@ -2149,6 +2624,14 @@ portal puts it above everything else.
   awaitingServiceChoice: boolean;
   aftercare: AftercareEnrollment | null;
 }
+
+export type GetAftercareUnsubscribeParams = {
+  token: string;
+};
+
+export type AftercareUnsubscribeParams = {
+  token: string;
+};
 
 export type GetIntakeRequestsParams = {
   status?: GetIntakeRequestsStatus;

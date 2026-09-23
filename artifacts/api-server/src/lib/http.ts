@@ -68,7 +68,10 @@ export function parseQuery<S extends ZodTypeAny>(
 export function parseId(raw: string | undefined): number {
   const id = Number(raw);
 
-  if (!Number.isInteger(id) || id <= 0) {
+  // Every id column is a Postgres `serial`, which stops at 2^31 - 1. A larger
+  // number cannot name a row, and passed through it came back from the driver
+  // as "out of range for type integer" -- a 500 for a typo in a URL.
+  if (!Number.isInteger(id) || id <= 0 || id > 2_147_483_647) {
     throw badRequest(`Invalid id: "${raw ?? ""}"`);
   }
 

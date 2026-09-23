@@ -10,6 +10,7 @@ import {
   usersTable,
   FAMILY_LINK_TTL_MS,
 } from "@workspace/db";
+import { signId } from "@workspace/db/crypto";
 import { sendAftercareEmail, isMailConfigured } from "./index";
 
 /**
@@ -100,11 +101,68 @@ function memoryInvitation(name: string, dayOffset: number): string {
   }
 
   return (
+    // "They", not "she": this goes to every family whose book is open, and
+    // it used to tell a widow that her husband answered the telephone the
+    // way *she* did — in the one message that is meant to show somebody at
+    // the funeral home remembers him.
     `\n\nIf something about ${name} has come back to you lately — the way ` +
-    `she answered the telephone, a Christmas, anything at all — you can add ` +
+    `they answered the telephone, a Christmas, anything at all — you can add ` +
     `it to the book of memories we are keeping alongside the photographs. ` +
     `A sentence is enough, and there is no hurry.`
   );
+}
+
+/**
+ * The way out, printed at the foot of every check-in.
+ *
+ * Consent was asked for once, in the portal, with a decline of equal weight
+ * — but the portal link lives ninety days and the anniversary note lands at
+ * a year, so "you can stop them at any time" was only true for as long as
+ * the family could still find the text message. CAN-SPAM wants a working
+ * unsubscribe in the message itself (COLORADO.md, section 6), and so does
+ * anybody who opens a grief note on a day they cannot face one.
+ *
+ * The token is the enrolment id signed under a key derived from
+ * ENCRYPTION_KEY, so it never expires and cannot be forged for anybody
+ * else's enrolment (see `signId`). It is a query parameter rather than a
+ * path segment because the request logger drops query strings.
+ *
+ * Null when the deployment has not said where the portal is; the email then
+ * says to reply instead, which reaches the home — see `sendAftercareEmail`.
+ */
+export const AFTERCARE_UNSUBSCRIBE_PURPOSE = "aftercare-unsubscribe";
+
+export function aftercareUnsubscribeUrl(enrollmentId: number): string | null {
+  const base = process.env["FAMILY_PORTAL_URL"]?.replace(/\/+$/, "");
+  if (!base) return null;
+
+  const token = signId(AFTERCARE_UNSUBSCRIBE_PURPOSE, enrollmentId);
+  return `${base}/stop?token=${encodeURIComponent(token)}`;
+}
+
+/** One-click unsubscribe (RFC 8058) for mail clients that offer it. */
+export function aftercareOneClickUrl(enrollmentId: number): string | null {
+  const base = process.env["FAMILY_PORTAL_URL"]?.replace(/\/+$/, "");
+  if (!base) return null;
+
+  const token = signId(AFTERCARE_UNSUBSCRIBE_PURPOSE, enrollmentId);
+  return `${base}/api/public/aftercare/unsubscribe?token=${encodeURIComponent(token)}`;
+}
+
+function postalAddressOf(row: {
+  homeAddressLine1: string | null;
+  homeAddressLine2: string | null;
+  homeCity: string | null;
+  homeRegion: string | null;
+  homePostalCode: string | null;
+}): string | null {
+  const town = [row.homeCity, [row.homeRegion, row.homePostalCode].filter(Boolean).join(" ")]
+    .filter(Boolean)
+    .join(", ");
+  const parts = [row.homeAddressLine1, row.homeAddressLine2, town]
+    .map((part) => part?.trim())
+    .filter(Boolean);
+  return parts.length > 0 ? parts.join(", ") : null;
 }
 
 export type AftercareRunResult = {
@@ -164,10 +222,15 @@ export async function runAftercare(
       contactRevokedAt: familyContactsTable.revokedAt,
       firstName: casesTable.decedentFirstName,
       preferredName: casesTable.decedentPreferredName,
-      bookClosesAt: memoryBooksTable.closesAt,
-      bookId: memoryBooksTable.id,
       homeId: funeralHomesTable.id,
       homeInbox: funeralHomesTable.intakeNotifyEmail,
+      homeAddressLine1: funeralHomesTable.addressLine1,
+      homeAddressLine2: funeralHomesTable.addressLine2,
+      homeCity: funeralHomesTable.city,
+      homeRegion: funeralHomesTable.region,
+      homePostalCode: funeralHomesTable.postalCode,
+      bookClosesAt: memoryBooksTable.closesAt,
+      bookId: memoryBooksTable.id,
     })
     .from(aftercareDeliveriesTable)
     .innerJoin(
@@ -315,6 +378,9 @@ export async function runAftercare(
           (bookOpen ? memoryInvitation(deceased, row.delivery.dayOffset) : ""),
         brandedAs: row.enrollment.brandedAs,
         replyTo: await replyToFor(row.homeId, row.homeInbox),
+        unsubscribeUrl: aftercareUnsubscribeUrl(row.enrollment.id),
+        oneClickUnsubscribeUrl: aftercareOneClickUrl(row.enrollment.id),
+        postalAddress: postalAddressOf(row),
       });
       result.sent += 1;
     } catch (error) {

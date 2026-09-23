@@ -379,10 +379,35 @@ router.get("/cases/:caseId/export", async (req, res) => {
  * Every table that carries a `caseId` cascades from this row, so one delete
  * takes the photographs, the messages, the obituary, the belongings and the
  * encrypted social security number with it.
+ *
+ * The owner's decision, and nobody else's. The roles are deliberately few
+ * (`users.ts`): the owner runs billing and who works here, and a director
+ * and a member of staff differ only in which of them can lead a case. This
+ * is the one action on a case that cannot be undone, destroys the only copy
+ * of photographs other people sent, and discharges a legal retention duty
+ * the home -- not any employee -- carries (RETENTION.md: "It stays until
+ * somebody at the home decides otherwise"). That decision sits with the
+ * person who answers for the home's records, the same person who can change
+ * its billing. A director who is asked by a family can export the case and
+ * take it to the owner; the family is not left waiting on a permissions
+ * matrix, and the home is not one misread dialog away from losing a case.
+ *
+ * Checked before the case is loaded, so a non-owner learns nothing about
+ * whether the id exists; and before the typed name, so the refusal says
+ * who can do it rather than asking them to type something that will not
+ * work anyway.
  */
 router.post("/cases/:caseId/delete", async (req, res) => {
   const user = currentUser(req);
   const home = tenant(req);
+
+  if (user.role !== "owner") {
+    throw new HttpError(
+      403,
+      "Only the home's owner can erase a case. Export it if you need a copy, and ask the owner to erase it.",
+    );
+  }
+
   const row = await loadCase(req, req.params.caseId);
 
   const body = parseBody(DeleteCaseBody, req.body);

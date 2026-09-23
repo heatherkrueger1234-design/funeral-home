@@ -3,11 +3,13 @@ import multer from "multer";
 import { and, eq, ilike, ne } from "drizzle-orm";
 import {
   db,
+  canOpenCases,
+  cannotOpenCasesReason,
   casesTable,
   familyContactsTable,
   obituaryDraftsTable,
 } from "@workspace/db";
-import { badRequest } from "../lib/http";
+import { badRequest, HttpError } from "../lib/http";
 import { currentUser, tenant } from "../middleware/require-auth";
 import {
   guessMapping,
@@ -19,6 +21,7 @@ import {
 } from "../lib/csv";
 import { linkUrl, mintLink } from "../lib/family-link";
 import { applyTemplateToCase } from "../lib/timeline";
+import { obituaryDate } from "../lib/obituary";
 
 /**
  * Importing cases a home already has somewhere else.
@@ -244,6 +247,22 @@ router.post(
 router.post("/cases/import", upload.single("file"), async (req, res) => {
   const home = tenant(req);
   const user = currentUser(req);
+
+  /*
+   * The same gate `POST /cases` applies, because this is the same act two
+   * hundred times over. Without it the import was a side door past the only
+   * thing the subscription gates: a home whose trial had run out, whose
+   * subscription was cancelled, or that the platform had *suspended* -- the one
+   * lever the admin console has -- could still open every case it liked by
+   * putting them in a spreadsheet. Checked before the file is parsed, so the
+   * answer is the reason rather than a preview of cases it cannot have.
+   *
+   * The preview above stays open: looking at what an import would do opens
+   * nothing, and a home deciding whether to subscribe may reasonably want to.
+   */
+  if (!canOpenCases(home)) {
+    throw new HttpError(402, cannotOpenCasesReason(home));
+  }
   const parsed = readCsv(req.file);
   const mapping = guessMapping(parsed.headers);
 
@@ -286,6 +305,10 @@ router.post("/cases/import", upload.single("file"), async (req, res) => {
           funeralHomeId: home.id,
           caseId: row!.id,
           fullName: `${row!.decedentFirstName} ${row!.decedentLastName}`.trim(),
+          // The spreadsheet's dates, so the family is not asked for them
+          // again. See `prefillObituaryDates`.
+          bornOn: obituaryDate(row!.dateOfBirth),
+          diedOn: obituaryDate(row!.dateOfDeath),
         });
 
         /*

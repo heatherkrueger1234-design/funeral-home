@@ -32,6 +32,8 @@ import type {
   AcceptedIntake,
   AftercareConsentInput,
   AftercareEnrollment,
+  AftercareUnsubscribeParams,
+  AftercareUnsubscribeState,
   AuthUser,
   Belonging,
   BelongingInput,
@@ -45,6 +47,7 @@ import type {
   CaseInput,
   CaseMessage,
   CasePhoto,
+  CasePhotoUploadInput,
   CaseSummary,
   CaseUpdate,
   ChosenService,
@@ -60,14 +63,21 @@ import type {
   FamilyContactInput,
   FamilyContactUpdate,
   FamilyContactWithLink,
+  FamilyLifeChapter,
+  FamilyMemoryBook,
+  FamilyMemoryEntry,
   FamilyPhotoUpdate,
   FamilyPhotoUploadInput,
   FamilyPreparationUpdate,
+  FamilyRelativeInput,
+  FamilyRelativeInvited,
+  FamilyRelatives,
   FamilyServiceOffers,
   FamilySession,
   ForgotPasswordInput,
   FuneralHome,
   FuneralHomeUpdate,
+  GetAftercareUnsubscribeParams,
   GetCasesParams,
   GetFamilyVendorsParams,
   GetIntakeRequestsParams,
@@ -84,8 +94,16 @@ import type {
   IntakeReceipt,
   IntakeRequest,
   IntakeRequestInput,
+  LifeChapter,
+  LifeChapterInput,
+  LifeChapterUpdate,
   LoginInput,
   LookupPlacesParams,
+  MemoryBook,
+  MemoryBookUpdate,
+  MemoryEntry,
+  MemoryEntryInput,
+  MemoryEntryUpdate,
   MessageInput,
   MessageThread,
   ObituaryDraft,
@@ -123,8 +141,13 @@ import type {
   Snippet,
   SnippetInput,
   StaffInviteInput,
+  StaffLifeChapterInput,
+  StaffLifeChapterUpdate,
   StaffMember,
   StaffMemberWithInvite,
+  StaffMemoryBook,
+  StaffMemoryEntryInput,
+  StaffMemoryEntryUpdate,
   StaffUpdate,
   TimelineTemplate,
   TimelineTemplateInput,
@@ -401,6 +424,220 @@ export const useSubmitIntakeRequest = <
   TContext
 > => {
   return useMutation(getSubmitIntakeRequestMutationOptions(options));
+};
+
+/**
+ * Unauthenticated; the signed token from the foot of a grief check-in
+is the credential. Changes nothing, because mail scanners fetch every
+link in a message - it only lets the page name the home and ask.
+
+ * @summary Whose check-ins an unsubscribe link would stop
+ */
+export const getGetAftercareUnsubscribeUrl = (
+  params: GetAftercareUnsubscribeParams,
+) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? "null" : value.toString());
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0
+    ? `/api/public/aftercare/unsubscribe?${stringifiedParams}`
+    : `/api/public/aftercare/unsubscribe`;
+};
+
+export const getAftercareUnsubscribe = async (
+  params: GetAftercareUnsubscribeParams,
+  options?: RequestInit,
+): Promise<AftercareUnsubscribeState> => {
+  return customFetch<AftercareUnsubscribeState>(
+    getGetAftercareUnsubscribeUrl(params),
+    {
+      ...options,
+      method: "GET",
+    },
+  );
+};
+
+export const getGetAftercareUnsubscribeQueryKey = (
+  params?: GetAftercareUnsubscribeParams,
+) => {
+  return [
+    `/api/public/aftercare/unsubscribe`,
+    ...(params ? [params] : []),
+  ] as const;
+};
+
+export const getGetAftercareUnsubscribeQueryOptions = <
+  TData = Awaited<ReturnType<typeof getAftercareUnsubscribe>>,
+  TError = ErrorType<void>,
+>(
+  params: GetAftercareUnsubscribeParams,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getAftercareUnsubscribe>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey =
+    queryOptions?.queryKey ?? getGetAftercareUnsubscribeQueryKey(params);
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof getAftercareUnsubscribe>>
+  > = ({ signal }) =>
+    getAftercareUnsubscribe(params, { signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof getAftercareUnsubscribe>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type GetAftercareUnsubscribeQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getAftercareUnsubscribe>>
+>;
+export type GetAftercareUnsubscribeQueryError = ErrorType<void>;
+
+/**
+ * @summary Whose check-ins an unsubscribe link would stop
+ */
+
+export function useGetAftercareUnsubscribe<
+  TData = Awaited<ReturnType<typeof getAftercareUnsubscribe>>,
+  TError = ErrorType<void>,
+>(
+  params: GetAftercareUnsubscribeParams,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getAftercareUnsubscribe>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getGetAftercareUnsubscribeQueryOptions(params, options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * Final, exactly as a "no" in the portal is. Also the RFC 8058
+one-click target named in the message's List-Unsubscribe header.
+
+ * @summary Stop the check-ins, for good
+ */
+export const getAftercareUnsubscribeUrl = (
+  params: AftercareUnsubscribeParams,
+) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? "null" : value.toString());
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0
+    ? `/api/public/aftercare/unsubscribe?${stringifiedParams}`
+    : `/api/public/aftercare/unsubscribe`;
+};
+
+export const aftercareUnsubscribe = async (
+  params: AftercareUnsubscribeParams,
+  options?: RequestInit,
+): Promise<AftercareUnsubscribeState> => {
+  return customFetch<AftercareUnsubscribeState>(
+    getAftercareUnsubscribeUrl(params),
+    {
+      ...options,
+      method: "POST",
+    },
+  );
+};
+
+export const getAftercareUnsubscribeMutationOptions = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof aftercareUnsubscribe>>,
+    TError,
+    { params: AftercareUnsubscribeParams },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof aftercareUnsubscribe>>,
+  TError,
+  { params: AftercareUnsubscribeParams },
+  TContext
+> => {
+  const mutationKey = ["aftercareUnsubscribe"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof aftercareUnsubscribe>>,
+    { params: AftercareUnsubscribeParams }
+  > = (props) => {
+    const { params } = props ?? {};
+
+    return aftercareUnsubscribe(params, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type AftercareUnsubscribeMutationResult = NonNullable<
+  Awaited<ReturnType<typeof aftercareUnsubscribe>>
+>;
+
+export type AftercareUnsubscribeMutationError = ErrorType<void>;
+
+/**
+ * @summary Stop the check-ins, for good
+ */
+export const useAftercareUnsubscribe = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof aftercareUnsubscribe>>,
+    TError,
+    { params: AftercareUnsubscribeParams },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof aftercareUnsubscribe>>,
+  TError,
+  { params: AftercareUnsubscribeParams },
+  TContext
+> => {
+  return useMutation(getAftercareUnsubscribeMutationOptions(options));
 };
 
 /**
@@ -3812,6 +4049,9 @@ copy of a family's photographs of their mother that exists anywhere.
 What survives is a tombstone: which case, who erased it, when, and
 nothing about who it was for.
 
+Owner only. A director or member of staff is refused with 403 before
+the case is looked up.
+
  * @summary Erase a case and everything on it, permanently
  */
 export const getDeleteCaseUrl = (caseId: number) => {
@@ -5217,6 +5457,105 @@ export function useGetCasePhotos<
 
   return { ...query, queryKey: queryOptions.queryKey };
 }
+
+/**
+ * For a print posted to the office or brought to the arrangement
+conference. Goes through the same checks as a family upload (type
+sniffed from the bytes, HEIC/AVIF converted, size and decompression
+limits, encrypted at rest, the bin's ceiling) and is recorded as added
+by the signed-in staff member, so the family sees it came from the
+home.
+
+ * @summary Add a photograph to the case's bin as staff
+ */
+export const getUploadCasePhotoUrl = (caseId: number) => {
+  return `/api/cases/${caseId}/photos`;
+};
+
+export const uploadCasePhoto = async (
+  caseId: number,
+  casePhotoUploadInput: CasePhotoUploadInput,
+  options?: RequestInit,
+): Promise<CasePhoto> => {
+  const formData = new FormData();
+  formData.append(`file`, casePhotoUploadInput.file);
+  if (casePhotoUploadInput.caption !== undefined) {
+    formData.append(`caption`, casePhotoUploadInput.caption);
+  }
+
+  return customFetch<CasePhoto>(getUploadCasePhotoUrl(caseId), {
+    ...options,
+    method: "POST",
+    body: formData,
+  });
+};
+
+export const getUploadCasePhotoMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof uploadCasePhoto>>,
+    TError,
+    { caseId: number; data: BodyType<CasePhotoUploadInput> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof uploadCasePhoto>>,
+  TError,
+  { caseId: number; data: BodyType<CasePhotoUploadInput> },
+  TContext
+> => {
+  const mutationKey = ["uploadCasePhoto"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof uploadCasePhoto>>,
+    { caseId: number; data: BodyType<CasePhotoUploadInput> }
+  > = (props) => {
+    const { caseId, data } = props ?? {};
+
+    return uploadCasePhoto(caseId, data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type UploadCasePhotoMutationResult = NonNullable<
+  Awaited<ReturnType<typeof uploadCasePhoto>>
+>;
+export type UploadCasePhotoMutationBody = BodyType<CasePhotoUploadInput>;
+export type UploadCasePhotoMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Add a photograph to the case's bin as staff
+ */
+export const useUploadCasePhoto = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof uploadCasePhoto>>,
+    TError,
+    { caseId: number; data: BodyType<CasePhotoUploadInput> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof uploadCasePhoto>>,
+  TError,
+  { caseId: number; data: BodyType<CasePhotoUploadInput> },
+  TContext
+> => {
+  return useMutation(getUploadCasePhotoMutationOptions(options));
+};
 
 /**
  * Replaces the selection wholesale and sets its order from the list
@@ -8397,6 +8736,832 @@ export function useGetAftercare<
 }
 
 /**
+ * Opens the book the first time anybody looks, so this never 404s for a
+case the home can see. The director sees everything, including what
+has been taken out of the book -- an exclusion nobody can see
+afterwards is indistinguishable from a bug.
+
+Chapters come back in the order they print: by `startYear`, with
+`position` only as a tiebreak and undated chapters last. Entries come
+back by `position`, then order of arrival.
+
+ * @summary The book, every entry and chapter, and how many photographs fit
+ */
+export const getGetMemoryBookUrl = (caseId: number) => {
+  return `/api/cases/${caseId}/memory-book`;
+};
+
+export const getMemoryBook = async (
+  caseId: number,
+  options?: RequestInit,
+): Promise<StaffMemoryBook> => {
+  return customFetch<StaffMemoryBook>(getGetMemoryBookUrl(caseId), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getGetMemoryBookQueryKey = (caseId: number) => {
+  return [`/api/cases/${caseId}/memory-book`] as const;
+};
+
+export const getGetMemoryBookQueryOptions = <
+  TData = Awaited<ReturnType<typeof getMemoryBook>>,
+  TError = ErrorType<unknown>,
+>(
+  caseId: number,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getMemoryBook>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getGetMemoryBookQueryKey(caseId);
+
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof getMemoryBook>>> = ({
+    signal,
+  }) => getMemoryBook(caseId, { signal, ...requestOptions });
+
+  return {
+    queryKey,
+    queryFn,
+    enabled: !!caseId,
+    ...queryOptions,
+  } as UseQueryOptions<
+    Awaited<ReturnType<typeof getMemoryBook>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type GetMemoryBookQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getMemoryBook>>
+>;
+export type GetMemoryBookQueryError = ErrorType<unknown>;
+
+/**
+ * @summary The book, every entry and chapter, and how many photographs fit
+ */
+
+export function useGetMemoryBook<
+  TData = Awaited<ReturnType<typeof getMemoryBook>>,
+  TError = ErrorType<unknown>,
+>(
+  caseId: number,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getMemoryBook>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getGetMemoryBookQueryOptions(caseId, options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * Setting `closesAt` to a time that has passed closes the book for
+printing: the family can no longer add or change anything, but
+everybody can still read and print it. `null` reopens it.
+
+ * @summary The book's own settings, which sections print, and whether it is closed
+ */
+export const getUpdateMemoryBookUrl = (caseId: number) => {
+  return `/api/cases/${caseId}/memory-book`;
+};
+
+export const updateMemoryBook = async (
+  caseId: number,
+  memoryBookUpdate: MemoryBookUpdate,
+  options?: RequestInit,
+): Promise<MemoryBook> => {
+  return customFetch<MemoryBook>(getUpdateMemoryBookUrl(caseId), {
+    ...options,
+    method: "PUT",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(memoryBookUpdate),
+  });
+};
+
+export const getUpdateMemoryBookMutationOptions = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof updateMemoryBook>>,
+    TError,
+    { caseId: number; data: BodyType<MemoryBookUpdate> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof updateMemoryBook>>,
+  TError,
+  { caseId: number; data: BodyType<MemoryBookUpdate> },
+  TContext
+> => {
+  const mutationKey = ["updateMemoryBook"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof updateMemoryBook>>,
+    { caseId: number; data: BodyType<MemoryBookUpdate> }
+  > = (props) => {
+    const { caseId, data } = props ?? {};
+
+    return updateMemoryBook(caseId, data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type UpdateMemoryBookMutationResult = NonNullable<
+  Awaited<ReturnType<typeof updateMemoryBook>>
+>;
+export type UpdateMemoryBookMutationBody = BodyType<MemoryBookUpdate>;
+export type UpdateMemoryBookMutationError = ErrorType<void>;
+
+/**
+ * @summary The book's own settings, which sections print, and whether it is closed
+ */
+export const useUpdateMemoryBook = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof updateMemoryBook>>,
+    TError,
+    { caseId: number; data: BodyType<MemoryBookUpdate> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof updateMemoryBook>>,
+  TError,
+  { caseId: number; data: BodyType<MemoryBookUpdate> },
+  TContext
+> => {
+  return useMutation(getUpdateMemoryBookMutationOptions(options));
+};
+
+/**
+ * The card that came in the post, or what somebody said at the
+graveside. `authorName` is whose memory it is, not who typed it.
+Allowed on a closed book: the home is the one that closed it.
+
+ * @summary Type up a memory on somebody's behalf
+ */
+export const getCreateMemoryEntryUrl = (caseId: number) => {
+  return `/api/cases/${caseId}/memory-book/entries`;
+};
+
+export const createMemoryEntry = async (
+  caseId: number,
+  staffMemoryEntryInput: StaffMemoryEntryInput,
+  options?: RequestInit,
+): Promise<MemoryEntry> => {
+  return customFetch<MemoryEntry>(getCreateMemoryEntryUrl(caseId), {
+    ...options,
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(staffMemoryEntryInput),
+  });
+};
+
+export const getCreateMemoryEntryMutationOptions = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof createMemoryEntry>>,
+    TError,
+    { caseId: number; data: BodyType<StaffMemoryEntryInput> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof createMemoryEntry>>,
+  TError,
+  { caseId: number; data: BodyType<StaffMemoryEntryInput> },
+  TContext
+> => {
+  const mutationKey = ["createMemoryEntry"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof createMemoryEntry>>,
+    { caseId: number; data: BodyType<StaffMemoryEntryInput> }
+  > = (props) => {
+    const { caseId, data } = props ?? {};
+
+    return createMemoryEntry(caseId, data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type CreateMemoryEntryMutationResult = NonNullable<
+  Awaited<ReturnType<typeof createMemoryEntry>>
+>;
+export type CreateMemoryEntryMutationBody = BodyType<StaffMemoryEntryInput>;
+export type CreateMemoryEntryMutationError = ErrorType<void>;
+
+/**
+ * @summary Type up a memory on somebody's behalf
+ */
+export const useCreateMemoryEntry = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof createMemoryEntry>>,
+    TError,
+    { caseId: number; data: BodyType<StaffMemoryEntryInput> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof createMemoryEntry>>,
+  TError,
+  { caseId: number; data: BodyType<StaffMemoryEntryInput> },
+  TContext
+> => {
+  return useMutation(getCreateMemoryEntryMutationOptions(options));
+};
+
+/**
+ * `includedInBook: false` takes an entry out of the printed book and
+keeps the row, so "why is my memory not in it" has an answer.
+Putting it back clears `excludedReason`.
+
+ * @summary Correct, reorder, or take an entry out of the book
+ */
+export const getUpdateMemoryEntryUrl = (caseId: number, entryId: number) => {
+  return `/api/cases/${caseId}/memory-book/entries/${entryId}`;
+};
+
+export const updateMemoryEntry = async (
+  caseId: number,
+  entryId: number,
+  staffMemoryEntryUpdate: StaffMemoryEntryUpdate,
+  options?: RequestInit,
+): Promise<MemoryEntry> => {
+  return customFetch<MemoryEntry>(getUpdateMemoryEntryUrl(caseId, entryId), {
+    ...options,
+    method: "PUT",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(staffMemoryEntryUpdate),
+  });
+};
+
+export const getUpdateMemoryEntryMutationOptions = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof updateMemoryEntry>>,
+    TError,
+    { caseId: number; entryId: number; data: BodyType<StaffMemoryEntryUpdate> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof updateMemoryEntry>>,
+  TError,
+  { caseId: number; entryId: number; data: BodyType<StaffMemoryEntryUpdate> },
+  TContext
+> => {
+  const mutationKey = ["updateMemoryEntry"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof updateMemoryEntry>>,
+    { caseId: number; entryId: number; data: BodyType<StaffMemoryEntryUpdate> }
+  > = (props) => {
+    const { caseId, entryId, data } = props ?? {};
+
+    return updateMemoryEntry(caseId, entryId, data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type UpdateMemoryEntryMutationResult = NonNullable<
+  Awaited<ReturnType<typeof updateMemoryEntry>>
+>;
+export type UpdateMemoryEntryMutationBody = BodyType<StaffMemoryEntryUpdate>;
+export type UpdateMemoryEntryMutationError = ErrorType<void>;
+
+/**
+ * @summary Correct, reorder, or take an entry out of the book
+ */
+export const useUpdateMemoryEntry = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof updateMemoryEntry>>,
+    TError,
+    { caseId: number; entryId: number; data: BodyType<StaffMemoryEntryUpdate> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof updateMemoryEntry>>,
+  TError,
+  { caseId: number; entryId: number; data: BodyType<StaffMemoryEntryUpdate> },
+  TContext
+> => {
+  return useMutation(getUpdateMemoryEntryMutationOptions(options));
+};
+
+/**
+ * For a duplicate, or something typed into the wrong case. Taking a
+relative's words out of the book is `includedInBook: false` instead.
+
+ * @summary Delete an entry for good
+ */
+export const getDeleteMemoryEntryUrl = (caseId: number, entryId: number) => {
+  return `/api/cases/${caseId}/memory-book/entries/${entryId}`;
+};
+
+export const deleteMemoryEntry = async (
+  caseId: number,
+  entryId: number,
+  options?: RequestInit,
+): Promise<void> => {
+  return customFetch<void>(getDeleteMemoryEntryUrl(caseId, entryId), {
+    ...options,
+    method: "DELETE",
+  });
+};
+
+export const getDeleteMemoryEntryMutationOptions = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof deleteMemoryEntry>>,
+    TError,
+    { caseId: number; entryId: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof deleteMemoryEntry>>,
+  TError,
+  { caseId: number; entryId: number },
+  TContext
+> => {
+  const mutationKey = ["deleteMemoryEntry"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof deleteMemoryEntry>>,
+    { caseId: number; entryId: number }
+  > = (props) => {
+    const { caseId, entryId } = props ?? {};
+
+    return deleteMemoryEntry(caseId, entryId, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type DeleteMemoryEntryMutationResult = NonNullable<
+  Awaited<ReturnType<typeof deleteMemoryEntry>>
+>;
+
+export type DeleteMemoryEntryMutationError = ErrorType<void>;
+
+/**
+ * @summary Delete an entry for good
+ */
+export const useDeleteMemoryEntry = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof deleteMemoryEntry>>,
+    TError,
+    { caseId: number; entryId: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof deleteMemoryEntry>>,
+  TError,
+  { caseId: number; entryId: number },
+  TContext
+> => {
+  return useMutation(getDeleteMemoryEntryMutationOptions(options));
+};
+
+/**
+ * A chapter needs a title, something written in it, or a year.
+`authorName` defaults to the member of staff; it is recorded but never
+printed.
+
+ * @summary Add a chapter of the life story
+ */
+export const getCreateLifeChapterUrl = (caseId: number) => {
+  return `/api/cases/${caseId}/memory-book/chapters`;
+};
+
+export const createLifeChapter = async (
+  caseId: number,
+  staffLifeChapterInput: StaffLifeChapterInput,
+  options?: RequestInit,
+): Promise<LifeChapter> => {
+  return customFetch<LifeChapter>(getCreateLifeChapterUrl(caseId), {
+    ...options,
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(staffLifeChapterInput),
+  });
+};
+
+export const getCreateLifeChapterMutationOptions = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof createLifeChapter>>,
+    TError,
+    { caseId: number; data: BodyType<StaffLifeChapterInput> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof createLifeChapter>>,
+  TError,
+  { caseId: number; data: BodyType<StaffLifeChapterInput> },
+  TContext
+> => {
+  const mutationKey = ["createLifeChapter"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof createLifeChapter>>,
+    { caseId: number; data: BodyType<StaffLifeChapterInput> }
+  > = (props) => {
+    const { caseId, data } = props ?? {};
+
+    return createLifeChapter(caseId, data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type CreateLifeChapterMutationResult = NonNullable<
+  Awaited<ReturnType<typeof createLifeChapter>>
+>;
+export type CreateLifeChapterMutationBody = BodyType<StaffLifeChapterInput>;
+export type CreateLifeChapterMutationError = ErrorType<void>;
+
+/**
+ * @summary Add a chapter of the life story
+ */
+export const useCreateLifeChapter = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof createLifeChapter>>,
+    TError,
+    { caseId: number; data: BodyType<StaffLifeChapterInput> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof createLifeChapter>>,
+  TError,
+  { caseId: number; data: BodyType<StaffLifeChapterInput> },
+  TContext
+> => {
+  return useMutation(getCreateLifeChapterMutationOptions(options));
+};
+
+/**
+ * @summary Correct, reorder, or take a chapter out of the book
+ */
+export const getUpdateLifeChapterUrl = (caseId: number, chapterId: number) => {
+  return `/api/cases/${caseId}/memory-book/chapters/${chapterId}`;
+};
+
+export const updateLifeChapter = async (
+  caseId: number,
+  chapterId: number,
+  staffLifeChapterUpdate: StaffLifeChapterUpdate,
+  options?: RequestInit,
+): Promise<LifeChapter> => {
+  return customFetch<LifeChapter>(getUpdateLifeChapterUrl(caseId, chapterId), {
+    ...options,
+    method: "PUT",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(staffLifeChapterUpdate),
+  });
+};
+
+export const getUpdateLifeChapterMutationOptions = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof updateLifeChapter>>,
+    TError,
+    {
+      caseId: number;
+      chapterId: number;
+      data: BodyType<StaffLifeChapterUpdate>;
+    },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof updateLifeChapter>>,
+  TError,
+  { caseId: number; chapterId: number; data: BodyType<StaffLifeChapterUpdate> },
+  TContext
+> => {
+  const mutationKey = ["updateLifeChapter"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof updateLifeChapter>>,
+    {
+      caseId: number;
+      chapterId: number;
+      data: BodyType<StaffLifeChapterUpdate>;
+    }
+  > = (props) => {
+    const { caseId, chapterId, data } = props ?? {};
+
+    return updateLifeChapter(caseId, chapterId, data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type UpdateLifeChapterMutationResult = NonNullable<
+  Awaited<ReturnType<typeof updateLifeChapter>>
+>;
+export type UpdateLifeChapterMutationBody = BodyType<StaffLifeChapterUpdate>;
+export type UpdateLifeChapterMutationError = ErrorType<void>;
+
+/**
+ * @summary Correct, reorder, or take a chapter out of the book
+ */
+export const useUpdateLifeChapter = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof updateLifeChapter>>,
+    TError,
+    {
+      caseId: number;
+      chapterId: number;
+      data: BodyType<StaffLifeChapterUpdate>;
+    },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof updateLifeChapter>>,
+  TError,
+  { caseId: number; chapterId: number; data: BodyType<StaffLifeChapterUpdate> },
+  TContext
+> => {
+  return useMutation(getUpdateLifeChapterMutationOptions(options));
+};
+
+/**
+ * @summary Delete a chapter for good
+ */
+export const getDeleteLifeChapterUrl = (caseId: number, chapterId: number) => {
+  return `/api/cases/${caseId}/memory-book/chapters/${chapterId}`;
+};
+
+export const deleteLifeChapter = async (
+  caseId: number,
+  chapterId: number,
+  options?: RequestInit,
+): Promise<void> => {
+  return customFetch<void>(getDeleteLifeChapterUrl(caseId, chapterId), {
+    ...options,
+    method: "DELETE",
+  });
+};
+
+export const getDeleteLifeChapterMutationOptions = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof deleteLifeChapter>>,
+    TError,
+    { caseId: number; chapterId: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof deleteLifeChapter>>,
+  TError,
+  { caseId: number; chapterId: number },
+  TContext
+> => {
+  const mutationKey = ["deleteLifeChapter"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof deleteLifeChapter>>,
+    { caseId: number; chapterId: number }
+  > = (props) => {
+    const { caseId, chapterId } = props ?? {};
+
+    return deleteLifeChapter(caseId, chapterId, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type DeleteLifeChapterMutationResult = NonNullable<
+  Awaited<ReturnType<typeof deleteLifeChapter>>
+>;
+
+export type DeleteLifeChapterMutationError = ErrorType<void>;
+
+/**
+ * @summary Delete a chapter for good
+ */
+export const useDeleteLifeChapter = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof deleteLifeChapter>>,
+    TError,
+    { caseId: number; chapterId: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof deleteLifeChapter>>,
+  TError,
+  { caseId: number; chapterId: number },
+  TContext
+> => {
+  return useMutation(getDeleteLifeChapterMutationOptions(options));
+};
+
+/**
+ * Half-letter pages with the photographs embedded, so it can be printed
+from the browser or sent to a print shop as one file. Byte for byte
+the document the family gets from `renderFamilyMemoryBook`.
+
+ * @summary The whole book as one print-ready HTML file
+ */
+export const getRenderMemoryBookUrl = (caseId: number) => {
+  return `/api/cases/${caseId}/memory-book/render`;
+};
+
+export const renderMemoryBook = async (
+  caseId: number,
+  options?: RequestInit,
+): Promise<string> => {
+  return customFetch<string>(getRenderMemoryBookUrl(caseId), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getRenderMemoryBookQueryKey = (caseId: number) => {
+  return [`/api/cases/${caseId}/memory-book/render`] as const;
+};
+
+export const getRenderMemoryBookQueryOptions = <
+  TData = Awaited<ReturnType<typeof renderMemoryBook>>,
+  TError = ErrorType<unknown>,
+>(
+  caseId: number,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof renderMemoryBook>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey =
+    queryOptions?.queryKey ?? getRenderMemoryBookQueryKey(caseId);
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof renderMemoryBook>>
+  > = ({ signal }) => renderMemoryBook(caseId, { signal, ...requestOptions });
+
+  return {
+    queryKey,
+    queryFn,
+    enabled: !!caseId,
+    ...queryOptions,
+  } as UseQueryOptions<
+    Awaited<ReturnType<typeof renderMemoryBook>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type RenderMemoryBookQueryResult = NonNullable<
+  Awaited<ReturnType<typeof renderMemoryBook>>
+>;
+export type RenderMemoryBookQueryError = ErrorType<unknown>;
+
+/**
+ * @summary The whole book as one print-ready HTML file
+ */
+
+export function useRenderMemoryBook<
+  TData = Awaited<ReturnType<typeof renderMemoryBook>>,
+  TError = ErrorType<unknown>,
+>(
+  caseId: number,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof renderMemoryBook>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getRenderMemoryBookQueryOptions(caseId, options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
  * @summary The home's local network, nearest first
  */
 export const getGetVendorsUrl = (params?: GetVendorsParams) => {
@@ -10483,7 +11648,7 @@ export function useGetFamilyPrintItems<
 }
 
 /**
- * @summary Store bytes (the home's logo, or a staff-added photograph)
+ * @summary Store bytes that belong to no case (the home's logo). Case photographs go to POST /cases/{caseId}/photos.
  */
 export const getUploadFileUrl = () => {
   return `/api/uploads`;
@@ -10548,7 +11713,7 @@ export type UploadFileMutationBody = BodyType<UploadInput>;
 export type UploadFileMutationError = ErrorType<unknown>;
 
 /**
- * @summary Store bytes (the home's logo, or a staff-added photograph)
+ * @summary Store bytes that belong to no case (the home's logo). Case photographs go to POST /cases/{caseId}/photos.
  */
 export const useUploadFile = <
   TError = ErrorType<unknown>,
@@ -12242,6 +13407,871 @@ export const useSetFamilyAftercareConsent = <
 > => {
   return useMutation(getSetFamilyAftercareConsentMutationOptions(options));
 };
+
+/**
+ * Only the relatives this contact added themselves. Somebody who cannot
+invite gets `canInvite: false` and an empty list rather than an error,
+so the portal can simply not offer the screen.
+
+ * @summary Whether this person can pass the link on, and to whom they have
+ */
+export const getGetFamilyRelativesUrl = () => {
+  return `/api/family/relatives`;
+};
+
+export const getFamilyRelatives = async (
+  options?: RequestInit,
+): Promise<FamilyRelatives> => {
+  return customFetch<FamilyRelatives>(getGetFamilyRelativesUrl(), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getGetFamilyRelativesQueryKey = () => {
+  return [`/api/family/relatives`] as const;
+};
+
+export const getGetFamilyRelativesQueryOptions = <
+  TData = Awaited<ReturnType<typeof getFamilyRelatives>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof getFamilyRelatives>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getGetFamilyRelativesQueryKey();
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof getFamilyRelatives>>
+  > = ({ signal }) => getFamilyRelatives({ signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof getFamilyRelatives>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type GetFamilyRelativesQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getFamilyRelatives>>
+>;
+export type GetFamilyRelativesQueryError = ErrorType<unknown>;
+
+/**
+ * @summary Whether this person can pass the link on, and to whom they have
+ */
+
+export function useGetFamilyRelatives<
+  TData = Awaited<ReturnType<typeof getFamilyRelatives>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof getFamilyRelatives>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getGetFamilyRelativesQueryOptions(options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * Only for a contact the home has allowed to invite (`canInvite`). The
+new contact is a contributor on the same case, with a link of their
+own and no power to invite anybody further. Their link is texted
+and/or emailed; if neither could go, it is returned once, to copy, and
+is never retrievable again -- only its digest is stored. The home is
+told who added whom. At most `cap` relatives per case, however many
+of them have since been removed.
+
+ * @summary Give a relative their own link to the same arrangements
+ */
+export const getInviteFamilyRelativeUrl = () => {
+  return `/api/family/relatives`;
+};
+
+export const inviteFamilyRelative = async (
+  familyRelativeInput: FamilyRelativeInput,
+  options?: RequestInit,
+): Promise<FamilyRelativeInvited> => {
+  return customFetch<FamilyRelativeInvited>(getInviteFamilyRelativeUrl(), {
+    ...options,
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(familyRelativeInput),
+  });
+};
+
+export const getInviteFamilyRelativeMutationOptions = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof inviteFamilyRelative>>,
+    TError,
+    { data: BodyType<FamilyRelativeInput> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof inviteFamilyRelative>>,
+  TError,
+  { data: BodyType<FamilyRelativeInput> },
+  TContext
+> => {
+  const mutationKey = ["inviteFamilyRelative"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof inviteFamilyRelative>>,
+    { data: BodyType<FamilyRelativeInput> }
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return inviteFamilyRelative(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type InviteFamilyRelativeMutationResult = NonNullable<
+  Awaited<ReturnType<typeof inviteFamilyRelative>>
+>;
+export type InviteFamilyRelativeMutationBody = BodyType<FamilyRelativeInput>;
+export type InviteFamilyRelativeMutationError = ErrorType<void>;
+
+/**
+ * @summary Give a relative their own link to the same arrangements
+ */
+export const useInviteFamilyRelative = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof inviteFamilyRelative>>,
+    TError,
+    { data: BodyType<FamilyRelativeInput> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof inviteFamilyRelative>>,
+  TError,
+  { data: BodyType<FamilyRelativeInput> },
+  TContext
+> => {
+  return useMutation(getInviteFamilyRelativeMutationOptions(options));
+};
+
+/**
+ * Everything that is in the book, plus this person's own entries and
+chapters even if the home has taken one out -- somebody who cannot
+find what they wrote concludes it was lost and writes it again. The
+home's reason for taking something out is never shown. Opens the book
+the first time anybody looks.
+
+ * @summary The memory book as far as it has got
+ */
+export const getGetFamilyMemoryBookUrl = () => {
+  return `/api/family/memory-book`;
+};
+
+export const getFamilyMemoryBook = async (
+  options?: RequestInit,
+): Promise<FamilyMemoryBook> => {
+  return customFetch<FamilyMemoryBook>(getGetFamilyMemoryBookUrl(), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getGetFamilyMemoryBookQueryKey = () => {
+  return [`/api/family/memory-book`] as const;
+};
+
+export const getGetFamilyMemoryBookQueryOptions = <
+  TData = Awaited<ReturnType<typeof getFamilyMemoryBook>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof getFamilyMemoryBook>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getGetFamilyMemoryBookQueryKey();
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof getFamilyMemoryBook>>
+  > = ({ signal }) => getFamilyMemoryBook({ signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof getFamilyMemoryBook>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type GetFamilyMemoryBookQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getFamilyMemoryBook>>
+>;
+export type GetFamilyMemoryBookQueryError = ErrorType<unknown>;
+
+/**
+ * @summary The memory book as far as it has got
+ */
+
+export function useGetFamilyMemoryBook<
+  TData = Awaited<ReturnType<typeof getFamilyMemoryBook>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof getFamilyMemoryBook>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getGetFamilyMemoryBookQueryOptions(options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * Signed with the contact's own name as the home recorded it; nobody can
+sign a paragraph with somebody else's. `whenText` is free text -- "the
+summer we had the caravan" -- never a date.
+
+ * @summary Write a memory, or send the eulogy that was read
+ */
+export const getCreateFamilyMemoryEntryUrl = () => {
+  return `/api/family/memory-book/entries`;
+};
+
+export const createFamilyMemoryEntry = async (
+  memoryEntryInput: MemoryEntryInput,
+  options?: RequestInit,
+): Promise<FamilyMemoryEntry> => {
+  return customFetch<FamilyMemoryEntry>(getCreateFamilyMemoryEntryUrl(), {
+    ...options,
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(memoryEntryInput),
+  });
+};
+
+export const getCreateFamilyMemoryEntryMutationOptions = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof createFamilyMemoryEntry>>,
+    TError,
+    { data: BodyType<MemoryEntryInput> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof createFamilyMemoryEntry>>,
+  TError,
+  { data: BodyType<MemoryEntryInput> },
+  TContext
+> => {
+  const mutationKey = ["createFamilyMemoryEntry"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof createFamilyMemoryEntry>>,
+    { data: BodyType<MemoryEntryInput> }
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return createFamilyMemoryEntry(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type CreateFamilyMemoryEntryMutationResult = NonNullable<
+  Awaited<ReturnType<typeof createFamilyMemoryEntry>>
+>;
+export type CreateFamilyMemoryEntryMutationBody = BodyType<MemoryEntryInput>;
+export type CreateFamilyMemoryEntryMutationError = ErrorType<void>;
+
+/**
+ * @summary Write a memory, or send the eulogy that was read
+ */
+export const useCreateFamilyMemoryEntry = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof createFamilyMemoryEntry>>,
+    TError,
+    { data: BodyType<MemoryEntryInput> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof createFamilyMemoryEntry>>,
+  TError,
+  { data: BodyType<MemoryEntryInput> },
+  TContext
+> => {
+  return useMutation(getCreateFamilyMemoryEntryMutationOptions(options));
+};
+
+/**
+ * @summary Change something this person wrote
+ */
+export const getUpdateFamilyMemoryEntryUrl = (entryId: number) => {
+  return `/api/family/memory-book/entries/${entryId}`;
+};
+
+export const updateFamilyMemoryEntry = async (
+  entryId: number,
+  memoryEntryUpdate: MemoryEntryUpdate,
+  options?: RequestInit,
+): Promise<FamilyMemoryEntry> => {
+  return customFetch<FamilyMemoryEntry>(
+    getUpdateFamilyMemoryEntryUrl(entryId),
+    {
+      ...options,
+      method: "PUT",
+      headers: { "Content-Type": "application/json", ...options?.headers },
+      body: JSON.stringify(memoryEntryUpdate),
+    },
+  );
+};
+
+export const getUpdateFamilyMemoryEntryMutationOptions = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof updateFamilyMemoryEntry>>,
+    TError,
+    { entryId: number; data: BodyType<MemoryEntryUpdate> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof updateFamilyMemoryEntry>>,
+  TError,
+  { entryId: number; data: BodyType<MemoryEntryUpdate> },
+  TContext
+> => {
+  const mutationKey = ["updateFamilyMemoryEntry"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof updateFamilyMemoryEntry>>,
+    { entryId: number; data: BodyType<MemoryEntryUpdate> }
+  > = (props) => {
+    const { entryId, data } = props ?? {};
+
+    return updateFamilyMemoryEntry(entryId, data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type UpdateFamilyMemoryEntryMutationResult = NonNullable<
+  Awaited<ReturnType<typeof updateFamilyMemoryEntry>>
+>;
+export type UpdateFamilyMemoryEntryMutationBody = BodyType<MemoryEntryUpdate>;
+export type UpdateFamilyMemoryEntryMutationError = ErrorType<void>;
+
+/**
+ * @summary Change something this person wrote
+ */
+export const useUpdateFamilyMemoryEntry = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof updateFamilyMemoryEntry>>,
+    TError,
+    { entryId: number; data: BodyType<MemoryEntryUpdate> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof updateFamilyMemoryEntry>>,
+  TError,
+  { entryId: number; data: BodyType<MemoryEntryUpdate> },
+  TContext
+> => {
+  return useMutation(getUpdateFamilyMemoryEntryMutationOptions(options));
+};
+
+/**
+ * A real delete, and allowed even on a closed book. Somebody who wants
+their words gone is entitled to have them gone, not flagged.
+
+ * @summary Take back something this person wrote, for good
+ */
+export const getDeleteFamilyMemoryEntryUrl = (entryId: number) => {
+  return `/api/family/memory-book/entries/${entryId}`;
+};
+
+export const deleteFamilyMemoryEntry = async (
+  entryId: number,
+  options?: RequestInit,
+): Promise<void> => {
+  return customFetch<void>(getDeleteFamilyMemoryEntryUrl(entryId), {
+    ...options,
+    method: "DELETE",
+  });
+};
+
+export const getDeleteFamilyMemoryEntryMutationOptions = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof deleteFamilyMemoryEntry>>,
+    TError,
+    { entryId: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof deleteFamilyMemoryEntry>>,
+  TError,
+  { entryId: number },
+  TContext
+> => {
+  const mutationKey = ["deleteFamilyMemoryEntry"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof deleteFamilyMemoryEntry>>,
+    { entryId: number }
+  > = (props) => {
+    const { entryId } = props ?? {};
+
+    return deleteFamilyMemoryEntry(entryId, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type DeleteFamilyMemoryEntryMutationResult = NonNullable<
+  Awaited<ReturnType<typeof deleteFamilyMemoryEntry>>
+>;
+
+export type DeleteFamilyMemoryEntryMutationError = ErrorType<void>;
+
+/**
+ * @summary Take back something this person wrote, for good
+ */
+export const useDeleteFamilyMemoryEntry = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof deleteFamilyMemoryEntry>>,
+    TError,
+    { entryId: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof deleteFamilyMemoryEntry>>,
+  TError,
+  { entryId: number },
+  TContext
+> => {
+  return useMutation(getDeleteFamilyMemoryEntryMutationOptions(options));
+};
+
+/**
+ * A chapter needs a title, something written in it, or a year. It is
+not signed in the printed book; who wrote it is recorded for the home.
+
+ * @summary Write a chapter of the life story
+ */
+export const getCreateFamilyLifeChapterUrl = () => {
+  return `/api/family/memory-book/chapters`;
+};
+
+export const createFamilyLifeChapter = async (
+  lifeChapterInput: LifeChapterInput,
+  options?: RequestInit,
+): Promise<FamilyLifeChapter> => {
+  return customFetch<FamilyLifeChapter>(getCreateFamilyLifeChapterUrl(), {
+    ...options,
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(lifeChapterInput),
+  });
+};
+
+export const getCreateFamilyLifeChapterMutationOptions = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof createFamilyLifeChapter>>,
+    TError,
+    { data: BodyType<LifeChapterInput> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof createFamilyLifeChapter>>,
+  TError,
+  { data: BodyType<LifeChapterInput> },
+  TContext
+> => {
+  const mutationKey = ["createFamilyLifeChapter"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof createFamilyLifeChapter>>,
+    { data: BodyType<LifeChapterInput> }
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return createFamilyLifeChapter(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type CreateFamilyLifeChapterMutationResult = NonNullable<
+  Awaited<ReturnType<typeof createFamilyLifeChapter>>
+>;
+export type CreateFamilyLifeChapterMutationBody = BodyType<LifeChapterInput>;
+export type CreateFamilyLifeChapterMutationError = ErrorType<void>;
+
+/**
+ * @summary Write a chapter of the life story
+ */
+export const useCreateFamilyLifeChapter = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof createFamilyLifeChapter>>,
+    TError,
+    { data: BodyType<LifeChapterInput> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof createFamilyLifeChapter>>,
+  TError,
+  { data: BodyType<LifeChapterInput> },
+  TContext
+> => {
+  return useMutation(getCreateFamilyLifeChapterMutationOptions(options));
+};
+
+/**
+ * @summary Change a chapter this person wrote
+ */
+export const getUpdateFamilyLifeChapterUrl = (chapterId: number) => {
+  return `/api/family/memory-book/chapters/${chapterId}`;
+};
+
+export const updateFamilyLifeChapter = async (
+  chapterId: number,
+  lifeChapterUpdate: LifeChapterUpdate,
+  options?: RequestInit,
+): Promise<FamilyLifeChapter> => {
+  return customFetch<FamilyLifeChapter>(
+    getUpdateFamilyLifeChapterUrl(chapterId),
+    {
+      ...options,
+      method: "PUT",
+      headers: { "Content-Type": "application/json", ...options?.headers },
+      body: JSON.stringify(lifeChapterUpdate),
+    },
+  );
+};
+
+export const getUpdateFamilyLifeChapterMutationOptions = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof updateFamilyLifeChapter>>,
+    TError,
+    { chapterId: number; data: BodyType<LifeChapterUpdate> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof updateFamilyLifeChapter>>,
+  TError,
+  { chapterId: number; data: BodyType<LifeChapterUpdate> },
+  TContext
+> => {
+  const mutationKey = ["updateFamilyLifeChapter"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof updateFamilyLifeChapter>>,
+    { chapterId: number; data: BodyType<LifeChapterUpdate> }
+  > = (props) => {
+    const { chapterId, data } = props ?? {};
+
+    return updateFamilyLifeChapter(chapterId, data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type UpdateFamilyLifeChapterMutationResult = NonNullable<
+  Awaited<ReturnType<typeof updateFamilyLifeChapter>>
+>;
+export type UpdateFamilyLifeChapterMutationBody = BodyType<LifeChapterUpdate>;
+export type UpdateFamilyLifeChapterMutationError = ErrorType<void>;
+
+/**
+ * @summary Change a chapter this person wrote
+ */
+export const useUpdateFamilyLifeChapter = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof updateFamilyLifeChapter>>,
+    TError,
+    { chapterId: number; data: BodyType<LifeChapterUpdate> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof updateFamilyLifeChapter>>,
+  TError,
+  { chapterId: number; data: BodyType<LifeChapterUpdate> },
+  TContext
+> => {
+  return useMutation(getUpdateFamilyLifeChapterMutationOptions(options));
+};
+
+/**
+ * @summary Take back a chapter this person wrote, for good
+ */
+export const getDeleteFamilyLifeChapterUrl = (chapterId: number) => {
+  return `/api/family/memory-book/chapters/${chapterId}`;
+};
+
+export const deleteFamilyLifeChapter = async (
+  chapterId: number,
+  options?: RequestInit,
+): Promise<void> => {
+  return customFetch<void>(getDeleteFamilyLifeChapterUrl(chapterId), {
+    ...options,
+    method: "DELETE",
+  });
+};
+
+export const getDeleteFamilyLifeChapterMutationOptions = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof deleteFamilyLifeChapter>>,
+    TError,
+    { chapterId: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof deleteFamilyLifeChapter>>,
+  TError,
+  { chapterId: number },
+  TContext
+> => {
+  const mutationKey = ["deleteFamilyLifeChapter"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof deleteFamilyLifeChapter>>,
+    { chapterId: number }
+  > = (props) => {
+    const { chapterId } = props ?? {};
+
+    return deleteFamilyLifeChapter(chapterId, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type DeleteFamilyLifeChapterMutationResult = NonNullable<
+  Awaited<ReturnType<typeof deleteFamilyLifeChapter>>
+>;
+
+export type DeleteFamilyLifeChapterMutationError = ErrorType<void>;
+
+/**
+ * @summary Take back a chapter this person wrote, for good
+ */
+export const useDeleteFamilyLifeChapter = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof deleteFamilyLifeChapter>>,
+    TError,
+    { chapterId: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof deleteFamilyLifeChapter>>,
+  TError,
+  { chapterId: number },
+  TContext
+> => {
+  return useMutation(getDeleteFamilyLifeChapterMutationOptions(options));
+};
+
+/**
+ * Byte for byte the document the home prints -- no watermark and no
+preview edition. Fetched as a blob and handed to the browser as an
+object URL, for the same reason as `renderFamilyPrintItem`: the portal
+has only a bearer token, which a plain link cannot carry.
+
+ * @summary The family's copy of the book
+ */
+export const getRenderFamilyMemoryBookUrl = () => {
+  return `/api/family/memory-book/render`;
+};
+
+export const renderFamilyMemoryBook = async (
+  options?: RequestInit,
+): Promise<Blob> => {
+  return customFetch<Blob>(getRenderFamilyMemoryBookUrl(), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getRenderFamilyMemoryBookQueryKey = () => {
+  return [`/api/family/memory-book/render`] as const;
+};
+
+export const getRenderFamilyMemoryBookQueryOptions = <
+  TData = Awaited<ReturnType<typeof renderFamilyMemoryBook>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof renderFamilyMemoryBook>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey =
+    queryOptions?.queryKey ?? getRenderFamilyMemoryBookQueryKey();
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof renderFamilyMemoryBook>>
+  > = ({ signal }) => renderFamilyMemoryBook({ signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof renderFamilyMemoryBook>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type RenderFamilyMemoryBookQueryResult = NonNullable<
+  Awaited<ReturnType<typeof renderFamilyMemoryBook>>
+>;
+export type RenderFamilyMemoryBookQueryError = ErrorType<unknown>;
+
+/**
+ * @summary The family's copy of the book
+ */
+
+export function useRenderFamilyMemoryBook<
+  TData = Awaited<ReturnType<typeof renderFamilyMemoryBook>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof renderFamilyMemoryBook>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getRenderFamilyMemoryBookQueryOptions(options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
 
 /**
  * @summary Serve a photograph on this case, or the home's logo

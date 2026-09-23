@@ -32,5 +32,7 @@ export interface FamilyContact {
   revokedAt: Date | null;
   firstSeenAt: Date | null;
   lastSeenAt: Date | null;
+  /** Set when somebody on the family's side added this person, rather than the home. */
+  invitedByContactId: number | null;
   createdAt: Date;
 }

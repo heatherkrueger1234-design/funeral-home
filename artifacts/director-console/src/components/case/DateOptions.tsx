@@ -17,6 +17,14 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
 import { CheckCircle2, Loader2, Phone, Plus, X } from "lucide-react";
+import {
+  formatAtHome,
+  fromHomeInput,
+  homeToday,
+  toHomeInput,
+  zoneHint,
+} from "@/lib/utils";
+import { useHomeZone } from "@/lib/session";
 
 /**
  * Offering the family two or three times, instead of ringing round for one.
@@ -38,43 +46,32 @@ import { CheckCircle2, Loader2, Phone, Plus, X } from "lucide-react";
  * were dated rather than just "saved".
  */
 
-const dayFormat = new Intl.DateTimeFormat(undefined, {
-  weekday: "long",
-  month: "long",
-  day: "numeric",
-});
-const timeFormat = new Intl.DateTimeFormat(undefined, {
-  hour: "numeric",
-  minute: "2-digit",
-});
-
-const asDate = (value: string | Date) =>
-  value instanceof Date ? value : new Date(value);
-
-/** `datetime-local` wants local wall time with no zone, to the minute. */
-function toLocalInput(when: Date): string {
-  const pad = (n: number) => String(n).padStart(2, "0");
-  return `${when.getFullYear()}-${pad(when.getMonth() + 1)}-${pad(when.getDate())}T${pad(when.getHours())}:${pad(when.getMinutes())}`;
+/**
+ * "Friday 2 October at 11:00 AM", on the home's clock. A time offered to a
+ * family is a time at the chapel, whatever zone this laptop is in.
+ */
+function offerLabel(value: string | Date, zone: string | undefined): string {
+  return `${formatAtHome(value, zone, {
+    weekday: "long",
+    month: "long",
+    day: "numeric",
+  })} at ${formatAtHome(value, zone, { hour: "numeric", minute: "2-digit" })}`;
 }
 
-/** The floor on the picker. Nothing already past is on offer. */
-const localNow = () => toLocalInput(new Date());
-
-/** Three days out at eleven, which is where most of these land anyway. */
-function defaultOfferTime(): string {
-  const when = new Date();
-  when.setDate(when.getDate() + 3);
-  when.setHours(11, 0, 0, 0);
-
-  return toLocalInput(when);
+/** Three days out at eleven at the home, which is where most of these land. */
+function defaultOfferTime(zone: string | undefined): string {
+  const today = new Date(`${homeToday(zone)}T00:00:00Z`);
+  today.setUTCDate(today.getUTCDate() + 3);
+  return `${today.toISOString().slice(0, 10)}T11:00`;
 }
 
 export function DateOptions({ caseId }: { caseId: number }) {
   const queryClient = useQueryClient();
   const { toast } = useToast();
   const offers = useGetServiceOffers(caseId);
+  const zone = useHomeZone();
 
-  const [startsAt, setStartsAt] = useState(defaultOfferTime);
+  const [startsAt, setStartsAt] = useState(() => defaultOfferTime(zone));
   const [location, setLocation] = useState("");
   const [note, setNote] = useState("");
   const [adding, setAdding] = useState(false);
@@ -147,8 +144,7 @@ export function DateOptions({ caseId }: { caseId: number }) {
         <div className="rounded-xl border border-border bg-card p-3">
           <p className="flex items-center gap-2 font-semibold">
             <CheckCircle2 className="size-4 text-[var(--accent-deep)]" strokeWidth={1.75} />
-            {dayFormat.format(asDate(chosen.startsAt))} at{" "}
-            {timeFormat.format(asDate(chosen.startsAt))}
+            {offerLabel(chosen.startsAt, zone)}
           </p>
           <p className="mt-1 text-sm leading-snug text-muted-foreground">
             {chosen.chosenByName
@@ -170,8 +166,7 @@ export function DateOptions({ caseId }: { caseId: number }) {
                 >
                   <span className="min-w-0 flex-1">
                     <span className="block text-sm">
-                      {dayFormat.format(asDate(row.startsAt))} at{" "}
-                      {timeFormat.format(asDate(row.startsAt))}
+                      {offerLabel(row.startsAt, zone)}
                     </span>
                     {(row.location || row.note) && (
                       <span className="block truncate text-sm text-muted-foreground">
@@ -224,10 +219,13 @@ export function DateOptions({ caseId }: { caseId: number }) {
                     // The server refuses a time that has already gone; the
                     // picker should not offer one in the first place, so a
                     // mistyped year is caught before it becomes a toast.
-                    min={localNow()}
+                    min={toHomeInput(new Date(), zone)}
                     value={startsAt}
                     onChange={(event) => setStartsAt(event.target.value)}
                   />
+                  {zoneHint(zone) && (
+                    <p className="text-xs text-muted-foreground">{zoneHint(zone)}</p>
+                  )}
                 </div>
                 <div className="space-y-1">
                   <Label htmlFor="offerWhere" className="text-xs">
@@ -260,7 +258,7 @@ export function DateOptions({ caseId }: { caseId: number }) {
                     add.mutate({
                       caseId,
                       data: {
-                        startsAt: new Date(startsAt).toISOString() as never,
+                        startsAt: fromHomeInput(startsAt, zone) as never,
                         location: location.trim() || null,
                         note: note.trim() || null,
                       },

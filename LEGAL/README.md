@@ -83,6 +83,7 @@ that was never made.
 | Erasure destroys the encrypted bytes, not just the reference | `routes/export.ts` case delete; verified — `uploads` is empty afterwards |
 | Social security numbers are excluded from exports | `routes/export.ts` |
 | Aftercare sends nothing until the family consents, and a decline is final | `lib/db/src/schema/aftercare.ts`; `test/aftercare-loop.test.ts` |
+| Every check-in carries the home's postal address and a working unsubscribe | `lib/mailer/src/aftercare.ts`; `test/aftercare-sender.test.ts` ("the foot of a check-in") |
 
 ## Three things to fix in the product because of these drafts
 
@@ -95,26 +96,14 @@ that was never made.
    the hosted model. `RETENTION.md` needs correcting to match, or it will be
    read against us.
 
-2. **Photograph metadata is not stripped from ordinary uploads.** Found while
-   trying to verify a claim I had already written into Schedule 2, which is the
-   argument for checking them: an image over 3000 pixels on its long edge is
-   re-encoded and loses its EXIF, and **anything smaller is stored exactly as
-   sent** — GPS coordinates included. Verified by putting a marked EXIF block
-   through `normaliseImage`: it survives at 800×600 and is gone at 4000×3000.
-   That metadata then travels in the photo pack a director emails to a print
-   shop and in the case export. The drafts now disclose it instead of claiming
-   otherwise, in both `DPA.md` Schedule 2 and the family-facing part of
-   `PRIVACY.md`.
-
-   The fix is a product decision rather than an obvious one, which is why it is
-   not already made. Re-encoding everything would strip it and cost one
-   generation of JPEG recompression on every photograph — against a codebase
-   that deliberately keeps the original bytes and stores the portrait crop as
-   instructions for exactly that reason. The narrower option is to strip the
-   EXIF segments out of the JPEG losslessly where the orientation tag says the
-   pixels are already upright, and re-encode only the ones that need rotating.
-   That preserves the stated value and covers the common case, and it is more
-   code. Worth deciding before a home sends a photo pack to a print shop.
+2. ~~**Photograph metadata is not stripped from ordinary uploads.**~~
+   **Fixed.** Every upload now loses its EXIF, XMP and IPTC. An upright JPEG
+   has those segments cut out losslessly, so the stored pixels are the family's
+   own (the narrower option this note proposed); a photograph that needs
+   rotating, resizing or converting is re-encoded, which drops them too. Tested
+   in `photo-formats.test.ts`, including pixel-for-pixel equality and a
+   sideways phone portrait. `DPA.md` Schedule 2 and `PRIVACY.md` now state it
+   as a guarantee rather than a limitation.
 
 3. **A home cannot see the access log about itself.** `platform_audit` records
    every time we look across the tenant boundary, which is the single most

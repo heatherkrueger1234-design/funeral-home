@@ -273,6 +273,8 @@ async function send(message: {
   senderName?: string;
   /** Where a reply goes, when it should not come back to SMTP_FROM. */
   replyTo?: string | null;
+  /** Extra headers, e.g. List-Unsubscribe on a grief check-in. */
+  headers?: Record<string, string>;
 }): Promise<void> {
   const mailer = getTransport();
 
@@ -292,7 +294,7 @@ async function send(message: {
   }
 
   try {
-    const { rethrow, logText, senderName, replyTo, ...payload } = message;
+    const { rethrow, logText, senderName, replyTo, headers, ...payload } = message;
     void rethrow;
     void logText;
     await mailer.transport.sendMail({
@@ -302,6 +304,7 @@ async function send(message: {
         ? { name: senderName.trim(), address: mailer.fromAddress }
         : mailer.from,
       ...(replyTo ? { replyTo } : {}),
+      ...(headers ? { headers } : {}),
       ...payload,
     });
     logger.info({ to: message.to, subject: message.subject }, "Email sent");
@@ -426,6 +429,84 @@ export async function sendStaffInviteEmail(options: {
 }
 
 /**
+ * A relative's own link to the family's page, sent because somebody in the
+ * family asked for them to have one.
+ *
+ * It names both the home and the relative who asked, in the first line,
+ * because a link to "the arrangements" arriving from an unknown address a
+ * few days after a death reads like a scam unless it says who it is from and
+ * who they know. It does not name the person who died: the subject line of
+ * an email is shown on lock screens and in shared inboxes, and that news may
+ * not have reached everyone who can see this one.
+ *
+ * Throws `MailNotSentError` when it cannot go, so the caller can fall back to
+ * showing the link once to copy. The link is the credential, so it is never
+ * written to the log in the clear.
+ */
+export async function sendFamilyLinkEmail(options: {
+  to: string;
+  homeName: string;
+  invitedBy: string;
+  link: string;
+  replyTo?: string | null;
+}): Promise<void> {
+  const { to, homeName, invitedBy, link, replyTo } = options;
+
+  const text = [
+    `${invitedBy} asked ${homeName} to send you this.`,
+    "",
+    "It is your own private page for the funeral arrangements, where the",
+    "family is sharing photographs, the order of service and the plans for",
+    "the day. You can add photographs and memories there too, if you would",
+    "like to.",
+    "",
+    link,
+    "",
+    "The link is yours alone. Nothing needs setting up, and nothing needs",
+    "doing today.",
+    "",
+    `— ${homeName}`,
+  ].join("\n");
+
+  const html = `
+<div style="font-family:-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;
+            max-width:520px;margin:0 auto;padding:32px 24px;color:#1f2937;
+            line-height:1.6;font-size:15px">
+  <p style="margin:0 0 16px">
+    ${esc(invitedBy)} asked <strong>${esc(homeName)}</strong> to send you this.
+  </p>
+  <p style="margin:0 0 24px">
+    It is your own private page for the funeral arrangements, where the family
+    is sharing photographs, the order of service and the plans for the day.
+    You can add photographs and memories there too, if you would like to.
+  </p>
+  <p style="margin:0 0 24px">
+    <a href="${esc(link)}"
+       style="display:inline-block;background:#1f4e46;color:#ffffff;
+              text-decoration:none;padding:12px 26px;border-radius:999px;
+              font-weight:600">Open the page</a>
+  </p>
+  <p style="margin:0 0 20px;color:#6b7280;font-size:13px">
+    The link is yours alone. Nothing needs setting up, and nothing needs doing
+    today. If the button doesn't work, paste this into your browser:<br>
+    <span style="word-break:break-all">${esc(link)}</span>
+  </p>
+  <p style="margin:24px 0 0;color:#9ca3af;font-size:12px">— ${esc(homeName)}</p>
+</div>`.trim();
+
+  await send({
+    to,
+    subject: `${invitedBy} shared the arrangements with you`,
+    text,
+    html,
+    logText: text.replace(link, link.replace(/\/f\/[^/\s?#]+/, "/f/REDACTED")),
+    senderName: homeName,
+    replyTo,
+    rethrow: true,
+  });
+}
+
+/**
  * A grief check-in.
  *
  * Plain text with a minimal HTML twin, and no images, tracking pixel or
@@ -446,10 +527,45 @@ export async function sendAftercareEmail(options: {
    * it, not a no-reply mailbox at the software company.
    */
   replyTo?: string | null;
+  /**
+   * Where "stop these" goes: a page on the portal that asks once and then
+   * stops them for good. Null when the deployment has no FAMILY_PORTAL_URL,
+   * in which case the note says to reply, which reaches the home.
+   */
+  unsubscribeUrl?: string | null;
+  /** The RFC 8058 one-click endpoint, for the mail client's own button. */
+  oneClickUnsubscribeUrl?: string | null;
+  /** The home's postal address, which CAN-SPAM asks every message to carry. */
+  postalAddress?: string | null;
 }): Promise<void> {
-  const { to, subject, body, brandedAs, replyTo } = options;
+  const {
+    to,
+    subject,
+    body,
+    brandedAs,
+    replyTo,
+    unsubscribeUrl,
+    oneClickUnsubscribeUrl,
+    postalAddress,
+  } = options;
 
-  const text = `${body}\n\n— Provided in care with ${brandedAs}`;
+  /*
+   * The foot of the note. Quiet, and in the same grey as the signature, but
+   * present: a family who cannot face another of these should not have to
+   * find a text message from last spring to make them stop.
+   */
+  const stopLine = unsubscribeUrl
+    ? `If you would rather not hear from us like this, you can stop these notes here: ${unsubscribeUrl}`
+    : "If you would rather not hear from us like this, reply to this note and we will stop.";
+
+  const text = [
+    body,
+    "",
+    `— Provided in care with ${brandedAs}`,
+    ...(postalAddress ? [postalAddress] : []),
+    "",
+    stopLine,
+  ].join("\n");
 
   // Escaped first, then the single line break the home typed is turned into
   // the one tag this template allows. Doing it the other way round would let
@@ -468,7 +584,17 @@ export async function sendAftercareEmail(options: {
             line-height:1.7;font-size:15px">
   ${paragraphs}
   <p style="margin:28px 0 0;color:#6b7280;font-size:13px">
-    Provided in care with ${esc(brandedAs)}
+    Provided in care with ${esc(brandedAs)}${
+      postalAddress ? `<br>${esc(postalAddress)}` : ""
+    }
+  </p>
+  <p style="margin:16px 0 0;color:#6b7280;font-size:13px">
+    ${
+      unsubscribeUrl
+        ? `If you would rather not hear from us like this, you can
+    <a href="${esc(unsubscribeUrl)}" style="color:#6b7280">stop these notes</a>.`
+        : "If you would rather not hear from us like this, reply to this note and we will stop."
+    }
   </p>
 </div>`.trim();
 
@@ -480,6 +606,17 @@ export async function sendAftercareEmail(options: {
     rethrow: true,
     senderName: brandedAs,
     replyTo,
+    // The signed token only stops these notes, but it is still not something
+    // to leave lying in a log for anyone to use on the family's behalf.
+    logText: unsubscribeUrl
+      ? text.replace(unsubscribeUrl, unsubscribeUrl.replace(/token=[^&\s]+/, "token=REDACTED"))
+      : text,
+    headers: oneClickUnsubscribeUrl
+      ? {
+          "List-Unsubscribe": `<${oneClickUnsubscribeUrl}>`,
+          "List-Unsubscribe-Post": "List-Unsubscribe=One-Click",
+        }
+      : undefined,
   });
 }
 

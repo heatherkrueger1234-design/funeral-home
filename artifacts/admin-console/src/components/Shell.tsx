@@ -13,6 +13,7 @@ const PLACES = [
   { href: "/", label: "Overview" },
   { href: "/homes", label: "Homes" },
   { href: "/audit", label: "Access log" },
+  { href: "/admins", label: "Who has access" },
 ] as const;
 
 function NavLink({ href, label }: { href: string; label: string }) {
@@ -26,7 +27,7 @@ function NavLink({ href, label }: { href: string; label: string }) {
     <Link
       href={href}
       className={cn(
-        "inline-flex min-h-9 items-center rounded-md px-3 text-sm font-semibold no-underline",
+        "inline-flex min-h-9 items-center whitespace-nowrap rounded-md px-3 text-sm font-semibold no-underline",
         "transition-colors duration-200 ease-[cubic-bezier(0.2,0.6,0.3,1)]",
         active
           ? "bg-[var(--accent-soft)] text-[var(--accent-deep)]"
@@ -67,7 +68,7 @@ export function Shell({
             className="hidden h-5 w-px shrink-0 bg-[var(--border)] sm:block"
             aria-hidden
           />
-          <nav aria-label="Sections" className="flex items-center gap-1">
+          <nav aria-label="Sections" className="flex flex-wrap items-center gap-1">
             {PLACES.map((place) => (
               <NavLink key={place.href} {...place} />
             ))}

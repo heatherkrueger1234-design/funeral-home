@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import {
   useGetCaseMessages,
@@ -7,11 +7,14 @@ import {
   getGetCaseQueryKey,
   getGetCasesQueryKey,
   getGetHomeDashboardQueryKey,
+  getGetHomeInboxQueryKey,
 } from "@workspace/api-client-react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Loader2, MessageSquare, Moon, Send } from "lucide-react";
 import { Empty, Loading } from "@/components/page";
+import { formatAtHome } from "@/lib/utils";
+import { useHomeZone } from "@/lib/session";
 
 /**
  * The thread, from the home's side.
@@ -21,9 +24,21 @@ import { Empty, Loading } from "@/components/page";
  * signal is maintained by the act of actually looking.
  */
 export function MessagesPanel({ caseId }: { caseId: number }) {
+  const zone = useHomeZone();
   const queryClient = useQueryClient();
   const thread = useGetCaseMessages(caseId);
   const [body, setBody] = useState("");
+
+  /*
+   * Reading the thread marks it read on the server, and the header's
+   * Messages badge is counted from the inbox -- which nothing refreshed, so
+   * the badge kept saying a family was waiting for up to a minute after the
+   * director had read and answered them.
+   */
+  useEffect(() => {
+    if (thread.dataUpdatedAt === 0) return;
+    void queryClient.invalidateQueries({ queryKey: getGetHomeInboxQueryKey() });
+  }, [thread.dataUpdatedAt, queryClient]);
 
   const send = usePostCaseMessage({
     mutation: {
@@ -44,6 +59,9 @@ export function MessagesPanel({ caseId }: { caseId: number }) {
         });
         void queryClient.invalidateQueries({
           queryKey: getGetCasesQueryKey(),
+        });
+        void queryClient.invalidateQueries({
+          queryKey: getGetHomeInboxQueryKey(),
         });
       },
     },
@@ -85,7 +103,10 @@ export function MessagesPanel({ caseId }: { caseId: number }) {
               <p className="mt-1.5 text-sm leading-snug text-muted-foreground">
                 {message.authorName ?? (fromHome ? "The home" : "The family")}
                 {message.authorTitle ? `, ${message.authorTitle}` : ""} ·{" "}
-                {new Date(message.createdAt).toLocaleString(undefined, {
+                {/* On the home's clock: "sent out of hours" below is judged
+                    against the home's hours, and the time beside it should
+                    agree with it. */}
+                {formatAtHome(message.createdAt, zone, {
                   day: "numeric",
                   month: "short",
                   hour: "numeric",

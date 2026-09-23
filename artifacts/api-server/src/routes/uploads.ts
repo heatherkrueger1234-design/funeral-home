@@ -6,8 +6,12 @@ import { photoUpload, serveUpload, storeUpload } from "../lib/media";
 const router: IRouter = Router();
 
 /**
- * Staff uploads: the home's logo, and photographs a director adds on the
- * family's behalf when somebody posts prints to the office.
+ * Staff uploads that belong to no case: the home's logo.
+ *
+ * A photograph for a case does not come through here. A file stored with no
+ * case never reaches that case's bin, pack or slideshow, which is how a print
+ * posted to the office used to vanish; those go to `POST
+ * /cases/:caseId/photos` in `photos.ts`.
  */
 router.post("/uploads", photoUpload.single("file"), async (req, res) => {
   const home = tenant(req);

@@ -89,13 +89,26 @@ export default function Selections() {
           const value = draft.value.trim();
           if (!value) return;
 
-          add.mutate({
-            data: {
-              kind: section.kind,
-              value,
-              attribution: draft.attribution.trim() || null,
+          add.mutate(
+            {
+              data: {
+                kind: section.kind,
+                value,
+                attribution: draft.attribution.trim() || null,
+              },
             },
-          });
+            {
+              // Cleared at once (so a double tap cannot add it twice), and
+              // put back if it did not save — a hymn somebody typed on a
+              // bad connection should not simply vanish with the error.
+              onError: () =>
+                setDrafts((current) =>
+                  current[section.kind]?.value
+                    ? current
+                    : { ...current, [section.kind]: draft },
+                ),
+            },
+          );
 
           setDrafts((current) => ({
             ...current,
@@ -190,6 +203,7 @@ export default function Selections() {
                     : "min-w-0 flex-1"
                 }
                 placeholder={section.placeholder}
+                aria-label={`Add to ${section.title.toLowerCase()}`}
                 onChange={(event) =>
                   setDrafts((current) => ({
                     ...current,
@@ -207,6 +221,7 @@ export default function Selections() {
                 <Input
                   value={draft.attribution}
                   placeholder={section.attribution}
+                  aria-label={`${section.attribution} (optional)`}
                   className="min-w-0 flex-1 basis-0 sm:max-w-[9rem] sm:flex-none"
                   onChange={(event) =>
                     setDrafts((current) => ({

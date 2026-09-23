@@ -19,7 +19,9 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import { toast } from "@/hooks/use-toast";
-import { Download, Loader2, Trash2, HeartCrack } from "lucide-react";
+import { useHomeZone, useSession } from "@/lib/session";
+import { fromHomeInput, zoneHint } from "@/lib/utils";
+import { Download, Loader2, Lock, Trash2, HeartCrack } from "lucide-react";
 
 /**
  * The three things a home does with a case that are not working the case:
@@ -78,6 +80,7 @@ function ConvertToAtNeed({
   const [open, setOpen] = useState(false);
   const [dateOfDeath, setDateOfDeath] = useState("");
   const [serviceAt, setServiceAt] = useState("");
+  const zone = useHomeZone();
 
   const convert = useConvertCaseToAtNeed({
     mutation: {
@@ -136,6 +139,9 @@ function ConvertToAtNeed({
                 value={serviceAt}
                 onChange={(event) => setServiceAt(event.target.value)}
               />
+              {zoneHint(zone) && (
+                <p className="mt-1 text-xs text-muted-foreground">{zoneHint(zone)}</p>
+              )}
             </div>
           </div>
           <DialogFooter>
@@ -148,9 +154,13 @@ function ConvertToAtNeed({
                 convert.mutate({
                   caseId,
                   data: {
+                    // A calendar date, kept as midnight UTC on that day, which
+                    // is how every date of death is stored and read back
+                    // (`formatCalendarDate`); the service is a moment, typed
+                    // on the home's clock.
                     dateOfDeath: new Date(dateOfDeath).toISOString(),
                     serviceAt: serviceAt
-                      ? new Date(serviceAt).toISOString()
+                      ? fromHomeInput(serviceAt, zone)
                       : null,
                   },
                 })
@@ -197,6 +207,31 @@ function EraseCase({
   // Compared the same way the server does, so the button's state never
   // disagrees with what happens when it is pressed.
   const matches = typed.trim().toLowerCase() === displayName.trim().toLowerCase();
+
+  /*
+   * The owner's decision only; the server refuses anyone else. Explained
+   * rather than hidden, so a director whom a family has asked knows the way
+   * forward instead of hunting for a button that is not there.
+   */
+  const { session } = useSession();
+  const isOwner = session?.user.role === "owner";
+
+  if (!isOwner) {
+    return (
+      <div className="rounded-lg border p-4">
+        <p className="font-medium mb-1">Erase this case</p>
+        <p className="text-sm text-muted-foreground mb-3">
+          Only the home&rsquo;s owner can erase a case, because it cannot be
+          undone and the home may be required to keep the record. If a family
+          has asked for it, export the case and ask the owner to erase it.
+        </p>
+        <Button variant="outline" size="sm" disabled>
+          <Lock className="size-4" aria-hidden />
+          Erase (owner only)
+        </Button>
+      </div>
+    );
+  }
 
   return (
     <div className="rounded-lg border border-destructive/40 p-4">

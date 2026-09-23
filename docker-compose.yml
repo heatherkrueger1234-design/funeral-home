@@ -103,6 +103,7 @@ services:
       dockerfile: Dockerfile.web
       args:
         APP: director-console
+        # So the Storefront screen shows the whole public-page address.
         VITE_FAMILY_PORTAL_URL: ${FAMILY_PORTAL_URL:-}
         VITE_CONSOLE_URL: ${CONSOLE_URL:-}
         # Sign-in sends a platform admin straight to their own console rather
@@ -137,6 +138,33 @@ services:
     expose:
       - "80"
 
+  # The public website, for funeral homes deciding whether to sign up. Optional
+  # and off by default: it runs only with `--profile website` (or
+  # COMPOSE_PROFILES=website in .env) and WEBSITE_URL set. It is the same
+  # static build as the apps, with its own nginx config: no /api, and no
+  # noindex header, because unlike them it exists to be found.
+  #
+  # Build-time only: the page is prerendered, so changing WEBSITE_URL or the
+  # contact address means `docker compose build website`, not a restart.
+  website:
+    profiles: ["website"]
+    build:
+      context: .
+      dockerfile: Dockerfile.web
+      args:
+        APP: website
+        NGINX_CONF: deploy/website.conf.template
+        NGINX_HEADERS: deploy/website-security-headers.conf
+        VITE_SITE_URL: ${WEBSITE_URL:-}
+        VITE_CONSOLE_URL: ${CONSOLE_URL:-}
+        VITE_CONTACT_EMAIL: ${WEBSITE_CONTACT_EMAIL:-}
+        VITE_PRIVACY_URL: ${WEBSITE_PRIVACY_URL:-}
+        VITE_TERMS_URL: ${WEBSITE_TERMS_URL:-}
+    restart: unless-stopped
+    # Reached only through Caddy, like the apps.
+    expose:
+      - "80"
+
   # TLS, and the only container the internet can reach. Gets and renews a
   # certificate for each hostname by itself; see deploy/Caddyfile for what
   # has to be true (DNS, ports 80 and 443) before it can.
@@ -155,6 +183,12 @@ services:
       FAMILY_PORTAL_URL: ${FAMILY_PORTAL_URL:?set FAMILY_PORTAL_URL in .env}
       CONSOLE_URL: ${CONSOLE_URL:?set CONSOLE_URL in .env}
       ADMIN_CONSOLE_URL: ${ADMIN_CONSOLE_URL:?set ADMIN_CONSOLE_URL in .env}
+      # Optional. Unset, the website block in the Caddyfile answers only a
+      # plain-HTTP name under .invalid, which cannot resolve, so no certificate
+      # is requested for it. The default is spelled out here as well as there
+      # because compose would otherwise hand Caddy an empty string, and an
+      # empty site address is a Caddyfile parse error.
+      WEBSITE_URL: ${WEBSITE_URL:-http://website.invalid}
       ACME_EMAIL: ${ACME_EMAIL:?set ACME_EMAIL in .env}
     volumes:
       - ./deploy/Caddyfile:/etc/caddy/Caddyfile:ro

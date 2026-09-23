@@ -268,6 +268,44 @@ If you put a CDN or a WAF in front of these containers, check it is not adding
 a second `Content-Security-Policy`: two of them are intersected, not
 overridden, and the result is usually a blank page nobody can explain.
 
+## Website
+
+`artifacts/website` is the public page for funeral homes deciding whether to
+sign up. It is optional and off by default. To serve it:
+
+1. Point a DNS record at the host for its name, and set `WEBSITE_URL` (with
+   the scheme, no trailing slash) and `WEBSITE_CONTACT_EMAIL` in `.env`.
+2. Start it with the profile: `docker compose --profile website up -d --build`,
+   or put `COMPOSE_PROFILES=website` in `.env` so a plain `up` includes it.
+   Caddy already has a block for `WEBSITE_URL` and fetches its certificate
+   like the others'; with `WEBSITE_URL` unset that block answers only a name
+   under `.invalid` and asks Let's Encrypt for nothing.
+
+It is built by the same `Dockerfile.web`, with two differences set in
+`docker-compose.yml`: its own nginx config (`deploy/website.conf.template`:
+no `/api`, a 404 for unknown paths, a week's cache on the screenshots) and its
+own headers (`deploy/website-security-headers.conf`: no `X-Robots-Tag`,
+because unlike the apps this page is meant to be indexed, and a CSP of
+`script-src 'none'`, because it ships no script at all). The page is rendered
+to HTML at build time, so every setting is baked in: after changing
+`WEBSITE_URL`, `CONSOLE_URL` or the contact address, run
+`docker compose build website`. By hand:
+
+```sh
+docker build -f Dockerfile.web --build-arg APP=website \
+  --build-arg NGINX_CONF=deploy/website.conf.template \
+  --build-arg NGINX_HEADERS=deploy/website-security-headers.conf \
+  --build-arg VITE_SITE_URL=https://example.com \
+  --build-arg VITE_CONSOLE_URL=https://console.example.com \
+  --build-arg VITE_CONTACT_EMAIL=hello@example.com -t fh-website .
+```
+
+Leave `WEBSITE_PRIVACY_URL` and `WEBSITE_TERMS_URL` empty until the documents
+in `LEGAL/` have been reviewed; until then the footer says they are available
+on request rather than linking to drafts. Nothing in the family portal, a
+home's public page or any family email links to the website, and nothing
+should: it sells to funeral homes, and a family should never be routed to it.
+
 ## Health checks
 
 - `GET /healthz` on either web container — nginx is serving files. Deliberately

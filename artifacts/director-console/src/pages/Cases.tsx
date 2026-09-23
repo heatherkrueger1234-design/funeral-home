@@ -30,6 +30,8 @@ import {
 import { ImportCases } from "@/components/ImportCases";
 import { TrialBanner } from "@/components/SetupChecklist";
 import { Empty, Loading, PageHeader } from "@/components/page";
+import { formatAtHome } from "@/lib/utils";
+import { useHomeZone } from "@/lib/session";
 
 /**
  * The worklist.
@@ -40,18 +42,20 @@ import { Empty, Loading, PageHeader } from "@/components/page";
  * it: messages waiting for a reply, things overdue, and photographs in.
  */
 
-function formatService(value: string | Date | null): string {
-  if (!value) return "No service date yet";
-  const date = value instanceof Date ? value : new Date(value);
-  if (Number.isNaN(date.getTime())) return "No service date yet";
-
-  return date.toLocaleString(undefined, {
-    weekday: "short",
-    day: "numeric",
-    month: "short",
-    hour: "numeric",
-    minute: "2-digit",
-  });
+/** On the home's clock -- see `formatAtHome`. */
+function formatService(
+  value: string | Date | null,
+  zone: string | undefined,
+): string {
+  return (
+    formatAtHome(value, zone, {
+      weekday: "short",
+      day: "numeric",
+      month: "short",
+      hour: "numeric",
+      minute: "2-digit",
+    }) || "No service date yet"
+  );
 }
 
 function NewCaseDialog() {
@@ -183,6 +187,7 @@ function NewCaseDialog() {
 export default function Cases() {
   const [showClosed, setShowClosed] = useState(false);
   const [search, setSearch] = useState("");
+  const zone = useHomeZone();
 
   const cases = useGetCases({
     status: showClosed ? "closed" : undefined,
@@ -285,7 +290,7 @@ export default function Cases() {
                   <span className="block text-sm text-muted-foreground truncate">
                     {row.kind === "pre_need"
                       ? "Living — no service date"
-                      : formatService(row.serviceAt)}
+                      : formatService(row.serviceAt, zone)}
                     {row.nextOfKinName ? ` · ${row.nextOfKinName}` : ""}
                   </span>
                 </span>

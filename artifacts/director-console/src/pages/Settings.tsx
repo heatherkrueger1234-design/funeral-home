@@ -14,6 +14,7 @@ import { Button } from "@/components/ui/button";
 import { StandardSchedule } from "@/components/StandardSchedule";
 import { BillingSection } from "@/components/BillingSection";
 import { SnippetLibrary } from "@/components/SnippetLibrary";
+import { StaffSection } from "@/components/StaffSection";
 import { Loading, PageHeader } from "@/components/page";
 
 /** "08:00" for a time input, from minutes since midnight. */
@@ -255,13 +256,11 @@ export default function Settings() {
         </div>
       </section>
 
+      <StaffSection readOnly={readOnly} currentUserId={session?.user.id} />
+
       <section className="space-y-2 rounded-xl border border-dashed p-5">
         <h2 className="font-display text-lg">Your public page</h2>
         <p className="text-sm text-muted-foreground">
-          The address to put on your website, what it says, and the policies
-          families read on it now live on their own screen.
-        </p>
-        <p className="text-sm leading-snug text-muted-foreground">
           The address to put on your website, what it says, and the policies
           families read on it now live on their own screen.
         </p>

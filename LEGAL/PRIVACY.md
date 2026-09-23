@@ -86,11 +86,10 @@ files. Social security numbers are masked wherever they are shown and are
 deliberately left out of exports, because an export gets emailed and copied to
 a laptop.
 
-**What is not stripped.** A photograph over 3000 pixels on its long edge is
-re-encoded on the way in, which discards its EXIF block and any location in it.
-A smaller one is stored as sent, and keeps whatever EXIF it carries. Schedule 2
-of the [DPA](./DPA.md) says so in full; we state it rather than leave a home to
-assume a photo pack has been sanitized.
+**Where a photograph was taken.** Phones record the location in every
+photograph. We remove that, and the rest of the hidden camera data, from every
+photograph as it arrives, so nothing we store or pass on says where a picture
+was taken. Schedule 2 of the [DPA](./DPA.md) describes how.
 
 **We do not use any of it for anything.** No analytics, no marketing, no
 research, no training any model, and never combined with another home's data or
@@ -190,7 +189,8 @@ agrees. Before they decide they are shown the actual dates the messages would
 arrive, and a decline sits next to the agreement with equal visual weight. A
 decline is final. Consent is checked again at the moment of sending, not just
 when the schedule was written, and it can be withdrawn from either side at any
-time.
+time — including from the check-in itself, each of which carries the home's
+postal address and a link that stops the rest.
 
 This is deliberate, and the reason is that the Colorado Privacy Act is explicit
 that broad terms-of-service acceptance, a pre-ticked box, or a deceptively

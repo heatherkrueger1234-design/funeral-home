@@ -10,6 +10,8 @@ import {
   type CaseDetail,
 } from "@workspace/api-client-react";
 import { Input } from "@/components/ui/input";
+import { fromHomeInput, toHomeInput, zoneHint } from "@/lib/utils";
+import { useHomeZone } from "@/lib/session";
 import { Label } from "@/components/ui/label";
 import {
   Select,
@@ -20,15 +22,6 @@ import {
 } from "@/components/ui/select";
 import { DateOptions } from "@/components/case/DateOptions";
 
-/** For a `datetime-local` input, which wants local wall time with no zone. */
-function toLocalInput(value: string | Date | null): string {
-  if (!value) return "";
-  const date = value instanceof Date ? value : new Date(value);
-  if (Number.isNaN(date.getTime())) return "";
-
-  const pad = (n: number) => String(n).padStart(2, "0");
-  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
-}
 
 /** For a `date` input. Dates of birth and death are stored as midnight UTC. */
 function toDateInput(value: string | Date | null): string {
@@ -55,6 +48,8 @@ export function DetailsPanel({
   const queryClient = useQueryClient();
   const staff = useGetStaff();
   const aftercare = useGetAftercare(caseId);
+  // The picker shows and takes the home's wall time; see `toHomeInput`.
+  const zone = useHomeZone();
 
   const update = useUpdateCase({
     mutation: {
@@ -91,15 +86,17 @@ export function DetailsPanel({
           <Input
             id="serviceAt"
             type="datetime-local"
-            defaultValue={toLocalInput(detail.serviceAt)}
+            key={`${detail.serviceAt ?? "none"}-${zone ?? ""}`}
+            defaultValue={toHomeInput(detail.serviceAt, zone)}
             onBlur={(event) => {
               const value = event.target.value;
-              save({ serviceAt: value ? new Date(value).toISOString() : null });
+              save({ serviceAt: value ? fromHomeInput(value, zone) : null });
             }}
           />
           <p className="text-sm leading-snug text-muted-foreground">
             The family is shown this as confirmed. Leave it empty until it is.
             Moving it moves every unfinished step on their timeline with it.
+            {zoneHint(zone) && <> {zoneHint(zone)}</>}
           </p>
         </div>
 
@@ -126,7 +123,15 @@ export function DetailsPanel({
               <SelectValue placeholder="Nobody yet" />
             </SelectTrigger>
             <SelectContent>
-              {(staff.data ?? []).map((member) => (
+              {/* Only people who still work here -- plus whoever already
+                  holds the case, so the current value never renders blank. */}
+              {(staff.data ?? [])
+                .filter(
+                  (member) =>
+                    member.deactivatedAt === null ||
+                    member.id === detail.leadDirectorId,
+                )
+                .map((member) => (
                 <SelectItem key={member.id} value={String(member.id)}>
                   {member.displayName ?? member.email}
                 </SelectItem>

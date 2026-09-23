@@ -42,4 +42,11 @@ export interface PhotoUpdate {
    * @maximum 1
    */
   cropHeight?: number;
+  /**
+   * A year, not a date -- what is written on the back of the print.
+   * @minimum 1800
+   * @maximum 2200
+   */
+  takenYear?: number | null;
+  takenAtService?: boolean;
 }

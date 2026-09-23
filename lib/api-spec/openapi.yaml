@@ -51,6 +51,8 @@ tags:
     description: Cards, programs and everything else that gets printed
   - name: aftercare
     description: Branded grief check-ins after the service
+  - name: memory-book
+    description: The book the aftercare year fills, and the home's curation of it
   - name: uploads
     description: Serving stored bytes
   - name: family
@@ -150,6 +152,53 @@ paths:
           description: No such home, or it is not taking public requests
         "429":
           description: Too many requests
+
+  /public/aftercare/unsubscribe:
+    get:
+      operationId: getAftercareUnsubscribe
+      tags: [public]
+      summary: Whose check-ins an unsubscribe link would stop
+      description: |
+        Unauthenticated; the signed token from the foot of a grief check-in
+        is the credential. Changes nothing, because mail scanners fetch every
+        link in a message - it only lets the page name the home and ask.
+      parameters:
+        - name: token
+          in: query
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: The enrolment the link names
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AftercareUnsubscribeState"
+        "404":
+          description: Forged, mangled, or no longer on file
+    post:
+      operationId: aftercareUnsubscribe
+      tags: [public]
+      summary: Stop the check-ins, for good
+      description: |
+        Final, exactly as a "no" in the portal is. Also the RFC 8058
+        one-click target named in the message's List-Unsubscribe header.
+      parameters:
+        - name: token
+          in: query
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Stopped
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AftercareUnsubscribeState"
+        "404":
+          description: Forged, mangled, or no longer on file
 
   # ------------------------------------------------------------------ auth --
 
@@ -926,6 +975,9 @@ paths:
 
         What survives is a tombstone: which case, who erased it, when, and
         nothing about who it was for.
+
+        Owner only. A director or member of staff is refused with 403 before
+        the case is looked up.
       parameters:
         - $ref: "#/components/parameters/CaseId"
       requestBody:
@@ -939,6 +991,8 @@ paths:
           description: Gone
         "400":
           description: The confirmation did not match
+        "403":
+          description: Only the home's owner can erase a case
 
   /intake-requests:
     get:
@@ -1240,6 +1294,32 @@ paths:
                 type: array
                 items:
                   $ref: "#/components/schemas/CasePhoto"
+    post:
+      operationId: uploadCasePhoto
+      tags: [photos]
+      summary: Add a photograph to the case's bin as staff
+      description: |
+        For a print posted to the office or brought to the arrangement
+        conference. Goes through the same checks as a family upload (type
+        sniffed from the bytes, HEIC/AVIF converted, size and decompression
+        limits, encrypted at rest, the bin's ceiling) and is recorded as added
+        by the signed-in staff member, so the family sees it came from the
+        home.
+      parameters:
+        - $ref: "#/components/parameters/CaseId"
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              $ref: "#/components/schemas/CasePhotoUploadInput"
+      responses:
+        "201":
+          description: Stored
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CasePhoto"
 
   /cases/{caseId}/photos/selection:
     put:
@@ -1894,6 +1974,227 @@ paths:
                 items:
                   $ref: "#/components/schemas/AftercareEnrollment"
 
+  # --------------------------------------------------------- memory book --
+
+  /cases/{caseId}/memory-book:
+    get:
+      operationId: getMemoryBook
+      tags: [memory-book]
+      summary: The book, every entry and chapter, and how many photographs fit
+      description: |
+        Opens the book the first time anybody looks, so this never 404s for a
+        case the home can see. The director sees everything, including what
+        has been taken out of the book -- an exclusion nobody can see
+        afterwards is indistinguishable from a bug.
+
+        Chapters come back in the order they print: by `startYear`, with
+        `position` only as a tiebreak and undated chapters last. Entries come
+        back by `position`, then order of arrival.
+      parameters:
+        - $ref: "#/components/parameters/CaseId"
+      responses:
+        "200":
+          description: The book
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StaffMemoryBook"
+    put:
+      operationId: updateMemoryBook
+      tags: [memory-book]
+      summary: The book's own settings, which sections print, and whether it is closed
+      description: |
+        Setting `closesAt` to a time that has passed closes the book for
+        printing: the family can no longer add or change anything, but
+        everybody can still read and print it. `null` reopens it.
+      parameters:
+        - $ref: "#/components/parameters/CaseId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/MemoryBookUpdate"
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MemoryBook"
+        "400":
+          description: Nothing to change, or a value out of range
+
+  /cases/{caseId}/memory-book/entries:
+    post:
+      operationId: createMemoryEntry
+      tags: [memory-book]
+      summary: Type up a memory on somebody's behalf
+      description: |
+        The card that came in the post, or what somebody said at the
+        graveside. `authorName` is whose memory it is, not who typed it.
+        Allowed on a closed book: the home is the one that closed it.
+      parameters:
+        - $ref: "#/components/parameters/CaseId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/StaffMemoryEntryInput"
+      responses:
+        "201":
+          description: Added
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MemoryEntry"
+        "400":
+          description: |
+            Missing or too long (a memory runs to 4000 characters, a eulogy to
+            20000), or a photograph that is not on this case
+
+  /cases/{caseId}/memory-book/entries/{entryId}:
+    put:
+      operationId: updateMemoryEntry
+      tags: [memory-book]
+      summary: Correct, reorder, or take an entry out of the book
+      description: |
+        `includedInBook: false` takes an entry out of the printed book and
+        keeps the row, so "why is my memory not in it" has an answer.
+        Putting it back clears `excludedReason`.
+      parameters:
+        - $ref: "#/components/parameters/CaseId"
+        - name: entryId
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/StaffMemoryEntryUpdate"
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MemoryEntry"
+        "404":
+          description: No such entry on this case
+    delete:
+      operationId: deleteMemoryEntry
+      tags: [memory-book]
+      summary: Delete an entry for good
+      description: |
+        For a duplicate, or something typed into the wrong case. Taking a
+        relative's words out of the book is `includedInBook: false` instead.
+      parameters:
+        - $ref: "#/components/parameters/CaseId"
+        - name: entryId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: Deleted
+        "404":
+          description: No such entry on this case
+
+  /cases/{caseId}/memory-book/chapters:
+    post:
+      operationId: createLifeChapter
+      tags: [memory-book]
+      summary: Add a chapter of the life story
+      description: |
+        A chapter needs a title, something written in it, or a year.
+        `authorName` defaults to the member of staff; it is recorded but never
+        printed.
+      parameters:
+        - $ref: "#/components/parameters/CaseId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/StaffLifeChapterInput"
+      responses:
+        "201":
+          description: Added
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LifeChapter"
+        "400":
+          description: Empty, ends before it starts, or a photograph not on this case
+
+  /cases/{caseId}/memory-book/chapters/{chapterId}:
+    put:
+      operationId: updateLifeChapter
+      tags: [memory-book]
+      summary: Correct, reorder, or take a chapter out of the book
+      parameters:
+        - $ref: "#/components/parameters/CaseId"
+        - name: chapterId
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/StaffLifeChapterUpdate"
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LifeChapter"
+        "404":
+          description: No such chapter on this case
+    delete:
+      operationId: deleteLifeChapter
+      tags: [memory-book]
+      summary: Delete a chapter for good
+      parameters:
+        - $ref: "#/components/parameters/CaseId"
+        - name: chapterId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: Deleted
+        "404":
+          description: No such chapter on this case
+
+  /cases/{caseId}/memory-book/render:
+    get:
+      operationId: renderMemoryBook
+      tags: [memory-book]
+      summary: The whole book as one print-ready HTML file
+      description: |
+        Half-letter pages with the photographs embedded, so it can be printed
+        from the browser or sent to a print shop as one file. Byte for byte
+        the document the family gets from `renderFamilyMemoryBook`.
+      parameters:
+        - $ref: "#/components/parameters/CaseId"
+      responses:
+        "200":
+          description: The book
+          content:
+            text/html:
+              schema:
+                type: string
+
   /vendors:
     get:
       operationId: getVendors
@@ -2365,7 +2666,7 @@ paths:
     post:
       operationId: uploadFile
       tags: [uploads]
-      summary: Store bytes (the home's logo, or a staff-added photograph)
+      summary: Store bytes that belong to no case (the home's logo). Case photographs go to POST /cases/{caseId}/photos.
       requestBody:
         required: true
         content:
@@ -2728,6 +3029,238 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/AftercareEnrollment"
+
+  /family/relatives:
+    get:
+      operationId: getFamilyRelatives
+      tags: [family]
+      summary: Whether this person can pass the link on, and to whom they have
+      description: |
+        Only the relatives this contact added themselves. Somebody who cannot
+        invite gets `canInvite: false` and an empty list rather than an error,
+        so the portal can simply not offer the screen.
+      responses:
+        "200":
+          description: This person's invitations
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FamilyRelatives"
+    post:
+      operationId: inviteFamilyRelative
+      tags: [family]
+      summary: Give a relative their own link to the same arrangements
+      description: |
+        Only for a contact the home has allowed to invite (`canInvite`). The
+        new contact is a contributor on the same case, with a link of their
+        own and no power to invite anybody further. Their link is texted
+        and/or emailed; if neither could go, it is returned once, to copy, and
+        is never retrievable again -- only its digest is stored. The home is
+        told who added whom. At most `cap` relatives per case, however many
+        of them have since been removed.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/FamilyRelativeInput"
+      responses:
+        "201":
+          description: Added
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FamilyRelativeInvited"
+        "400":
+          description: No name, neither a mobile number nor an email address, or one that cannot be used
+        "403":
+          description: This person has not been asked to invite others
+        "409":
+          description: The case is closed, or the family has already added as many people as a case allows
+
+  /family/memory-book:
+    get:
+      operationId: getFamilyMemoryBook
+      tags: [family]
+      summary: The memory book as far as it has got
+      description: |
+        Everything that is in the book, plus this person's own entries and
+        chapters even if the home has taken one out -- somebody who cannot
+        find what they wrote concludes it was lost and writes it again. The
+        home's reason for taking something out is never shown. Opens the book
+        the first time anybody looks.
+      responses:
+        "200":
+          description: The book
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FamilyMemoryBook"
+
+  /family/memory-book/entries:
+    post:
+      operationId: createFamilyMemoryEntry
+      tags: [family]
+      summary: Write a memory, or send the eulogy that was read
+      description: |
+        Signed with the contact's own name as the home recorded it; nobody can
+        sign a paragraph with somebody else's. `whenText` is free text -- "the
+        summer we had the caravan" -- never a date.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/MemoryEntryInput"
+      responses:
+        "201":
+          description: Added
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FamilyMemoryEntry"
+        "400":
+          description: |
+            Missing or too long (a memory runs to 4000 characters, a eulogy to
+            20000), or a photograph that is not on this case
+        "409":
+          description: The book has been closed for printing
+
+  /family/memory-book/entries/{entryId}:
+    put:
+      operationId: updateFamilyMemoryEntry
+      tags: [family]
+      summary: Change something this person wrote
+      parameters:
+        - name: entryId
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/MemoryEntryUpdate"
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FamilyMemoryEntry"
+        "404":
+          description: Not an entry this person wrote
+        "409":
+          description: The book has been closed for printing
+    delete:
+      operationId: deleteFamilyMemoryEntry
+      tags: [family]
+      summary: Take back something this person wrote, for good
+      description: |
+        A real delete, and allowed even on a closed book. Somebody who wants
+        their words gone is entitled to have them gone, not flagged.
+      parameters:
+        - name: entryId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: Deleted
+        "404":
+          description: Not an entry this person wrote
+
+  /family/memory-book/chapters:
+    post:
+      operationId: createFamilyLifeChapter
+      tags: [family]
+      summary: Write a chapter of the life story
+      description: |
+        A chapter needs a title, something written in it, or a year. It is
+        not signed in the printed book; who wrote it is recorded for the home.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/LifeChapterInput"
+      responses:
+        "201":
+          description: Added
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FamilyLifeChapter"
+        "400":
+          description: Empty, ends before it starts, or a photograph not on this case
+        "409":
+          description: The book has been closed for printing
+
+  /family/memory-book/chapters/{chapterId}:
+    put:
+      operationId: updateFamilyLifeChapter
+      tags: [family]
+      summary: Change a chapter this person wrote
+      parameters:
+        - name: chapterId
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/LifeChapterUpdate"
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FamilyLifeChapter"
+        "404":
+          description: Not a chapter this person wrote
+        "409":
+          description: The book has been closed for printing
+    delete:
+      operationId: deleteFamilyLifeChapter
+      tags: [family]
+      summary: Take back a chapter this person wrote, for good
+      parameters:
+        - name: chapterId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: Deleted
+        "404":
+          description: Not a chapter this person wrote
+
+  /family/memory-book/render:
+    get:
+      operationId: renderFamilyMemoryBook
+      tags: [family]
+      summary: The family's copy of the book
+      description: |
+        Byte for byte the document the home prints -- no watermark and no
+        preview edition. Fetched as a blob and handed to the browser as an
+        object URL, for the same reason as `renderFamilyPrintItem`: the portal
+        has only a bearer token, which a plain link cannot carry.
+      responses:
+        "200":
+          description: The book
+          content:
+            text/html:
+              schema:
+                type: string
+                format: binary
 
   /family/uploads/{uploadId}:
     get:
@@ -3915,6 +4448,16 @@ components:
           maxLength: 4000
       required: [homeSlug, kind, requesterName, subjectFirstName, subjectLastName]
 
+    AftercareUnsubscribeState:
+      type: object
+      properties:
+        homeName:
+          type: string
+          description: Whose name the check-ins are signed in.
+        stopped:
+          type: boolean
+      required: [homeName, stopped]
+
     IntakeReceipt:
       type: object
       description: |
@@ -4315,6 +4858,10 @@ components:
           type: string
           format: date-time
           nullable: true
+        invitedByContactId:
+          type: integer
+          nullable: true
+          description: Set when somebody on the family's side added this person, rather than the home.
         createdAt:
           type: string
           format: date-time
@@ -4332,8 +4879,96 @@ components:
           revokedAt,
           firstSeenAt,
           lastSeenAt,
+          invitedByContactId,
           createdAt,
         ]
+
+    FamilyRelative:
+      type: object
+      description: A relative as the person who added them sees them.
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        relationship:
+          type: string
+          nullable: true
+        phone:
+          type: string
+          nullable: true
+        email:
+          type: string
+          nullable: true
+        firstSeenAt:
+          type: string
+          format: date-time
+          nullable: true
+          description: When they first opened their link, so the inviter knows it landed.
+        revoked:
+          type: boolean
+          description: The home has since stopped this person's link.
+        createdAt:
+          type: string
+          format: date-time
+      required:
+        [id, name, relationship, phone, email, firstSeenAt, revoked, createdAt]
+
+    FamilyRelatives:
+      type: object
+      properties:
+        canInvite:
+          type: boolean
+        cap:
+          type: integer
+          description: How many relatives the family's side may add to this case in all.
+        remaining:
+          type: integer
+        relatives:
+          type: array
+          items:
+            $ref: "#/components/schemas/FamilyRelative"
+      required: [canInvite, cap, remaining, relatives]
+
+    FamilyRelativeInput:
+      type: object
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 120
+        relationship:
+          type: string
+          nullable: true
+          maxLength: 60
+        phone:
+          type: string
+          nullable: true
+          maxLength: 40
+        email:
+          type: string
+          nullable: true
+          maxLength: 254
+      required: [name]
+
+    FamilyRelativeInvited:
+      type: object
+      properties:
+        relative:
+          $ref: "#/components/schemas/FamilyRelative"
+        sentBySms:
+          type: boolean
+        sentByEmail:
+          type: boolean
+        link:
+          type: string
+          nullable: true
+          description: |
+            Only when neither a text nor an email could go: the working link,
+            shown once to copy and pass on by hand. Null whenever it was sent.
+        remaining:
+          type: integer
+      required: [relative, sentBySms, sentByEmail, link, remaining]
 
     FamilyContactWithLink:
       description: |
@@ -4421,7 +5056,13 @@ components:
         uploadedByName:
           type: string
           nullable: true
-          description: Who sent it, resolved for display. Null when staff added it.
+          description: |
+            Who sent it, resolved for display. For a photograph staff added,
+            the home's name when a family asks, and "person, home" when staff
+            do. Null only for rows older than the staff upload.
+        addedByHome:
+          type: boolean
+          description: Added by a member of staff rather than through a family link.
         caption:
           type: string
           nullable: true
@@ -4450,6 +5091,13 @@ components:
         isReference:
           type: boolean
           description: The photograph given to whoever does hair and cosmetics.
+        takenYear:
+          type: integer
+          nullable: true
+          description: The year it was taken, where anybody knows it. Orders the memory book.
+        takenAtService:
+          type: boolean
+          description: Taken at the funeral itself; printed at the back of the memory book.
         createdAt:
           type: string
           format: date-time
@@ -4460,6 +5108,7 @@ components:
           uploadId,
           uploadedByContactId,
           uploadedByName,
+          addedByHome,
           caption,
           cropX,
           cropY,
@@ -4470,6 +5119,8 @@ components:
           selected,
           isPortrait,
           isReference,
+          takenYear,
+          takenAtService,
           createdAt,
         ]
 
@@ -4498,6 +5149,14 @@ components:
           type: number
           minimum: 0
           maximum: 1
+        takenYear:
+          type: integer
+          minimum: 1800
+          maximum: 2200
+          nullable: true
+          description: A year, not a date -- what is written on the back of the print.
+        takenAtService:
+          type: boolean
 
     FamilyPhotoUpdate:
       type: object
@@ -4521,6 +5180,14 @@ components:
           type: number
           minimum: 0
           maximum: 1
+        takenYear:
+          type: integer
+          minimum: 1800
+          maximum: 2200
+          nullable: true
+          description: A year, not a date -- what is written on the back of the print.
+        takenAtService:
+          type: boolean
 
     PhotoSelectionInput:
       type: object
@@ -4577,6 +5244,16 @@ components:
         file:
           type: string
           format: binary
+      required: [file]
+
+    CasePhotoUploadInput:
+      type: object
+      properties:
+        file:
+          type: string
+          format: binary
+        caption:
+          type: string
       required: [file]
 
     FamilyPhotoUploadInput:
@@ -6127,6 +6804,557 @@ components:
           type: string
           nullable: true
       required: [consent]
+
+    # --------------------------------------------------------- memory book --
+
+    MemoryBook:
+      type: object
+      description: |
+        One per case, opened the first time anybody looks. Every section is a
+        switch that defaults on and prints nothing when it is empty.
+      properties:
+        id:
+          type: integer
+        caseId:
+          type: integer
+        title:
+          type: string
+          nullable: true
+          description: Printed as "Remembering <name>" when blank.
+        dedication:
+          type: string
+          nullable: true
+        closesAt:
+          type: string
+          format: date-time
+          nullable: true
+          description: |
+            When contributions stop. Null -- the default -- means open: there
+            is no date on which a family is too late to remember something.
+        open:
+          type: boolean
+          description: Whether the family can still add to it, right now.
+        includePhotos:
+          type: boolean
+        includeObituary:
+          type: boolean
+        includeLifeStory:
+          type: boolean
+        includeCelebration:
+          type: boolean
+        includeEulogies:
+          type: boolean
+        includeServicePhotos:
+          type: boolean
+        serviceOrder:
+          type: string
+          nullable: true
+        music:
+          type: string
+          nullable: true
+        bearers:
+          type: string
+          nullable: true
+        reception:
+          type: string
+          nullable: true
+      required:
+        [
+          id,
+          caseId,
+          title,
+          dedication,
+          closesAt,
+          open,
+          includePhotos,
+          includeObituary,
+          includeLifeStory,
+          includeCelebration,
+          includeEulogies,
+          includeServicePhotos,
+          serviceOrder,
+          music,
+          bearers,
+          reception,
+        ]
+
+    MemoryBookUpdate:
+      type: object
+      description: At least one field. When and where the service was come off the case.
+      properties:
+        title:
+          type: string
+          maxLength: 160
+          nullable: true
+        dedication:
+          type: string
+          maxLength: 1000
+          nullable: true
+        includePhotos:
+          type: boolean
+        includeObituary:
+          type: boolean
+        includeLifeStory:
+          type: boolean
+        includeCelebration:
+          type: boolean
+        includeEulogies:
+          type: boolean
+        includeServicePhotos:
+          type: boolean
+        serviceOrder:
+          type: string
+          maxLength: 4000
+          nullable: true
+        music:
+          type: string
+          maxLength: 2000
+          nullable: true
+        bearers:
+          type: string
+          maxLength: 2000
+          nullable: true
+        reception:
+          type: string
+          maxLength: 2000
+          nullable: true
+        closesAt:
+          type: string
+          format: date-time
+          nullable: true
+          description: A time that has passed closes the book; null reopens it.
+
+    MemoryBookPhotoCount:
+      type: object
+      description: How many chosen photographs the book would carry, against the ceiling.
+      properties:
+        selected:
+          type: integer
+        limit:
+          type: integer
+        note:
+          type: string
+      required: [selected, limit, note]
+
+    MemoryEntry:
+      type: object
+      description: A memory or a eulogy, as the home sees it.
+      properties:
+        id:
+          type: integer
+        kind:
+          type: string
+          enum: [memory, eulogy]
+        authorName:
+          type: string
+          description: The name printed under it, snapshotted when it was written.
+        authorSide:
+          type: string
+          enum: [family, staff]
+        authorContactId:
+          type: integer
+          nullable: true
+        body:
+          type: string
+        whenText:
+          type: string
+          nullable: true
+          description: Free text -- "Christmas, some time in the eighties" -- never a date.
+        photoId:
+          type: integer
+          nullable: true
+        includedInBook:
+          type: boolean
+        excludedReason:
+          type: string
+          nullable: true
+          description: A note between the home and itself. Never shown to the family.
+        position:
+          type: integer
+        createdAt:
+          type: string
+          format: date-time
+      required:
+        [
+          id,
+          kind,
+          authorName,
+          authorSide,
+          authorContactId,
+          body,
+          whenText,
+          photoId,
+          includedInBook,
+          excludedReason,
+          position,
+          createdAt,
+        ]
+
+    StaffMemoryEntry:
+      allOf:
+        - $ref: "#/components/schemas/MemoryEntry"
+        - type: object
+          properties:
+            contactNameNow:
+              type: string
+              nullable: true
+              description: |
+                The contact's name as it stands now, beside the snapshot that
+                will print, so one that reads oddly can be spotted.
+          required: [contactNameNow]
+
+    FamilyMemoryEntry:
+      type: object
+      description: A memory or a eulogy, as a family member sees it.
+      properties:
+        id:
+          type: integer
+        kind:
+          type: string
+          enum: [memory, eulogy]
+        authorName:
+          type: string
+        body:
+          type: string
+        whenText:
+          type: string
+          nullable: true
+        photoId:
+          type: integer
+          nullable: true
+        includedInBook:
+          type: boolean
+          description: False only ever on the reader's own entries.
+        mine:
+          type: boolean
+          description: Whether this one is theirs to change.
+        createdAt:
+          type: string
+          format: date-time
+      required:
+        [id, kind, authorName, body, whenText, photoId, includedInBook, mine, createdAt]
+
+    MemoryEntryInput:
+      type: object
+      description: |
+        `body` is trimmed. A memory may run to 4000 characters and a eulogy to
+        20000; the longer limit applies only when `kind` is `eulogy`.
+      properties:
+        kind:
+          type: string
+          enum: [memory, eulogy]
+          description: Defaults to memory.
+        body:
+          type: string
+          minLength: 1
+          maxLength: 20000
+        whenText:
+          type: string
+          maxLength: 120
+          nullable: true
+        photoId:
+          type: integer
+          minimum: 1
+          nullable: true
+          description: A photograph already on this case.
+      required: [body]
+
+    MemoryEntryUpdate:
+      type: object
+      description: |
+        At least one field. The same length rule as `MemoryEntryInput`, judged
+        on the `kind` sent with it (memory when none is sent).
+      properties:
+        kind:
+          type: string
+          enum: [memory, eulogy]
+        body:
+          type: string
+          minLength: 1
+          maxLength: 20000
+        whenText:
+          type: string
+          maxLength: 120
+          nullable: true
+        photoId:
+          type: integer
+          minimum: 1
+          nullable: true
+
+    StaffMemoryEntryInput:
+      type: object
+      description: |
+        `authorName` is whose memory it is, not who typed it. Same length rule
+        as `MemoryEntryInput`.
+      properties:
+        authorName:
+          type: string
+          minLength: 1
+          maxLength: 120
+        kind:
+          type: string
+          enum: [memory, eulogy]
+        body:
+          type: string
+          minLength: 1
+          maxLength: 20000
+        whenText:
+          type: string
+          maxLength: 120
+          nullable: true
+        photoId:
+          type: integer
+          minimum: 1
+          nullable: true
+      required: [authorName, body]
+
+    StaffMemoryEntryUpdate:
+      type: object
+      description: At least one field.
+      properties:
+        body:
+          type: string
+          minLength: 1
+          maxLength: 20000
+        whenText:
+          type: string
+          maxLength: 120
+          nullable: true
+        photoId:
+          type: integer
+          minimum: 1
+          nullable: true
+        position:
+          type: integer
+          minimum: 0
+        includedInBook:
+          type: boolean
+        excludedReason:
+          type: string
+          maxLength: 400
+          nullable: true
+
+    LifeChapter:
+      type: object
+      description: |
+        A chapter of the life story. Years, not dates; `endYear` is for a span
+        and null for a moment. The author is recorded but never printed.
+      properties:
+        id:
+          type: integer
+        title:
+          type: string
+          nullable: true
+        body:
+          type: string
+          nullable: true
+        startYear:
+          type: integer
+          nullable: true
+        endYear:
+          type: integer
+          nullable: true
+        photoId:
+          type: integer
+          nullable: true
+        authorName:
+          type: string
+        authorSide:
+          type: string
+          enum: [family, staff]
+        authorContactId:
+          type: integer
+          nullable: true
+        includedInBook:
+          type: boolean
+        position:
+          type: integer
+        createdAt:
+          type: string
+          format: date-time
+      required:
+        [
+          id,
+          title,
+          body,
+          startYear,
+          endYear,
+          photoId,
+          authorName,
+          authorSide,
+          authorContactId,
+          includedInBook,
+          position,
+          createdAt,
+        ]
+
+    FamilyLifeChapter:
+      allOf:
+        - $ref: "#/components/schemas/LifeChapter"
+        - type: object
+          properties:
+            mine:
+              type: boolean
+              description: Whether this one is theirs to change.
+          required: [mine]
+
+    LifeChapterInput:
+      type: object
+      description: |
+        Needs a title, something written in it, or a start year. An `endYear`
+        before the `startYear` is refused.
+      properties:
+        title:
+          type: string
+          maxLength: 160
+          nullable: true
+        body:
+          type: string
+          maxLength: 6000
+          nullable: true
+        startYear:
+          type: integer
+          minimum: 1800
+          maximum: 2200
+          nullable: true
+        endYear:
+          type: integer
+          minimum: 1800
+          maximum: 2200
+          nullable: true
+        photoId:
+          type: integer
+          minimum: 1
+          nullable: true
+
+    LifeChapterUpdate:
+      type: object
+      description: At least one field. An `endYear` before the `startYear` is refused.
+      properties:
+        title:
+          type: string
+          maxLength: 160
+          nullable: true
+        body:
+          type: string
+          maxLength: 6000
+          nullable: true
+        startYear:
+          type: integer
+          minimum: 1800
+          maximum: 2200
+          nullable: true
+        endYear:
+          type: integer
+          minimum: 1800
+          maximum: 2200
+          nullable: true
+        photoId:
+          type: integer
+          minimum: 1
+          nullable: true
+
+    StaffLifeChapterInput:
+      type: object
+      description: |
+        As `LifeChapterInput`. `authorName` defaults to the member of staff.
+      properties:
+        authorName:
+          type: string
+          minLength: 1
+          maxLength: 120
+        title:
+          type: string
+          maxLength: 160
+          nullable: true
+        body:
+          type: string
+          maxLength: 6000
+          nullable: true
+        startYear:
+          type: integer
+          minimum: 1800
+          maximum: 2200
+          nullable: true
+        endYear:
+          type: integer
+          minimum: 1800
+          maximum: 2200
+          nullable: true
+        photoId:
+          type: integer
+          minimum: 1
+          nullable: true
+
+    StaffLifeChapterUpdate:
+      type: object
+      description: At least one field. An `endYear` before the `startYear` is refused.
+      properties:
+        title:
+          type: string
+          maxLength: 160
+          nullable: true
+        body:
+          type: string
+          maxLength: 6000
+          nullable: true
+        startYear:
+          type: integer
+          minimum: 1800
+          maximum: 2200
+          nullable: true
+        endYear:
+          type: integer
+          minimum: 1800
+          maximum: 2200
+          nullable: true
+        photoId:
+          type: integer
+          minimum: 1
+          nullable: true
+        position:
+          type: integer
+          minimum: 0
+        includedInBook:
+          type: boolean
+        excludedReason:
+          type: string
+          maxLength: 400
+          nullable: true
+
+    StaffMemoryBook:
+      allOf:
+        - $ref: "#/components/schemas/MemoryBook"
+        - type: object
+          properties:
+            photos:
+              $ref: "#/components/schemas/MemoryBookPhotoCount"
+            chapters:
+              type: array
+              description: Every chapter, including any taken out, in printed order.
+              items:
+                $ref: "#/components/schemas/LifeChapter"
+            entries:
+              type: array
+              description: Every entry, including any taken out, in printed order.
+              items:
+                $ref: "#/components/schemas/StaffMemoryEntry"
+          required: [photos, chapters, entries]
+
+    FamilyMemoryBook:
+      allOf:
+        - $ref: "#/components/schemas/MemoryBook"
+        - type: object
+          properties:
+            chapters:
+              type: array
+              items:
+                $ref: "#/components/schemas/FamilyLifeChapter"
+            entries:
+              type: array
+              items:
+                $ref: "#/components/schemas/FamilyMemoryEntry"
+          required: [chapters, entries]
 
     # -------------------------------------------------------------- family --
 

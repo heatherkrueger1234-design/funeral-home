@@ -21,6 +21,7 @@ const sent = vi.hoisted(() => {
   process.env["SMTP_PASS"] = "not-a-real-key";
   process.env["SMTP_FROM"] = "Holding Today <care@holding.example>";
   process.env["TASK_SECRET"] = "a-real-secret-value";
+  process.env["FAMILY_PORTAL_URL"] = "https://family.example.com";
   return [] as Array<Record<string, unknown>>;
 });
 
@@ -48,6 +49,7 @@ afterAll(() => {
     "SMTP_PASS",
     "SMTP_FROM",
     "TASK_SECRET",
+    "FAMILY_PORTAL_URL",
   ]) {
     delete process.env[name];
   }
@@ -133,5 +135,80 @@ describe("an aftercare check-in", () => {
 
     // signUpHome registers the owner as director<n>@example.com.
     expect(message["replyTo"]).toMatch(/^director\d+@example\.com$/);
+  });
+});
+
+/**
+ * The way out, in the message itself.
+ *
+ * The portal is where consent was given, but the portal link lives ninety
+ * days and the anniversary note lands at a year. CAN-SPAM wants a working
+ * unsubscribe and a postal address in every one of these, and so does
+ * anybody who opens one on a day they cannot face it.
+ */
+describe("the foot of a check-in", () => {
+  it("carries a working unsubscribe link, the header for it, and the home's address", async () => {
+    const staff = await homeWithCheckInDue("Willowbank");
+    await staff.agent
+      .put("/api/home")
+      .send({
+        addressLine1: "12 Elm Street",
+        city: "Golden",
+        region: "CO",
+        postalCode: "80401",
+      })
+      .expect(200);
+
+    const message = await runAftercare();
+    const text = String(message["text"]);
+    const html = String(message["html"]);
+
+    expect(text).toContain("12 Elm Street, Golden, CO 80401");
+    const link = /https:\/\/family\.example\.com\/stop\?token=([^\s]+)/.exec(text);
+    expect(link).not.toBeNull();
+    expect(html).toContain("stop these notes");
+
+    const headers = message["headers"] as Record<string, string>;
+    expect(headers["List-Unsubscribe-Post"]).toBe("List-Unsubscribe=One-Click");
+    expect(headers["List-Unsubscribe"]).toContain(
+      "/api/public/aftercare/unsubscribe?token=",
+    );
+
+    // And the link does what it says.
+    const token = decodeURIComponent(link![1]!);
+    await request(app)
+      .post("/api/public/aftercare/unsubscribe")
+      .query({ token })
+      .expect(200);
+
+    const cases = await staff.agent.get("/api/cases").expect(200);
+    const seen = await staff.agent
+      .get(`/api/cases/${cases.body[0].id}/aftercare`)
+      .expect(200);
+    expect(seen.body[0].unsubscribedAt).not.toBeNull();
+  });
+
+  it("does not assume the person who died was a woman", async () => {
+    const staff = await signUpHome("Willowbank");
+    const row = await createCase(staff, {
+      decedentFirstName: "Walter",
+      serviceAt: new Date(Date.now() - 40 * DAY).toISOString(),
+    });
+    const { token } = await inviteFamily(staff, row.id, {
+      email: "june@example.com",
+    });
+    await staff.agent.post(`/api/cases/${row.id}/close`).expect(200);
+    await asFamily(token)
+      .post("/api/family/aftercare")
+      .send({ consent: true })
+      .expect(200);
+    // Opening the book is what makes the check-in invite them to it.
+    await asFamily(token).get("/api/family/memory-book").expect(200);
+
+    const message = await runAftercare();
+    const text = String(message["text"]);
+
+    expect(text).toContain("book of memories");
+    expect(text).not.toMatch(/\bshe\b/);
   });
 });

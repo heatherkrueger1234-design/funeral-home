@@ -1,10 +1,11 @@
 import { Router, type IRouter } from "express";
-import { and, asc, eq } from "drizzle-orm";
+import { and, asc, eq, isNull } from "drizzle-orm";
 import {
   db,
   funeralHomesTable,
   usersTable,
   timelineTemplatesTable,
+  uploadsTable,
   toPublicUser,
 } from "@workspace/db";
 import {
@@ -62,6 +63,33 @@ router.put("/home", async (req, res) => {
     } catch {
       throw badRequest(`"${values.timezone}" is not a timezone this server knows.`);
     }
+  }
+
+  /*
+   * The logo has to be one of this home's own staff uploads.
+   *
+   * This is a raw upload id, and it is read back in two places that serve the
+   * bytes: the family portal's branding and the print renderer, which inlines
+   * it into every card. Unchecked, a home could name another home's upload id
+   * here and have that file handed to it inside its own prayer card -- a
+   * cross-tenant read through a settings field. A family's photograph (which
+   * carries a case id) is refused as well: the logo is shown to every family
+   * the home serves, so it must not be one family's picture.
+   */
+  if (values.logoUploadId != null) {
+    const [logo] = await db
+      .select({ id: uploadsTable.id })
+      .from(uploadsTable)
+      .where(
+        and(
+          eq(uploadsTable.id, values.logoUploadId),
+          eq(uploadsTable.funeralHomeId, home.id),
+          isNull(uploadsTable.caseId),
+        ),
+      )
+      .limit(1);
+
+    if (!logo) throw badRequest("That logo could not be found. Please upload it again.");
   }
 
   const [updated] = await db

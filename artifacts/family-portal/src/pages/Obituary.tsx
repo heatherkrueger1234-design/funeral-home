@@ -47,13 +47,32 @@ function Field({ id, label, hint, value, multiline, disabled, onSave }: FieldPro
       {hint && (
         <p className="mt-1 text-sm leading-snug text-muted-foreground">{hint}</p>
       )}
+      {/*
+        Saved only when this person changed it, not merely because they
+        tabbed through it.
+
+        The obituary is written by several relatives at once, a field each,
+        which is the point of splitting it into fields. But this box is
+        uncontrolled, so it holds whatever was on file when the screen opened;
+        a sister who had since filled in "Survived by" on her own phone had it
+        silently put back to the old text the moment her brother's cursor
+        passed through the box on his way to "In lieu of flowers". Comparing
+        with what the box held on focus, rather than with the server's copy,
+        is what tells an edit from a tab. `key` redraws it with the newer text
+        once it arrives.
+      */}
       <Control
+        key={value ?? ""}
         className="mt-2"
         id={id}
         defaultValue={value ?? ""}
         disabled={disabled}
         rows={multiline ? 5 : undefined}
-        onBlur={(event: { target: { value: string } }) => {
+        onFocus={(event: { currentTarget: HTMLElement & { value: string } }) => {
+          event.currentTarget.dataset.before = event.currentTarget.value;
+        }}
+        onBlur={(event: { target: HTMLElement & { value: string } }) => {
+          if (event.target.value === event.target.dataset.before) return;
           const next = event.target.value.trim();
           if (next === (value ?? "")) return;
           onSave(next || null);

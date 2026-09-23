@@ -15,6 +15,8 @@ import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
 import { CalendarClock, CalendarSync, Church, Loader2, Plus, X } from "lucide-react";
 import { Empty, Loading } from "@/components/page";
+import { formatAtHome, fromHomeInput, zoneHint } from "@/lib/utils";
+import { useHomeZone } from "@/lib/session";
 
 /**
  * The timeline the family is shown.
@@ -34,6 +36,7 @@ export function TimelinePanel({
 }) {
   const queryClient = useQueryClient();
   const deadlines = useGetDeadlines(caseId);
+  const zone = useHomeZone();
 
   const [title, setTitle] = useState("");
   const [dueAt, setDueAt] = useState("");
@@ -135,7 +138,7 @@ export function TimelinePanel({
                     {row.title}
                   </span>
                   <span className="block text-sm text-muted-foreground">
-                    {new Date(row.dueAt).toLocaleString(undefined, {
+                    {formatAtHome(row.dueAt, zone, {
                       weekday: "short",
                       day: "numeric",
                       month: "short",
@@ -169,7 +172,8 @@ export function TimelinePanel({
             caseId,
             data: {
               title: title.trim(),
-              dueAt: new Date(dueAt).toISOString(),
+              // Typed as the home's wall time, whatever this laptop's zone.
+              dueAt: fromHomeInput(dueAt, zone) ?? dueAt,
               isEvent,
             },
           });
@@ -197,6 +201,9 @@ export function TimelinePanel({
               value={dueAt}
               onChange={(event) => setDueAt(event.target.value)}
             />
+            {zoneHint(zone) && (
+              <p className="text-xs text-muted-foreground">{zoneHint(zone)}</p>
+            )}
           </div>
         </div>
 
