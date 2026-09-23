@@ -24,6 +24,7 @@ import { logger } from "../lib/logger";
 import { ZipWriter } from "../lib/zip";
 import { toVitalsJson, vitalsForCase } from "../lib/vitals";
 import { loadCase } from "./cases";
+import { formatServiceMoment } from "../lib/print-render";
 
 const router: IRouter = Router();
 
@@ -41,10 +42,38 @@ function stamp(date: Date | null): string {
   return date ? date.toISOString().slice(0, 10) : "";
 }
 
+/**
+ * A moment, in the home's own timezone, with the zone named.
+ *
+ * The zone is spelled out because this archive outlives the software: a
+ * director reading it in four years, or an insurer's solicitor reading it,
+ * must not have to guess whether "9:00 AM" was Denver or Greenwich. Bare UTC
+ * was the other half of that problem — it read as six hours after the funeral
+ * anybody remembers attending.
+ */
+function moment(date: Date, timeZone: string): string {
+  const options: Intl.DateTimeFormatOptions = {
+    year: "numeric",
+    month: "short",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+    timeZoneName: "short",
+  };
+
+  try {
+    return date.toLocaleString("en-US", { ...options, timeZone });
+  } catch {
+    return date.toLocaleString("en-US", { ...options, timeZone: "America/Denver" });
+  }
+}
+
 /** A readable summary, so the archive means something without this software. */
 function summarise(
   row: Case,
   contacts: Array<{ name: string; relationship: string | null; email: string | null; phone: string | null }>,
+  timeZone: string,
 ): string {
   const lines = [
     decedentDisplayName(row),
@@ -58,7 +87,9 @@ function summarise(
     `Opened           ${stamp(row.createdAt)}`,
     row.dateOfBirth ? `Born             ${stamp(row.dateOfBirth)}` : "",
     row.dateOfDeath ? `Died             ${stamp(row.dateOfDeath)}` : "",
-    row.serviceAt ? `Service          ${row.serviceAt.toISOString()}` : "",
+    row.serviceAt
+      ? `Service          ${formatServiceMoment(row.serviceAt, timeZone)}`
+      : "",
     row.serviceLocation ? `At               ${row.serviceLocation}` : "",
     `Status           ${row.status}`,
     row.closedAt ? `Closed           ${stamp(row.closedAt)}` : "",
@@ -94,7 +125,7 @@ function summarise(
     "It remains readable in the application. If it is genuinely needed for",
     "filing, read it there.",
     "",
-    `Exported ${new Date().toISOString()}`,
+    `Exported ${moment(new Date(), timeZone)}`,
   ];
 
   return lines.filter((line) => line !== "").join("\n") + "\n";
@@ -200,7 +231,10 @@ router.get("/cases/:caseId/export", async (req, res) => {
 
   const zip = new ZipWriter(res);
 
-  await zip.addFile("README.txt", Buffer.from(summarise(row, contacts), "utf8"));
+  await zip.addFile(
+    "README.txt",
+    Buffer.from(summarise(row, contacts, home.timezone), "utf8"),
+  );
 
   const draft = obituary[0];
   if (draft) {
@@ -256,7 +290,7 @@ router.get("/cases/:caseId/export", async (req, res) => {
       deadlines
         .map(
           (d) =>
-            `${d.dueAt.toISOString().slice(0, 16).replace("T", " ")}  ` +
+            `${moment(d.dueAt, home.timezone)}  ` +
             `${d.completedAt ? "[done]" : "[    ]"} ${d.title}`,
         )
         .join("\n") + "\n",
@@ -272,7 +306,7 @@ router.get("/cases/:caseId/export", async (req, res) => {
           // Who said it, without needing a join: a message has either a staff
           // author or a family one, never both.
           const who = m.authorUserId !== null ? "funeral home" : "family";
-          return `${m.createdAt.toISOString()}  ${who}\n${m.body}\n`;
+          return `${moment(m.createdAt, home.timezone)}  ${who}\n${m.body}\n`;
         })
         .join("\n") + "\n",
       "utf8",

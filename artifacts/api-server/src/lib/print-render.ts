@@ -52,8 +52,14 @@ function lines(value: string): string {
 }
 
 function formatDates(row: Case): string {
+  /*
+   * Born and died are dates, not moments: they are stored at midnight UTC and
+   * mean the same calendar day everywhere. Read them in UTC, because
+   * `getFullYear` on a host west of Greenwich turns the 1st of January into
+   * the year before and puts the wrong year on a headstone card.
+   */
   const year = (value: Date | null) =>
-    value ? String(value.getFullYear()) : "";
+    value ? String(value.getUTCFullYear()) : "";
 
   const born = year(row.dateOfBirth);
   const died = year(row.dateOfDeath);
@@ -63,19 +69,48 @@ function formatDates(row: Case): string {
   return "";
 }
 
-function formatServiceLine(row: Case): string {
+/**
+ * The service, in the home's own timezone.
+ *
+ * `timeZone` is not optional and there is no fallback to the host clock,
+ * which is the bug this signature exists to prevent: the servers run UTC, and
+ * a nine o'clock Denver funeral printed as "3:00 PM" is two hundred cards
+ * handed out at the door with the wrong time on them. The one screen that is
+ * supposed to catch that — the proof the family approves — was rendering it
+ * the same wrong way, so nobody would have caught it either.
+ */
+function formatServiceLine(row: Case, timeZone: string): string {
   if (!row.serviceAt) return row.serviceLocation ?? "";
 
-  const when = row.serviceAt.toLocaleString("en-US", {
+  const when = formatServiceMoment(row.serviceAt, timeZone);
+
+  return row.serviceLocation ? `${when}\n${row.serviceLocation}` : when;
+}
+
+/**
+ * One spelling of a service time, shared by the cards, the photo pack and the
+ * export, so a director never sees two.
+ *
+ * An unknown timezone falls back to the product's default rather than to the
+ * host: `Intl` throws on rubbish, and a card that fails to render at nine at
+ * night before an eleven o'clock service helps nobody.
+ */
+export function formatServiceMoment(at: Date, timeZone: string): string {
+  const options: Intl.DateTimeFormatOptions = {
     weekday: "long",
     month: "long",
     day: "numeric",
     year: "numeric",
     hour: "numeric",
     minute: "2-digit",
-  });
+    timeZoneName: "short",
+  };
 
-  return row.serviceLocation ? `${when}\n${row.serviceLocation}` : when;
+  try {
+    return at.toLocaleString("en-US", { ...options, timeZone });
+  } catch {
+    return at.toLocaleString("en-US", { ...options, timeZone: "America/Denver" });
+  }
 }
 
 /** Fill a slot: what was typed, else what the case already knows. */
@@ -83,6 +118,12 @@ export function resolveSlots(input: {
   template: PrintTemplate;
   case: Case;
   values: Record<string, string>;
+  /**
+   * The home's timezone. Required, not defaulted — see `formatServiceLine`.
+   * The console preview and the rendered card must agree to the minute, so
+   * both of them come through here.
+   */
+  timeZone: string;
 }): Record<string, string> {
   const resolved: Record<string, string> = {};
 
@@ -102,7 +143,7 @@ export function resolveSlots(input: {
         resolved[slot.key] = formatDates(input.case);
         break;
       case "serviceLine":
-        resolved[slot.key] = formatServiceLine(input.case);
+        resolved[slot.key] = formatServiceLine(input.case, input.timeZone);
         break;
       default:
         resolved[slot.key] = "";
@@ -220,7 +261,7 @@ function body(input: RenderInput, slots: Record<string, string>): string {
 
 export function renderPrintItem(input: RenderInput): string {
   const { template } = input;
-  const slots = resolveSlots(input);
+  const slots = resolveSlots({ ...input, timeZone: input.home.timezone });
 
   const sheetWidth = template.width + BLEED * 2;
   const sheetHeight = template.height + BLEED * 2;

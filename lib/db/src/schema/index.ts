@@ -15,6 +15,7 @@ export * from "./funeral-homes";
 export * from "./users";
 export * from "./sessions";
 export * from "./password-resets";
+export * from "./email-verifications";
 
 /* Bytes. */
 export * from "./uploads";
@@ -75,4 +76,5 @@ export * from "./deletions";
 /* The platform's own view of its customers: what Colorado asks of each home,
  * and the log of every time anyone here looked across a tenant boundary. */
 export * from "./licensure";
+export * from "./platform";
 export * from "./platform-audit";

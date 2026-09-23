@@ -102,7 +102,7 @@ router.post("/cases/:caseId/contacts", async (req, res) => {
       .where(eq(casesTable.id, row.id));
   }
 
-  void markOnboarding(home.id, "family");
+  await markOnboarding(home.id, "family");
 
   res
     .status(201)

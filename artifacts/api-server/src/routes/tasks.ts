@@ -1,6 +1,7 @@
 import { Router, type IRouter } from "express";
 import { timingSafeEqual } from "node:crypto";
 import { runAftercare } from "@workspace/mailer/aftercare";
+import { runTrialReminders } from "../lib/trial-reminders";
 import { HttpError } from "../lib/http";
 import { logger } from "../lib/logger";
 import { runCaseMetering } from "../lib/metering";
@@ -53,17 +54,37 @@ function assertAuthorised(header: string | undefined): void {
   }
 }
 
+/** `?dryRun=1` reports what is due without sending or marking anything. */
+function isDryRun(query: Record<string, unknown>): boolean {
+  return query["dryRun"] === "1" || query["dryRun"] === "true";
+}
+
 router.post("/tasks/aftercare", async (req, res) => {
   assertAuthorised(req.headers.authorization);
 
-  // `?dryRun=1` reports what is due without sending or marking anything,
-  // which is how you check a new deployment is wired up without writing to
+  // Dry run is how you check a new deployment is wired up without writing to
   // a bereaved family.
-  const dryRun = req.query["dryRun"] === "1" || req.query["dryRun"] === "true";
-
-  const result = await runAftercare({ dryRun });
+  const result = await runAftercare({ dryRun: isDryRun(req.query) });
 
   logger.info({ ...result }, "Aftercare run finished");
+
+  res.json(result);
+});
+
+/**
+ * Tell homes on trial where they stand.
+ *
+ * A separate endpoint rather than folded into the aftercare run, because the
+ * two have nothing to do with each other and failing at one must not stop the
+ * other: a mail error while telling a proprietor about their bill must never
+ * be the reason a widow's ninety-day check-in did not go out.
+ */
+router.post("/tasks/trial-reminders", async (req, res) => {
+  assertAuthorised(req.headers.authorization);
+
+  const result = await runTrialReminders({ dryRun: isDryRun(req.query) });
+
+  logger.info({ ...result }, "Trial reminder run finished");
 
   res.json(result);
 });
@@ -82,11 +103,9 @@ router.post("/tasks/aftercare", async (req, res) => {
 router.post("/tasks/usage", async (req, res) => {
   assertAuthorised(req.headers.authorization);
 
-  const dryRun = req.query["dryRun"] === "1" || req.query["dryRun"] === "true";
+  const result = await runCaseMetering({ dryRun: isDryRun(req.query) });
 
-  const result = await runCaseMetering({ dryRun });
-
-  logger.info({ ...result }, "Case metering run finished");
+  logger.info({ ...result }, "Case metering run finished")
 
   res.json(result);
 });

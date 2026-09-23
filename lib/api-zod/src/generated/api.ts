@@ -191,6 +191,11 @@ export const LoginResponse = zod.object({
     displayName: zod.string().nullable(),
     title: zod.string().nullable(),
     role: zod.enum(["owner", "director", "staff"]),
+    emailVerified: zod
+      .boolean()
+      .describe(
+        "Whether this address has been confirmed from the emailed link. The one thing it gates is the request form on the home's public page — see routes\/public.ts. The console reads it to ask, once, calmly.\n",
+      ),
     deactivatedAt: zod.date().nullable(),
   }),
   home: zod.object({
@@ -257,6 +262,11 @@ export const GetCurrentUserResponse = zod.object({
     displayName: zod.string().nullable(),
     title: zod.string().nullable(),
     role: zod.enum(["owner", "director", "staff"]),
+    emailVerified: zod
+      .boolean()
+      .describe(
+        "Whether this address has been confirmed from the emailed link. The one thing it gates is the request form on the home's public page — see routes\/public.ts. The console reads it to ask, once, calmly.\n",
+      ),
     deactivatedAt: zod.date().nullable(),
   }),
   home: zod.object({
@@ -328,6 +338,15 @@ export const resetPasswordBodyPasswordMin = 10;
 export const ResetPasswordBody = zod.object({
   token: zod.string(),
   password: zod.string().min(resetPasswordBodyPasswordMin),
+});
+
+/**
+ * Outside the session gate on purpose: the link is opened on whichever device the email is on. The token is single-use and grants nothing beyond the verified flag.
+
+ * @summary Confirm a staff address from the emailed link
+ */
+export const VerifyEmailBody = zod.object({
+  token: zod.string(),
 });
 
 /**
@@ -584,6 +603,11 @@ export const GetStaffResponseItem = zod.object({
   displayName: zod.string().nullable(),
   title: zod.string().nullable(),
   role: zod.enum(["owner", "director", "staff"]),
+  emailVerified: zod
+    .boolean()
+    .describe(
+      "Whether this address has been confirmed from the emailed link. The one thing it gates is the request form on the home's public page — see routes\/public.ts. The console reads it to ask, once, calmly.\n",
+    ),
   deactivatedAt: zod.date().nullable(),
 });
 export const GetStaffResponse = zod.array(GetStaffResponseItem);
@@ -625,6 +649,11 @@ export const UpdateStaffResponse = zod.object({
   displayName: zod.string().nullable(),
   title: zod.string().nullable(),
   role: zod.enum(["owner", "director", "staff"]),
+  emailVerified: zod
+    .boolean()
+    .describe(
+      "Whether this address has been confirmed from the emailed link. The one thing it gates is the request form on the home's public page — see routes\/public.ts. The console reads it to ask, once, calmly.\n",
+    ),
   deactivatedAt: zod.date().nullable(),
 });
 

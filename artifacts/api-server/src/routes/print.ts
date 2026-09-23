@@ -179,7 +179,11 @@ async function photoUploadFor(
   return { photoId, uploadId: photo?.uploadId ?? null };
 }
 
-async function toPrintItemJson(item: CasePrintItem, row: Case) {
+async function toPrintItemJson(
+  item: CasePrintItem,
+  row: Case,
+  timeZone: string,
+) {
   const template = findTemplate(item.templateKey);
   const { photoId, uploadId } = await photoUploadFor(item, row);
   const values = (item.values ?? {}) as Record<string, string>;
@@ -195,7 +199,9 @@ async function toPrintItemJson(item: CasePrintItem, row: Case) {
     values,
     // What the card will actually say, with the case's own details filled
     // in — so the preview needs no second round trip.
-    resolved: template ? resolveSlots({ template, case: row, values }) : values,
+    resolved: template
+      ? resolveSlots({ template, case: row, values, timeZone })
+      : values,
     quantity: item.quantity,
     status: item.status,
     sharedWithFamily: item.sharedWithFamily,
@@ -204,7 +210,11 @@ async function toPrintItemJson(item: CasePrintItem, row: Case) {
   };
 }
 
-export async function printItemsForCase(row: Case, funeralHomeId: number) {
+export async function printItemsForCase(
+  row: Case,
+  funeralHomeId: number,
+  timeZone: string,
+) {
   const rows = await db
     .select()
     .from(casePrintItemsTable)
@@ -216,13 +226,15 @@ export async function printItemsForCase(row: Case, funeralHomeId: number) {
     )
     .orderBy(desc(casePrintItemsTable.updatedAt));
 
-  return Promise.all(rows.map((item) => toPrintItemJson(item, row)));
+  return Promise.all(
+    rows.map((item) => toPrintItemJson(item, row, timeZone)),
+  );
 }
 
 router.get("/cases/:caseId/print", async (req, res) => {
   const home = tenant(req);
   const row = await loadCase(req, req.params.caseId);
-  res.json(await printItemsForCase(row, home.id));
+  res.json(await printItemsForCase(row, home.id, home.timezone));
 });
 
 router.post("/cases/:caseId/print", async (req, res) => {
@@ -244,7 +256,7 @@ router.post("/cases/:caseId/print", async (req, res) => {
     })
     .returning();
 
-  res.status(201).json(await toPrintItemJson(created!, row));
+  res.status(201).json(await toPrintItemJson(created!, row, home.timezone));
 });
 
 async function loadPrintItem(
@@ -348,7 +360,13 @@ router.put("/print/:printItemId", async (req, res) => {
     .where(eq(casePrintItemsTable.id, existing.id))
     .returning();
 
-  res.json(await toPrintItemJson(updated!, await caseFor(existing.caseId)));
+  res.json(
+    await toPrintItemJson(
+      updated!,
+      await caseFor(existing.caseId),
+      tenant(req).timezone,
+    ),
+  );
 });
 
 router.delete("/print/:printItemId", async (req, res) => {

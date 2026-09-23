@@ -986,7 +986,11 @@ router.post("/vitals/submit", async (req, res) => {
  */
 router.get("/print", async (req, res) => {
   const row = familyCase(req);
-  const all = await printItemsForCase(row, row.funeralHomeId);
+  const all = await printItemsForCase(
+    row,
+    row.funeralHomeId,
+    familyHome(req).timezone,
+  );
   res.json(all.filter((item) => item.sharedWithFamily));
 });
 

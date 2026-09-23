@@ -38,6 +38,7 @@ beforeEach(async () => {
 
   await db.execute(
     sql`TRUNCATE TABLE
+      platform_admins,
       platform_audit,
       billable_cases,
       practitioner_licences,
@@ -57,6 +58,7 @@ beforeEach(async () => {
       uploads,
       sessions,
       password_resets,
+      email_verifications,
       users,
       funeral_homes,
       home_groups

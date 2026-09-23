@@ -70,19 +70,49 @@ router.put("/home", async (req, res) => {
     .where(eq(funeralHomesTable.id, home.id))
     .returning();
 
-  // The checklist follows what was actually done, not what was ticked.
+  /*
+   * The checklist follows what was actually done, not what was ticked.
+   *
+   * Awaited, and then the row is read again. Both halves matter, and neither
+   * was true before: fired and forgotten, these two writes raced the next
+   * request, so a director who set their accent colour could load Settings and
+   * find the branding step still unticked — the checklist claiming the work was
+   * not done, on the screen where they had just done it. And `updated` above was
+   * read *before* the marks, so even awaiting them left this response carrying a
+   * stale `onboardingDone`.
+   *
+   * Awaiting is safe: `markOnboarding` swallows and logs its own failures, so
+   * the promise it returns does not reject. "Never allowed to fail the request
+   * it rode in on" is kept by that try/catch rather than by dropping the
+   * promise, which only ever hid the ordering.
+   */
+  const marks: Array<Promise<void>> = [];
+
   if (values.name !== undefined || values.accentColor !== undefined) {
-    void markOnboarding(home.id, "branding");
+    marks.push(markOnboarding(home.id, "branding"));
   }
   if (
     values.officeOpensMinute !== undefined ||
     values.officeClosesMinute !== undefined ||
     values.urgentPhone !== undefined
   ) {
-    void markOnboarding(home.id, "hours");
+    marks.push(markOnboarding(home.id, "hours"));
   }
 
-  res.json(updated);
+  if (marks.length === 0) {
+    res.json(updated);
+    return;
+  }
+
+  await Promise.all(marks);
+
+  const [reread] = await db
+    .select()
+    .from(funeralHomesTable)
+    .where(eq(funeralHomesTable.id, home.id))
+    .limit(1);
+
+  res.json(reread ?? updated);
 });
 
 router.get("/home/staff", async (req, res) => {
@@ -149,7 +179,7 @@ router.post("/home/staff", async (req, res) => {
 
   const token = await createPasswordReset(created!.id);
   const base = process.env["CONSOLE_URL"]?.replace(/\/+$/, "") ?? "";
-  const inviteLink = `${base}/reset-password?token=${encodeURIComponent(token)}`;
+  const inviteLink = `${base}/reset-password?invited=1&token=${encodeURIComponent(token)}`;
 
   await sendStaffInviteEmail({
     to: email,
@@ -162,7 +192,7 @@ router.post("/home/staff", async (req, res) => {
   // Returned once, so the owner can hand it over directly when the email is
   // slow or lands in a spam folder -- which, for a funeral home on a shared
   // mail host, is most of the time.
-  void markOnboarding(home.id, "staff");
+  await markOnboarding(home.id, "staff");
 
   res.status(201).json({ ...toPublicUser(created!), inviteLink });
 });
@@ -244,7 +274,7 @@ router.post("/home/timeline-template", async (req, res) => {
     })
     .returning();
 
-  void markOnboarding(home.id, "schedule");
+  await markOnboarding(home.id, "schedule");
 
   res.status(201).json(toTemplateJson(created!));
 });

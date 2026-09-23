@@ -197,6 +197,7 @@ export * from "./vendorQuote";
 export * from "./vendorQuoteStatus";
 export * from "./vendorSource";
 export * from "./vendorUpdate";
+export * from "./verifyEmailInput";
 export * from "./vitalsFamilyUpdate";
 export * from "./vitalsStaffUpdate";
 export * from "./vitalStatistics";

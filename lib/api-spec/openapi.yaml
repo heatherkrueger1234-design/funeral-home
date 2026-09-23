@@ -243,6 +243,34 @@ paths:
         "204":
           description: Password changed and other sessions ended
 
+  /auth/verify-email:
+    post:
+      operationId: verifyEmail
+      tags: [auth]
+      summary: Confirm a staff address from the emailed link
+      description: >
+        Outside the session gate on purpose: the link is opened on whichever
+        device the email is on. The token is single-use and grants nothing
+        beyond the verified flag.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/VerifyEmailInput"
+      responses:
+        "204":
+          description: Address confirmed
+
+  /auth/resend-verification:
+    post:
+      operationId: resendVerification
+      tags: [auth]
+      summary: Send another confirmation link to the signed-in account
+      responses:
+        "204":
+          description: Accepted, whether or not the address was already confirmed
+
   # ------------------------------------------------------------------ home --
 
   /home:
@@ -2885,6 +2913,13 @@ components:
           minLength: 10
       required: [token, password]
 
+    VerifyEmailInput:
+      type: object
+      properties:
+        token:
+          type: string
+      required: [token]
+
     StaffMember:
       type: object
       properties:
@@ -2901,11 +2936,17 @@ components:
         role:
           type: string
           enum: [owner, director, staff]
+        emailVerified:
+          type: boolean
+          description: >
+            Whether this address has been confirmed from the emailed link. The
+            one thing it gates is the request form on the home's public page —
+            see routes/public.ts. The console reads it to ask, once, calmly.
         deactivatedAt:
           type: string
           format: date-time
           nullable: true
-      required: [id, email, displayName, title, role, deactivatedAt]
+      required: [id, email, displayName, title, role, emailVerified, deactivatedAt]
 
     TimelineTemplate:
       type: object

@@ -606,61 +606,54 @@ describe("groups: one contract, many locations", () => {
   it("gives a location that leaves a group time to arrange its own billing", async () => {
     const group = await makeGroup("Consolidated Care");
     const denver = await signUpHome("Denver Chapel");
-    const previousAllowlist = process.env["PLATFORM_ADMIN_EMAILS"];
+    await db
+      .update(funeralHomesTable)
+      .set({ groupId: group.id, subscriptionStatus: "active" })
+      .where(eq(funeralHomesTable.id, denver.homeId));
 
-    try {
-      await db
-        .update(funeralHomesTable)
-        .set({ groupId: group.id, subscriptionStatus: "active" })
-        .where(eq(funeralHomesTable.id, denver.homeId));
+    const admin = await signUpHome("Holding Today");
+    const [adminHome] = await db
+      .select()
+      .from(funeralHomesTable)
+      .where(eq(funeralHomesTable.id, admin.homeId));
+    expect(adminHome).toBeDefined();
 
-      const admin = await signUpHome("Holding Today");
-      const [adminHome] = await db
-        .select()
-        .from(funeralHomesTable)
-        .where(eq(funeralHomesTable.id, admin.homeId));
-      expect(adminHome).toBeDefined();
+    // The platform list is a table keyed by email; reuse the address this
+    // agent registered with. It used to be `PLATFORM_ADMIN_EMAILS`, which is
+    // now only a first-start bootstrap — see `lib/platform-auth.ts`.
+    const { usersTable, platformAdminsTable } = await import("@workspace/db");
+    const [adminUser] = await db
+      .select()
+      .from(usersTable)
+      .where(eq(usersTable.id, admin.userId));
+    await db
+      .insert(platformAdminsTable)
+      .values({ email: adminUser!.email });
 
-      // The platform allowlist is by email; reuse the address this agent
-      // registered with.
-      const { usersTable } = await import("@workspace/db");
-      const [adminUser] = await db
-        .select()
-        .from(usersTable)
-        .where(eq(usersTable.id, admin.userId));
-      process.env["PLATFORM_ADMIN_EMAILS"] = adminUser!.email;
+    await admin.agent
+      .put(`/api/admin/homes/${denver.homeId}/group`)
+      .send({ groupId: null })
+      .expect(200);
 
-      await admin.agent
-        .put(`/api/admin/homes/${denver.homeId}/group`)
-        .send({ groupId: null })
-        .expect(200);
+    const [after] = await db
+      .select()
+      .from(funeralHomesTable)
+      .where(eq(funeralHomesTable.id, denver.homeId));
 
-      const [after] = await db
-        .select()
-        .from(funeralHomesTable)
-        .where(eq(funeralHomesTable.id, denver.homeId));
+    /*
+     * A branch sold to an independent owner on Tuesday has funerals on
+     * Wednesday. Cutting it off the moment the paperwork changed would
+     * stop a family part-way through uploading photographs of their
+     * mother because two companies were renegotiating.
+     */
+    expect(after!.groupId).toBeNull();
+    expect(after!.subscriptionStatus).toBe("trial");
+    expect(after!.trialEndsAt!.getTime()).toBeGreaterThan(Date.now());
 
-      /*
-       * A branch sold to an independent owner on Tuesday has funerals on
-       * Wednesday. Cutting it off the moment the paperwork changed would
-       * stop a family part-way through uploading photographs of their
-       * mother because two companies were renegotiating.
-       */
-      expect(after!.groupId).toBeNull();
-      expect(after!.subscriptionStatus).toBe("trial");
-      expect(after!.trialEndsAt!.getTime()).toBeGreaterThan(Date.now());
-
-      await denver.agent
-        .post("/api/cases")
-        .send({ decedentFirstName: "Still", decedentLastName: "Working" })
-        .expect(201);
-    } finally {
-      if (previousAllowlist === undefined) {
-        delete process.env["PLATFORM_ADMIN_EMAILS"];
-      } else {
-        process.env["PLATFORM_ADMIN_EMAILS"] = previousAllowlist;
-      }
-    }
+    await denver.agent
+      .post("/api/cases")
+      .send({ decedentFirstName: "Still", decedentLastName: "Working" })
+      .expect(201);
   });
 
   it("keeps a group out of its locations' cases", async () => {
@@ -704,23 +697,22 @@ describe("groups: one contract, many locations", () => {
 });
 
 describe("the platform console's side of a group contract", () => {
-  const previousAllowlist = process.env["PLATFORM_ADMIN_EMAILS"];
-
-  afterEach(() => {
-    if (previousAllowlist === undefined) delete process.env["PLATFORM_ADMIN_EMAILS"];
-    else process.env["PLATFORM_ADMIN_EMAILS"] = previousAllowlist;
-  });
-
-  /** A signed-in staff account that the platform allowlist also names. */
+  /**
+   * A signed-in staff account that the platform list also names.
+   *
+   * A row rather than an environment variable: the list lives in
+   * `platform_admins` now, so there is no process-wide state to put back and
+   * the truncation between tests takes care of it.
+   */
   async function signInPlatformAdmin() {
     const admin = await signUpHome("Holding Today");
-    const { usersTable } = await import("@workspace/db");
+    const { usersTable, platformAdminsTable } = await import("@workspace/db");
     const [user] = await db
       .select()
       .from(usersTable)
       .where(eq(usersTable.id, admin.userId));
 
-    process.env["PLATFORM_ADMIN_EMAILS"] = user!.email;
+    await db.insert(platformAdminsTable).values({ email: user!.email });
     return admin;
   }
 

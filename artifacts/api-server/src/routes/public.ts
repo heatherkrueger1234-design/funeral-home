@@ -1,5 +1,5 @@
 import { Router, type IRouter } from "express";
-import { and, eq, gte, sql } from "drizzle-orm";
+import { and, eq, gte, isNull, sql } from "drizzle-orm";
 import {
   canOpenCases,
   db,
@@ -41,13 +41,54 @@ function normaliseSlug(raw: string): string {
 }
 
 /**
+ * Whether anybody at this home has confirmed the address they registered with.
+ *
+ * The one thing email verification gates, and the reason it exists.
+ *
+ * Registration is open — it has to be, a funeral home buying software should
+ * not have to ask us for an account first — and nothing checked that the
+ * address belonged to the person typing it. So anyone could register under a
+ * real home's name and have a public page, at a guessable URL, collecting the
+ * details of people's deaths within a minute. That page is the one thing here
+ * a stranger reaches, and it is the only thing verification holds back.
+ *
+ * What it deliberately does not gate: signing in, opening a case, texting a
+ * family, uploading a photograph, printing an order of service, exporting, or
+ * anything else inside the console. A director locked out of Thursday's
+ * funeral because a confirmation email went to spam would be a far worse
+ * product than the one this protects against, and the same argument is made at
+ * greater length about cancelled subscriptions in `routes/cases.ts`.
+ *
+ * Any active staff member's confirmed address counts, not only the owner's: a
+ * home where the manager confirmed and the proprietor never opened their inbox
+ * is a home we have plainly heard from.
+ */
+async function hasVerifiedStaff(funeralHomeId: number): Promise<boolean> {
+  const [row] = await db
+    .select({ id: usersTable.id })
+    .from(usersTable)
+    .where(
+      and(
+        eq(usersTable.funeralHomeId, funeralHomeId),
+        eq(usersTable.emailVerified, true),
+        isNull(usersTable.deactivatedAt),
+      ),
+    )
+    .limit(1);
+
+  return row !== undefined;
+}
+
+/**
  * Find a home that is actually able to receive this.
  *
- * Three separate reasons to refuse, all answered identically with a 404:
- * there is no such home, the home has switched the public form off, or the
- * home's subscription has been cancelled. The last one matters most — a
- * cancelled home's page must not keep quietly collecting the details of
- * people's deaths into an account nobody is watching.
+ * Four separate reasons to refuse, all answered identically with a 404: there
+ * is no such home, the home has switched the public form off, the home's
+ * subscription has been cancelled, or nobody there has confirmed their email
+ * address. The cancelled case matters most — a cancelled home's page must not
+ * keep quietly collecting the details of people's deaths into an account
+ * nobody is watching — and the last is what stops the page existing at all for
+ * a home nobody has heard from.
  */
 async function receivingHome(slug: string) {
   const [home] = await db
@@ -59,6 +100,7 @@ async function receivingHome(slug: string) {
   if (!home) return null;
   if (!home.intakeEnabled) return null;
   if (!canOpenCases(home)) return null;
+  if (!(await hasVerifiedStaff(home.id))) return null;
 
   return home;
 }
@@ -78,7 +120,10 @@ router.get("/homes/:slug", async (req, res) => {
 
   res.json({
     ...(await publicHome(home)),
-    intakeEnabled: home.intakeEnabled && canOpenCases(home),
+    intakeEnabled:
+      home.intakeEnabled &&
+      canOpenCases(home) &&
+      (await hasVerifiedStaff(home.id)),
   });
 });
 
@@ -176,7 +221,7 @@ router.post("/intake", async (req, res) => {
    * reads the URL, because a request arriving is the only thing that actually
    * proves the page is reachable from wherever they put it.
    */
-  void markOnboarding(home.id, "public");
+  await markOnboarding(home.id, "public");
 
   // Best effort, and deliberately after the row is committed: a mail outage
   // must not lose a request that a grieving family believes they have sent.

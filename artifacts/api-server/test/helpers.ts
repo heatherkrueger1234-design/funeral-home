@@ -6,32 +6,63 @@ export type StaffSession = {
   agent: ReturnType<typeof request.agent>;
   homeId: number;
   userId: number;
+  email: string;
 };
 
 let sequence = 0;
 
-/** Register a funeral home and return a signed-in agent for its owner. */
+/**
+ * Register a funeral home and return a signed-in agent for its owner.
+ *
+ * The owner's address is marked confirmed by default, because this helper
+ * stands for "a home that has set itself up" and every test that uses it is
+ * about something else. The one thing confirmation gates is the public request
+ * form — see `routes/public.ts` — so a test about that form would otherwise be
+ * testing the gate by accident, and a hundred tests about photographs would
+ * fail for a reason none of them is interested in.
+ *
+ * Pass `{ verified: false }` to get a home nobody has heard from, which is what
+ * `email-verification.test.ts` does on purpose.
+ */
 export async function signUpHome(
   name = "Horan & McConaty",
+  options: { verified?: boolean } = {},
 ): Promise<StaffSession> {
   sequence += 1;
   const agent = request.agent(app);
+  const email = `director${sequence}@example.com`;
 
   const res = await agent
     .post("/api/auth/register")
     .send({
       homeName: name,
-      email: `director${sequence}@example.com`,
+      email,
       password: "correct-horse-battery",
       displayName: "Karen Voss",
     })
     .expect(201);
 
+  if (options.verified !== false) {
+    await markEmailVerified(email);
+  }
+
   return {
     agent,
     homeId: res.body.home.id,
     userId: res.body.user.id,
+    email,
   };
+}
+
+/** Confirm an address without going through the emailed link. */
+export async function markEmailVerified(email: string): Promise<void> {
+  const { db, usersTable } = await import("@workspace/db");
+  const { eq } = await import("drizzle-orm");
+
+  await db
+    .update(usersTable)
+    .set({ emailVerified: true })
+    .where(eq(usersTable.email, email.toLowerCase()));
 }
 
 export async function createCase(

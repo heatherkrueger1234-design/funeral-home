@@ -1,5 +1,9 @@
 import { useState } from "react";
-import { useLogin, useRegisterHome } from "@workspace/api-client-react";
+import {
+  useForgotPassword,
+  useLogin,
+  useRegisterHome,
+} from "@workspace/api-client-react";
 import { useSession } from "@/lib/session";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -40,6 +44,28 @@ export default function SignIn() {
 
   const login = useLogin({ mutation: { onSuccess, onError } });
   const register = useRegisterHome({ mutation: { onSuccess, onError } });
+
+  /*
+   * The way back in. The endpoint and the email have existed all along; there
+   * was simply nothing anywhere that asked for one, so a director who forgot
+   * their password had no route that did not involve reading a server log.
+   *
+   * Answers the same way whether or not the address is known, because the
+   * endpoint does — and because "no account here" is a fact about somebody's
+   * staff list that a stranger typing addresses should not be able to collect.
+   */
+  const forgot = useForgotPassword({
+    mutation: {
+      onSuccess: () =>
+        toast({
+          title: "Check your email",
+          description:
+            "If that address has an account, a link to choose a new password " +
+            "is on its way. It lasts an hour.",
+        }),
+      onError,
+    },
+  });
 
   const pending = login.isPending || register.isPending;
   const registering = mode === "register";
@@ -142,9 +168,34 @@ export default function SignIn() {
           </Button>
         </form>
 
+        {!registering && (
+          <button
+            type="button"
+            className="mt-4 w-full rounded-md py-2 text-sm text-muted-foreground underline
+                       decoration-[var(--border-strong)] underline-offset-4
+                       transition-colors duration-200 hover:text-foreground hover:decoration-[var(--accent)]
+                       focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--accent)]"
+            disabled={forgot.isPending}
+            onClick={() => {
+              const address = email.trim();
+              if (!address) {
+                toast({
+                  title: "Which address?",
+                  description:
+                    "Put your email in above and we'll send a link to it.",
+                });
+                return;
+              }
+              forgot.mutate({ data: { email: address } });
+            }}
+          >
+            I've forgotten my password
+          </button>
+        )}
+
         <button
           type="button"
-          className="mt-6 w-full rounded-md py-2 text-sm text-muted-foreground underline
+          className="mt-2 w-full rounded-md py-2 text-sm text-muted-foreground underline
                      decoration-[var(--border-strong)] underline-offset-4
                      transition-colors duration-200 hover:text-foreground hover:decoration-[var(--accent)]
                      focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--accent)]"

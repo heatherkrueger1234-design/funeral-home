@@ -136,6 +136,18 @@ export async function runCaseMetering(
       and(
         isNull(billableCasesTable.reportedAt),
         isNull(billableCasesTable.waivedReason),
+        /*
+         * Never invoice ourselves.
+         *
+         * A platform admin needs a staff account, a staff account needs a
+         * `funeral_homes` row, and the funerals opened in it while trying
+         * something out are not funerals anybody owes for. Today they would
+         * fall through the "no Stripe customer" skip below and cost nothing,
+         * which is luck rather than a rule: attach a customer to that tenant
+         * once — to test checkout, which is the obvious thing to do with it —
+         * and we would start metering our own demo cases onto a real invoice.
+         */
+        eq(funeralHomesTable.internalAccount, false),
       ),
     )
     // Oldest first, so a backlog drains in the order the funerals happened
