@@ -131,7 +131,7 @@ declare global {
  *    the password of a real staff account, so this is an additional condition
  *    and never an alternative one.
  *  - It is not a permission model. There is one capability and no hierarchy,
- *    because inventing a second role system is exactly what `TEAM-SPLIT.md`
+ *    because inventing a second role system is exactly what `CONTRIBUTING.md`
  *    says not to do.
  *
  * The 403 says nothing about why. A director who mistypes a URL learns that

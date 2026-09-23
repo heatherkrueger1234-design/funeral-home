@@ -1,13 +1,19 @@
 # Component briefs
 
+> **Archived.** These were written for the agents that built each component and
+> the work has landed. Read them for the intention behind existing code. The
+> live rules are in [`../../../CONTRIBUTING.md`](../../../CONTRIBUTING.md) and
+> [`../../../CRAFT.md`](../../../CRAFT.md); the branch names and sequencing
+> below are no longer accurate.
+
 One file per agent. Read, in this order:
 
-1. [`../TEAM-SPLIT.md`](../TEAM-SPLIT.md) — ownership, the codegen rule, and
+1. [`../parallel-build-plan.md`](../parallel-build-plan.md) — ownership, the codegen rule, and
    the craft standard every component is held to.
-2. [`../COLORADO.md`](../COLORADO.md) — your section. It decides how several of
+2. [`../../../COLORADO.md`](../../../COLORADO.md) — your section. It decides how several of
    these components are shaped.
 3. Your brief in this folder.
-4. [`../replit.md`](../replit.md) — what the product is and what it refuses to be.
+4. [`../../../replit.md`](../../../replit.md) — what the product is and what it refuses to be.
 
 ## Branching
 

@@ -5,16 +5,34 @@ insurer, or a state board. It describes what this software actually does — not
 what a policy page would like to imply — so where the honest answer is "that is
 your decision, not ours", it says so.
 
+## First: which deployment are you on?
+
+The answer to several questions below depends on it, and getting this wrong in
+front of an insurer is worse than not knowing.
+
+- **Hosted.** You pay Continuum Aftercare a subscription and we run the
+  database, the backups and the encryption key on our infrastructure. Almost
+  every customer is here. Where this document says "you", read "us" — the
+  operational answers are ours, and the [DPA](./LEGAL/DPA.md) is what binds us
+  to them. You are still the controller: what is retained and what is erased
+  remains your call, and we act on your instruction.
+- **Self-hosted.** You run the containers, you hold the key, you own the
+  backups. Then "you" means you, literally, including the parts that are
+  unforgiving.
+
+Everything about *what the software stores and what it refuses to delete* is
+identical either way. Only the question of whose hands it is in differs.
+
 ## The short version
 
 | Question | Answer |
 | --- | --- |
-| Where does our data live? | In one PostgreSQL database, on infrastructure **you** chose. This is not a hosted service holding your files. |
-| Who else can read it? | Nobody. There is no analytics pipeline, no third-party logging of case content, and no shared tenancy in the database. |
+| Where does our data live? | In one PostgreSQL database. Hosted: ours, and only your rows are yours — there is no shared tenancy inside it. Self-hosted: on infrastructure you chose, and we hold nothing. |
+| Who else can read it? | No other funeral home, and no third party — there is no analytics pipeline and no third-party logging of case content. On the hosted product our own staff technically can, under the access limits in the [DPA](./LEGAL/DPA.md); pretending otherwise would be the one lie in this document. |
 | Do you delete our cases automatically? | **No.** Nothing on a case is ever deleted on a timer. See below — this is deliberate. |
 | Can we get everything out? | Yes. `Export` on any case, and it keeps working after you cancel. |
 | Can we erase a case for good? | Yes. It is permanent and it takes the photographs with it. |
-| What about backups? | They are yours, and an erased case stays in them until they age out. |
+| What about backups? | Encrypted whole-file, taken by whoever runs the deployment. An erased case stays in them until they age out — thirty days on the hosted product. |
 
 ## We do not auto-delete case data, on purpose
 
@@ -136,10 +154,16 @@ bodies — since only the columns above are ciphertext on their own. A stolen
 or misplaced backup is worth nothing without the key, not just the two
 columns that would otherwise stand out inside it.
 
-The corollary is the one thing a home must get right: **lose the key and the
-photographs, and the backups, are lost.** Not recoverable by us, not
-recoverable by anyone. Keep a copy somewhere that is neither the application
-host nor the backup.
+The corollary is that whoever holds the key holds everything: **lose it and the
+photographs, and the backups, are gone.** Not recoverable by anyone, by design
+— a key we could recover for you is a key a court or an attacker could recover
+from us.
+
+On the **hosted** product that key is ours to keep, and keeping it is part of
+what you pay for. You do not hold a copy and you should not want to.
+
+If you are **self-hosted**, it is the one thing you have to get right: keep a
+copy somewhere that is neither the application host nor the backup.
 
 ## What leaves the building
 

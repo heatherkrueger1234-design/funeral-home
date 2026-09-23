@@ -4,13 +4,17 @@ import { twMerge } from "tailwind-merge";
 /**
  * This console's way of talking to the API.
  *
- * TODO(C1): every other frontend here uses the react-query hooks generated
- * from `lib/api-spec/openapi.yaml`. This one cannot yet — Component 1 splits
- * the spec into one file per domain, and `TEAM-SPLIT.md` is explicit that
- * nobody adds paths to the single shared file before that lands. So the admin
- * endpoints are typed by hand here, against `routes/admin.ts`, and this file
- * is deleted in favour of `@workspace/api-client-react` once `admin.yaml`
- * exists. The types below are the contract that file has to produce.
+ * Every other frontend here uses the react-query hooks generated from
+ * `lib/api-spec/openapi.yaml`. This one does not, and the original reason has
+ * expired: the plan was to split the spec into one file per domain first, and
+ * that split was abandoned — the spec is still one 7,000-line file.
+ *
+ * So this stays hand-typed against `routes/admin.ts` until somebody adds the
+ * admin paths to the shared spec, which is a conflict-prone edit worth doing
+ * deliberately rather than in passing. The types below are the contract that
+ * generated client would have to produce, so the swap is mechanical when it
+ * happens. Until then: change a type here and in `routes/admin.ts` together,
+ * because nothing checks that they agree.
  */
 
 export function cn(...inputs: ClassValue[]) {

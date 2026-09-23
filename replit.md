@@ -143,19 +143,32 @@ by path instead of by subdomain (the Docker deployment gives each its own):
 
 | Path | App |
 | --- | --- |
-| `/` | family portal |
-| `/console` | director console |
+| `/` | director console — the one sign-in that can deal with anybody |
+| `/family` | family portal, where a texted link opens |
 | `/admin` | platform admin console |
 | `/api` | the API |
+| `/__mockup` | component preview sandbox, development only |
 
-Each console is built with `BASE_PATH` set to its path (the
-`.replit-artifact/artifact.toml` next to it does this) and routes under it.
-The server builds its email and text links by appending to these variables,
-so on Replit they carry the path:
+The director console is at the root deliberately: it is the only screen that
+can sort out a director, a platform admin and a lost family member, so it is
+the address you hand somebody. The `.replit-artifact/artifact.toml` next to
+each app is the authority on this — each sets `BASE_PATH` for both the build
+and the runtime, because Vite bakes it into the bundle and the two disagreeing
+is a white page.
+
+One loose end worth knowing before you deploy: the director console's
+`artifact.toml` still registers `paths = [ "/console" ]` while its `BASE_PATH`
+is `/`. The comments in that file say the root is the intended answer, so the
+`paths` line is probably the stale half — but which one Replit's path router
+honours has not been checked against a real deployment, so check it there
+rather than trusting this paragraph.
+
+The server builds its email and text links by appending to these variables, so
+on Replit they carry the path:
 
 ```
-FAMILY_PORTAL_URL=https://yourdomain.com
-CONSOLE_URL=https://yourdomain.com/console
+FAMILY_PORTAL_URL=https://yourdomain.com/family
+CONSOLE_URL=https://yourdomain.com
 ```
 
 The consoles share an origin with the family portal here, which means they
