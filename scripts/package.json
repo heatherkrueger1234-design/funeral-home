@@ -25,6 +25,6 @@
     "@workspace/mailer": "workspace:*",
     "drizzle-orm": "catalog:",
     "pg": "^8.20.0",
-    "sharp": "^0.34.5"
+    "sharp": "catalog:"
   }
 }
