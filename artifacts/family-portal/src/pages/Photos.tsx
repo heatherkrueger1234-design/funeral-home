@@ -17,7 +17,17 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
-import { Check, Eye, Images, Loader2, Scissors, Star, Trash2, Upload } from "lucide-react";
+import {
+  Check,
+  Eye,
+  Images,
+  Loader2,
+  Scissors,
+  Star,
+  Trash2,
+  Upload,
+  type LucideIcon,
+} from "lucide-react";
 import { Empty, Loading, PageHeader } from "@/components/page";
 import { AuthedImage } from "@/components/AuthedImage";
 
@@ -137,8 +147,10 @@ export default function Photos() {
             <span className="grid size-7 shrink-0 place-items-center rounded-full bg-[var(--accent-soft)] text-[var(--accent-deep)]">
               <Scissors className="size-3.5" />
             </span>
-            <span className="tabular">{chosen.length}</span> chosen for the
-            slideshow
+            <span>
+              <span className="tabular">{chosen.length}</span> chosen for the
+              slideshow
+            </span>
           </p>
           {/*
             A rule rather than a percentage. "Around fifty is comfortable" is
@@ -159,7 +171,7 @@ export default function Photos() {
           </div>
           <p className="mt-2.5 text-sm leading-relaxed text-muted-foreground">
             {chosen.length === 0
-              ? `Tap “Use this” on the ones you'd like shown. Around ${target} is comfortable to watch.`
+              ? `Tap “Slideshow” under the ones you'd like shown. Around ${target} is comfortable to watch.`
               : chosen.length > target
                 ? `That's more than the ${target} or so that plays comfortably — it's your choice, and the funeral home will help if you'd like to trim it.`
                 : `Around ${target} plays comfortably. Nothing you leave out is deleted.`}
@@ -215,150 +227,190 @@ export default function Photos() {
             <li
               key={photo.id}
               className={[
-                "flex gap-3.5 rounded-xl border bg-card p-3.5 transition-gentle",
+                "overflow-hidden rounded-xl border bg-card transition-gentle",
                 "shadow-[var(--elevation-1)]",
                 photo.selected
                   ? "border-[var(--accent)]/45 ring-1 ring-inset ring-[var(--accent)]/15"
                   : "border-border",
               ].join(" ")}
             >
-              {/*
-                A fixed square with the picture covering it. Camera rolls are
-                a mix of portrait and landscape, and a list that jumps between
-                the two reads as a mess however good the photographs are.
-              */}
-              <div className="relative size-24 shrink-0">
-                <AuthedImage
-                  uploadId={photo.uploadId}
-                  alt={photo.caption ?? "Photograph"}
-                  className="size-full rounded-lg bg-muted object-cover ring-1 ring-inset ring-black/5"
-                />
-                {photo.isPortrait && (
-                  <span
-                    className="absolute -right-1.5 -top-1.5 grid size-6 place-items-center rounded-full bg-[var(--accent)] text-white shadow-[var(--elevation-1)]"
-                    title="The main photograph"
-                  >
-                    <Star className="size-3 fill-current" />
-                  </span>
-                )}
-              </div>
-
-              <div className="min-w-0 flex-1 space-y-2.5">
-                <Input
-                  defaultValue={photo.caption ?? ""}
-                  placeholder="Who's in it, and when?"
-                  // Saved on blur rather than on every keystroke: this is a
-                  // phone keyboard on mobile data, and a request per letter
-                  // would be both slow and pointless.
-                  onBlur={(event) => {
-                    const caption = event.target.value.trim();
-                    if (caption === (photo.caption ?? "")) return;
-                    updatePhoto.mutate({
-                      photoId: photo.id,
-                      data: { caption: caption || null },
-                    });
-                  }}
-                />
-
-                <div className="flex flex-wrap items-center gap-2">
-                  <Button
-                    type="button"
-                    variant={photo.selected ? "default" : "outline"}
-                    size="sm"
-                    // The whole selection list is replaced on every toggle
-                    // (see `toggle` above), computed from the last-fetched
-                    // list. Tapping a second photo before this one's request
-                    // round-trips would build its payload from the same
-                    // stale list and silently overwrite this choice, so the
-                    // button is disabled until the refetch it triggers lands.
-                    disabled={setSelection.isPending}
-                    onClick={() => toggle(photo.id)}
-                  >
-                    <Check className="size-4" />
-                    {photo.selected ? "In the slideshow" : "Use this"}
-                  </Button>
-
-                  <Button
-                    type="button"
-                    variant={photo.isPortrait ? "secondary" : "ghost"}
-                    size="sm"
-                    onClick={() =>
-                      setPortrait.mutate({ data: { photoId: photo.id } })
-                    }
-                  >
-                    <Star
-                      className={
-                        photo.isPortrait ? "size-4 fill-current" : "size-4"
-                      }
-                    />
-                    {photo.isPortrait ? "Main photograph" : "Use as main"}
-                  </Button>
-
-                  {/*
-                    Asked for plainly, because the alternative is the director
-                    ringing a daughter to ask how her mother wore her hair.
-
-                    It carries an icon like its neighbours for a reason that
-                    is not decoration: alone in a row of buttons, a bare
-                    sentence stops reading as something you can press and
-                    starts reading as a caption about the photograph above
-                    it. Three toggles, three marks, one row.
-                  */}
-                  <Button
-                    type="button"
-                    variant={photo.isReference ? "secondary" : "ghost"}
-                    size="sm"
-                    onClick={() =>
-                      setReference.mutate({ data: { photoId: photo.id } })
-                    }
-                  >
-                    <Eye
-                      className="size-4"
-                      strokeWidth={photo.isReference ? 2.25 : 2}
-                    />
-                    {photo.isReference
-                      ? "Shows how they looked"
-                      : "How they looked"}
-                  </Button>
-
-                  {/*
-                    Only what this person added — see the API's own rule.
-
-                    Pushed to the far end of the row rather than sitting
-                    fourth in a run of four. The three before it choose what a
-                    photograph is *for* and are meant to be tried; this one
-                    throws it away. Putting a gap between them is the whole of
-                    the protection a list like this needs, and more than a
-                    confirmation dialog on every tap would be worth.
-                  */}
-                  {photo.uploadedByContactId ===
-                    session.data?.contact.id && (
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="sm"
-                      className="ml-auto text-muted-foreground hover:text-[var(--destructive)]"
-                      onClick={() =>
-                        removePhoto.mutate({ photoId: photo.id })
-                      }
+              <div className="flex gap-3.5 p-3.5">
+                {/*
+                  A fixed square with the picture covering it. Camera rolls are
+                  a mix of portrait and landscape, and a list that jumps between
+                  the two reads as a mess however good the photographs are.
+                */}
+                <div className="relative size-24 shrink-0">
+                  <AuthedImage
+                    uploadId={photo.uploadId}
+                    alt={photo.caption ?? "Photograph"}
+                    className="size-full rounded-lg bg-muted object-cover ring-1 ring-inset ring-black/5"
+                  />
+                  {photo.isPortrait && (
+                    <span
+                      className="absolute -right-1.5 -top-1.5 grid size-6 place-items-center rounded-full bg-[var(--accent)] text-white shadow-[var(--elevation-1)] ring-2 ring-card"
+                      title="The main photograph"
                     >
-                      <Trash2 className="size-4" />
-                      Remove
-                    </Button>
+                      <Star className="size-3 fill-current" />
+                    </span>
                   )}
                 </div>
 
-                {photo.uploadedByName &&
-                  photo.uploadedByContactId !== session.data?.contact.id && (
-                    <p className="text-sm leading-snug text-muted-foreground">
-                      Added by {photo.uploadedByName}
+                <div className="min-w-0 flex-1 space-y-2">
+                  <Input
+                    defaultValue={photo.caption ?? ""}
+                    placeholder="Who's in it, and when?"
+                    aria-label="Caption"
+                    // Saved on blur rather than on every keystroke: this is a
+                    // phone keyboard on mobile data, and a request per letter
+                    // would be both slow and pointless.
+                    onBlur={(event) => {
+                      const caption = event.target.value.trim();
+                      if (caption === (photo.caption ?? "")) return;
+                      updatePhoto.mutate({
+                        photoId: photo.id,
+                        data: { caption: caption || null },
+                      });
+                    }}
+                  />
+
+                  <div className="flex items-center justify-between gap-3">
+                    <p className="min-w-0 truncate text-sm leading-snug text-muted-foreground">
+                      {photo.uploadedByName &&
+                      photo.uploadedByContactId !== session.data?.contact.id
+                        ? `Added by ${photo.uploadedByName}`
+                        : null}
                     </p>
-                  )}
+
+                    {/*
+                      Only what this person added — see the API's own rule.
+
+                      Up here beside the caption, and set as a quiet link,
+                      rather than in the row of choices below. Those three
+                      choose what a photograph is *for* and are meant to be
+                      tried; this one throws it away. Distance and a plainer
+                      voice are the whole of the protection a list like this
+                      needs, and more than a confirmation dialog on every tap
+                      would be worth.
+                    */}
+                    {photo.uploadedByContactId === session.data?.contact.id && (
+                      <button
+                        type="button"
+                        className="-mr-1 inline-flex shrink-0 items-center gap-1.5 rounded-md px-1 py-1 text-sm
+                                   text-muted-foreground transition-gentle hover:text-[var(--destructive)]"
+                        onClick={() => removePhoto.mutate({ photoId: photo.id })}
+                      >
+                        <Trash2 className="size-3.5" strokeWidth={1.75} />
+                        Remove
+                      </button>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              {/*
+                What this photograph is for: three switches of equal weight,
+                ruled across the foot of the card like the columns of a form.
+                They used to be a dark pill, a beige pill and a bare word
+                wrapping round each other beside the picture — three styles
+                for three things of the same kind. Now each is off in the
+                same way and on in the same way: the home's colour behind it,
+                and its mark set white in a filled circle.
+              */}
+              <div
+                role="group"
+                aria-label="What this photograph is for"
+                className="grid grid-cols-3 divide-x divide-border border-t border-border bg-[var(--sunken)]"
+              >
+                <PhotoToggle
+                  icon={Check}
+                  label="Slideshow"
+                  on={photo.selected}
+                  // The whole selection list is replaced on every toggle
+                  // (see `toggle` above), computed from the last-fetched
+                  // list. Tapping a second photo before this one's request
+                  // round-trips would build its payload from the same
+                  // stale list and silently overwrite this choice, so the
+                  // button is disabled until the refetch it triggers lands.
+                  disabled={setSelection.isPending}
+                  onClick={() => toggle(photo.id)}
+                />
+                <PhotoToggle
+                  icon={Star}
+                  label="Main photo"
+                  on={photo.isPortrait}
+                  onClick={() => setPortrait.mutate({ data: { photoId: photo.id } })}
+                />
+                {/*
+                  Asked for plainly, because the alternative is the director
+                  ringing a daughter to ask how her mother wore her hair.
+                */}
+                <PhotoToggle
+                  icon={Eye}
+                  label="How they looked"
+                  on={photo.isReference}
+                  onClick={() => setReference.mutate({ data: { photoId: photo.id } })}
+                />
               </div>
             </li>
           ))}
         </ul>
       )}
     </div>
+  );
+}
+
+/**
+ * One of the three switches under a photograph.
+ *
+ * A real toggle — `aria-pressed` — so a screen reader says "Slideshow,
+ * pressed" rather than reading a label that changes under the finger. The
+ * label stays put and the state is carried by the fill, which is also what
+ * lets all three sit in equal columns at phone width without one of them
+ * wrapping to a second line when it turns on.
+ */
+function PhotoToggle({
+  icon: Icon,
+  label,
+  on,
+  disabled,
+  onClick,
+}: {
+  icon: LucideIcon;
+  label: string;
+  on: boolean;
+  disabled?: boolean;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      aria-pressed={on}
+      disabled={disabled}
+      onClick={onClick}
+      className={[
+        "flex min-h-[3.75rem] flex-col items-center justify-center gap-1.5 px-1.5 py-2.5",
+        "text-center text-[0.8125rem] font-semibold leading-tight transition-gentle",
+        "focus-visible:relative focus-visible:z-10 disabled:opacity-60",
+        on
+          ? "bg-[var(--accent-soft)] text-[var(--accent-deep)]"
+          : "text-muted-foreground hover:bg-card hover:text-foreground",
+      ].join(" ")}
+    >
+      <span
+        className={[
+          "grid size-6 place-items-center rounded-full transition-gentle",
+          on
+            ? "bg-[var(--accent)] text-white shadow-[var(--elevation-1)]"
+            : "ring-1 ring-inset ring-[var(--border-strong)]",
+        ].join(" ")}
+      >
+        <Icon
+          className={on && Icon === Star ? "size-3.5 fill-current" : "size-3.5"}
+          strokeWidth={on ? 2.5 : 2}
+        />
+      </span>
+      {label}
+    </button>
   );
 }
