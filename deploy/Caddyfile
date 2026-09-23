@@ -1,0 +1,62 @@
+# TLS for the whole stack.
+#
+# Caddy is the only thing published to the internet. It obtains and renews a
+# Let's Encrypt certificate for each of the three hostnames on its own, the
+# first time each one is requested, and hands the request to that app's
+# nginx over the compose network. Nothing here needs editing: the hostnames
+# come from the same URLs in .env that the API uses to build the links it
+# texts and emails, so the certificate and the links cannot disagree.
+#
+# For certificates to be issued, before the first `docker compose up`:
+#   - each hostname's DNS A (and AAAA, if you have IPv6) record points here;
+#   - ports 80 and 443 reach this host. Port 80 is not optional: Let's
+#     Encrypt proves you own the name over it, and Caddy uses it to redirect
+#     plain-HTTP visitors to HTTPS.
+#
+# Certificates live in the caddy-data volume. Deleting that volume means
+# asking Let's Encrypt again, and it rate-limits repeat requests for the same
+# names (5 a week), so do not make a habit of it.
+#
+# Headers: Caddy's reverse_proxy sets X-Forwarded-For, -Proto and -Host by
+# default and discards any a client sent. nginx appends its own hop, which is
+# why the API is told TRUST_PROXY_HOPS=2 in docker-compose.yml.
+{
+	# Where Let's Encrypt sends expiry warnings if renewal ever stops working.
+	email {$ACME_EMAIL}
+}
+
+(app) {
+	encode zstd gzip
+	# Photo uploads of up to 50MB; nginx enforces the same ceiling behind it.
+	request_body {
+		max_size 50MB
+	}
+}
+
+{$FAMILY_PORTAL_URL} {
+	import app
+	reverse_proxy family-portal:80 {
+		# The photo pack is a zip of hundreds of decrypted images, streamed.
+		flush_interval -1
+		transport http {
+			read_timeout 600s
+			write_timeout 600s
+		}
+	}
+}
+
+{$CONSOLE_URL} {
+	import app
+	reverse_proxy director-console:80 {
+		flush_interval -1
+		transport http {
+			read_timeout 600s
+			write_timeout 600s
+		}
+	}
+}
+
+{$ADMIN_CONSOLE_URL} {
+	import app
+	reverse_proxy admin-console:80
+}

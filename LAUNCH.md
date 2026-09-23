@@ -93,9 +93,9 @@ What moved the numbers:
 | Gap | Severity | What it would take |
 | --- | --- | --- |
 | ~~The container images have never been built or run.~~ **Done.** All four build; the stack comes up healthy, migrates, serves, backs up and restores. Two real bugs were found doing it. | Cleared | — |
-| **No production deployment exists.** Nothing is running anywhere. | **Blocking** | A host, a domain, TLS, a Postgres. Half a day. |
+| **No production deployment exists.** Nothing is running anywhere. TLS is now built into the stack (Caddy, automatic Let's Encrypt), and the proxy chain was tested end to end. | **Blocking** | A host, three DNS records, `docker compose up`. An hour or two. |
 | **No real family has ever used the family portal.** Every test is synthetic. | **High** | One pilot home, one real case, watch what happens. |
-| **Email and SMS are unconfigured.** Password resets, aftercare and intake alerts are written to the log instead of sent. | **High** | SMTP credentials and a Twilio number. |
+| **Email and SMS are unconfigured.** Password resets, aftercare and intake alerts are written to the log instead of sent. The email side is ready and tested against a real SMTP server; it needs an account. | **High** | A mail provider account, its DNS records, and `send-test-email` passing (DEPLOY.md, "Email"). A Twilio number. |
 | **Stripe has never taken a real payment.** The webhook signature check is tested; a live charge is not. | **High** | Test-mode keys, one real subscription cycle. |
 | **One API instance, one Postgres, no replication.** | Medium | Fine for a pilot. Not fine at fifty homes. |
 | **Uploads live in Postgres.** Encrypted, correct, and the wrong long-term home for gigabytes of photographs. | Medium | Object storage, when a home's database gets uncomfortable. |
@@ -133,12 +133,13 @@ These were chosen, and the reasoning is in the code next to them:
 
 ## Before the first pilot home
 
-1. Build the images and bring the stack up. **Terminate TLS** — the session
-   cookie is `Secure` in production and the server logs a specific warning if
-   it is issued over plain HTTP.
+1. Point DNS for the three hostnames at the host, open ports 80 and 443,
+   then build and bring the stack up. Caddy fetches the certificates itself;
+   watch `docker compose logs caddy` until all three are obtained.
 2. `pnpm --filter @workspace/db run push`, then load the ZIP centroids.
-3. Configure SMTP. Without it, a director who forgets their password cannot
-   reset it without someone reading the server log.
+3. Configure SMTP and run `send-test-email` until it lands in an inbox, not
+   spam. Without it, a director who forgets their password cannot reset it
+   without someone reading the server log.
 4. Set `TASK_SECRET` and schedule the aftercare job. It is the feature the
    subscription is really for, and it does nothing until something triggers it.
 5. Take one backup, then run `verify-backup` and watch it restore.

@@ -67,7 +67,7 @@ describe("the session cookie, once there is a proxy in front", () => {
 
     await request(app)
       .post("/api/auth/register")
-      // What nginx sends. app.ts trusts one hop, so req.secure reads it.
+      // What nginx sends. app.ts trusts that hop, so req.secure reads it.
       .set("x-forwarded-proto", "https")
       .send(registration())
       .expect(201);
@@ -167,5 +167,49 @@ describe("bad input must not look like a server fault", () => {
 
     expect(res.status).not.toBe(500);
     expect(res.status).toBe(400);
+  });
+});
+
+describe("how many proxies are trusted, which is what the rate limiter keys on", () => {
+  // What arrives at the API in the compose stack: Caddy writes the client's
+  // address, then nginx appends Caddy's own on the way through.
+  const THROUGH_CADDY_AND_NGINX = "203.0.113.7, 172.18.0.5";
+
+  async function ipSeenWith(hops: number) {
+    const express = (await import("express")).default;
+    const probe = express();
+    probe.set("trust proxy", hops);
+    probe.get("/ip", (req, res) => {
+      res.json({ ip: req.ip, secure: req.secure });
+    });
+    const res = await request(probe)
+      .get("/ip")
+      .set("x-forwarded-for", THROUGH_CADDY_AND_NGINX)
+      .set("x-forwarded-proto", "https");
+    return res.body as { ip: string; secure: boolean };
+  }
+
+  it("sees every visitor as Caddy when one hop is trusted behind two", async () => {
+    // The bug this setting exists to prevent: one address for everybody, so
+    // one family's failed sign-ins lock every director out.
+    expect((await ipSeenWith(1)).ip).toBe("172.18.0.5");
+  });
+
+  it("sees the real visitor when both hops are trusted", async () => {
+    const seen = await ipSeenWith(2);
+    expect(seen.ip).toBe("203.0.113.7");
+    expect(seen.secure).toBe(true);
+  });
+
+  it("defaults to one hop and refuses nonsense rather than guessing", async () => {
+    const { trustProxyHops } = await import("../src/lib/trust-proxy");
+    expect(trustProxyHops(undefined)).toBe(1);
+    expect(trustProxyHops("")).toBe(1);
+    expect(trustProxyHops("2")).toBe(2);
+    expect(trustProxyHops("0")).toBe(0);
+    // "true" would make Express trust every hop, including a forged header.
+    expect(() => trustProxyHops("true")).toThrow(/whole number/);
+    expect(() => trustProxyHops("-1")).toThrow(/whole number/);
+    expect(() => trustProxyHops("1.5")).toThrow(/whole number/);
   });
 });
