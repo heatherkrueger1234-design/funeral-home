@@ -7,7 +7,7 @@ import router from "./routes";
 import { billingWebhookRouter } from "./routes/billing";
 import { logger } from "./lib/logger";
 import { errorHandler, notFoundHandler } from "./lib/http";
-import { corsOptions } from "./lib/cors";
+import { corsOptions, rejectCrossOriginWrites } from "./lib/cors";
 import { trustProxyHops } from "./lib/trust-proxy";
 
 const app: Express = express();
@@ -53,6 +53,8 @@ app.use(
   }),
 );
 app.use(cors(corsOptions()));
+// CORS governs reading a response, not sending the request; see the handler.
+app.use("/api", rejectCrossOriginWrites);
 
 // Stripe signs the exact bytes it sent, so this must be reachable before the
 // global body parsers below consume the request stream. body-parser will not

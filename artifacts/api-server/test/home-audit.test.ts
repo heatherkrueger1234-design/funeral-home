@@ -159,6 +159,45 @@ describe("the photo pack", () => {
   });
 });
 
+describe("a form on a sibling site", () => {
+  it("cannot write as the signed-in director", async () => {
+    const staff = await signUpHome();
+
+    // What a page on the family portal's hostname (same site, so the Lax
+    // cookie travels) would send.
+    await staff.agent
+      .post("/api/cases")
+      .set("Origin", "https://family.example.com")
+      .set("Host", "console.example.com")
+      .type("form")
+      .send("decedentFirstName=Forged&decedentLastName=Case")
+      .expect(403);
+    await staff.agent
+      .post("/api/cases")
+      .set("Origin", "null")
+      .send({ decedentFirstName: "A", decedentLastName: "B" })
+      .expect(403);
+
+    // The console itself, on its own origin, is fine; so is a caller with
+    // no Origin at all (curl, the scheduler, Stripe).
+    await staff.agent
+      .post("/api/cases")
+      .set("Origin", "https://console.example.com")
+      .set("Host", "console.example.com")
+      .send({ decedentFirstName: "Real", decedentLastName: "Case" })
+      .expect(201);
+    // Reading is untouched.
+    await staff.agent
+      .get("/api/cases")
+      .set("Origin", "https://family.example.com")
+      .expect(200);
+
+    const cases = await staff.agent.get("/api/cases").expect(200);
+    expect(cases.body.map((c: { decedentLastName: string }) => c.decedentLastName)).toEqual(["Case"]);
+    expect(cases.body[0].decedentFirstName).toBe("Real");
+  });
+});
+
 describe("people who have left", () => {
   it("cannot be made a case's lead director", async () => {
     const owner = await signUpHome();
