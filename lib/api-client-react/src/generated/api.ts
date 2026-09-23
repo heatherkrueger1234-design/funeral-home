@@ -32,6 +32,8 @@ import type {
   AcceptedIntake,
   AftercareConsentInput,
   AftercareEnrollment,
+  AftercareUnsubscribeParams,
+  AftercareUnsubscribeState,
   AuthUser,
   Belonging,
   BelongingInput,
@@ -68,6 +70,7 @@ import type {
   ForgotPasswordInput,
   FuneralHome,
   FuneralHomeUpdate,
+  GetAftercareUnsubscribeParams,
   GetCasesParams,
   GetFamilyVendorsParams,
   GetIntakeRequestsParams,
@@ -401,6 +404,220 @@ export const useSubmitIntakeRequest = <
   TContext
 > => {
   return useMutation(getSubmitIntakeRequestMutationOptions(options));
+};
+
+/**
+ * Unauthenticated; the signed token from the foot of a grief check-in
+is the credential. Changes nothing, because mail scanners fetch every
+link in a message - it only lets the page name the home and ask.
+
+ * @summary Whose check-ins an unsubscribe link would stop
+ */
+export const getGetAftercareUnsubscribeUrl = (
+  params: GetAftercareUnsubscribeParams,
+) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? "null" : value.toString());
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0
+    ? `/api/public/aftercare/unsubscribe?${stringifiedParams}`
+    : `/api/public/aftercare/unsubscribe`;
+};
+
+export const getAftercareUnsubscribe = async (
+  params: GetAftercareUnsubscribeParams,
+  options?: RequestInit,
+): Promise<AftercareUnsubscribeState> => {
+  return customFetch<AftercareUnsubscribeState>(
+    getGetAftercareUnsubscribeUrl(params),
+    {
+      ...options,
+      method: "GET",
+    },
+  );
+};
+
+export const getGetAftercareUnsubscribeQueryKey = (
+  params?: GetAftercareUnsubscribeParams,
+) => {
+  return [
+    `/api/public/aftercare/unsubscribe`,
+    ...(params ? [params] : []),
+  ] as const;
+};
+
+export const getGetAftercareUnsubscribeQueryOptions = <
+  TData = Awaited<ReturnType<typeof getAftercareUnsubscribe>>,
+  TError = ErrorType<void>,
+>(
+  params: GetAftercareUnsubscribeParams,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getAftercareUnsubscribe>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey =
+    queryOptions?.queryKey ?? getGetAftercareUnsubscribeQueryKey(params);
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof getAftercareUnsubscribe>>
+  > = ({ signal }) =>
+    getAftercareUnsubscribe(params, { signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof getAftercareUnsubscribe>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type GetAftercareUnsubscribeQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getAftercareUnsubscribe>>
+>;
+export type GetAftercareUnsubscribeQueryError = ErrorType<void>;
+
+/**
+ * @summary Whose check-ins an unsubscribe link would stop
+ */
+
+export function useGetAftercareUnsubscribe<
+  TData = Awaited<ReturnType<typeof getAftercareUnsubscribe>>,
+  TError = ErrorType<void>,
+>(
+  params: GetAftercareUnsubscribeParams,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getAftercareUnsubscribe>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getGetAftercareUnsubscribeQueryOptions(params, options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * Final, exactly as a "no" in the portal is. Also the RFC 8058
+one-click target named in the message's List-Unsubscribe header.
+
+ * @summary Stop the check-ins, for good
+ */
+export const getAftercareUnsubscribeUrl = (
+  params: AftercareUnsubscribeParams,
+) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? "null" : value.toString());
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0
+    ? `/api/public/aftercare/unsubscribe?${stringifiedParams}`
+    : `/api/public/aftercare/unsubscribe`;
+};
+
+export const aftercareUnsubscribe = async (
+  params: AftercareUnsubscribeParams,
+  options?: RequestInit,
+): Promise<AftercareUnsubscribeState> => {
+  return customFetch<AftercareUnsubscribeState>(
+    getAftercareUnsubscribeUrl(params),
+    {
+      ...options,
+      method: "POST",
+    },
+  );
+};
+
+export const getAftercareUnsubscribeMutationOptions = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof aftercareUnsubscribe>>,
+    TError,
+    { params: AftercareUnsubscribeParams },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof aftercareUnsubscribe>>,
+  TError,
+  { params: AftercareUnsubscribeParams },
+  TContext
+> => {
+  const mutationKey = ["aftercareUnsubscribe"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof aftercareUnsubscribe>>,
+    { params: AftercareUnsubscribeParams }
+  > = (props) => {
+    const { params } = props ?? {};
+
+    return aftercareUnsubscribe(params, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type AftercareUnsubscribeMutationResult = NonNullable<
+  Awaited<ReturnType<typeof aftercareUnsubscribe>>
+>;
+
+export type AftercareUnsubscribeMutationError = ErrorType<void>;
+
+/**
+ * @summary Stop the check-ins, for good
+ */
+export const useAftercareUnsubscribe = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof aftercareUnsubscribe>>,
+    TError,
+    { params: AftercareUnsubscribeParams },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof aftercareUnsubscribe>>,
+  TError,
+  { params: AftercareUnsubscribeParams },
+  TContext
+> => {
+  return useMutation(getAftercareUnsubscribeMutationOptions(options));
 };
 
 /**

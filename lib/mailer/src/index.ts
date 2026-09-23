@@ -273,6 +273,8 @@ async function send(message: {
   senderName?: string;
   /** Where a reply goes, when it should not come back to SMTP_FROM. */
   replyTo?: string | null;
+  /** Extra headers, e.g. List-Unsubscribe on a grief check-in. */
+  headers?: Record<string, string>;
 }): Promise<void> {
   const mailer = getTransport();
 
@@ -292,7 +294,7 @@ async function send(message: {
   }
 
   try {
-    const { rethrow, logText, senderName, replyTo, ...payload } = message;
+    const { rethrow, logText, senderName, replyTo, headers, ...payload } = message;
     void rethrow;
     void logText;
     await mailer.transport.sendMail({
@@ -302,6 +304,7 @@ async function send(message: {
         ? { name: senderName.trim(), address: mailer.fromAddress }
         : mailer.from,
       ...(replyTo ? { replyTo } : {}),
+      ...(headers ? { headers } : {}),
       ...payload,
     });
     logger.info({ to: message.to, subject: message.subject }, "Email sent");
@@ -446,10 +449,45 @@ export async function sendAftercareEmail(options: {
    * it, not a no-reply mailbox at the software company.
    */
   replyTo?: string | null;
+  /**
+   * Where "stop these" goes: a page on the portal that asks once and then
+   * stops them for good. Null when the deployment has no FAMILY_PORTAL_URL,
+   * in which case the note says to reply, which reaches the home.
+   */
+  unsubscribeUrl?: string | null;
+  /** The RFC 8058 one-click endpoint, for the mail client's own button. */
+  oneClickUnsubscribeUrl?: string | null;
+  /** The home's postal address, which CAN-SPAM asks every message to carry. */
+  postalAddress?: string | null;
 }): Promise<void> {
-  const { to, subject, body, brandedAs, replyTo } = options;
+  const {
+    to,
+    subject,
+    body,
+    brandedAs,
+    replyTo,
+    unsubscribeUrl,
+    oneClickUnsubscribeUrl,
+    postalAddress,
+  } = options;
 
-  const text = `${body}\n\n— Provided in care with ${brandedAs}`;
+  /*
+   * The foot of the note. Quiet, and in the same grey as the signature, but
+   * present: a family who cannot face another of these should not have to
+   * find a text message from last spring to make them stop.
+   */
+  const stopLine = unsubscribeUrl
+    ? `If you would rather not hear from us like this, you can stop these notes here: ${unsubscribeUrl}`
+    : "If you would rather not hear from us like this, reply to this note and we will stop.";
+
+  const text = [
+    body,
+    "",
+    `— Provided in care with ${brandedAs}`,
+    ...(postalAddress ? [postalAddress] : []),
+    "",
+    stopLine,
+  ].join("\n");
 
   // Escaped first, then the single line break the home typed is turned into
   // the one tag this template allows. Doing it the other way round would let
@@ -468,7 +506,17 @@ export async function sendAftercareEmail(options: {
             line-height:1.7;font-size:15px">
   ${paragraphs}
   <p style="margin:28px 0 0;color:#6b7280;font-size:13px">
-    Provided in care with ${esc(brandedAs)}
+    Provided in care with ${esc(brandedAs)}${
+      postalAddress ? `<br>${esc(postalAddress)}` : ""
+    }
+  </p>
+  <p style="margin:16px 0 0;color:#6b7280;font-size:13px">
+    ${
+      unsubscribeUrl
+        ? `If you would rather not hear from us like this, you can
+    <a href="${esc(unsubscribeUrl)}" style="color:#6b7280">stop these notes</a>.`
+        : "If you would rather not hear from us like this, reply to this note and we will stop."
+    }
   </p>
 </div>`.trim();
 
@@ -480,6 +528,17 @@ export async function sendAftercareEmail(options: {
     rethrow: true,
     senderName: brandedAs,
     replyTo,
+    // The signed token only stops these notes, but it is still not something
+    // to leave lying in a log for anyone to use on the family's behalf.
+    logText: unsubscribeUrl
+      ? text.replace(unsubscribeUrl, unsubscribeUrl.replace(/token=[^&\s]+/, "token=REDACTED"))
+      : text,
+    headers: oneClickUnsubscribeUrl
+      ? {
+          "List-Unsubscribe": `<${oneClickUnsubscribeUrl}>`,
+          "List-Unsubscribe-Post": "List-Unsubscribe=One-Click",
+        }
+      : undefined,
   });
 }
 

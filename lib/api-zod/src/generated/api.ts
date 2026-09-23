@@ -164,6 +164,37 @@ export const SubmitIntakeRequestBody = zod
   );
 
 /**
+ * Unauthenticated; the signed token from the foot of a grief check-in
+is the credential. Changes nothing, because mail scanners fetch every
+link in a message - it only lets the page name the home and ask.
+
+ * @summary Whose check-ins an unsubscribe link would stop
+ */
+export const GetAftercareUnsubscribeQueryParams = zod.object({
+  token: zod.coerce.string(),
+});
+
+export const GetAftercareUnsubscribeResponse = zod.object({
+  homeName: zod.string().describe("Whose name the check-ins are signed in."),
+  stopped: zod.boolean(),
+});
+
+/**
+ * Final, exactly as a "no" in the portal is. Also the RFC 8058
+one-click target named in the message's List-Unsubscribe header.
+
+ * @summary Stop the check-ins, for good
+ */
+export const AftercareUnsubscribeQueryParams = zod.object({
+  token: zod.coerce.string(),
+});
+
+export const AftercareUnsubscribeResponse = zod.object({
+  homeName: zod.string().describe("Whose name the check-ins are signed in."),
+  stopped: zod.boolean(),
+});
+
+/**
  * @summary Open an account, creating the funeral home and its first owner
  */
 

@@ -1,6 +1,7 @@
 import {
   createCipheriv,
   createDecipheriv,
+  createHmac,
   randomBytes,
   timingSafeEqual,
 } from "node:crypto";
@@ -229,6 +230,51 @@ export const encryptNullable = (
 export const decryptNullable = (
   value: string | null | undefined,
 ): string | null => (value == null ? null : decrypt(value));
+
+/**
+ * A row id, signed for one purpose, for a link that must work with no
+ * session and no stored secret.
+ *
+ * Made for the unsubscribe link in a grief check-in. That link has to work
+ * from an inbox on the anniversary of a death, a year after anybody last
+ * opened the portal, so it cannot depend on the family's texted link still
+ * being alive; and it should not need a column of its own to be added to a
+ * table the aftercare sender reads on every run. An HMAC of the enrolment id
+ * under a key derived from ENCRYPTION_KEY gives exactly that: nobody can
+ * forge one for somebody else's enrolment, it never expires, and all it can
+ * do is the one thing it was signed for.
+ *
+ * The purpose is mixed into the key, so a token signed for one job is
+ * worthless for any other that is added later.
+ */
+function purposeKey(purpose: string): Buffer {
+  return createHmac("sha256", getEncryptionKey())
+    .update(`holding-today/signed-id/${purpose}`)
+    .digest();
+}
+
+function macFor(purpose: string, id: number): string {
+  return createHmac("sha256", purposeKey(purpose))
+    .update(String(id))
+    .digest("base64url")
+    .slice(0, 32);
+}
+
+export function signId(purpose: string, id: number): string {
+  return `${id}.${macFor(purpose, id)}`;
+}
+
+/** The id a token was signed for, or null for anything forged or mangled. */
+export function readSignedId(purpose: string, token: string): number | null {
+  const match = /^(\d{1,12})\.([A-Za-z0-9_-]{32})$/.exec(token.trim());
+  if (!match) return null;
+
+  const id = Number(match[1]);
+  const expected = Buffer.from(macFor(purpose, id));
+  const given = Buffer.from(match[2]!);
+
+  return constantTimeEquals(expected, given) ? id : null;
+}
 
 /** Exported for tests: proves two encryptions of the same input differ. */
 export function constantTimeEquals(a: Buffer, b: Buffer): boolean {
