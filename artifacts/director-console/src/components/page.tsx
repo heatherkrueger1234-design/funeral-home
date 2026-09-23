@@ -22,9 +22,9 @@ export function PageHeader({
   return (
     <header className="flex flex-wrap items-start gap-x-4 gap-y-3">
       <div className="min-w-0 flex-1">
-        <h1 className="font-display text-2xl leading-tight">{title}</h1>
+        <h1 className="font-display text-[1.875rem] leading-tight">{title}</h1>
         {children && (
-          <p className="mt-1 max-w-prose text-muted-foreground">{children}</p>
+          <p className="mt-1.5 max-w-prose text-muted-foreground">{children}</p>
         )}
       </div>
       {aside && <div className="flex shrink-0 items-center gap-2">{aside}</div>}

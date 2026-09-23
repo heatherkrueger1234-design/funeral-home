@@ -49,6 +49,33 @@ function formatWhen(value: string | Date | null | undefined): string | null {
   });
 }
 
+/**
+ * The service's date and its time, apart. Run together at the size the hero
+ * card sets them, "Monday, September 28 at 4:07 PM" breaks on a phone
+ * between the month and the day — the one line on this screen people have
+ * come to read, torn in half. Two lines, each whole, and the time a step
+ * smaller beneath the date, the way an invitation sets them.
+ */
+function splitWhen(
+  value: string | Date | null | undefined,
+): { date: string; time: string } | null {
+  if (!value) return null;
+  const when = value instanceof Date ? value : new Date(value);
+  if (Number.isNaN(when.getTime())) return null;
+
+  return {
+    date: when.toLocaleDateString(undefined, {
+      weekday: "long",
+      day: "numeric",
+      month: "long",
+    }),
+    time: when.toLocaleTimeString(undefined, {
+      hour: "numeric",
+      minute: "2-digit",
+    }),
+  };
+}
+
 type CardProps = {
   href: string;
   icon: typeof Images;
@@ -59,44 +86,50 @@ type CardProps = {
 
 function Card({ href, icon: Icon, title, detail, badge }: CardProps) {
   return (
-    <Link
-      href={href}
-      className="lift group flex items-center gap-4 rounded-xl border border-border bg-card px-4 py-4
-                 no-underline shadow-[var(--elevation-1)] transition-gentle
-                 hover:border-[color-mix(in_oklab,var(--accent)_45%,var(--border))]"
-    >
-      <span
-        className="grid size-11 shrink-0 place-items-center rounded-full bg-[var(--accent-soft)]
-                   text-[var(--accent-deep)] ring-1 ring-inset ring-[var(--accent)]/10
-                   transition-gentle group-hover:ring-[var(--accent)]/25"
+    <li>
+      <Link
+        href={href}
+        className="group flex items-center gap-4 px-4 py-3.5 no-underline transition-gentle
+                   hover:bg-[var(--sunken)] focus-visible:bg-[var(--sunken)]"
       >
-        <Icon className="size-5" strokeWidth={1.75} />
-      </span>
-      <span className="min-w-0 flex-1">
-        <span className="flex items-center gap-2">
-          <span className="font-semibold">{title}</span>
-          {badge !== undefined && badge > 0 && (
-            <span className="tabular rounded-full bg-[var(--accent)] px-2 py-0.5 text-xs font-semibold text-white">
-              {badge}
-            </span>
-          )}
+        <span
+          className="grid size-10 shrink-0 place-items-center rounded-full bg-[var(--accent-soft)]
+                     text-[var(--accent-deep)] ring-1 ring-inset ring-[var(--accent)]/10
+                     transition-gentle group-hover:ring-[var(--accent)]/30"
+        >
+          <Icon className="size-[1.125rem]" strokeWidth={1.6} />
         </span>
-        <span className="mt-0.5 block text-sm leading-snug text-muted-foreground">
-          {detail}
+        <span className="min-w-0 flex-1">
+          <span className="flex items-center gap-2">
+            <span className="font-semibold">{title}</span>
+            {badge !== undefined && badge > 0 && (
+              <span className="tabular rounded-full bg-[var(--accent)] px-2 py-0.5 text-xs font-semibold text-white">
+                {badge}
+              </span>
+            )}
+          </span>
+          <span className="mt-0.5 block text-sm leading-snug text-muted-foreground">
+            {detail}
+          </span>
         </span>
-      </span>
-      <ChevronRight
-        className="size-5 shrink-0 text-muted-foreground/60 transition-gentle
-                   group-hover:translate-x-0.5 group-hover:text-[var(--accent)]"
-      />
-    </Link>
+        <ChevronRight
+          className="size-[1.125rem] shrink-0 text-muted-foreground/50 transition-gentle
+                     group-hover:translate-x-0.5 group-hover:text-[var(--accent)]"
+          strokeWidth={1.75}
+        />
+      </Link>
+    </li>
   );
 }
 
 /**
- * A named group of cards. The label is set the way a section marker is set on
- * an order of service: small, letterspaced, with a hairline carrying it
- * across the page.
+ * A named group, set as one card with its entries ruled off inside it —
+ * the way a printed contents page lists its sections — rather than as a
+ * stack of separate tiles. Ten floating tiles read as an app's menu; three
+ * or four ruled lists read as something a person arranged.
+ *
+ * The label is set the way a section marker is set on an order of service:
+ * small, letterspaced, with a hairline carrying it across the page.
  */
 function Group({ label, children }: { label: string; children: ReactNode }) {
   return (
@@ -105,7 +138,12 @@ function Group({ label, children }: { label: string; children: ReactNode }) {
         <h2 className="eyebrow">{label}</h2>
         <span className="h-px flex-1 bg-border" aria-hidden />
       </div>
-      <div className="space-y-2.5">{children}</div>
+      <ul
+        className="divide-y divide-border overflow-hidden rounded-xl border border-border bg-card
+                   shadow-[var(--elevation-1)]"
+      >
+        {children}
+      </ul>
     </section>
   );
 }
@@ -130,7 +168,7 @@ export default function Hub() {
     aftercare,
   } = session.data;
 
-  const serviceWhen = formatWhen(deceased.serviceAt);
+  const serviceWhen = splitWhen(deceased.serviceAt);
   const voice = voiceFor(deceased.kind);
 
   // The soonest thing that is actually due. One is useful; a list of five on
@@ -149,31 +187,47 @@ export default function Hub() {
         because for the first week it is the only thing on this screen most
         people have come for.
       */}
-      <section>
-        <h1 className="font-display text-[1.75rem] leading-tight">
+      <section className="pt-2 text-center">
+        <div className="ornament mx-auto mb-5 max-w-[10rem]" aria-hidden>
+          <i />
+        </div>
+        <h1 className="font-display text-[2.125rem] leading-[1.1]">
           {voice.heading(deceased.displayName)}
         </h1>
         {serviceWhen ? (
-          <div className="mt-4 rounded-xl border border-[var(--accent)]/30 bg-[var(--accent-soft)] px-4 py-4 shadow-[var(--elevation-1)]">
-            <p className="eyebrow mb-1.5 text-[var(--accent-deep)]/75">
+          /*
+            Set like the card tucked into a sympathy envelope: white stock,
+            a brass line ruled just inside the edge, everything centred.
+          */
+          <div className="engraved mt-6 rounded-xl border border-[var(--brass-soft)] bg-card px-6 py-6">
+            <p className="eyebrow mb-2.5 text-[var(--accent-deep)]/80">
               The service
             </p>
-            <p className="font-display text-lg leading-snug text-[var(--accent-deep)]">
-              {serviceWhen}
+            <p className="font-display text-[1.3rem] leading-snug text-[var(--accent-deep)]">
+              {serviceWhen.date}
+            </p>
+            <p className="tabular mt-0.5 text-[var(--accent-deep)]/85">
+              {serviceWhen.time}
             </p>
             {deceased.serviceLocation && (
-              <p className="mt-0.5 text-sm text-muted-foreground">
-                {deceased.serviceLocation}
-              </p>
+              <>
+                <span
+                  aria-hidden
+                  className="mx-auto my-3 block h-px w-8 bg-[var(--brass)]/50"
+                />
+                <p className="text-[0.9375rem] text-muted-foreground">
+                  {deceased.serviceLocation}
+                </p>
+              </>
             )}
           </div>
         ) : voice.preNeed ? (
-          <p className="mt-2 text-muted-foreground">
+          <p className="mx-auto mt-3 max-w-md text-muted-foreground">
             Nothing here is fixed, and nothing is decided today. Add what you
             know, leave the rest, and come back whenever you like.
           </p>
         ) : (
-          <p className="mt-2 text-muted-foreground">
+          <p className="mx-auto mt-3 max-w-md text-muted-foreground">
             {home.name} will confirm the service details with you.
           </p>
         )}
@@ -191,7 +245,7 @@ export default function Hub() {
               the one card on the screen that somebody else is waiting on. */}
           <span
             aria-hidden
-            className="absolute inset-y-0 left-0 w-1 bg-[var(--accent)]"
+            className="absolute inset-y-0 left-0 w-[3px] bg-[var(--accent)]"
           />
           <p className="eyebrow mb-1">The date</p>
           <p className="font-semibold">
@@ -243,7 +297,7 @@ export default function Hub() {
               wash. It marks the card as the live one without shouting. */}
           <span
             aria-hidden
-            className="absolute inset-y-0 left-0 w-1 bg-[var(--accent)]"
+            className="absolute inset-y-0 left-0 w-[3px] bg-[var(--accent)]"
           />
           <p className="eyebrow mb-1">Next</p>
           {nextDue ? (
@@ -371,7 +425,7 @@ export default function Hub() {
         the 24-hour number, and two hairlines forty pixels apart with one
         sentence between them is a line nobody meant to draw.
       */}
-      <p className="pt-1 text-sm leading-relaxed text-muted-foreground">
+      <p className="mx-auto max-w-sm pt-1 text-center text-sm leading-relaxed text-muted-foreground">
         Take these in any order, and leave them half-finished if you need to.
         Everything saves as you go.
       </p>
