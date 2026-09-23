@@ -1,0 +1,13 @@
+# Nothing on this site should be in a search index: every page carries
+# <meta name="robots" content="noindex, nofollow"> and every response an
+# X-Robots-Tag header saying the same.
+#
+# Crawling is allowed on purpose. A home links its "start here" page from its
+# own website, and a crawler that is disallowed from fetching a linked page
+# never sees the noindex on it, so it can list the bare URL anyway. Letting it
+# fetch the page is what lets it read "do not index this" and obey.
+#
+# Without this file the SPA fallback answered /robots.txt with index.html,
+# which crawlers read as a malformed robots file.
+User-agent: *
+Allow: /

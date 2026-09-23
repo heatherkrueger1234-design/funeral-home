@@ -41,6 +41,53 @@ production esbuild bundle, through the real nginx config:
 
 163 tests, 4 projects typechecking, 3 apps building.
 
+## Lighthouse scores
+
+Run against production builds served the way nginx serves them (gzip, the
+cache headers, the real CSP from `deploy/security-headers.conf`) with a seeded
+case behind a real API. The family portal was scored as a phone on throttled
+mobile data, which is how families open it; the consoles as desktop.
+
+| Page | Performance | Accessibility | Best practices | SEO |
+| --- | --- | --- | --- | --- |
+| Family hub (`/f/<token>`) | 82 → **97** | 95 → **100** | 100 | 54 → 63* |
+| Home's front door (`/start/<slug>`) | 84 → **98** | 100 | 100 | 54 → 63* |
+| Director dashboard | 82 → **100** | 100 | 100 | 54 → 63* |
+| Case page | 100 | 95 → **100** | 100 | 54 → 63* |
+| Settings | 100 | 94 → **100** | 100 | 54 → 63* |
+| Sign-in (director, admin) | 100 | 100 | 96† | 54 → 63* |
+
+On the family hub, first paint went from 3.2s to 1.5s and layout shift from
+0.12 to 0.
+
+\* **63 is the ceiling, on purpose.** The only failing SEO audit is "page is
+blocked from indexing", and it is blocked on purpose: a search engine indexing
+a portal that names someone who has just died is the failure, not the score.
+Everything else in the category passes.
+
+† The sign-in page asks `/auth/me` whether anybody is already signed in, and
+the answer "no" is a 401, which the browser logs. It is the correct answer.
+
+What moved the numbers:
+
+- **Fonts are self-hosted.** They were an `@import` of Google Fonts inside the
+  bundled CSS, which put two extra origins and three sequential round-trips in
+  front of the first word. They are now bundled from `@fontsource-variable`,
+  the Latin files are preloaded, and the CSP no longer allows Google at all.
+  It also stops every visitor's IP address going to a third party.
+- **Screens are loaded when opened.** The hub, the front door, the sign-in
+  and the dashboard ship in the first download; everything else is its own
+  file. A stale tab after a deploy reloads itself once instead of breaking.
+- **Nothing jumps.** The dashboard waits for billing before drawing, so the
+  setup checklist no longer lands on top of the tiles; the hub draws the
+  "Next" card at once from the count it already has; the consoles reserve the
+  scrollbar gutter.
+- **Secondary grey text passes contrast** on every surface, not just the
+  paper (`#6a6f68` → `#5f645d`).
+- **Every dropdown has a name** a screen reader can say.
+- **`/robots.txt` exists.** It used to be answered with `index.html`. Every
+  response also carries `X-Robots-Tag: noindex, nofollow`.
+
 ## What is not ready
 
 | Gap | Severity | What it would take |

@@ -1,5 +1,6 @@
 import { Link } from "wouter";
 import {
+  useGetBilling,
   useGetHomeDashboard,
   getGetHomeDashboardQueryKey,
 } from "@workspace/api-client-react";
@@ -116,7 +117,13 @@ export default function Dashboard() {
     },
   });
 
-  if (dashboard.isPending) return <Loading rows={4} />;
+  // The trial banner and the setup checklist sit above the tiles and read
+  // billing for themselves. Waiting for it here too (the same cached query,
+  // not a second request) means they arrive with the rest of the page instead
+  // of landing a beat later and shoving the tiles down under the cursor.
+  const billing = useGetBilling();
+
+  if (dashboard.isPending || billing.isPending) return <Loading rows={4} />;
   if (!dashboard.data) return null;
 
   const data = dashboard.data;

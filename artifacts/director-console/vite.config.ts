@@ -1,4 +1,4 @@
-import { defineConfig } from "vite";
+import { defineConfig, type Plugin } from "vite";
 import react from "@vitejs/plugin-react";
 import tailwindcss from "@tailwindcss/vite";
 import path from "path";
@@ -37,11 +37,47 @@ if (port !== undefined && (Number.isNaN(port) || port <= 0)) {
 
 const basePath = process.env.BASE_PATH || "/";
 
+/*
+ * The two faces are self-hosted, and the browser only learns it needs them
+ * once it has downloaded and parsed the stylesheet. By then the page has
+ * painted in the fallback, and swapping in the real face re-flows every line
+ * of text, which Lighthouse counts as layout shift and a reader sees as the
+ * page twitching. Preloading the Latin files lets them start alongside the
+ * stylesheet. Only Latin: the other subsets are fetched on demand, by
+ * unicode-range, for the rare name that needs them.
+ */
+function preloadLatinFonts(): Plugin {
+  return {
+    name: "preload-latin-fonts",
+    apply: "build",
+    transformIndexHtml: {
+      order: "post",
+      handler(_html, ctx) {
+        const base = basePath.endsWith("/") ? basePath : `${basePath}/`;
+        return Object.keys(ctx.bundle ?? {})
+          .filter((file) => /-latin-wght-normal-[\w-]+\.woff2$/.test(file))
+          .map((file) => ({
+            tag: "link",
+            attrs: {
+              rel: "preload",
+              as: "font",
+              type: "font/woff2",
+              href: `${base}${file}`,
+              crossorigin: "",
+            },
+            injectTo: "head" as const,
+          }));
+      },
+    },
+  };
+}
+
 export default defineConfig({
   base: basePath,
   plugins: [
     react(),
     tailwindcss(),
+    preloadLatinFonts(),
     runtimeErrorOverlay(),
     ...(process.env.NODE_ENV !== "production" &&
     process.env.REPL_ID !== undefined

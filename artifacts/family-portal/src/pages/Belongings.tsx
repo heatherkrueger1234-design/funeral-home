@@ -163,7 +163,7 @@ export default function Belongings() {
                     })
                   }
                 >
-                  <SelectTrigger>
+                  <SelectTrigger aria-label={`What should happen to ${item.description}`}>
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
@@ -188,7 +188,7 @@ export default function Belongings() {
         {/* Adding something: one line, kept visually apart from the list. */}
         <div className="flex flex-wrap gap-2 rounded-xl border border-dashed border-[var(--border-strong)] p-2.5">
           <Select value={kind} onValueChange={setKind}>
-            <SelectTrigger className="w-[11rem]">
+            <SelectTrigger aria-label="Kind of item" className="w-[11rem]">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
