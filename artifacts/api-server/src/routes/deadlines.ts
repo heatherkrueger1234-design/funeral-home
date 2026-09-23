@@ -126,9 +126,9 @@ router.post("/cases/:caseId/deadlines/from-template", async (req, res) => {
   const home = tenant(req);
   const row = await loadCase(req, req.params.caseId);
 
-  if (!row.serviceAt) {
+  if (!row.serviceAt && !row.dateOfDeath) {
     throw badRequest(
-      "Set the service date first — every step is measured from it.",
+      "Set the date of death or the service date first — every step is measured from one of them.",
     );
   }
 

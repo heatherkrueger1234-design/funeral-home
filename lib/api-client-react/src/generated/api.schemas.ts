@@ -89,32 +89,83 @@ export interface StaffMember {
   deactivatedAt: string | null;
 }
 
+/**
+ * What the offset is measured from. `death` steps are built as soon
+as a case has a date of death, before any service is booked.
+
+ */
+export type TimelineTemplateAnchor =
+  (typeof TimelineTemplateAnchor)[keyof typeof TimelineTemplateAnchor];
+
+export const TimelineTemplateAnchor = {
+  service: "service",
+  death: "death",
+} as const;
+
 export interface TimelineTemplate {
   id: number;
   title: string;
   description: string | null;
-  /** Relative to the service. Negative is before it. */
+  /** Relative to the anchor. Negative is before it. */
   offsetMinutes: number;
   /** The offset in words, e.g. "3 days before". */
   offsetLabel: string;
+  /** What the offset is measured from. `death` steps are built as soon
+as a case has a date of death, before any service is booked.
+ */
+  anchor: TimelineTemplateAnchor;
   isEvent: boolean;
   enabled: boolean;
   position: number;
 }
+
+/**
+ * What the offset is measured from. `death` steps are built as soon
+as a case has a date of death, before any service is booked.
+
+ */
+export type TimelineTemplateInputAnchor =
+  (typeof TimelineTemplateInputAnchor)[keyof typeof TimelineTemplateInputAnchor];
+
+export const TimelineTemplateInputAnchor = {
+  service: "service",
+  death: "death",
+} as const;
 
 export interface TimelineTemplateInput {
   /** @minLength 1 */
   title: string;
   description?: string | null;
   offsetMinutes: number;
+  /** What the offset is measured from. `death` steps are built as soon
+as a case has a date of death, before any service is booked.
+ */
+  anchor?: TimelineTemplateInputAnchor;
   isEvent?: boolean;
 }
+
+/**
+ * What the offset is measured from. `death` steps are built as soon
+as a case has a date of death, before any service is booked.
+
+ */
+export type TimelineTemplateUpdateAnchor =
+  (typeof TimelineTemplateUpdateAnchor)[keyof typeof TimelineTemplateUpdateAnchor];
+
+export const TimelineTemplateUpdateAnchor = {
+  service: "service",
+  death: "death",
+} as const;
 
 export interface TimelineTemplateUpdate {
   /** @minLength 1 */
   title?: string;
   description?: string | null;
   offsetMinutes?: number;
+  /** What the offset is measured from. `death` steps are built as soon
+as a case has a date of death, before any service is booked.
+ */
+  anchor?: TimelineTemplateUpdateAnchor;
   isEvent?: boolean;
   enabled?: boolean;
   position?: number;
