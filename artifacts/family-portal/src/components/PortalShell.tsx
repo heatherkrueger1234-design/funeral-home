@@ -1,8 +1,11 @@
-import { type ReactNode, useEffect } from "react";
+import { type ReactNode, useEffect, useRef } from "react";
 import { Link, useLocation } from "wouter";
+import { useQueryClient } from "@tanstack/react-query";
 import {
   useGetFamilySession,
   getGetFamilySessionQueryKey,
+  getGetFamilyDeadlinesQueryKey,
+  getGetFamilyServiceOffersQueryKey,
 } from "@workspace/api-client-react";
 import { useLink } from "@/lib/link";
 import { PasteLink } from "@/components/PasteLink";
@@ -18,6 +21,32 @@ import { AuthedImage } from "@/components/AuthedImage";
  * each of them needs a whole screen rather than an error toast: no link at
  * all, a link that has stopped working, and still loading.
  */
+
+/**
+ * When either date on the case changes, the timeline built from it has moved
+ * on the server too, so the family's copy of it is refetched rather than left
+ * showing the old dates until the next reload.
+ */
+function useFollowDateChanges(
+  row: { serviceAt: string | null; dateOfDeath: string | null } | undefined,
+) {
+  const queryClient = useQueryClient();
+  const key = row ? `${row.serviceAt ?? ""}|${row.dateOfDeath ?? ""}` : null;
+  const previous = useRef<string | null>(null);
+
+  useEffect(() => {
+    if (key === null) return;
+    if (previous.current !== null && previous.current !== key) {
+      void queryClient.invalidateQueries({
+        queryKey: getGetFamilyDeadlinesQueryKey(),
+      });
+      void queryClient.invalidateQueries({
+        queryKey: getGetFamilyServiceOffersQueryKey(),
+      });
+    }
+    previous.current = key;
+  }, [key, queryClient]);
+}
 
 /** Paint the funeral home's colour over the theme's default. */
 function useBrandColor(accent: string | undefined) {
@@ -167,10 +196,21 @@ export function PortalShell({ children }: { children: ReactNode }) {
     query: {
       queryKey: getGetFamilySessionQueryKey(),
       enabled: token !== null,
+      /*
+       * The one query that polls. When the home moves the funeral or fills
+       * in a date, the family has to see it without being told to reload --
+       * the whole point is that both sides are looking at the same facts.
+       * Every other screen stays on the app's no-refetch default to spare a
+       * phone on mobile data; this is one small request every two minutes,
+       * and only while the tab is open.
+       */
+      refetchInterval: 120_000,
+      refetchOnWindowFocus: true,
     },
   });
 
   useBrandColor(session.data?.home.accentColor);
+  useFollowDateChanges(session.data?.case);
 
   if (token === null) {
     /*

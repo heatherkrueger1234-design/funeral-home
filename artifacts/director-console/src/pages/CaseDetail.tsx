@@ -263,7 +263,11 @@ export default function CaseDetail() {
             <PrintPanel caseId={caseId} />
           </TabsContent>
           <TabsContent value="timeline">
-            <TimelinePanel caseId={caseId} serviceAt={detail.serviceAt} />
+            <TimelinePanel
+              caseId={caseId}
+              serviceAt={detail.serviceAt}
+              dateOfDeath={detail.dateOfDeath}
+            />
           </TabsContent>
           <TabsContent value="messages">
             <MessagesPanel caseId={caseId} />

@@ -48,6 +48,22 @@ export const timelineTemplatesTable = pgTable(
      */
     offsetMinutes: integer("offset_minutes").notNull(),
 
+    /**
+     * What the offset is measured from: `service` or `death`.
+     *
+     * Most of a funeral counts backwards from the service, but the part that
+     * cannot wait does not: the death certificate details are due within
+     * days of the death whether or not anybody has booked a church. Without
+     * this a case with a date of death and no service date yet had an empty
+     * timeline during exactly the days the paperwork is most urgent.
+     *
+     * A `death` step is measured from the end of the working day of the
+     * death, in the home's timezone -- a date of death is a date, not a
+     * moment, and "one day after" has to mean the next afternoon rather than
+     * six o'clock the evening before.
+     */
+    anchor: text("anchor").notNull().default("service"),
+
     /** The service itself, and anything else that happens rather than is due. */
     isEvent: boolean("is_event").notNull().default(false),
 
@@ -73,6 +89,9 @@ export const timelineTemplatesTable = pgTable(
 
 const DAY = 24 * 60;
 
+export const TIMELINE_ANCHORS = ["service", "death"] as const;
+export type TimelineAnchor = (typeof TIMELINE_ANCHORS)[number];
+
 /**
  * What a new home starts with.
  *
@@ -88,7 +107,16 @@ export const DEFAULT_TIMELINE_TEMPLATE: ReadonlyArray<{
   description: string | null;
   offsetMinutes: number;
   isEvent: boolean;
+  anchor?: TimelineAnchor;
 }> = [
+  {
+    title: "Details for the death certificate",
+    description:
+      "Parents' names, where they were born, their work. It has to be filed within days, whenever the service is.",
+    offsetMinutes: 1 * DAY,
+    isEvent: false,
+    anchor: "death",
+  },
   {
     title: "Photographs in for the slideshow",
     description:
@@ -140,7 +168,15 @@ export function dueAtFor(
 }
 
 /** "3 days before", for the settings screen. */
-export function describeOffset(offsetMinutes: number): string {
+export function describeOffset(
+  offsetMinutes: number,
+  anchor: TimelineAnchor = "service",
+): string {
+  if (anchor === "death") {
+    if (offsetMinutes === 0) return "The day of the death";
+    return `${describeOffset(offsetMinutes)} the death`;
+  }
+
   if (offsetMinutes === 0) return "On the day";
 
   const before = offsetMinutes < 0;

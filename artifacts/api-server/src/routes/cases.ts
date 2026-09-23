@@ -33,7 +33,7 @@ import { currentUser, tenant } from "../middleware/require-auth";
 import { countsForCases, toCaseJson } from "../lib/case-view";
 import { enrolCaseInAftercare } from "../lib/aftercare";
 import { recordBillableCase } from "../lib/metering";
-import { applyTemplateToCase, hasDeadlines } from "../lib/timeline";
+import { applyTemplateToCase, rescheduleCase } from "../lib/timeline";
 import { markOnboarding } from "../lib/onboarding";
 import { HttpError } from "../lib/http";
 
@@ -189,14 +189,15 @@ export async function openCase(
     return row!;
   });
 
-  // A director who already knows the funeral time when they open the case
-  // should get the schedule straight away, exactly as they would if they
-  // added the date a day later.
+  // A director who already knows the funeral time, or only the date of
+  // death, when they open the case should get the schedule straight away,
+  // exactly as they would if they added the dates a day later. Each step is
+  // built only once the date it counts from exists.
   //
-  // Not for a pre-need file: the standard schedule counts backwards from a
-  // service date, and there is no service. Building one would put a list of
-  // overdue funeral tasks in front of somebody who is perfectly well.
-  if (created.serviceAt !== null && created.kind !== "pre_need") {
+  // Not for a pre-need file: the standard schedule counts from a death and a
+  // service, and there is neither. Building one would put a list of overdue
+  // funeral tasks in front of somebody who is perfectly well.
+  if (created.kind !== "pre_need") {
     await applyTemplateToCase(created);
   }
 
@@ -276,24 +277,16 @@ router.put("/cases/:caseId", async (req, res) => {
     .returning();
 
   /*
-   * The moment that makes the timeline actually happen.
+   * The moment that makes the timeline actually happen, and keeps it true.
    *
    * A director sets the service date once they have it, and that is the last
    * point at which anybody was going to think about deadlines. Building the
-   * schedule here means the family is told when their clothing is due without
-   * anyone remembering to tell them.
-   *
-   * Only when the case has no timeline yet, so this cannot trample a schedule
-   * somebody has already adjusted by hand. Rebuilding after a date change is
-   * an explicit button.
+   * schedule here means the family is told when their clothing is due
+   * without anyone remembering to tell them -- and moving the funeral moves
+   * every unfinished step with it, so the family's timeline never points at
+   * the old date. `rescheduleCase` holds the rules.
    */
-  if (
-    updated!.serviceAt !== null &&
-    existing.serviceAt === null &&
-    !(await hasDeadlines(updated!.id))
-  ) {
-    await applyTemplateToCase(updated!);
-  }
+  await rescheduleCase(existing, updated!);
 
   res.json(toCaseJson(updated!));
 });
@@ -381,9 +374,7 @@ router.post("/cases/:caseId/at-need", async (req, res) => {
    */
   await recordBillableCase(converted!, home);
 
-  if (converted!.serviceAt !== null && !(await hasDeadlines(converted!.id))) {
-    await applyTemplateToCase(converted!);
-  }
+  await applyTemplateToCase(converted!);
 
   res.json(toCaseJson(converted!));
 });

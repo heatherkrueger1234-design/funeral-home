@@ -17,18 +17,16 @@ Two audiences, two authentication schemes, and the split is load-bearing:
 
  * OpenAPI spec version: 0.1.0
  */
-import type { TimelineTemplateUpdateAnchor } from "./timelineTemplateUpdateAnchor";
 
-export interface TimelineTemplateUpdate {
-  /** @minLength 1 */
-  title?: string;
-  description?: string | null;
-  offsetMinutes?: number;
-  /** What the offset is measured from. `death` steps are built as soon
+/**
+ * What the offset is measured from. `death` steps are built as soon
 as a case has a date of death, before any service is booked.
+
  */
-  anchor?: TimelineTemplateUpdateAnchor;
-  isEvent?: boolean;
-  enabled?: boolean;
-  position?: number;
-}
+export type TimelineTemplateInputAnchor =
+  (typeof TimelineTemplateInputAnchor)[keyof typeof TimelineTemplateInputAnchor];
+
+export const TimelineTemplateInputAnchor = {
+  service: "service",
+  death: "death",
+} as const;

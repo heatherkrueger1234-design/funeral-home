@@ -270,6 +270,7 @@ router.post("/home/timeline-template", async (req, res) => {
       description: values.description ?? null,
       offsetMinutes: values.offsetMinutes,
       isEvent: values.isEvent ?? false,
+      anchor: values.anchor ?? "service",
       position: existing.length,
     })
     .returning();

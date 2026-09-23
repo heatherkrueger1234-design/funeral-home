@@ -316,9 +316,7 @@ router.post("/cases/import", upload.single("file"), async (req, res) => {
         return row!;
       });
 
-      if (created.serviceAt) {
-        await applyTemplateToCase(created);
-      }
+      await applyTemplateToCase(created);
 
       caseIds.push(created.id);
     } catch (error) {

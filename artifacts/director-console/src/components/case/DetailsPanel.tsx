@@ -30,6 +30,14 @@ function toLocalInput(value: string | Date | null): string {
   return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
 }
 
+/** For a `date` input. Dates of birth and death are stored as midnight UTC. */
+function toDateInput(value: string | Date | null): string {
+  if (!value) return "";
+  const date = value instanceof Date ? value : new Date(value);
+  if (Number.isNaN(date.getTime())) return "";
+  return date.toISOString().slice(0, 10);
+}
+
 /**
  * The case's own facts, and the aftercare it will start.
  *
@@ -91,6 +99,7 @@ export function DetailsPanel({
           />
           <p className="text-sm leading-snug text-muted-foreground">
             The family is shown this as confirmed. Leave it empty until it is.
+            Moving it moves every unfinished step on their timeline with it.
           </p>
         </div>
 
@@ -177,6 +186,50 @@ export function DetailsPanel({
             Used everywhere the family sees their name.
           </p>
         </div>
+
+        <div className="grid gap-4 sm:grid-cols-2">
+          <div className="space-y-1.5">
+            <Label htmlFor="dateOfBirth">Date of birth</Label>
+            <Input
+              id="dateOfBirth"
+              type="date"
+              defaultValue={toDateInput(detail.dateOfBirth)}
+              onBlur={(event) => {
+                const value = event.target.value;
+                if (value !== toDateInput(detail.dateOfBirth)) {
+                  save({
+                    dateOfBirth: value ? new Date(value).toISOString() : null,
+                  });
+                }
+              }}
+            />
+          </div>
+          {detail.kind !== "pre_need" && (
+            <div className="space-y-1.5">
+              <Label htmlFor="dateOfDeath">Date of death</Label>
+              <Input
+                id="dateOfDeath"
+                type="date"
+                defaultValue={toDateInput(detail.dateOfDeath)}
+                onBlur={(event) => {
+                  const value = event.target.value;
+                  if (value !== toDateInput(detail.dateOfDeath)) {
+                    save({
+                      dateOfDeath: value ? new Date(value).toISOString() : null,
+                    });
+                  }
+                }}
+              />
+            </div>
+          )}
+        </div>
+        {detail.kind !== "pre_need" && (
+          <p className="text-sm leading-snug text-muted-foreground">
+            Steps your standard schedule counts from the death, like the
+            certificate details, appear on the family's timeline as soon as
+            this is set.
+          </p>
+        )}
       </section>
 
       {(aftercare.data ?? []).length > 0 && (

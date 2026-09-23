@@ -26,9 +26,11 @@ import { Empty, Loading } from "@/components/page";
 export function TimelinePanel({
   caseId,
   serviceAt,
+  dateOfDeath,
 }: {
   caseId: number;
   serviceAt: string | null;
+  dateOfDeath: string | null;
 }) {
   const queryClient = useQueryClient();
   const deadlines = useGetDeadlines(caseId);
@@ -72,14 +74,16 @@ export function TimelinePanel({
       <div className="flex flex-wrap items-center gap-3">
         <p className="text-sm text-muted-foreground">
           {serviceAt
-            ? "Built from your standard schedule."
-            : "Set a service date on the Details tab and the schedule builds itself."}
+            ? "Built from your standard schedule. Move the service and the unfinished steps follow it."
+            : dateOfDeath
+              ? "The steps counted from the death are here. Set a service date on the Details tab and the rest build themselves."
+              : "Set the date of death or the service date on the Details tab and the schedule builds itself."}
         </p>
         <Button
           variant="outline"
           size="sm"
           className="ml-auto"
-          disabled={!serviceAt || applyTemplate.isPending}
+          disabled={(!serviceAt && !dateOfDeath) || applyTemplate.isPending}
           onClick={() => applyTemplate.mutate({ caseId })}
         >
           {applyTemplate.isPending ? (
@@ -95,7 +99,8 @@ export function TimelinePanel({
         <Loading />
       ) : rows.length === 0 ? (
         <Empty icon={CalendarClock} title="Nothing on the timeline yet">
-          Set the service date and your standard schedule fills this in; or
+          Set the date of death or the service date and your standard
+          schedule fills this in; or
           add a single step below.
         </Empty>
       ) : (

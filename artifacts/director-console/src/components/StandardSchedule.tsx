@@ -45,12 +45,28 @@ const OFFSETS: Array<{ value: number; label: string }> = [
   { value: 7 * DAY, label: "7 days after" },
 ];
 
+/*
+ * Steps counted from the death only ever fall after it. "Before the death"
+ * is a schedule for a pre-need file, and those never get a death timeline.
+ */
+const DEATH_OFFSETS: Array<{ value: number; label: string }> = [
+  { value: 0, label: "The same day" },
+  { value: 1 * DAY, label: "1 day after" },
+  { value: 2 * DAY, label: "2 days after" },
+  { value: 3 * DAY, label: "3 days after" },
+  { value: 5 * DAY, label: "5 days after" },
+  { value: 7 * DAY, label: "7 days after" },
+];
+
+type Anchor = "service" | "death";
+
 export function StandardSchedule({ readOnly }: { readOnly: boolean }) {
   const queryClient = useQueryClient();
   const template = useGetTimelineTemplate();
 
   const [title, setTitle] = useState("");
   const [offset, setOffset] = useState(String(-3 * DAY));
+  const [anchor, setAnchor] = useState<Anchor>("service");
 
   const refresh = () =>
     void queryClient.invalidateQueries({
@@ -75,9 +91,10 @@ export function StandardSchedule({ readOnly }: { readOnly: boolean }) {
       <div>
         <h2 className="font-display text-lg">Standard schedule</h2>
         <p className="text-sm text-muted-foreground">
-          Every case gets this the moment it has a service date, so nobody has
-          to remember to tell a family when their clothing is due. Times are
-          measured from the service.
+          Every case gets this automatically, so nobody has to remember to
+          tell a family when their clothing is due. Each step counts from the
+          service or from the death, and appears the moment that date is on
+          the case. When the funeral moves, the unfinished steps move with it.
         </p>
       </div>
 
@@ -135,7 +152,11 @@ export function StandardSchedule({ readOnly }: { readOnly: boolean }) {
           onSubmit={(event) => {
             event.preventDefault();
             add.mutate({
-              data: { title: title.trim(), offsetMinutes: Number(offset) },
+              data: {
+                title: title.trim(),
+                offsetMinutes: Number(offset),
+                anchor,
+              },
             });
           }}
         >
@@ -150,13 +171,33 @@ export function StandardSchedule({ readOnly }: { readOnly: boolean }) {
           </div>
 
           <div className="space-y-1.5">
+            <Label>Counted from</Label>
+            <Select
+              value={anchor}
+              onValueChange={(value) => {
+                const next = value as Anchor;
+                setAnchor(next);
+                setOffset(String(next === "death" ? 1 * DAY : -3 * DAY));
+              }}
+            >
+              <SelectTrigger aria-label="Counted from" className="w-[9rem]">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="service">The service</SelectItem>
+                <SelectItem value="death">The death</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div className="space-y-1.5">
             <Label>When</Label>
             <Select value={offset} onValueChange={setOffset}>
               <SelectTrigger aria-label="When" className="w-[10rem]">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                {OFFSETS.map((entry) => (
+                {(anchor === "death" ? DEATH_OFFSETS : OFFSETS).map((entry) => (
                   <SelectItem key={entry.value} value={String(entry.value)}>
                     {entry.label}
                   </SelectItem>

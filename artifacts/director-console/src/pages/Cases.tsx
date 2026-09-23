@@ -60,6 +60,9 @@ function NewCaseDialog() {
   const [open, setOpen] = useState(false);
   const [first, setFirst] = useState("");
   const [last, setLast] = useState("");
+  const [born, setBorn] = useState("");
+  const [died, setDied] = useState("");
+  const [serviceAt, setServiceAt] = useState("");
 
   const create = useCreateCase({
     mutation: {
@@ -68,6 +71,9 @@ function NewCaseDialog() {
         setOpen(false);
         setFirst("");
         setLast("");
+        setBorn("");
+        setDied("");
+        setServiceAt("");
         // Straight into the case: the next thing is always to invite the
         // family, and making them find the row again is a wasted click at
         // the worst moment of somebody's week.
@@ -97,12 +103,21 @@ function NewCaseDialog() {
               data: {
                 decedentFirstName: first.trim(),
                 decedentLastName: last.trim(),
+                // Date fields arrive as "YYYY-MM-DD" and are stored as
+                // midnight UTC, which is how every other screen reads them.
+                ...(born ? { dateOfBirth: new Date(born).toISOString() } : {}),
+                ...(died ? { dateOfDeath: new Date(died).toISOString() } : {}),
+                ...(serviceAt
+                  ? { serviceAt: new Date(serviceAt).toISOString() }
+                  : {}),
               },
             });
           }}
         >
           <p className="text-sm text-muted-foreground">
-            Just the name for now. Everything else can wait until you know it.
+            Only the name is needed. Add the dates you know and the family's
+            timeline builds itself from your standard schedule; anything left
+            empty can be filled in later, from either side.
           </p>
 
           <div className="grid gap-4 sm:grid-cols-2">
@@ -122,6 +137,33 @@ function NewCaseDialog() {
                 required
                 value={last}
                 onChange={(event) => setLast(event.target.value)}
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="born">Date of birth</Label>
+              <Input
+                id="born"
+                type="date"
+                value={born}
+                onChange={(event) => setBorn(event.target.value)}
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="died">Date of death</Label>
+              <Input
+                id="died"
+                type="date"
+                value={died}
+                onChange={(event) => setDied(event.target.value)}
+              />
+            </div>
+            <div className="space-y-1.5 sm:col-span-2">
+              <Label htmlFor="newServiceAt">Service, once it is confirmed</Label>
+              <Input
+                id="newServiceAt"
+                type="datetime-local"
+                value={serviceAt}
+                onChange={(event) => setServiceAt(event.target.value)}
               />
             </div>
           </div>

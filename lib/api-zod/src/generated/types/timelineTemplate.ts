@@ -17,15 +17,20 @@ Two audiences, two authentication schemes, and the split is load-bearing:
 
  * OpenAPI spec version: 0.1.0
  */
+import type { TimelineTemplateAnchor } from "./timelineTemplateAnchor";
 
 export interface TimelineTemplate {
   id: number;
   title: string;
   description: string | null;
-  /** Relative to the service. Negative is before it. */
+  /** Relative to the anchor. Negative is before it. */
   offsetMinutes: number;
   /** The offset in words, e.g. "3 days before". */
   offsetLabel: string;
+  /** What the offset is measured from. `death` steps are built as soon
+as a case has a date of death, before any service is booked.
+ */
+  anchor: TimelineTemplateAnchor;
   isEvent: boolean;
   enabled: boolean;
   position: number;
