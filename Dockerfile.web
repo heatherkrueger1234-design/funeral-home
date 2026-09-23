@@ -3,6 +3,11 @@
 #   docker build -f Dockerfile.web --build-arg APP=family-portal    -t fh-family  .
 #   docker build -f Dockerfile.web --build-arg APP=director-console  -t fh-console .
 #   docker build -f Dockerfile.web --build-arg APP=admin-console     -t fh-admin   .
+#   docker build -f Dockerfile.web --build-arg APP=website \
+#     --build-arg NGINX_CONF=deploy/website.conf.template \
+#     --build-arg NGINX_HEADERS=deploy/website-security-headers.conf \
+#     --build-arg VITE_SITE_URL=https://example.com \
+#     --build-arg VITE_CONSOLE_URL=https://console.example.com -t fh-website .
 #
 # One Dockerfile for all three because they are the same build: a Vite SPA
 # that talks to /api on its own origin. Giving each its own file would mean
@@ -27,6 +32,7 @@ COPY artifacts/admin-console/package.json ./artifacts/admin-console/
 COPY artifacts/api-server/package.json ./artifacts/api-server/
 COPY artifacts/director-console/package.json ./artifacts/director-console/
 COPY artifacts/family-portal/package.json ./artifacts/family-portal/
+COPY artifacts/website/package.json ./artifacts/website/
 COPY lib/api-client-react/package.json ./lib/api-client-react/
 COPY lib/api-spec/package.json ./lib/api-spec/
 COPY lib/api-zod/package.json ./lib/api-zod/
@@ -45,6 +51,16 @@ RUN pnpm run typecheck:libs
 # BASE_PATH defaults to "/" in vite.config.ts, which is right here: each app
 # gets its own hostname rather than a path prefix. PORT is not set because the
 # build does not need one — nginx does the serving.
+#
+# The website's build-time settings (see artifacts/website/vite.config.ts).
+# Build args are visible to RUN as environment variables, which is where
+# Vite reads VITE_* from; the apps never read them, so for those they are
+# empty and inert.
+ARG VITE_SITE_URL=
+ARG VITE_CONSOLE_URL=
+ARG VITE_CONTACT_EMAIL=
+ARG VITE_PRIVACY_URL=
+ARG VITE_TERMS_URL=
 ENV NODE_ENV=production
 # The one build-time value: the director console prints the home's public
 # page address for them to put on their own website, and only the deployment
@@ -65,6 +81,12 @@ RUN mkdir -p /site && cp -r "/app/artifacts/${APP}/dist/public/." /site/
 # ---------------------------------------------------------------------------
 FROM nginx:1.27-alpine AS runtime
 
+# Which server config and header set to install. The defaults are the apps';
+# the website overrides both, because it neither proxies an API nor asks not
+# to be indexed.
+ARG NGINX_CONF=deploy/nginx.conf.template
+ARG NGINX_HEADERS=deploy/security-headers.conf
+
 # The nginx image expands templates/*.template with envsubst at container
 # start. NGINX_ENVSUBST_FILTER keeps it to NGINX_-prefixed names, so nginx's
 # own $host, $uri and $upstream_api are not eaten by the substitution.
@@ -72,10 +94,10 @@ ENV NGINX_ENVSUBST_FILTER=^NGINX_
 ENV NGINX_RESOLVER=127.0.0.11
 ENV NGINX_API_ORIGIN=http://api:4311
 
-COPY deploy/nginx.conf.template /etc/nginx/templates/default.conf.template
+COPY ${NGINX_CONF} /etc/nginx/templates/default.conf.template
 # Not a template: it holds no NGINX_ variables, and the locations that
 # include it need it at a fixed path rather than an expanded one.
-COPY deploy/security-headers.conf /etc/nginx/snippets/security-headers.conf
+COPY ${NGINX_HEADERS} /etc/nginx/snippets/security-headers.conf
 COPY deploy/security-headers-api.conf /etc/nginx/snippets/security-headers-api.conf
 COPY --from=build /site /usr/share/nginx/html
 
