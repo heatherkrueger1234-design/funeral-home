@@ -311,3 +311,106 @@ describe("permanently erasing a case", () => {
     await owner.agent.get(`/api/cases/${kase.id}`).expect(404);
   });
 });
+
+/**
+ * Never ask twice: the obituary's born and died lines come from the case.
+ *
+ * Dates are stored as midnight UTC on the day, so they must print as that
+ * day, not the evening before in the home's zone.
+ */
+describe("the obituary knows the dates the case knows", () => {
+  it("is opened with born and died already filled", async () => {
+    const staff = await signUpHome();
+    const kase = await createCase(staff, {
+      dateOfBirth: "1942-03-04T00:00:00.000Z",
+      dateOfDeath: "2026-09-20T00:00:00.000Z",
+    });
+    const { token } = await inviteFamily(staff, kase.id);
+
+    const theirs = await asFamily(token).get("/api/family/obituary").expect(200);
+    expect(theirs.body.bornOn).toBe("March 4, 1942");
+    expect(theirs.body.diedOn).toBe("September 20, 2026");
+
+    const ours = await staff.agent
+      .get(`/api/cases/${kase.id}/obituary`)
+      .expect(200);
+    expect(ours.body.bornOn).toBe("March 4, 1942");
+  });
+
+  it("fills an empty line when a date arrives later, and never overwrites the family", async () => {
+    const staff = await signUpHome();
+    const kase = await createCase(staff);
+    const { token } = await inviteFamily(staff, kase.id);
+
+    // Nothing to fill yet, and the family writes it their own way.
+    await asFamily(token)
+      .put("/api/family/obituary")
+      .send({ bornOn: "the spring of 1931, in a farmhouse" })
+      .expect(200);
+
+    await staff.agent
+      .put(`/api/cases/${kase.id}`)
+      .send({
+        dateOfBirth: "1931-04-11T00:00:00.000Z",
+        dateOfDeath: "2026-09-19T00:00:00.000Z",
+      })
+      .expect(200);
+
+    const draft = await asFamily(token).get("/api/family/obituary").expect(200);
+    expect(draft.body.bornOn).toBe("the spring of 1931, in a farmhouse");
+    expect(draft.body.diedOn).toBe("September 19, 2026");
+
+    // A correction by the home does not overwrite a line already filled,
+    // even one this software filled: somebody may have read and kept it.
+    await staff.agent
+      .put(`/api/cases/${kase.id}`)
+      .send({ dateOfDeath: "2026-09-18T00:00:00.000Z" })
+      .expect(200);
+    const again = await asFamily(token).get("/api/family/obituary").expect(200);
+    expect(again.body.diedOn).toBe("September 19, 2026");
+  });
+
+  it("does not touch an obituary that has been approved for print", async () => {
+    const staff = await signUpHome();
+    const kase = await createCase(staff);
+
+    await staff.agent
+      .put(`/api/cases/${kase.id}/obituary`)
+      .send({ biography: "She kept bees.", draftText: "Margaret Hale kept bees." })
+      .expect(200);
+    await staff.agent.post(`/api/cases/${kase.id}/obituary/approve`).expect(200);
+
+    await staff.agent
+      .put(`/api/cases/${kase.id}`)
+      .send({ dateOfDeath: "2026-09-19T00:00:00.000Z" })
+      .expect(200);
+
+    const draft = await staff.agent
+      .get(`/api/cases/${kase.id}/obituary`)
+      .expect(200);
+    expect(draft.body.diedOn).toBeNull();
+  });
+
+  it("gets the date of death when a pre-need planner dies, keeping what they wrote", async () => {
+    const staff = await signUpHome();
+    const plan = await createCase(staff, {
+      kind: "pre_need",
+      dateOfBirth: "1948-06-02T00:00:00.000Z",
+    });
+    await staff.agent
+      .put(`/api/cases/${plan.id}/obituary`)
+      .send({ bornOn: "1948, in Pueblo" })
+      .expect(200);
+
+    await staff.agent
+      .post(`/api/cases/${plan.id}/at-need`)
+      .send({ dateOfDeath: "2026-09-21T00:00:00.000Z" })
+      .expect(200);
+
+    const draft = await staff.agent
+      .get(`/api/cases/${plan.id}/obituary`)
+      .expect(200);
+    expect(draft.body.bornOn).toBe("1948, in Pueblo");
+    expect(draft.body.diedOn).toBe("September 21, 2026");
+  });
+});

@@ -21,6 +21,7 @@ import {
 } from "../lib/csv";
 import { linkUrl, mintLink } from "../lib/family-link";
 import { applyTemplateToCase } from "../lib/timeline";
+import { obituaryDate } from "../lib/obituary";
 
 /**
  * Importing cases a home already has somewhere else.
@@ -304,6 +305,10 @@ router.post("/cases/import", upload.single("file"), async (req, res) => {
           funeralHomeId: home.id,
           caseId: row!.id,
           fullName: `${row!.decedentFirstName} ${row!.decedentLastName}`.trim(),
+          // The spreadsheet's dates, so the family is not asked for them
+          // again. See `prefillObituaryDates`.
+          bornOn: obituaryDate(row!.dateOfBirth),
+          diedOn: obituaryDate(row!.dateOfDeath),
         });
 
         /*
