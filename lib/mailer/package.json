@@ -10,7 +10,7 @@
   "dependencies": {
     "@workspace/db": "workspace:*",
     "drizzle-orm": "catalog:",
-    "nodemailer": "^9.0.5",
+    "nodemailer": "^9.1.1",
     "pino": "^9"
   },
   "devDependencies": {

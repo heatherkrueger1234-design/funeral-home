@@ -1,4 +1,4 @@
-import sharp from "sharp";
+import sharp, { type Metadata, type Sharp } from "sharp";
 import { logger } from "./logger";
 import { badRequest } from "./http";
 
@@ -53,8 +53,8 @@ export async function normaliseImage(
     return { data, mimeType, converted: false };
   }
 
-  let image: sharp.Sharp;
-  let meta: sharp.Metadata;
+  let image: Sharp;
+  let meta: Metadata;
 
   try {
     image = sharp(data, { failOn: "none" });
@@ -135,7 +135,7 @@ export async function normaliseImage(
  * works the same on every machine rather than depending on how somebody built
  * libvips. The fallback is only ever reached for HEIC.
  */
-async function decodeHeic(data: Buffer, mimeType: string): Promise<sharp.Sharp> {
+async function decodeHeic(data: Buffer, mimeType: string): Promise<Sharp> {
   try {
     // Force the pixels now rather than at encode time, so a broken decoder
     // fails here where it can be handled instead of half-way through output.
