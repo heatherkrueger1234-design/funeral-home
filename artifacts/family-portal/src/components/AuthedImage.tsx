@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type CSSProperties } from "react";
 import { useGetFamilyUpload } from "@workspace/api-client-react";
 
 /**
@@ -33,10 +33,18 @@ export function AuthedImage({
   uploadId,
   alt,
   className = "",
+  imgStyle,
+  onNaturalSize,
+  draggable,
 }: {
   uploadId: number;
   alt: string;
   className?: string;
+  /** Applied to the picture once it has arrived, e.g. a portrait crop. */
+  imgStyle?: CSSProperties;
+  /** Told the photograph's own proportions, which a crop is drawn from. */
+  onNaturalSize?: (width: number, height: number) => void;
+  draggable?: boolean;
 }) {
   /*
    * Fetched when it is about to be seen, not when the list renders.
@@ -125,5 +133,19 @@ export function AuthedImage({
     );
   }
 
-  return <img src={src} alt={alt} className={className} />;
+  return (
+    <img
+      src={src}
+      alt={alt}
+      className={className}
+      style={imgStyle}
+      draggable={draggable}
+      onLoad={(event) =>
+        onNaturalSize?.(
+          event.currentTarget.naturalWidth,
+          event.currentTarget.naturalHeight,
+        )
+      }
+    />
+  );
 }

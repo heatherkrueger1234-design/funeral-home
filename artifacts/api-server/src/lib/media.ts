@@ -209,6 +209,63 @@ export function toPhotoJson(
   };
 }
 
+type CropFields = Pick<CasePhoto, "cropX" | "cropY" | "cropWidth" | "cropHeight">;
+
+/** Anything smaller than this is a mis-tap, not a framing. */
+const MIN_CROP_SIDE = 0.01;
+/** Rounding slack: the portal sends four decimal places. */
+const CROP_EPSILON = 1e-6;
+
+/**
+ * The crop a write leaves behind, checked as a whole.
+ *
+ * The contract bounds each of the four numbers to 0..1 on its own, and they
+ * arrive one field at a time -- the portrait route and both photo PATCHes
+ * merge whatever was sent over what was stored. Nothing checked the result:
+ * `cropX: 0.9` over a stored width of 0.5 was saved as a rectangle running
+ * half off the side of the photograph, and every screen that honoured it
+ * then drew half a face and half nothing. So the merged rectangle is what is
+ * checked, and it must be a real rectangle inside the picture.
+ *
+ * Returns only the fields to write -- none at all when the request did not
+ * touch the crop -- so a caption edit never rewrites a framing.
+ */
+export function mergeCrop(
+  existing: CropFields,
+  values: Partial<Record<keyof CropFields, number | undefined>>,
+): Partial<CropFields> {
+  const touched =
+    values.cropX !== undefined ||
+    values.cropY !== undefined ||
+    values.cropWidth !== undefined ||
+    values.cropHeight !== undefined;
+  if (!touched) return {};
+
+  const merged = {
+    cropX: values.cropX ?? existing.cropX,
+    cropY: values.cropY ?? existing.cropY,
+    cropWidth: values.cropWidth ?? existing.cropWidth,
+    cropHeight: values.cropHeight ?? existing.cropHeight,
+  };
+  const { cropX, cropY, cropWidth, cropHeight } = merged;
+
+  if (cropX === null || cropY === null || cropWidth === null || cropHeight === null) {
+    throw badRequest(
+      "A framing needs all four of cropX, cropY, cropWidth and cropHeight.",
+    );
+  }
+  if (
+    cropWidth < MIN_CROP_SIDE ||
+    cropHeight < MIN_CROP_SIDE ||
+    cropX + cropWidth > 1 + CROP_EPSILON ||
+    cropY + cropHeight > 1 + CROP_EPSILON
+  ) {
+    throw badRequest("That framing runs off the edge of the photograph.");
+  }
+
+  return merged;
+}
+
 /** Photographs on a case, in slideshow order, with their uploader's name. */
 export async function photosForCase(
   caseId: number,

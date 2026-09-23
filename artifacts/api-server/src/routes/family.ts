@@ -84,6 +84,7 @@ import {
   openOfferCount,
 } from "../lib/service-offers";
 import {
+  mergeCrop,
   photoUpload,
   photosForCase,
   serveUpload,
@@ -361,7 +362,7 @@ router.patch("/photos/:photoId", async (req, res) => {
 
   const [updated] = await db
     .update(casePhotosTable)
-    .set({ ...values, updatedAt: new Date() })
+    .set({ ...values, ...mergeCrop(photo, values), updatedAt: new Date() })
     .where(eq(casePhotosTable.id, photo.id))
     .returning();
 
@@ -503,6 +504,9 @@ router.put("/portrait", async (req, res) => {
     .limit(1);
 
   const found = requireRow(photo, "That photograph could not be found.");
+  // Checked before anything is written, so a bad framing does not still move
+  // the portrait to this photograph.
+  const crop = mergeCrop(found, values);
 
   const [updated] = await db.transaction(async (tx) => {
     await tx
@@ -512,13 +516,7 @@ router.put("/portrait", async (req, res) => {
 
     return tx
       .update(casePhotosTable)
-      .set({
-        cropX: values.cropX ?? found.cropX,
-        cropY: values.cropY ?? found.cropY,
-        cropWidth: values.cropWidth ?? found.cropWidth,
-        cropHeight: values.cropHeight ?? found.cropHeight,
-        updatedAt: new Date(),
-      })
+      .set({ ...crop, updatedAt: new Date() })
       .where(eq(casePhotosTable.id, found.id))
       .returning();
   });

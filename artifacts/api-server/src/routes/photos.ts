@@ -22,7 +22,12 @@ import {
   requireRow,
 } from "../lib/http";
 import { tenant } from "../middleware/require-auth";
-import { photosForCase, setSelection, toPhotoJson } from "../lib/media";
+import {
+  mergeCrop,
+  photosForCase,
+  setSelection,
+  toPhotoJson,
+} from "../lib/media";
 import { decryptBuffer } from "@workspace/db/crypto";
 import { ZipWriter } from "../lib/zip";
 import { formatServiceMoment } from "../lib/print-render";
@@ -148,7 +153,7 @@ router.patch("/photos/:photoId", async (req, res) => {
 
   const [updated] = await db
     .update(casePhotosTable)
-    .set({ ...values, updatedAt: new Date() })
+    .set({ ...values, ...mergeCrop(existing, values), updatedAt: new Date() })
     .where(eq(casePhotosTable.id, existing.id))
     .returning();
 
