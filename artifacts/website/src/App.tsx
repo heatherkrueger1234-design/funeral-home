@@ -539,10 +539,11 @@ function Security() {
             ))}
           </ul>
           <p className="mt-10 rounded-xl border border-notice/20 bg-notice-soft p-5 leading-relaxed text-[#6b4520]">
-            <strong className="font-semibold">One thing we would rather you heard from us.</strong>{" "}
-            Photographs over 3000 pixels are re-processed on the way in and lose their hidden camera
-            data, including any location. Smaller ones are kept exactly as sent, and keep it. We say
-            so rather than let you assume a photo pack has been cleaned.
+            <strong className="font-semibold">Where a photograph was taken stays private.</strong>{" "}
+            Phones write the location into every picture, and a photograph of someone in their garden
+            is taken at their house. We take that hidden camera data out of every photograph as it
+            arrives, without re-compressing it, so the photo pack you send a print shop says nothing
+            about where anybody lives.
           </p>
         </div>
       </div>

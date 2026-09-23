@@ -9,13 +9,10 @@ const trim = (value: string | undefined) => (value ?? "").trim().replace(/\/+$/,
 export const consoleUrl = trim(import.meta.env.VITE_CONSOLE_URL);
 
 /*
- * Where "Start a free trial" goes. The console has no separate registration
- * route: its front door is one screen that signs in or opens an account
- * ("Set up a new funeral home" switches it), so the root is the right target,
- * and the page says which link to press. If the console ever reads a
- * `?register` parameter to open in that mode, add it here.
+ * Where "Start a free trial" goes: the console's one front door, opened in
+ * its "Set up a new funeral home" mode by `?register` (see SignIn.tsx).
  */
-export const trialHref = consoleUrl ? `${consoleUrl}/` : "#pricing";
+export const trialHref = consoleUrl ? `${consoleUrl}/?register` : "#pricing";
 export const signInHref = consoleUrl ? `${consoleUrl}/` : undefined;
 
 export const contactEmail = (import.meta.env.VITE_CONTACT_EMAIL ?? "").trim();

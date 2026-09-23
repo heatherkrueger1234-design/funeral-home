@@ -22,7 +22,13 @@ import { Loader2 } from "lucide-react";
 export default function SignIn() {
   const { toast } = useToast();
   const { refresh } = useSession();
-  const [mode, setMode] = useState<"signIn" | "register">("signIn");
+  // `?register` is where the website's "Start a free trial" lands, so a home
+  // arriving to sign up is not first shown a sign-in form it has no account for.
+  const [mode, setMode] = useState<"signIn" | "register">(() =>
+    new URLSearchParams(window.location.search).has("register")
+      ? "register"
+      : "signIn",
+  );
 
   const [homeName, setHomeName] = useState("");
   const [displayName, setDisplayName] = useState("");

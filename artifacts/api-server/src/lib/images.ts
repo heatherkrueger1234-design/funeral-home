@@ -69,8 +69,38 @@ export async function normaliseImage(
   const longEdge = Math.max(meta.width ?? 0, meta.height ?? 0);
   const mustTranscode = NEEDS_TRANSCODE.has(mimeType);
   const mustShrink = longEdge > MAX_EDGE;
+  /*
+   * Every phone writes where a photograph was taken into the file, and the
+   * photograph a family sends of their mother in her garden is taken at her
+   * house. Passed through, those coordinates went on into the photo pack, the
+   * slideshow files a home hands to a video company, and the printed book. A
+   * re-encode drops them (sharp keeps no metadata unless asked to), so a file
+   * that carries any is re-encoded even when it is small enough to keep. A
+   * photograph that carries none still arrives byte for byte.
+   */
+  const mustStrip = Boolean(meta.exif || meta.xmp || meta.iptc);
 
-  if (!mustTranscode && !mustShrink) {
+  /*
+   * The common case -- an upright JPEG under the size ceiling -- loses its
+   * metadata without being re-encoded: the segments that carry it are cut out
+   * and every pixel is the family's own. Only a photograph whose orientation
+   * tag still has work to do is re-encoded, because cutting the tag out of
+   * that one would turn it on its side.
+   */
+  if (
+    mustStrip &&
+    !mustTranscode &&
+    !mustShrink &&
+    mimeType === "image/jpeg" &&
+    (meta.orientation ?? 1) === 1
+  ) {
+    const stripped = stripJpegMetadata(data);
+    if (stripped) {
+      return { data: stripped, mimeType, converted: true };
+    }
+  }
+
+  if (!mustTranscode && !mustShrink && !mustStrip) {
     return { data, mimeType, converted: false };
   }
 
@@ -110,8 +140,9 @@ export async function normaliseImage(
     logger.error({ err, mimeType }, "Image conversion failed");
 
     // A conversion failure on a format the browser can already display is
-    // not worth losing the upload over.
-    if (!mustTranscode) {
+    // not worth losing the upload over -- unless keeping it would keep the
+    // location it was taken at.
+    if (!mustTranscode && !mustStrip) {
       return { data, mimeType, converted: false };
     }
 
@@ -119,6 +150,52 @@ export async function normaliseImage(
       "That photograph is in a format we couldn't convert. Sending it from your phone's Photos app usually fixes it.",
     );
   }
+}
+
+/**
+ * Cut EXIF, XMP and IPTC out of a JPEG without touching the image data.
+ *
+ * A JPEG is a run of marker segments before the compressed scan. EXIF and XMP
+ * live in APP1 (0xFFE1) and IPTC in APP13 (0xFFED); dropping those segments
+ * and copying everything else -- including the scan, byte for byte -- leaves
+ * the same picture with nothing in it that says where it was taken. ICC
+ * colour profiles (APP2) stay, because without one a photograph from a
+ * wide-gamut phone comes out dull.
+ *
+ * Returns null for anything it does not fully understand, and the caller
+ * re-encodes instead: a half-parsed file is not a file to store.
+ */
+export function stripJpegMetadata(data: Buffer): Buffer | null {
+  if (data.length < 4 || data[0] !== 0xff || data[1] !== 0xd8) return null;
+
+  const kept: Buffer[] = [data.subarray(0, 2)];
+  let offset = 2;
+
+  while (offset + 4 <= data.length) {
+    if (data[offset] !== 0xff) return null;
+    const marker = data[offset + 1]!;
+
+    // Start of scan: from here on it is the compressed image, which is kept whole.
+    if (marker === 0xda) {
+      kept.push(data.subarray(offset));
+      return Buffer.concat(kept);
+    }
+    // Fill bytes and standalone markers carry no length.
+    if (marker === 0xff) {
+      offset += 1;
+      continue;
+    }
+
+    const length = data.readUInt16BE(offset + 2);
+    if (length < 2 || offset + 2 + length > data.length) return null;
+
+    if (marker !== 0xe1 && marker !== 0xed) {
+      kept.push(data.subarray(offset, offset + 2 + length));
+    }
+    offset += 2 + length;
+  }
+
+  return null;
 }
 
 /**
