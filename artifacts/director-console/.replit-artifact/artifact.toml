@@ -9,6 +9,9 @@ router = "path"
 name = "react-vite"
 version = "1.0.0"
 
+# Funeral homes and the platform team both sign in here, at the root of
+# continuumaftercare.com; a platform admin is forwarded to /admin on sign-in.
+# Clients never come here: their texted link opens /family.
 [[services]]
 name = "web"
 paths = [ "/" ]
@@ -28,4 +31,6 @@ to = "/index.html"
 
 [services.env]
 PORT = "21793"
+VITE_FAMILY_PORTAL_URL = "https://continuumaftercare.com/family"
+VITE_ADMIN_CONSOLE_URL = "https://continuumaftercare.com/admin"
 BASE_PATH = "/"

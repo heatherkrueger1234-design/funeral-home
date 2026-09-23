@@ -361,6 +361,28 @@ build args, because Vite bakes them in. Each is optional and every use is behind
 a check: a button reading "Open the platform console" that goes to `/` is worse
 than no button.
 
+### On Replit: one domain, split by path
+
+Replit publishes the whole workspace on one domain, continuumaftercare.com, so
+the three apps are told apart by path instead of by hostname:
+
+| Path | App | Who |
+| --- | --- | --- |
+| `/` | director console | funeral homes, and the platform team's sign-in |
+| `/admin` | platform console | platform admins only (the API checks the table) |
+| `/family` | family portal | clients, through the link they are texted |
+| `/api` | API | all three |
+
+Each app's `.replit-artifact/artifact.toml` claims its path and sets
+`BASE_PATH`, which Vite bakes into `import.meta.env.BASE_URL` and each app hands
+to wouter as the router base. The director console and the family portal used
+to *both* claim `/`, and the platform console had no artifact file at all, so a
+client's link and a director's sign-in were fighting over the same front page
+and the platform console was not published. The API's `FAMILY_PORTAL_URL` (in
+its artifact file) must end in `/family`, or every texted link opens the
+console. The Docker deployment is unaffected: `BASE_PATH` defaults to `/` there
+and each app keeps its own hostname.
+
 ## Demoing it
 
 `seed-showcase` builds an account that looks like a working one, with three

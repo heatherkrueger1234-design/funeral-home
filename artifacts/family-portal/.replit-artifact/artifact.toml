@@ -1,5 +1,5 @@
 kind = "web"
-previewPath = "/"
+previewPath = "/family/"
 title = "Family Portal"
 version = "1.0.0"
 id = "artifacts/family-portal"
@@ -9,9 +9,13 @@ router = "path"
 name = "react-vite"
 version = "1.0.0"
 
+# Clients only ever see this app. On Replit it shares continuumaftercare.com
+# with the director console, so it lives under /family instead of fighting
+# the console for "/". The API texts links built from FAMILY_PORTAL_URL (in
+# api-server's artifact.toml), which has to agree with this path.
 [[services]]
 name = "web"
-paths = [ "/" ]
+paths = [ "/family" ]
 localPort = 21792
 
 [services.development]
@@ -28,4 +32,5 @@ to = "/index.html"
 
 [services.env]
 PORT = "21792"
-BASE_PATH = "/"
+BASE_PATH = "/family"
+VITE_CONSOLE_URL = "https://continuumaftercare.com"

@@ -7,6 +7,7 @@ import {
   type ReactNode,
 } from "react";
 import { setAuthTokenGetter } from "@workspace/api-client-react";
+import { BASE_PATH } from "@/lib/base-path";
 
 /**
  * The family's credential, and where it lives.
@@ -50,7 +51,11 @@ function writeStored(token: string | null): void {
 function tokenFromUrl(): string | null {
   if (typeof window === "undefined") return null;
 
-  const match = /^\/f\/([^/?#]+)/.exec(window.location.pathname);
+  const { pathname } = window.location;
+  const local = pathname.startsWith(BASE_PATH)
+    ? pathname.slice(BASE_PATH.length)
+    : pathname;
+  const match = /^\/f\/([^/?#]+)/.exec(local);
   return match?.[1] ? decodeURIComponent(match[1]) : null;
 }
 
@@ -117,7 +122,7 @@ export function LinkProvider({ children }: { children: ReactNode }) {
   // Get the token out of the address bar as soon as React has it.
   useEffect(() => {
     if (tokenFromUrl()) {
-      window.history.replaceState(null, "", "/");
+      window.history.replaceState(null, "", `${BASE_PATH}/`);
     }
   }, []);
 
