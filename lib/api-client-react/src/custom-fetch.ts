@@ -145,12 +145,23 @@ function truncate(text: string, maxLength = 300): string {
   return text.length > maxLength ? `${text.slice(0, maxLength - 1)}…` : text;
 }
 
+/*
+ * The message is shown to people, verbatim, in every front end's error toast
+ * and under every form. The API writes its refusals for a director or a
+ * bereaved family to read ("That reset link has expired or has already been
+ * used."), and prefixing them with "HTTP 400 Bad Request:" turned each one
+ * into something that looked like a crash. The status is still on the error
+ * as `status` for code that needs it; the words are for the reader, and the
+ * transport line is only used when the server sent nothing better.
+ */
 function buildErrorMessage(response: Response, data: unknown): string {
   const prefix = `HTTP ${response.status} ${response.statusText}`;
 
   if (typeof data === "string") {
     const text = data.trim();
-    return text ? `${prefix}: ${truncate(text)}` : prefix;
+    // An HTML error page from a proxy is not a sentence anybody should read.
+    if (!text || text.startsWith("<")) return prefix;
+    return truncate(text);
   }
 
   const title = getStringField(data, "title");
@@ -160,10 +171,10 @@ function buildErrorMessage(response: Response, data: unknown): string {
     getStringField(data, "error_description") ??
     getStringField(data, "error");
 
-  if (title && detail) return `${prefix}: ${title} — ${detail}`;
-  if (detail) return `${prefix}: ${detail}`;
-  if (message) return `${prefix}: ${message}`;
-  if (title) return `${prefix}: ${title}`;
+  if (title && detail) return `${title} — ${detail}`;
+  if (detail) return detail;
+  if (message) return message;
+  if (title) return title;
 
   return prefix;
 }

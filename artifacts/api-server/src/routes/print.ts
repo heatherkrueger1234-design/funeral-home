@@ -379,14 +379,32 @@ router.delete("/print/:printItemId", async (req, res) => {
   res.status(204).end();
 });
 
-/** Bytes as a data URI, so the rendered page is one self-contained file. */
-async function dataUri(uploadId: number | null): Promise<string | null> {
+/**
+ * Bytes as a data URI, so the rendered page is one self-contained file.
+ *
+ * Scoped to the home, like every other read of `uploads`. This used to look
+ * the id up on its own, and `home.logoUploadId` is a number a home writes
+ * itself through `PUT /home` -- so pointing it at another home's upload id
+ * and rendering any prayer card inlined that home's decrypted file (a
+ * family's photograph, or anything else stored there) into this one's page.
+ * `PUT /home` now refuses a foreign id as well; this is the half that also
+ * covers a row written before it did.
+ */
+async function dataUri(
+  uploadId: number | null,
+  funeralHomeId: number,
+): Promise<string | null> {
   if (uploadId === null) return null;
 
   const [upload] = await db
     .select()
     .from(uploadsTable)
-    .where(eq(uploadsTable.id, uploadId))
+    .where(
+      and(
+        eq(uploadsTable.id, uploadId),
+        eq(uploadsTable.funeralHomeId, funeralHomeId),
+      ),
+    )
     .limit(1);
 
   if (!upload) return null;
@@ -417,8 +435,8 @@ export async function renderPrintItemHtml(
     case: row,
     home,
     values: (item.values ?? {}) as Record<string, string>,
-    photoDataUri: await dataUri(uploadId),
-    logoDataUri: await dataUri(home.logoUploadId),
+    photoDataUri: await dataUri(uploadId, home.id),
+    logoDataUri: await dataUri(home.logoUploadId, home.id),
   });
 }
 
@@ -433,7 +451,7 @@ function sendRenderedHtml(res: Response, html: string) {
   // added to the template without going through that escaping.
   res.setHeader(
     "Content-Security-Policy",
-    "default-src 'none'; img-src data:; style-src 'unsafe-inline'; base-uri 'none'; form-action 'none'",
+    "default-src 'none'; img-src data:; style-src 'unsafe-inline'; base-uri 'none'; form-action 'none'; frame-ancestors 'self'",
   );
   res.send(html);
 }

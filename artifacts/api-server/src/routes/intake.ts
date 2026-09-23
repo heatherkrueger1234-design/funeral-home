@@ -1,5 +1,5 @@
 import { Router, type IRouter } from "express";
-import { and, asc, eq } from "drizzle-orm";
+import { and, isNull, asc, eq } from "drizzle-orm";
 import {
   canOpenCases,
   cannotOpenCasesReason,
@@ -114,66 +114,26 @@ router.post("/intake-requests/:intakeId/accept", async (req, res) => {
     throw new HttpError(402, cannotOpenCasesReason(home));
   }
 
-  const created = await openCase(home, user.id, {
-    kind: row.kind,
-    decedentFirstName: row.subjectFirstName,
-    decedentLastName: row.subjectLastName,
-    dateOfDeath: row.dateOfDeath,
-    // What they typed into the public form, kept where the director will read
-    // it rather than left behind in a queue they will never open again.
-    serviceNotes: row.note,
-  });
-
   /*
-   * The person who asked becomes the first family contact, so the link goes
-   * straight back to them rather than to a name the director re-types.
+   * Claim the request before opening anything.
    *
-   * They are `next_of_kin` rather than a plain contributor: they came to the
-   * home themselves, which is as close to a declaration of who is arranging
-   * this as the product ever gets. On a pre-need file that person *is* the
-   * subject, and the relationship they never typed stays empty — "self" is a
-   * word this product would be putting in their mouth.
+   * This used to open the case first and flip the request to accepted last,
+   * with the conditional update at the end as the guard. That guard answered
+   * the second director with a 409 -- after their case, their family contact
+   * with a working link, and their billable funeral had all been written.
+   * Two directors tapping Accept on the same request in the same second (the
+   * queue is on every director's master page, so this is exactly when it
+   * happens) left two cases for one death, one of them billed and carrying a
+   * link nobody was ever shown. Claiming first means the loser is refused
+   * before anything exists; a failure after the claim puts the request back
+   * in the queue rather than losing it.
    */
-  const link = mintLink();
-
-  await db.insert(familyContactsTable).values({
-    funeralHomeId: home.id,
-    caseId: created.id,
-    name: row.requesterName,
-    email: row.requesterEmail,
-    phone: row.requesterPhone,
-    relationship: row.relationship,
-    role: "next_of_kin",
-    canInvite: true,
-    tokenHash: link.tokenHash,
-    expiresAt: link.expiresAt,
-    invitedByUserId: user.id,
-  });
-
-  await markOnboarding(home.id, "family");
-
-  // A case with a family member on it is live, exactly as it would be had the
-  // director added them by hand. Leaving it at `intake` would hide it from the
-  // list the director actually works from.
-  const [live] = await db
-    .update(casesTable)
-    .set({ status: "active", updatedAt: new Date() })
-    .where(eq(casesTable.id, created.id))
-    .returning();
-
-  /*
-   * Only now mark it accepted, and only if it is still pending. Two directors
-   * clicking at the same moment both reach here; the second changes no rows,
-   * and finds out from the count rather than from a duplicate case appearing
-   * in the list tomorrow.
-   */
-  const updated = await db
+  const [claimed] = await db
     .update(intakeRequestsTable)
     .set({
       status: "accepted",
       reviewedByUserId: user.id,
       reviewedAt: new Date(),
-      caseId: created.id,
       updatedAt: new Date(),
     })
     .where(
@@ -182,21 +142,79 @@ router.post("/intake-requests/:intakeId/accept", async (req, res) => {
         eq(intakeRequestsTable.status, "pending"),
       ),
     )
-    .returning();
+    .returning({ id: intakeRequestsTable.id });
 
-  if (updated.length === 0) {
+  if (!claimed) {
     throw new HttpError(
       409,
       "Somebody opened a case for this request a moment ago. Refresh the queue.",
     );
   }
 
-  /*
-   * The link is returned once, here, and never stored in a readable form —
-   * the row holds only its digest. A director who loses it mints another from
-   * the contact, which is the same path as "my sister forwarded it to someone
-   * she shouldn't have".
-   */
+  let created: Awaited<ReturnType<typeof openCase>>;
+  let live: typeof created | undefined;
+  let link: ReturnType<typeof mintLink>;
+
+  try {
+    created = await openCase(home, user.id, {
+      kind: row.kind,
+      decedentFirstName: row.subjectFirstName,
+      decedentLastName: row.subjectLastName,
+      dateOfDeath: row.dateOfDeath,
+      // What they typed into the public form, kept where the director will read
+      // it rather than left behind in a queue they will never open again.
+      serviceNotes: row.note,
+    });
+
+    link = mintLink();
+
+    await db.insert(familyContactsTable).values({
+      funeralHomeId: home.id,
+      caseId: created.id,
+      name: row.requesterName,
+      email: row.requesterEmail,
+      phone: row.requesterPhone,
+      relationship: row.relationship,
+      role: "next_of_kin",
+      canInvite: true,
+      tokenHash: link.tokenHash,
+      expiresAt: link.expiresAt,
+      invitedByUserId: user.id,
+    });
+
+    await markOnboarding(home.id, "family");
+
+    // A case with a family member on it is live, exactly as it would be had the
+    // director added them by hand. Leaving it at `intake` would hide it from the
+    // list the director actually works from.
+    [live] = await db
+      .update(casesTable)
+      .set({ status: "active", updatedAt: new Date() })
+      .where(eq(casesTable.id, created.id))
+      .returning();
+
+    await db
+      .update(intakeRequestsTable)
+      .set({ caseId: created.id, updatedAt: new Date() })
+      .where(eq(intakeRequestsTable.id, row.id));
+  } catch (error) {
+    await db
+      .update(intakeRequestsTable)
+      .set({
+        status: "pending",
+        reviewedByUserId: null,
+        reviewedAt: null,
+        updatedAt: new Date(),
+      })
+      .where(
+        and(
+          eq(intakeRequestsTable.id, row.id),
+          isNull(intakeRequestsTable.caseId),
+        ),
+      );
+    throw error;
+  }
+
   res
     .status(201)
     .json({ ...toCaseJson(live ?? created), familyLink: linkUrl(link.token) });

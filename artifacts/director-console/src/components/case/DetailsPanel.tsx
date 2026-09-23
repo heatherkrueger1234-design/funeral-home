@@ -117,7 +117,15 @@ export function DetailsPanel({
               <SelectValue placeholder="Nobody yet" />
             </SelectTrigger>
             <SelectContent>
-              {(staff.data ?? []).map((member) => (
+              {/* Only people who still work here -- plus whoever already
+                  holds the case, so the current value never renders blank. */}
+              {(staff.data ?? [])
+                .filter(
+                  (member) =>
+                    member.deactivatedAt === null ||
+                    member.id === detail.leadDirectorId,
+                )
+                .map((member) => (
                 <SelectItem key={member.id} value={String(member.id)}>
                   {member.displayName ?? member.email}
                 </SelectItem>

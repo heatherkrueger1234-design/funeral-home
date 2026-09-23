@@ -95,6 +95,10 @@ server {
         # disk first.
         proxy_buffering off;
         proxy_request_buffering off;
+
+        # Not the server-wide set: that one forbids framing, and the print
+        # proofs are previewed in a same-origin iframe. See the file.
+        include /etc/nginx/snippets/security-headers-api.conf;
     }
 
     # Vite fingerprints everything under /assets/, so the bytes at a given URL

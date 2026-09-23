@@ -1,5 +1,5 @@
 import { Router, type IRouter } from "express";
-import { and, asc, desc, eq, ilike, or, sql } from "drizzle-orm";
+import { and, asc, desc, eq, ilike, isNull, or, sql } from "drizzle-orm";
 import {
   db,
   casesTable,
@@ -219,7 +219,13 @@ async function assertStaffBelongsHere(userId: number, funeralHomeId: number) {
     .select({ id: usersTable.id })
     .from(usersTable)
     .where(
-      and(eq(usersTable.id, userId), eq(usersTable.funeralHomeId, funeralHomeId)),
+      and(
+        eq(usersTable.id, userId),
+        eq(usersTable.funeralHomeId, funeralHomeId),
+        // Someone whose access was taken away no longer works here either,
+        // and the family would be told to picture them as "your director".
+        isNull(usersTable.deactivatedAt),
+      ),
     )
     .limit(1);
 
@@ -267,6 +273,12 @@ router.put("/cases/:caseId", async (req, res) => {
   // director could point one family's portrait at another family's photo id.
   if (values.portraitPhotoId != null) {
     await assertPhotoOnCase(values.portraitPhotoId, existing.id, home.id);
+  }
+  // The same for the preparation room's reference photo, which was missed:
+  // it resolves to an upload id on the preparation sheet, so an unchecked id
+  // pointed this case at a photograph from another case, or another home.
+  if (values.referencePhotoId != null) {
+    await assertPhotoOnCase(values.referencePhotoId, existing.id, home.id);
   }
 
   const [updated] = await db
