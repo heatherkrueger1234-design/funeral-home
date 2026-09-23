@@ -265,7 +265,15 @@ async function addPhoto(options: {
   return photo!.id;
 }
 
-/** The standard schedule, as a home that has been using this would have it. */
+/**
+ * The standard schedule, as a home that has been using this would have it.
+ *
+ * `anchor` is carried through rather than left to the column default, and it
+ * matters: the death-certificate step hangs off the date of death, not the
+ * service, because it has to be filed within days whenever the funeral is. Drop
+ * it and the settings screen reads "1 day after the service" for a step that is
+ * nothing of the kind.
+ */
 async function seedSchedule(homeId: number): Promise<void> {
   await db.insert(timelineTemplatesTable).values(
     DEFAULT_TIMELINE_TEMPLATE.map((step, index) => ({
@@ -274,29 +282,56 @@ async function seedSchedule(homeId: number): Promise<void> {
       description: step.description,
       offsetMinutes: step.offsetMinutes,
       isEvent: step.isEvent,
+      anchor: step.anchor ?? "service",
       position: index,
     })),
   );
 }
 
-/** Apply the standard schedule to a case with a service date. */
+/**
+ * Apply the standard schedule to a case.
+ *
+ * Both anchors are honoured. A death-anchored step is measured from the end of
+ * the working day on which the person died, which is what the API's own
+ * `deathAnchor` does — approximated here as five in the afternoon rather than
+ * imported, because `scripts` does not depend on the API server and a demo
+ * seed does not need the timezone drift correction that the real one carries.
+ * If that approximation ever matters, the honest fix is to move `deathAnchor`
+ * down beside `dueAtFor` in `lib/db` so both callers share one implementation.
+ */
 async function applySchedule(
   homeId: number,
   caseId: number,
-  serviceAt: Date,
+  anchors: { serviceAt: Date | null; dateOfDeath: Date | null },
   completed: readonly string[] = [],
 ): Promise<void> {
-  await db.insert(caseDeadlinesTable).values(
-    DEFAULT_TIMELINE_TEMPLATE.map((step) => ({
+  const deathAt = anchors.dateOfDeath
+    ? new Date(
+        Date.UTC(
+          anchors.dateOfDeath.getUTCFullYear(),
+          anchors.dateOfDeath.getUTCMonth(),
+          anchors.dateOfDeath.getUTCDate(),
+          23, // 17:00 in Denver
+        ),
+      )
+    : null;
+
+  const rows = DEFAULT_TIMELINE_TEMPLATE.map((step) => {
+    const base = (step.anchor ?? "service") === "death" ? deathAt : anchors.serviceAt;
+    if (!base) return null;
+
+    return {
       funeralHomeId: homeId,
       caseId,
       title: step.title,
       description: step.description,
-      dueAt: new Date(serviceAt.getTime() + step.offsetMinutes * 60 * 1000),
+      dueAt: new Date(base.getTime() + step.offsetMinutes * 60 * 1000),
       isEvent: step.isEvent,
       completedAt: completed.includes(step.title) ? at(-1) : null,
-    })),
-  );
+    };
+  }).filter((row): row is NonNullable<typeof row> => row !== null);
+
+  if (rows.length > 0) await db.insert(caseDeadlinesTable).values(rows);
 }
 
 /* ------------------------------------------------------------- the reset -- */
@@ -745,10 +780,16 @@ async function seedShowcaseCase(
     submittedAt: at(-1, 20),
   });
 
-  await applySchedule(homeId, caseId, serviceAt, [
-    "Photographs in for the slideshow",
-    "Tell us about them for the obituary",
-  ]);
+  await applySchedule(
+    homeId,
+    caseId,
+    { serviceAt, dateOfDeath: at(-3, 6) },
+    [
+      "Photographs in for the slideshow",
+      "Tell us about them for the obituary",
+      "Details for the death certificate",
+    ],
+  );
 
   /*
    * One thing genuinely past due.
@@ -1016,7 +1057,7 @@ async function seedAftercareCase(
   await applySchedule(
     homeId,
     caseId,
-    serviceAt,
+    { serviceAt, dateOfDeath: at(-74, 5) },
     DEFAULT_TIMELINE_TEMPLATE.map((step) => step.title),
   );
 
