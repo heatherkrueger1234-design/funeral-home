@@ -102,6 +102,16 @@ function darken(color: string, amount: number): string | null {
   return `rgb(${r}, ${g}, ${b})`;
 }
 
+/**
+ * One letter for the monogram: the first letter of the first word that is
+ * not an article, so "The Willowbank Funeral Home" is W rather than T.
+ */
+function monogram(name: string): string {
+  const words = name.trim().split(/\s+/);
+  const word = words.find((w) => !/^(the|a|an)$/i.test(w)) ?? words[0] ?? "";
+  return word.charAt(0).toUpperCase();
+}
+
 function FullScreen({ children }: { children: ReactNode }) {
   return (
     <div className="min-h-dvh grid place-items-center px-6 py-16">
@@ -185,7 +195,10 @@ export function PortalShell({ children }: { children: ReactNode }) {
      */
     return (
       <FullScreen>
-        <div className="rounded-2xl border border-border bg-card p-7 shadow-[var(--elevation-2)] sm:p-9">
+        <div className="engraved rounded-2xl border border-[var(--brass-soft)] bg-card p-7 sm:p-9">
+          <div className="ornament mb-6 max-w-[7rem]" aria-hidden>
+            <i />
+          </div>
           <h1 className="font-display text-[1.6rem] mb-3">
             This page needs your link
           </h1>
@@ -230,7 +243,10 @@ export function PortalShell({ children }: { children: ReactNode }) {
 
     return (
       <FullScreen>
-        <div className="rounded-2xl border border-border bg-card p-7 text-center shadow-[var(--elevation-2)] sm:p-9">
+        <div className="engraved rounded-2xl border border-[var(--brass-soft)] bg-card p-7 text-center sm:p-9">
+          <div className="ornament mx-auto mb-6 max-w-[7rem]" aria-hidden>
+            <i />
+          </div>
           <h1 className="font-display text-[1.6rem] mb-3">
             {gone ? "This link has expired" : "We couldn't open this"}
           </h1>
@@ -277,12 +293,27 @@ export function PortalShell({ children }: { children: ReactNode }) {
       >
         <div className="mx-auto w-full max-w-2xl px-5 py-4">
           <div className="flex items-center gap-3.5">
-            {home.logoUploadId !== null && (
+            {home.logoUploadId !== null ? (
               <AuthedImage
                 uploadId={home.logoUploadId}
                 alt={home.name}
                 className="h-10 w-10 shrink-0 rounded-lg bg-white object-contain p-1.5 shadow-[0_1px_3px_rgb(0_0_0/0.18)] ring-1 ring-white/25"
               />
+            ) : (
+              /*
+                No logo yet: the home's initial, cut in the serif inside a
+                fine ring, the way a monogram is blind-stamped on a letterhead.
+                Without it the name sits alone against the colour and the
+                header reads as a title bar rather than as the home's own.
+              */
+              <span
+                aria-hidden
+                className="grid size-10 shrink-0 place-items-center rounded-full font-display text-lg
+                           leading-none text-white/95 ring-1 ring-inset ring-white/35
+                           shadow-[inset_0_0_0_3px_rgb(255_255_255/0.06)]"
+              >
+                {monogram(home.name)}
+              </span>
             )}
             <div className="min-w-0">
               <p className="font-display text-[1.0625rem] leading-tight truncate">
@@ -294,6 +325,11 @@ export function PortalShell({ children }: { children: ReactNode }) {
             </div>
           </div>
         </div>
+        {/* The gilt edge along the foot of the letterhead. */}
+        <span
+          aria-hidden
+          className="block h-px bg-[linear-gradient(to_right,transparent,color-mix(in_oklab,var(--brass)_70%,white)_20%,color-mix(in_oklab,var(--brass)_70%,white)_80%,transparent)] opacity-60"
+        />
       </header>
 
       {!atHub && (
@@ -319,35 +355,51 @@ export function PortalShell({ children }: { children: ReactNode }) {
         Set below a hairline rule and in the home's own colour, so it reads as
         the last line of the stationery rather than as another button.
       */}
-      {home.urgentPhone && (
-        <footer className="mx-auto w-full max-w-2xl px-5 pb-10">
-          <hr className="mb-5 border-0 border-t border-border" />
-          <a
-            href={`tel:${home.urgentPhone.replace(/[^\d+]/g, "")}`}
-            className="lift flex items-center gap-3 rounded-xl border border-border bg-card px-4 py-3.5
-                       no-underline shadow-[var(--elevation-1)] transition-gentle
-                       hover:border-[var(--accent)]"
-          >
-            <span className="grid size-9 shrink-0 place-items-center rounded-full bg-[var(--accent-soft)] text-[var(--accent-deep)]">
-              <Phone className="size-4" strokeWidth={1.75} />
-            </span>
-            {/*
-              Two lines, not one. Centred on a single line this wrapped at
-              phone width into "call" on one row and half a telephone number
-              on the next — which is the one piece of text on this product
-              that has to be readable at a glance in the dark.
-            */}
-            <span className="min-w-0">
-              <span className="block text-sm text-muted-foreground">
-                If you need someone now
+      <footer className="mx-auto w-full max-w-2xl px-5 pb-12">
+        {home.urgentPhone && (
+          <>
+            <hr className="mb-5 border-0 border-t border-border" />
+            <a
+              href={`tel:${home.urgentPhone.replace(/[^\d+]/g, "")}`}
+              className="lift flex items-center gap-3 rounded-xl border border-border bg-card px-4 py-3.5
+                         no-underline shadow-[var(--elevation-1)] transition-gentle
+                         hover:border-[var(--accent)]"
+            >
+              <span className="grid size-9 shrink-0 place-items-center rounded-full bg-[var(--accent-soft)] text-[var(--accent-deep)]">
+                <Phone className="size-4" strokeWidth={1.75} />
               </span>
-              <span className="tabular block font-semibold text-foreground">
-                {home.urgentPhone}
+              {/*
+                Two lines, not one. Centred on a single line this wrapped at
+                phone width into "call" on one row and half a telephone number
+                on the next — which is the one piece of text on this product
+                that has to be readable at a glance in the dark.
+              */}
+              <span className="min-w-0">
+                <span className="block text-sm text-muted-foreground">
+                  If you need someone now
+                </span>
+                <span className="tabular block font-semibold text-foreground">
+                  {home.urgentPhone}
+                </span>
               </span>
-            </span>
-          </a>
-        </footer>
-      )}
+            </a>
+          </>
+        )}
+
+        {/*
+          The colophon: the home's name, small and centred under a printer's
+          ornament, as the last line of every screen. It is the signature on
+          the stationery — the thing that says who sent this.
+        */}
+        <div className="mt-10 text-center">
+          <div className="ornament mx-auto max-w-[8rem]" aria-hidden>
+            <i />
+          </div>
+          <p className="mt-3 font-display text-sm text-muted-foreground">
+            {home.name}
+          </p>
+        </div>
+      </footer>
     </div>
   );
 }

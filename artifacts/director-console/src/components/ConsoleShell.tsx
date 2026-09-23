@@ -91,6 +91,16 @@ function NavLink({
   );
 }
 
+/**
+ * One letter for the monogram: the first letter of the first word that is
+ * not an article, so "The Willowbank Funeral Home" is W rather than T.
+ */
+function monogram(name: string): string {
+  const words = name.trim().split(/\s+/);
+  const word = words.find((w) => !/^(the|a|an)$/i.test(w)) ?? words[0] ?? "";
+  return word.charAt(0).toUpperCase();
+}
+
 export function ConsoleShell({ children }: { children: ReactNode }) {
   const { session, refresh } = useSession();
   const [location] = useLocation();
@@ -151,13 +161,27 @@ export function ConsoleShell({ children }: { children: ReactNode }) {
 
   return (
     <div className="flex min-h-dvh flex-col bg-background">
-      <header className="sticky top-0 z-30 border-b border-border bg-card/95 backdrop-blur-sm supports-[backdrop-filter]:bg-card/85">
-        <div className="mx-auto flex w-full max-w-5xl items-center gap-3 px-5 py-2.5">
+      <header className="sticky top-0 z-30 border-b border-border bg-card/95 shadow-[0_1px_0_rgb(255_255_255/0.8),0_8px_24px_-20px_rgb(40_34_24/0.35)] backdrop-blur-md supports-[backdrop-filter]:bg-card/80">
+        <div className="mx-auto flex w-full max-w-5xl items-center gap-3 px-5 py-3">
           <Link
             href="/"
-            className="truncate font-display text-lg leading-tight no-underline"
+            className="flex min-w-0 items-center gap-2.5 font-display text-lg leading-tight no-underline"
           >
-            {session?.home.name ?? "Console"}
+            {/*
+              The home's initial in a fine brass ring: the blind-stamped
+              monogram at the head of a letter. The family portal's header
+              carries the same mark, so a director sees their families' view
+              in their own.
+            */}
+            <span
+              aria-hidden
+              className="grid size-8 shrink-0 place-items-center rounded-full bg-[var(--accent-deep)]
+                         text-[0.95rem] leading-none text-white
+                         shadow-[inset_0_0_0_2px_var(--accent-deep),inset_0_0_0_3px_color-mix(in_oklab,var(--brass)_75%,white)]"
+            >
+              {monogram(session?.home.name ?? "")}
+            </span>
+            <span className="truncate">{session?.home.name ?? "Console"}</span>
           </Link>
 
           {/* A hairline between whose console this is and what is in it. */}
@@ -224,7 +248,7 @@ export function ConsoleShell({ children }: { children: ReactNode }) {
         </div>
       </header>
 
-      <main className="mx-auto w-full max-w-5xl flex-1 px-5 py-7">
+      <main className="mx-auto w-full max-w-5xl flex-1 px-5 pb-16 pt-9">
         <ConfirmAddressNotice />
         {children}
       </main>

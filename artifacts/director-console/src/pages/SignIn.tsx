@@ -96,8 +96,11 @@ export default function SignIn() {
     */
     <div className="grid min-h-dvh place-items-center px-5 py-12">
       <div className="w-full max-w-sm">
-        <header className="mb-7 text-center">
-          <h1 className="font-display text-[1.75rem] leading-tight">
+        <header className="mb-8 text-center">
+          <div className="ornament mx-auto mb-5 max-w-[9rem]" aria-hidden>
+            <i />
+          </div>
+          <h1 className="font-display text-[2rem] leading-tight">
             Holding Today
           </h1>
           <p className="mt-1.5 text-sm leading-relaxed text-muted-foreground">
@@ -107,7 +110,7 @@ export default function SignIn() {
 
         <form
           onSubmit={submit}
-          className="space-y-4 rounded-2xl border border-border bg-card p-6 shadow-[var(--elevation-2)] sm:p-7"
+          className="engraved space-y-4 rounded-2xl border border-[var(--brass-soft)] bg-card p-7 sm:p-8"
         >
           {registering && (
             <>

@@ -58,9 +58,9 @@ export function SetupChecklist() {
   const remaining = billing.data.onboarding.filter((step) => !step.done);
 
   return (
-    <section className="max-w-2xl rounded-xl border border-[var(--accent)]/25 bg-[var(--accent-soft)] p-5">
-      <div className="mb-4 flex flex-wrap items-baseline gap-x-3 gap-y-1">
-        <h2 className="font-display text-lg text-[var(--accent-deep)]">
+    <section className="max-w-2xl rounded-xl border border-border bg-card p-6 shadow-[var(--elevation-1)]">
+      <div className="mb-2 flex flex-wrap items-baseline gap-x-3 gap-y-1">
+        <h2 className="font-display text-xl text-[var(--accent-deep)]">
           Getting set up
         </h2>
         <span className="tabular text-sm text-muted-foreground">
@@ -79,6 +79,23 @@ export function SetupChecklist() {
         go, with its own destination at the end of it, and the panel stops
         where the text does instead of ruling off the whole screen.
       */}
+      {/* How far along, as a hairline rather than a number to be read. */}
+      <div
+        aria-hidden
+        className="mb-4 h-[3px] overflow-hidden rounded-full bg-[var(--muted)]"
+      >
+        <div
+          className="h-full rounded-full bg-[var(--accent)] transition-[width] duration-500 ease-[cubic-bezier(0.2,0.6,0.3,1)]"
+          style={{
+            width: `${
+              ((billing.data.onboarding.length - remaining.length) /
+                Math.max(1, billing.data.onboarding.length)) *
+              100
+            }%`,
+          }}
+        />
+      </div>
+
       <ul className="space-y-0.5">
         {billing.data.onboarding.map((step) => {
           const destination = DESTINATIONS[step.key];

@@ -105,7 +105,7 @@ function relative(value: string | Date): string {
 const ROW =
   "flex items-baseline justify-between gap-4 rounded-xl border border-border " +
   "bg-card px-4 py-3 no-underline shadow-[var(--elevation-1)] " +
-  "transition-colors duration-200 hover:border-[var(--accent)]";
+  "lift transition-gentle hover:border-[color-mix(in_oklab,var(--accent)_45%,var(--border))]";
 
 export default function Dashboard() {
   const dashboard = useGetHomeDashboard({
@@ -342,15 +342,24 @@ function WaitingTile({
     <Link
       href={href}
       className={cn(
-        "block rounded-xl border p-4 no-underline shadow-[var(--elevation-1)]",
-        "transition-colors duration-200 ease-[cubic-bezier(0.2,0.6,0.3,1)]",
+        "lift relative block overflow-hidden rounded-xl border p-5 no-underline shadow-[var(--elevation-1)]",
+        "transition-gentle",
         quiet
           ? "border-border bg-card text-muted-foreground hover:text-foreground"
-          : "border-[var(--accent)] bg-[var(--accent-soft)]",
+          : "border-[var(--accent)]/35 bg-card text-foreground",
       )}
     >
-      <span className="eyebrow mb-1 flex items-center gap-2">{icon}</span>
-      <span className="tabular block font-display text-2xl leading-none text-foreground">
+      {/* Somebody is waiting: a rule of the home's colour along the top. */}
+      {!quiet && (
+        <span aria-hidden className="absolute inset-x-0 top-0 h-[3px] bg-[var(--accent)]" />
+      )}
+      <span className="eyebrow mb-2 flex items-center gap-2">{icon}</span>
+      <span
+        className={cn(
+          "tabular block font-display text-[2rem] leading-none",
+          quiet ? "text-foreground/70" : "text-[var(--accent-deep)]",
+        )}
+      >
         {count}
       </span>
       <span className="mt-1 block text-sm">{label}</span>
