@@ -1,5 +1,11 @@
 # Component briefs
 
+> **Out of date on one point (23 Sep 2026):** the branch names below are
+> wrong. `claude/app-capability-check-mvfn8x` is no longer the integration
+> branch. Branch from and merge into **`claude/funeral-home-portal-uj9bik`**.
+> See [`../STATUS.md`](../STATUS.md). The rules and the craft standard still
+> apply.
+
 One file per agent. Read, in this order:
 
 1. [`../TEAM-SPLIT.md`](../TEAM-SPLIT.md) — ownership, the codegen rule, and
