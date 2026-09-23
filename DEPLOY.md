@@ -146,10 +146,14 @@ For a pilot, a transactional provider (Postmark, Resend, SES) is the better
 choice over Google Workspace: Workspace caps you at 2,000 messages a day and
 treats a burst of password resets like spam.
 
-**`SMTP_FROM`** is the sender a family sees, e.g.
-`Willowbank Funeral Home <care@yourdomain.com>`. It must be on a domain you
-have verified with the provider, and with an API-key provider it is required,
-because the username there is not an address. With it missing, or with only
+**`SMTP_FROM`** is the platform's sender, e.g.
+`Holding Today <care@yourdomain.com>`. It must be on a domain you have
+verified with the provider, and with an API-key provider it is required,
+because the username there is not an address. Aftercare check-ins keep its
+address but swap in the home's own name (its "aftercare sender name", or the
+home's name), and set Reply-To to the home's request inbox, falling back to
+the owner, so a family who writes back reaches their director. Mail to staff
+(resets, invitations, intake alerts) goes out as `SMTP_FROM` unchanged. With it missing, or with only
 some of the four settings present, nothing is sent and the log names the
 problem.
 

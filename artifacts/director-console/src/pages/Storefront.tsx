@@ -151,7 +151,8 @@ export default function Storefront() {
           <p className="text-sm leading-snug text-muted-foreground">
             Whoever checks email during the day. A request sitting in a queue
             nobody opens is worse than no form at all — the family believes
-            they have reached someone.
+            they have reached someone. When a family replies to one of your
+            aftercare check-ins, the reply comes here too.
           </p>
         </div>
       </Panel>

@@ -5,6 +5,8 @@ import {
   aftercareEnrollmentsTable,
   casesTable,
   familyContactsTable,
+  funeralHomesTable,
+  usersTable,
 } from "@workspace/db";
 import { sendAftercareEmail, isMailConfigured } from "./index";
 
@@ -83,12 +85,43 @@ export type AftercareRunResult = {
   mailConfigured: boolean;
 };
 
+/**
+ * Where a family's reply to a check-in should land: the same inbox the home
+ * chose for requests from its public page, or, failing that, the owner's,
+ * which is the one address every home is guaranteed to have. The same order
+ * the intake alert uses, so a home has one place its families' mail arrives.
+ *
+ * Remembered per run, because one home can have a dozen check-ins due on the
+ * same morning and the answer does not change between them.
+ */
+const replyToCache = new Map<number, string | null>();
+
+async function replyToFor(
+  homeId: number,
+  homeInbox: string | null,
+): Promise<string | null> {
+  const configured = homeInbox?.trim();
+  if (configured) return configured;
+  if (replyToCache.has(homeId)) return replyToCache.get(homeId)!;
+
+  const [owner] = await db
+    .select({ email: usersTable.email })
+    .from(usersTable)
+    .where(and(eq(usersTable.funeralHomeId, homeId), eq(usersTable.role, "owner")))
+    .limit(1);
+
+  const address = owner?.email ?? null;
+  replyToCache.set(homeId, address);
+  return address;
+}
+
 export async function runAftercare(
   options: { dryRun?: boolean; now?: Date; limit?: number } = {},
 ): Promise<AftercareRunResult> {
   const now = options.now ?? new Date();
   const dryRun = options.dryRun ?? false;
   const mailConfigured = isMailConfigured();
+  replyToCache.clear();
 
   const due = await db
     .select({
@@ -97,6 +130,8 @@ export async function runAftercare(
       contactName: familyContactsTable.name,
       firstName: casesTable.decedentFirstName,
       preferredName: casesTable.decedentPreferredName,
+      homeId: funeralHomesTable.id,
+      homeInbox: funeralHomesTable.intakeNotifyEmail,
     })
     .from(aftercareDeliveriesTable)
     .innerJoin(
@@ -108,6 +143,7 @@ export async function runAftercare(
       eq(familyContactsTable.id, aftercareEnrollmentsTable.contactId),
     )
     .innerJoin(casesTable, eq(casesTable.id, aftercareEnrollmentsTable.caseId))
+    .innerJoin(funeralHomesTable, eq(funeralHomesTable.id, casesTable.funeralHomeId))
     .where(
       and(
         lte(aftercareDeliveriesTable.dueAt, now),
@@ -185,6 +221,7 @@ export async function runAftercare(
         subject: template.subject,
         body: template.body(deceased),
         brandedAs: row.enrollment.brandedAs,
+        replyTo: await replyToFor(row.homeId, row.homeInbox),
       });
       result.sent += 1;
     } catch (error) {

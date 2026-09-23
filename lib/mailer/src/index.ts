@@ -37,7 +37,14 @@ type MailerConfig = {
   user: string;
   pass: string;
   from: string;
+  /** The address inside `from`, without any display name around it. */
+  fromAddress: string;
 };
+
+/** "Name <a@b.com>" -> "a@b.com"; a bare address comes back as it is. */
+function bareAddress(from: string): string {
+  return (from.match(/<([^>]+)>/)?.[1] ?? from).trim();
+}
 
 /**
  * Why mail cannot go out, in words an operator can act on, or null when the
@@ -97,14 +104,17 @@ function readConfig():
       user: SMTP_USER!,
       pass: SMTP_PASS!,
       from,
+      fromAddress: bareAddress(from),
     },
     problem: null,
   };
 }
 
-let cached: { transport: Transporter; from: string } | null | undefined;
+type Mailer = { transport: Transporter; from: string; fromAddress: string };
 
-function getTransport(): { transport: Transporter; from: string } | null {
+let cached: Mailer | null | undefined;
+
+function getTransport(): Mailer | null {
   if (cached !== undefined) return cached;
 
   const { config, problem } = readConfig();
@@ -132,6 +142,7 @@ function getTransport(): { transport: Transporter; from: string } | null {
       auth: { user: config.user, pass: config.pass },
     }),
     from: config.from,
+    fromAddress: config.fromAddress,
   };
 
   return cached;
@@ -253,6 +264,15 @@ async function send(message: {
    * the delivery rather than mark it sent and move on.
    */
   rethrow?: boolean;
+  /**
+   * Whose name the recipient sees as the sender. The address stays
+   * SMTP_FROM's own, because that is the domain SPF and DKIM vouch for; a
+   * home's name on the platform's address is what lands in the inbox, a
+   * home's own address from the platform's servers is what lands in spam.
+   */
+  senderName?: string;
+  /** Where a reply goes, when it should not come back to SMTP_FROM. */
+  replyTo?: string | null;
 }): Promise<void> {
   const mailer = getTransport();
 
@@ -272,10 +292,18 @@ async function send(message: {
   }
 
   try {
-    const { rethrow, logText, ...payload } = message;
+    const { rethrow, logText, senderName, replyTo, ...payload } = message;
     void rethrow;
     void logText;
-    await mailer.transport.sendMail({ from: mailer.from, ...payload });
+    await mailer.transport.sendMail({
+      // As an object, not a formatted string, so nodemailer quotes the name:
+      // "Horan & McConaty, Ltd" would otherwise be read as two addresses.
+      from: senderName?.trim()
+        ? { name: senderName.trim(), address: mailer.fromAddress }
+        : mailer.from,
+      ...(replyTo ? { replyTo } : {}),
+      ...payload,
+    });
     logger.info({ to: message.to, subject: message.subject }, "Email sent");
   } catch (err) {
     // Never rethrow to the caller: /auth/forgot-password must answer the same
@@ -412,8 +440,14 @@ export async function sendAftercareEmail(options: {
   subject: string;
   body: string;
   brandedAs: string;
+  /**
+   * The home's own inbox. A family who answers "thank you, it was a hard
+   * week" is writing to their funeral director, and that is who should read
+   * it, not a no-reply mailbox at the software company.
+   */
+  replyTo?: string | null;
 }): Promise<void> {
-  const { to, subject, body, brandedAs } = options;
+  const { to, subject, body, brandedAs, replyTo } = options;
 
   const text = `${body}\n\n— Provided in care with ${brandedAs}`;
 
@@ -438,7 +472,15 @@ export async function sendAftercareEmail(options: {
   </p>
 </div>`.trim();
 
-  await send({ to, subject, text, html, rethrow: true });
+  await send({
+    to,
+    subject,
+    text,
+    html,
+    rethrow: true,
+    senderName: brandedAs,
+    replyTo,
+  });
 }
 
 /**
