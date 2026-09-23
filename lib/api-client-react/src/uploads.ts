@@ -51,6 +51,27 @@ export async function postUploadMultipart(file: File): Promise<UploadedFile> {
 }
 
 /**
+ * Staff adding a photograph to one case's bin: the print posted to the
+ * office. Goes to the case, not to `/uploads`, so it reaches the bin, the
+ * pack and the slideshow.
+ */
+export async function postCasePhotoMultipart(
+  caseId: number,
+  file: File,
+  caption?: string,
+): Promise<unknown> {
+  const body = new FormData();
+  body.append("file", file);
+  if (caption?.trim()) body.append("caption", caption.trim());
+
+  return customFetch<unknown>(`/api/cases/${caseId}/photos`, {
+    method: "POST",
+    body,
+    responseType: "json",
+  });
+}
+
+/**
  * A family adding a photograph to the bin. Authenticated by the link token,
  * which `customFetch` attaches as a bearer header from the configured getter.
  */

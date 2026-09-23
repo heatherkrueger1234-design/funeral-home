@@ -13,6 +13,8 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Loader2, MessageSquare, Moon, Send } from "lucide-react";
 import { Empty, Loading } from "@/components/page";
+import { formatAtHome } from "@/lib/utils";
+import { useHomeZone } from "@/lib/session";
 
 /**
  * The thread, from the home's side.
@@ -22,6 +24,7 @@ import { Empty, Loading } from "@/components/page";
  * signal is maintained by the act of actually looking.
  */
 export function MessagesPanel({ caseId }: { caseId: number }) {
+  const zone = useHomeZone();
   const queryClient = useQueryClient();
   const thread = useGetCaseMessages(caseId);
   const [body, setBody] = useState("");
@@ -100,7 +103,10 @@ export function MessagesPanel({ caseId }: { caseId: number }) {
               <p className="mt-1.5 text-sm leading-snug text-muted-foreground">
                 {message.authorName ?? (fromHome ? "The home" : "The family")}
                 {message.authorTitle ? `, ${message.authorTitle}` : ""} ·{" "}
-                {new Date(message.createdAt).toLocaleString(undefined, {
+                {/* On the home's clock: "sent out of hours" below is judged
+                    against the home's hours, and the time beside it should
+                    agree with it. */}
+                {formatAtHome(message.createdAt, zone, {
                   day: "numeric",
                   month: "short",
                   hour: "numeric",

@@ -23,6 +23,8 @@ import {
 } from "@/components/ui/select";
 import { Check, Plus, X } from "lucide-react";
 import { Loading } from "@/components/page";
+import { formatAtHome } from "@/lib/utils";
+import { useHomeZone } from "@/lib/session";
 
 /**
  * The custody log, and the sheet that goes to the preparation room.
@@ -46,10 +48,12 @@ const DISPOSITIONS = [
   { value: "return_to_family", label: "Back to family" },
 ];
 
-function formatWhen(value: string | Date | null): string {
-  if (!value) return "";
-  const date = value instanceof Date ? value : new Date(value);
-  return date.toLocaleString(undefined, {
+/** Chain of custody is read on the home's clock -- see `formatAtHome`. */
+function formatWhen(
+  value: string | Date | null,
+  zone: string | undefined,
+): string {
+  return formatAtHome(value, zone, {
     day: "numeric",
     month: "short",
     hour: "numeric",
@@ -58,6 +62,7 @@ function formatWhen(value: string | Date | null): string {
 }
 
 export function BelongingsPanel({ caseId }: { caseId: number }) {
+  const zone = useHomeZone();
   const queryClient = useQueryClient();
   const items = useGetBelongings(caseId);
   const preparation = useGetPreparation(caseId);
@@ -192,10 +197,10 @@ export function BelongingsPanel({ caseId }: { caseId: number }) {
               {/* The line that answers "who took the ring in?". */}
               {item.receivedAt && (
                 <p className="text-sm leading-snug text-muted-foreground">
-                  Taken in {formatWhen(item.receivedAt)}
+                  Taken in {formatWhen(item.receivedAt, zone)}
                   {item.receivedByName ? ` by ${item.receivedByName}` : ""}
                   {item.returnedAt
-                    ? ` · returned ${formatWhen(item.returnedAt)}${
+                    ? ` · returned ${formatWhen(item.returnedAt, zone)}${
                         item.returnedToName ? ` to ${item.returnedToName}` : ""
                       }`
                     : ""}

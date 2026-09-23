@@ -59,6 +59,16 @@ export const casePhotosTable = pgTable(
     uploadedByContactId: integer("uploaded_by_contact_id"),
 
     /**
+     * The staff member who added it, when one did: the print a widow posted
+     * to the office, scanned at the front desk. Recorded rather than inferred
+     * from a null contact, so a family looking at the bin is told plainly
+     * that this one came from the home, and the home can see which of its
+     * people put it there. Exactly one of this and `uploadedByContactId` is
+     * set on anything added since the column existed.
+     */
+    uploadedByUserId: integer("uploaded_by_user_id"),
+
+    /**
      * "Mum and Dad at Skegness, 1974". Optional, and worth asking for: the
      * captions are what let the director build a slideshow that runs in a
      * sensible order without ringing the family to ask who anyone is.

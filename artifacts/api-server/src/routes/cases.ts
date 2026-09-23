@@ -35,6 +35,7 @@ import { enrolCaseInAftercare } from "../lib/aftercare";
 import { recordBillableCase } from "../lib/metering";
 import { applyTemplateToCase, hasDeadlines } from "../lib/timeline";
 import { markOnboarding } from "../lib/onboarding";
+import { obituaryDate, prefillObituaryDates } from "../lib/obituary";
 import { HttpError } from "../lib/http";
 
 const router: IRouter = Router();
@@ -184,6 +185,9 @@ export async function openCase(
       funeralHomeId,
       caseId: row!.id,
       fullName: `${row!.decedentFirstName} ${row!.decedentLastName}`.trim(),
+      // Never ask twice: what the home typed, the family is not asked for.
+      bornOn: obituaryDate(row!.dateOfBirth),
+      diedOn: obituaryDate(row!.dateOfDeath),
     });
 
     return row!;
@@ -286,6 +290,12 @@ router.put("/cases/:caseId", async (req, res) => {
     .set({ ...values, updatedAt: new Date() })
     .where(eq(casesTable.id, existing.id))
     .returning();
+
+  // A date added after the case was opened reaches the obituary's empty
+  // "born" or "died" line too; see `prefillObituaryDates`.
+  if (values.dateOfBirth !== undefined || values.dateOfDeath !== undefined) {
+    await prefillObituaryDates(updated!);
+  }
 
   /*
    * The moment that makes the timeline actually happen.
@@ -392,6 +402,10 @@ router.post("/cases/:caseId/at-need", async (req, res) => {
    * once.
    */
   await recordBillableCase(converted!, home);
+
+  // The obituary a planner may have started in their own words gets the
+  // date of death on its empty line, and keeps everything they wrote.
+  await prefillObituaryDates(converted!);
 
   if (converted!.serviceAt !== null && !(await hasDeadlines(converted!.id))) {
     await applyTemplateToCase(converted!);

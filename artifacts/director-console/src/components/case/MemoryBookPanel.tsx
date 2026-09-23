@@ -45,6 +45,8 @@ import {
 } from "lucide-react";
 import { Divider, Empty, Loading } from "@/components/page";
 import { MemoryBookSettings, PhotoYears } from "@/components/case/MemoryBookSettings";
+import { formatAtHome } from "@/lib/utils";
+import { useHomeZone } from "@/lib/session";
 import {
   bookStatus,
   moveWrites,
@@ -69,11 +71,9 @@ import {
  * somebody will ask, and the answer has to still be here.
  */
 
-const dateFormat = new Intl.DateTimeFormat(undefined, {
-  day: "numeric",
-  month: "long",
-  year: "numeric",
-});
+/** The day the book closes, on the home's calendar -- see `formatAtHome`. */
+const closingDay = (date: Date, zone: string | undefined) =>
+  formatAtHome(date, zone, { day: "numeric", month: "long", year: "numeric" });
 
 const MEMORY_MAX_LENGTH = 4000;
 const EULOGY_MAX_LENGTH = 20000;
@@ -659,6 +659,7 @@ export function MemoryBookPanel({
   displayName: string;
 }) {
   const queryClient = useQueryClient();
+  const zone = useHomeZone();
   const book = useGetMemoryBook(caseId);
   const photos = useGetCasePhotos(caseId);
   const [editingEntry, setEditingEntry] = useState<number | null>(null);
@@ -804,7 +805,7 @@ export function MemoryBookPanel({
           ) : (
             <Lock className="size-4 shrink-0 text-muted-foreground" aria-hidden />
           )}
-          <span className="font-semibold">{bookStatus(data, (date) => dateFormat.format(date))}</span>
+          <span className="font-semibold">{bookStatus(data, (date) => closingDay(date, zone))}</span>
         </p>
         <p className="text-sm text-muted-foreground">
           {data.entries.length} {data.entries.length === 1 ? "entry" : "entries"} ·{" "}

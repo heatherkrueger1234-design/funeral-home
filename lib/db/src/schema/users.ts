@@ -45,7 +45,8 @@ export const usersTable = pgTable(
      */
     title: text("title"),
     /**
-     * `owner` can change billing and invite staff; `director` and `staff`
+     * `owner` can change billing, invite staff and permanently erase a case
+     * (RETENTION.md); `director` and `staff`
      * differ only in that a director is offered as a case's lead. Roles are
      * intentionally few — a funeral home has eight employees, not a
      * permissions matrix.
