@@ -1,5 +1,5 @@
 import { useCallback } from "react";
-import { Route, Switch, useParams, Link } from "wouter";
+import { Route, Router, Switch, useParams, Link } from "wouter";
 import {
   QueryClient,
   QueryClientProvider,
@@ -94,7 +94,13 @@ function NotFound() {
 export default function App() {
   return (
     <QueryClientProvider client={queryClient}>
-      <Gate />
+      {/*
+        "" on its own hostname; "/admin" on Replit, where one domain is split
+        by path and every <Link href="/homes"> has to resolve beneath it.
+      */}
+      <Router base={import.meta.env.BASE_URL.replace(/\/+$/, "")}>
+        <Gate />
+      </Router>
     </QueryClientProvider>
   );
 }

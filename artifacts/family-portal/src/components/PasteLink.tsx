@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { tokenFromPasted } from "@/lib/paste-link";
+import { BASE_PATH } from "@/lib/base-path";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -31,7 +32,7 @@ export function PasteLink({ label = "Or paste your link here" }: { label?: strin
           setInvalid(true);
           return;
         }
-        window.location.assign(`/f/${encodeURIComponent(token)}`);
+        window.location.assign(`${BASE_PATH}/f/${encodeURIComponent(token)}`);
       }}
     >
       <Label htmlFor="pasted-link">{label}</Label>

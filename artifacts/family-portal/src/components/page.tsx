@@ -30,9 +30,9 @@ export function PageHeader({
   return (
     <header className="flex flex-wrap items-start gap-x-4 gap-y-3">
       <div className="min-w-0 flex-1">
-        <h1 className="font-display text-[1.6rem] leading-tight">{title}</h1>
+        <h1 className="font-display text-[1.875rem] leading-[1.15]">{title}</h1>
         {children && (
-          <p className="mt-1.5 max-w-prose text-muted-foreground">{children}</p>
+          <p className="mt-2 max-w-prose text-muted-foreground">{children}</p>
         )}
       </div>
       {aside && <div className="shrink-0">{aside}</div>}

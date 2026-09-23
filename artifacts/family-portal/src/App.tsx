@@ -1,5 +1,5 @@
 import { lazy, Suspense } from "react";
-import { Switch, Route } from "wouter";
+import { Switch, Route, Router } from "wouter";
 import {
   MutationCache,
   QueryCache,
@@ -11,6 +11,7 @@ import { toast } from "@/hooks/use-toast";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { LinkProvider, isUnauthorized } from "@/lib/link";
 import { PortalShell } from "@/components/PortalShell";
+import { BASE_PATH } from "@/lib/base-path";
 import { Loading } from "@/components/page";
 import Hub from "@/pages/Hub";
 import Start from "@/pages/Start";
@@ -87,38 +88,40 @@ export default function App() {
     <QueryClientProvider client={queryClient}>
       <TooltipProvider>
         <LinkProvider>
-          {/*
+          <Router base={BASE_PATH}>
+            {/*
             The home's public front door sits outside PortalShell entirely.
             The shell's whole job is to frame a case the reader has a link to;
             this is read by people who have no link and, in the pre-need case,
             no bereavement either, so it carries none of that furniture.
           */}
-          <Switch>
-            <Route path="/start/:slug" component={Start} />
-            <Route>
-              <PortalShell>
-                <Suspense fallback={<Loading />}>
-                  <Switch>
-                    <Route path="/" component={Hub} />
-                    {/* The link's own URL, before it is rewritten to "/". */}
-                    <Route path="/f/:token" component={Hub} />
-                    <Route path="/photos" component={Photos} />
-                    <Route path="/obituary" component={Obituary} />
-                    <Route path="/service" component={Selections} />
-                    <Route path="/timeline" component={Timeline} />
-                    <Route path="/service-time" component={ServiceTime} />
-                    <Route path="/messages" component={Messages} />
-                    <Route path="/aftercare" component={Aftercare} />
-                    <Route path="/belongings" component={Belongings} />
-                    <Route path="/local" component={Local} />
-                    <Route path="/certificate" component={Vitals} />
-                    <Route path="/proofs" component={Proofs} />
-                    <Route component={NotFound} />
-                  </Switch>
-                </Suspense>
-              </PortalShell>
-            </Route>
-          </Switch>
+            <Switch>
+              <Route path="/start/:slug" component={Start} />
+              <Route>
+                <PortalShell>
+                  <Suspense fallback={<Loading />}>
+                    <Switch>
+                      <Route path="/" component={Hub} />
+                      {/* The link's own URL, before it is rewritten to "/". */}
+                      <Route path="/f/:token" component={Hub} />
+                      <Route path="/photos" component={Photos} />
+                      <Route path="/obituary" component={Obituary} />
+                      <Route path="/service" component={Selections} />
+                      <Route path="/timeline" component={Timeline} />
+                      <Route path="/service-time" component={ServiceTime} />
+                      <Route path="/messages" component={Messages} />
+                      <Route path="/aftercare" component={Aftercare} />
+                      <Route path="/belongings" component={Belongings} />
+                      <Route path="/local" component={Local} />
+                      <Route path="/certificate" component={Vitals} />
+                      <Route path="/proofs" component={Proofs} />
+                      <Route component={NotFound} />
+                    </Switch>
+                  </Suspense>
+                </PortalShell>
+              </Route>
+            </Switch>
+          </Router>
           <Toaster />
         </LinkProvider>
       </TooltipProvider>

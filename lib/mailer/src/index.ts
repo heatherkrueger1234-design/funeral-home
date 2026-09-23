@@ -345,7 +345,7 @@ export async function sendPasswordResetEmail(options: {
             max-width:520px;margin:0 auto;padding:32px 24px;color:#1f2937;
             line-height:1.6;font-size:15px">
   <p style="margin:0 0 20px">
-    Someone asked to reset the password for your ContinuumHolding&nbsp;Todaynbsp;Aftercare account.
+    Someone asked to reset the password for your Continuum&nbsp;Aftercare account.
   </p>
   <p style="margin:0 0 28px">
     <a href="${esc(resetUrl)}"
@@ -400,7 +400,7 @@ export async function sendStaffInviteEmail(options: {
             max-width:520px;margin:0 auto;padding:32px 24px;color:#1f2937;
             line-height:1.6;font-size:15px">
   <p style="margin:0 0 20px">
-    ${esc(invitedBy)} has added you to <strong>${esc(homeName)}</strong> on ContinuumHolding&nbsp;Todaynbsp;Aftercare.
+    ${esc(invitedBy)} has added you to <strong>${esc(homeName)}</strong> on Continuum&nbsp;Aftercare.
   </p>
   <p style="margin:0 0 28px">
     <a href="${esc(inviteLink)}"
@@ -623,7 +623,7 @@ export async function sendEmailVerificationEmail(options: {
             max-width:520px;margin:0 auto;padding:32px 24px;color:#1f2937;
             line-height:1.6;font-size:15px">
   <p style="margin:0 0 20px">
-    Thank you for setting up <strong>${esc(homeName)}</strong> on ContinuumHolding&nbsp;Todaynbsp;Aftercare.
+    Thank you for setting up <strong>${esc(homeName)}</strong> on Continuum&nbsp;Aftercare.
   </p>
   <p style="margin:0 0 28px">
     <a href="${esc(verifyUrl)}"

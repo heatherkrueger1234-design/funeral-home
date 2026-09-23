@@ -1,0 +1,36 @@
+kind = "web"
+previewPath = "/admin/"
+title = "Admin Console"
+version = "1.0.0"
+id = "artifacts/admin-console"
+router = "path"
+
+[[integratedSkills]]
+name = "react-vite"
+version = "1.0.0"
+
+# The platform's own console, at continuumaftercare.com/admin. Only addresses
+# in the platform_admins table get past its sign-in; the API enforces that,
+# not this path.
+[[services]]
+name = "web"
+paths = [ "/admin" ]
+localPort = 21794
+
+[services.development]
+run = "pnpm --filter @workspace/admin-console run dev"
+
+[services.production]
+build = [ "pnpm", "--filter", "@workspace/admin-console", "run", "build" ]
+publicDir = "artifacts/admin-console/dist/public"
+serve = "static"
+
+[[services.production.rewrites]]
+from = "/*"
+to = "/index.html"
+
+[services.env]
+PORT = "21794"
+BASE_PATH = "/admin"
+VITE_CONSOLE_URL = "https://continuumaftercare.com"
+VITE_FAMILY_PORTAL_URL = "https://continuumaftercare.com/family"
