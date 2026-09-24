@@ -383,7 +383,7 @@ describe("Colorado licensure", () => {
     const deadline = detail.body.reminders.find(
       (reminder: { key: string }) => reminder.key === "deadline-outstanding",
     );
-    expect(deadline.summary).toContain("1 of 1");
+    expect(deadline.summary).toContain("The one person here does not have a license yet");
     expect(deadline.summary).not.toMatch(/urgent|immediately|!/i);
     // Four months out and nobody has applied: still worth a look. The
     // ninety-day horizon the renewals use would file this under "in hand".
