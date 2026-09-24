@@ -113,6 +113,15 @@ export default defineConfig({
       strict: true,
       deny: ["**/.*"],
     },
+    // Local development against an api-server on another port; see preview.
+    proxy: process.env.E2E_API_PROXY_TARGET
+      ? {
+          "/api": {
+            target: process.env.E2E_API_PROXY_TARGET,
+            changeOrigin: true,
+          },
+        }
+      : undefined,
   },
   preview: {
     port,

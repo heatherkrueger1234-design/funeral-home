@@ -113,6 +113,14 @@ export function BelongingsPanel({ caseId }: { caseId: number }) {
           )}
         </div>
 
+        {rows.length === 0 && (
+          <p className="rounded-lg bg-[var(--sunken)] px-4 py-3 text-sm leading-snug text-muted-foreground">
+            Nothing logged yet. Write down anything handed over — a ring, a
+            watch, the clothes — so the question &ldquo;where did it go?&rdquo;
+            always has an answer.
+          </p>
+        )}
+
         <ul className="space-y-2">
           {rows.map((item) => (
             <li
@@ -121,6 +129,7 @@ export function BelongingsPanel({ caseId }: { caseId: number }) {
             >
               <div className="flex items-start gap-2">
                 <Input
+                  aria-label="What it is"
                   defaultValue={item.description}
                   onBlur={(event) => {
                     const next = event.target.value.trim();
@@ -212,8 +221,9 @@ export function BelongingsPanel({ caseId }: { caseId: number }) {
 
         <div className="flex gap-2">
           <Input
+            aria-label="Add an item to the custody log"
             value={description}
-            placeholder="Add an item"
+            placeholder="Add an item — a wedding ring, a watch"
             onChange={(event) => setDescription(event.target.value)}
             onKeyDown={(event) => {
               if (event.key !== "Enter") return;
@@ -227,7 +237,7 @@ export function BelongingsPanel({ caseId }: { caseId: number }) {
             variant="outline"
             size="icon"
             aria-label="Add item"
-            disabled={!description.trim()}
+            disabled={!description.trim() || add.isPending}
             onClick={() =>
               add.mutate({ caseId, data: { description: description.trim() } })
             }
@@ -274,7 +284,7 @@ export function BelongingsPanel({ caseId }: { caseId: number }) {
           [
             ["hairNotes", "Hair"],
             ["cosmeticsNotes", "Makeup"],
-            ["jewelleryNotes", "Jewellery to be worn"],
+            ["jewelleryNotes", "Jewelry to be worn"],
             ["otherNotes", "Anything else"],
           ] as const
         ).map(([field, label]) => (
@@ -285,12 +295,11 @@ export function BelongingsPanel({ caseId }: { caseId: number }) {
               rows={2}
               defaultValue={prep?.[field] ?? ""}
               placeholder="Nothing from the family yet"
-              onBlur={(event) =>
-                savePrep.mutate({
-                  caseId,
-                  data: { [field]: event.target.value.trim() || null },
-                })
-              }
+              onBlur={(event) => {
+                const value = event.target.value.trim() || null;
+                if (value === (prep?.[field] ?? null)) return;
+                savePrep.mutate({ caseId, data: { [field]: value } });
+              }}
             />
           </div>
         ))}

@@ -72,6 +72,10 @@ export function isUnauthorized(error: unknown): boolean {
   return error instanceof ApiError && error.status === 401;
 }
 
+export function isNotFound(error: unknown): boolean {
+  return error instanceof ApiError && error.status === 404;
+}
+
 /** A 403 here means "you are signed in, and this is not yours". */
 export function isForbidden(error: unknown): boolean {
   return error instanceof ApiError && error.status === 403;
@@ -221,7 +225,9 @@ export type HomeStaff = {
 };
 
 export type AdminHomeDetail = AdminHome & {
+  /** The covering group's name; the same as `group?.name`. */
   groupName: string | null;
+  group: { id: number; name: string } | null;
   licensure: HomeLicensure | null;
   practitioners: Practitioner[];
   reminders: LicensureReminder[];
@@ -248,6 +254,15 @@ export type PlatformOverview = {
   attention: Array<{ home: AdminHomeSummary; reminders: LicensureReminder[] }>;
   /** On trial, not suspended, ending within seven days; soonest first. */
   trialsEndingSoon: AdminHomeSummary[];
+  /** On trial and ending within a fortnight, or ended within the month. */
+  trials: Array<{ home: AdminHomeSummary; trialEndsAt: string }>;
+  /** One plain sentence each; see the overview route for the three reasons. */
+  quiet: Array<{
+    home: AdminHomeSummary;
+    reason: string;
+    /** Set only when the reason is a month without a case. */
+    lastCaseAt: string | null;
+  }>;
   delivery: {
     mailConfigured: boolean;
     smsConfigured: boolean;
@@ -266,6 +281,32 @@ export type PlatformAdmin = {
   revokedAt: string | null;
   revokedByEmail: string | null;
   createdAt: string;
+};
+
+export type AdminGroup = {
+  id: number;
+  name: string;
+  slug: string;
+  locations: number;
+  subscriptionStatus: string;
+  trialEndsAt: string | null;
+  currentPeriodEndsAt: string | null;
+  hasSubscription: boolean;
+  entitlements: string[];
+  createdAt: string;
+};
+
+/**
+ * On the detail, `locations` is the list itself rather than the count the
+ * list endpoint gives -- the route spreads the summary and then overwrites
+ * that one key. Typing it as both is how "[object Object] locations" reached
+ * the screen.
+ */
+export type AdminGroupDetail = Omit<AdminGroup, "locations"> & {
+  billingConfigured: boolean;
+  addOns: Array<{ key: string; title: string; detail: string; included: boolean }>;
+  /** Locations carry no engagement here; the group page is about the contract. */
+  locations: AdminHomeSummary[];
 };
 
 export type AuditEntry = {
@@ -336,19 +377,47 @@ export function formatDateTime(value: string | null | undefined): string {
   });
 }
 
+/** "1 home", "3 homes". Every count on these screens goes through it. */
+export function plural(count: number, one: string, many = `${one}s`): string {
+  return `${count.toLocaleString("en-US")} ${count === 1 ? one : many}`;
+}
+
+/** How a contract is doing, for a home or a group, in a phrase. */
+export function describeSubscription(status: string): string {
+  if (status === "trial") return "On trial";
+  if (status === "active") return "Subscribed";
+  if (status === "past_due") return "Payment outstanding";
+  return "Subscription ended";
+}
+
+/** A group's contract in a phrase, with the one date that matters next. */
+export function describeContract(
+  group: Pick<AdminGroup, "subscriptionStatus" | "trialEndsAt" | "currentPeriodEndsAt">,
+): string {
+  const status = describeSubscription(group.subscriptionStatus);
+
+  if (group.subscriptionStatus === "trial" && group.trialEndsAt) {
+    return `${status} until ${formatDate(group.trialEndsAt)}`;
+  }
+  if (group.subscriptionStatus === "active" && group.currentPeriodEndsAt) {
+    return `${status}, renews ${formatDate(group.currentPeriodEndsAt)}`;
+  }
+  return status;
+}
+
 /** How the account is doing, in a phrase rather than a status chip. */
-export function describeAccount(home: AdminHomeSummary): string {
+export function describeAccount(
+  home: Pick<AdminHomeSummary, "suspendedAt" | "subscriptionStatus" | "trialDaysLeft">,
+): string {
   if (home.suspendedAt) return "Suspended";
   if (home.subscriptionStatus === "trial") {
     return home.trialDaysLeft === null
       ? "On trial"
       : home.trialDaysLeft === 0
         ? "Trial finished"
-        : `On trial, ${home.trialDaysLeft} days left`;
+        : `On trial, ${plural(home.trialDaysLeft, "day")} left`;
   }
-  if (home.subscriptionStatus === "active") return "Subscribed";
-  if (home.subscriptionStatus === "past_due") return "Payment outstanding";
-  return "Subscription ended";
+  return describeSubscription(home.subscriptionStatus);
 }
 
 /** What the log line says, in English. */

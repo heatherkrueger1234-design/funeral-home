@@ -24,19 +24,9 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from "@/components/ui/alert-dialog";
 import { useToast } from "@/hooks/use-toast";
 import { Check, Loader2, MessageSquareWarning, Printer, Send, Trash2, Plus } from "lucide-react";
-import { Loading } from "@/components/page";
+import { Confirm, LoadFailed, Loading } from "@/components/page";
 
 /**
  * Where a piece stands, in the words a director would use on the phone.
@@ -279,6 +269,12 @@ function Studio({
               </Select>
             )}
 
+            {/*
+              Keyed by the stored wording so that choosing one of the home's
+              saved paragraphs above shows up here. Without it the box kept
+              the old words, and leaving it saved them straight back over the
+              paragraph that had just been chosen.
+            */}
             <Textarea
               id={slot.key}
               key={`${slot.key}:${item.values[slot.key] ?? ""}`}
@@ -311,7 +307,7 @@ function Studio({
             onBlur={(event) => {
               const value = Number(event.target.value);
               const next = Number.isInteger(value) && value > 0 ? value : null;
-              if (next === item.quantity) return;
+              if (next === (item.quantity ?? null)) return;
               update.mutate({
                 printItemId: item.id,
                 data: { quantity: next },
@@ -406,14 +402,23 @@ export function PrintPanel({ caseId }: { caseId: number }) {
       },
     },
   });
-  const remove = useDeletePrintItem({
-    mutation: { onSuccess: () => { refresh(); setDeleting(null); } },
-  });
-  const [deleting, setDeleting] = useState<PrintItem | null>(null);
+  const remove = useDeletePrintItem({ mutation: { onSuccess: refresh } });
 
   if (templates.isPending || items.isPending) {
     return (
       <Loading />
+    );
+  }
+
+  if (templates.isError || items.isError) {
+    return (
+      <LoadFailed
+        what="The print studio"
+        onRetry={() => {
+          void templates.refetch();
+          void items.refetch();
+        }}
+      />
     );
   }
 
@@ -442,7 +447,7 @@ export function PrintPanel({ caseId }: { caseId: number }) {
               key={item.id}
               className="flex flex-wrap items-center gap-3 rounded-xl border border-border bg-card px-4 py-3.5 shadow-[var(--elevation-1)]"
             >
-              <span className="min-w-0 flex-1">
+              <span className="min-w-[12rem] flex-1">
                 <span className="block truncate font-medium">
                   {item.title ?? item.templateName}
                 </span>
@@ -463,18 +468,27 @@ export function PrintPanel({ caseId }: { caseId: number }) {
                   rel="noreferrer"
                   aria-label={`Open ${item.title ?? item.templateName} to print`}
                 >
-                  <Printer className="size-4" />
+                  <Printer className="size-4" aria-hidden />
+                  Print
                 </a>
               </Button>
-              <Button
-                variant="ghost"
-                size="icon"
-                className="text-muted-foreground"
-                aria-label={`Delete ${item.title ?? item.templateName}`}
-                onClick={() => setDeleting(item)}
-              >
-                <Trash2 className="size-4" />
-              </Button>
+              <Confirm
+                trigger={
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="text-muted-foreground"
+                    aria-label={`Delete ${item.title ?? item.templateName}`}
+                  >
+                    <Trash2 className="size-4" />
+                  </Button>
+                }
+                title={`Delete ${item.title ?? item.templateName}?`}
+                description="Everything typed into it goes, and any proof the family was shown disappears from their page. Starting it again is one click, but the wording is not kept."
+                confirmLabel="Delete it"
+                destructive
+                onConfirm={() => remove.mutate({ printItemId: item.id })}
+              />
               {item.changesRequestedAt && (
                 <div className="basis-full">
                   <ChangesAsked item={item} />
@@ -488,12 +502,12 @@ export function PrintPanel({ caseId }: { caseId: number }) {
       <section className="space-y-3">
         <h3 className="font-display text-base">Start something</h3>
         <ul className="grid gap-3 sm:grid-cols-2">
-          {templates.data!.map((template) => (
+          {(templates.data ?? []).map((template) => (
             <li key={template.key}>
               <button
                 type="button"
                 disabled={create.isPending}
-                className="w-full lift disabled:opacity-60 rounded-xl border border-border bg-card p-5 text-left shadow-[var(--elevation-1)] transition-gentle hover:border-[color-mix(in_oklab,var(--accent)_45%,var(--border))]"
+                className="w-full lift rounded-xl disabled:opacity-60 border border-border bg-card p-5 text-left shadow-[var(--elevation-1)] transition-gentle hover:border-[color-mix(in_oklab,var(--accent)_45%,var(--border))]"
                 onClick={() =>
                   create.mutate({ caseId, data: { templateKey: template.key } })
                 }
@@ -515,37 +529,6 @@ export function PrintPanel({ caseId }: { caseId: number }) {
         </ul>
       </section>
 
-      <AlertDialog
-        open={deleting !== null}
-        onOpenChange={(open) => !open && !remove.isPending && setDeleting(null)}
-      >
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>
-              Delete {deleting?.title ?? deleting?.templateName}?
-            </AlertDialogTitle>
-            <AlertDialogDescription>
-              {deleting?.status === "approved"
-                ? "This one has been approved. Deleting it removes the approval and the wording with it, and it can't be brought back."
-                : "The wording and choices on it go with it, and it can't be brought back."}
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel disabled={remove.isPending}>Keep it</AlertDialogCancel>
-            <AlertDialogAction
-              disabled={remove.isPending}
-              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-              onClick={(event) => {
-                event.preventDefault();
-                if (deleting) remove.mutate({ printItemId: deleting.id });
-              }}
-            >
-              {remove.isPending && <Loader2 className="size-4 animate-spin" />}
-              Delete
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
     </div>
   );
 }

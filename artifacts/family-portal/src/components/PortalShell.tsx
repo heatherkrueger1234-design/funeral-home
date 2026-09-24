@@ -1,16 +1,5 @@
 import { type ReactNode, useEffect, useRef } from "react";
 import { Button } from "@/components/ui/button";
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-  AlertDialogTrigger,
-} from "@/components/ui/alert-dialog";
 import { Link, useLocation } from "wouter";
 import { useQueryClient } from "@tanstack/react-query";
 import {
@@ -19,11 +8,12 @@ import {
   getGetFamilyDeadlinesQueryKey,
   getGetFamilyServiceOffersQueryKey,
 } from "@workspace/api-client-react";
-import { useLink } from "@/lib/link";
+import { isUnauthorized, useLink } from "@/lib/link";
 import { PasteLink } from "@/components/PasteLink";
 import { voiceFor } from "@/lib/voice";
 import { ArrowLeft, Phone } from "lucide-react";
 import { AuthedImage } from "@/components/AuthedImage";
+import { useBrandColor } from "@/lib/brand-color";
 
 /**
  * The frame every screen sits in: the home's branding, the person who died,
@@ -58,89 +48,6 @@ function useFollowDateChanges(
     }
     previous.current = key;
   }, [key, queryClient]);
-}
-
-/** Paint the funeral home's colour over the theme's default. */
-function useBrandColor(accent: string | undefined) {
-  useEffect(() => {
-    if (!accent) return;
-
-    const root = document.documentElement;
-    root.style.setProperty("--accent", accent);
-    // A soft wash and a deeper shade, derived so a home only has to give one
-    // colour. Mixed in oklab so a mid-tone brand colour does not produce a
-    // muddy tint the way naive RGB blending does.
-    root.style.setProperty("--accent-soft", `color-mix(in oklab, ${accent} 10%, white)`);
-    root.style.setProperty("--accent-deep", `color-mix(in oklab, ${accent} 80%, black)`);
-
-    /*
-     * The phone's own furniture, painted to match.
-     *
-     * This is opened on a phone, nearly always, and the branded header runs
-     * right up under the status bar. Without this the strip above it stays
-     * white and the page reads as a website that has been coloured in rather
-     * than as something the funeral home handed over. It is a small detail
-     * and it is most of the difference between the two.
-     *
-     * The header is a gradient from `--accent-deep` at the top down to
-     * `--accent`, and it is the top that meets the status bar — so it is
-     * that darker shade to match. Two things stop us simply reading the
-     * token. A custom property is handed back verbatim by
-     * `getComputedStyle`, so what comes out is the `color-mix()` expression
-     * rather than a colour; and mixing in oklab, which is right for the page,
-     * computes to an `oklab()` string that a `theme-color` meta tag cannot be
-     * relied on to parse — least of all on the iOS Safari that most of these
-     * families are holding.
-     *
-     * Asking the browser to compute the mix does not help either: Chrome
-     * hands an sRGB mix back as `color(srgb 0.09 0.24 0.21)`, which is the
-     * same problem in a different notation.
-     *
-     * So the browser is asked only for the one thing it answers in plain
-     * `rgb(...)` — the home's own colour, normalised out of whatever
-     * notation it was stored in — and the darkening is done here, where it
-     * is three multiplications and cannot be serialised into a surprise.
-     */
-    const meta =
-      document.querySelector<HTMLMetaElement>('meta[name="theme-color"]') ??
-      document.head.appendChild(
-        Object.assign(document.createElement("meta"), { name: "theme-color" }),
-      );
-    meta.content = darken(accent, 0.8) ?? accent;
-  }, [accent]);
-}
-
-/**
- * A CSS colour, mixed `amount` of the way from black, as `rgb(r, g, b)`.
- *
- * Returns null if this browser could not make sense of the colour at all, in
- * which case the caller uses the home's colour undarkened — a shade light
- * rather than wrong.
- *
- * The browser does the parsing, because a funeral home's accent is stored as
- * free text and may arrive as a hex triple, a six-digit hex, `rgb()` or a
- * colour name, and re-implementing that here would be a parser to get wrong.
- * Computed `color` normalises all of them to `rgb(r, g, b)`.
- */
-function darken(color: string, amount: number): string | null {
-  const probe = document.createElement("span");
-  probe.style.cssText = `position:absolute;visibility:hidden;color:${color}`;
-
-  // The browser rejected the value outright, so there is nothing to read.
-  if (!probe.style.color) return null;
-
-  document.body.appendChild(probe);
-  const computed = getComputedStyle(probe).color;
-  probe.remove();
-
-  const channels = /^rgba?\(([\d.]+)[,\s]+([\d.]+)[,\s]+([\d.]+)/.exec(computed);
-  if (!channels) return null;
-
-  const [r, g, b] = channels
-    .slice(1, 4)
-    .map((channel) => Math.round(Number(channel) * amount));
-
-  return `rgb(${r}, ${g}, ${b})`;
 }
 
 /**
@@ -208,8 +115,7 @@ function StaffSignIn() {
 }
 
 export function PortalShell({ children }: { children: ReactNode }) {
-  const { token, forget } = useLink();
-  const queryClient = useQueryClient();
+  const { token } = useLink();
   const [location] = useLocation();
 
   // Not fired at all until there is a link to fire it with: a visitor who
@@ -291,14 +197,15 @@ export function PortalShell({ children }: { children: ReactNode }) {
     return <Waiting />;
   }
 
-  const gone = (session.error as { status?: number } | null)?.status === 401;
+  const gone = session.isError && isUnauthorized(session.error);
 
   /*
-   * Only when there is nothing to show, or the link really is dead. A failed
-   * background poll on a phone that walked out of signal is not a reason to
-   * swap the page out from under somebody halfway through a sentence of the
-   * obituary: react-query keeps the last good session, so keep showing it
-   * and let the next poll put things right.
+   * A failed *refresh* is not a failed page. The session is polled every two
+   * minutes, and one dropped request on hospital wifi used to swap whatever
+   * the family had open -- an obituary half-typed -- for "We couldn't open
+   * this". With the session already in hand, only a link that has actually
+   * stopped working replaces the screen; anything else waits for the next
+   * poll.
    */
   if (session.isError && (gone || !session.data)) {
 
@@ -325,6 +232,7 @@ export function PortalShell({ children }: { children: ReactNode }) {
               type="button"
               variant="outline"
               className="mt-6"
+              disabled={session.isFetching}
               onClick={() => void session.refetch()}
             >
               Try again
@@ -408,7 +316,7 @@ export function PortalShell({ children }: { children: ReactNode }) {
         <div className="mx-auto w-full max-w-2xl px-5 pt-5">
           <Link
             href="/"
-            className="group inline-flex items-center gap-1.5 rounded-md text-sm text-muted-foreground no-underline transition-colors duration-200 hover:text-foreground"
+            className="group -my-2 inline-flex min-h-11 items-center gap-1.5 rounded-md text-sm text-muted-foreground no-underline transition-colors duration-200 hover:text-foreground"
           >
             <ArrowLeft className="size-4 transition-transform duration-200 ease-[cubic-bezier(0.2,0.6,0.3,1)] group-hover:-translate-x-0.5" />
             Everything else
@@ -470,43 +378,6 @@ export function PortalShell({ children }: { children: ReactNode }) {
           <p className="mt-3 font-display text-sm text-muted-foreground">
             {home.name}
           </p>
-          {/*
-            For the phone that was borrowed at the kitchen table. The link
-            stays on a device until it is told to forget it; without this,
-            the neighbour's phone kept the family's key for good. Quiet,
-            because nearly everybody is on their own phone.
-          */}
-          <AlertDialog>
-            <AlertDialogTrigger asChild>
-              <button
-                type="button"
-                className="mt-4 text-xs text-muted-foreground underline decoration-border underline-offset-4 hover:text-foreground"
-              >
-                Not your phone? Forget this link here
-              </button>
-            </AlertDialogTrigger>
-            <AlertDialogContent>
-              <AlertDialogHeader>
-                <AlertDialogTitle>Forget the link on this device?</AlertDialogTitle>
-                <AlertDialogDescription>
-                  Nothing anyone has added is lost. This phone will just need
-                  the link again to open it — the one in your text or email
-                  still works.
-                </AlertDialogDescription>
-              </AlertDialogHeader>
-              <AlertDialogFooter>
-                <AlertDialogCancel>Keep it</AlertDialogCancel>
-                <AlertDialogAction
-                  onClick={() => {
-                    forget();
-                    queryClient.clear();
-                  }}
-                >
-                  Forget it here
-                </AlertDialogAction>
-              </AlertDialogFooter>
-            </AlertDialogContent>
-          </AlertDialog>
         </div>
       </footer>
     </div>

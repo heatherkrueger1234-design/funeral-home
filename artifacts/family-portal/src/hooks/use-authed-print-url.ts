@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { useRenderFamilyPrintItem } from "@workspace/api-client-react";
+import { pageWidthOf } from "@/lib/print-page";
 
 /**
  * An object URL for a rendered proof, from behind the family link.
@@ -27,6 +28,7 @@ export function useAuthedPrintUrl(printItemId: number) {
   });
 
   const [src, setSrc] = useState<string | null>(null);
+  const [pageWidth, setPageWidth] = useState<number | null>(null);
 
   useEffect(() => {
     if (!blob) {
@@ -43,5 +45,23 @@ export function useAuthedPrintUrl(printItemId: number) {
     };
   }, [blob]);
 
-  return { src, isPending, isError };
+  /*
+   * How wide the card is on paper, read from its own `@page` rule. Every
+   * template states its size in inches there, so the print shop gets the
+   * right sheet; the proof uses the same number to draw the whole card at
+   * phone width rather than the left two-thirds of it with a scrollbar.
+   */
+  useEffect(() => {
+    let cancelled = false;
+    setPageWidth(null);
+    if (!(blob instanceof Blob)) return;
+    void blob.text().then((html) => {
+      if (!cancelled) setPageWidth(pageWidthOf(html));
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [blob]);
+
+  return { src, isPending, isError, pageWidth };
 }

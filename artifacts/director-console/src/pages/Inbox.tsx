@@ -7,11 +7,13 @@ import {
   getGetHomeInboxQueryKey,
   getGetCaseMessagesQueryKey,
   getGetHomeDashboardQueryKey,
+  getGetCasesQueryKey,
+  getGetCaseQueryKey,
 } from "@workspace/api-client-react";
 import type { InboxEntry } from "@workspace/api-client-react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
-import { Divider, Empty, Loading, PageHeader } from "@/components/page";
+import { Divider, Empty, LoadFailed, Loading, PageHeader } from "@/components/page";
 import { cn, formatAtHome } from "@/lib/utils";
 import { useHomeZone } from "@/lib/session";
 import { Loader2, Moon, Lock, MessageSquare, Send } from "lucide-react";
@@ -64,6 +66,9 @@ export default function Inbox() {
   });
 
   if (inbox.isPending) return <Loading rows={4} />;
+  if (inbox.isError) {
+    return <LoadFailed what="The messages" onRetry={() => void inbox.refetch()} />;
+  }
 
   const rows = inbox.data ?? [];
   // Waiting means the home can still do something about it. A locked thread
@@ -128,6 +133,10 @@ function Conversation({ row }: { row: InboxEntry }) {
         void queryClient.invalidateQueries({
           queryKey: getGetHomeDashboardQueryKey(),
         });
+        void queryClient.invalidateQueries({ queryKey: getGetCasesQueryKey() });
+        void queryClient.invalidateQueries({
+          queryKey: getGetCaseQueryKey(row.caseId),
+        });
       },
     },
   });
@@ -174,7 +183,7 @@ function Conversation({ row }: { row: InboxEntry }) {
 
       <div className="mt-3 flex flex-wrap items-center gap-3 text-xs">
         {waiting && (
-          <span className="tabular rounded-full bg-[var(--notice)] px-2 py-0.5 font-semibold text-white">
+          <span className="tabular rounded-full bg-[var(--accent)] px-2 py-0.5 font-semibold text-white">
             {row.unreadFromFamily} unread
           </span>
         )}
@@ -204,6 +213,7 @@ function Conversation({ row }: { row: InboxEntry }) {
             <div className="space-y-2">
               <Textarea
                 autoFocus
+                aria-label={`Reply about ${row.decedentName}`}
                 rows={3}
                 value={reply}
                 placeholder={`Reply to the ${row.decedentName.split(" ").slice(-1)[0]} family`}
@@ -235,7 +245,9 @@ function Conversation({ row }: { row: InboxEntry }) {
                   Cancel
                 </Button>
                 <Button asChild size="sm" variant="ghost" className="ml-auto">
-                  <Link href={`/cases/${row.caseId}?tab=messages`}>Open the case</Link>
+                  <Link href={`/cases/${row.caseId}?tab=messages`}>
+                    See the whole thread
+                  </Link>
                 </Button>
               </div>
             </div>

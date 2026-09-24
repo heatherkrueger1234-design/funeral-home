@@ -27,7 +27,7 @@ import {
   Trash2,
   Upload,
 } from "lucide-react";
-import { Empty, Loading } from "@/components/page";
+import { Confirm, Empty, LoadFailed, Loading } from "@/components/page";
 import { CroppedImg } from "@/components/CroppedImg";
 
 /** A crop that is not simply "the whole photograph". */
@@ -162,6 +162,10 @@ export function PhotosPanel({
     );
   }
 
+  if (photos.isError) {
+    return <LoadFailed what="The photographs" onRetry={() => void photos.refetch()} />;
+  }
+
   const rows = photos.data ?? [];
 
   if (rows.length === 0) {
@@ -257,7 +261,7 @@ export function PhotosPanel({
         </div>
       </div>
 
-    <ul className="grid gap-3 sm:grid-cols-2">
+    <ul className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
       {rows.map((photo) => {
         const hidden = photo.status === "hidden";
 
@@ -391,31 +395,30 @@ export function PhotosPanel({
                 screen reader, and no second chance for anybody. It deletes
                 the encrypted bytes, which may be the family's only copy.
               */}
-              <Button
-                variant="ghost"
-                size="sm"
-                className="text-muted-foreground"
-                aria-label={
-                  photo.caption
-                    ? `Delete the photograph "${photo.caption}" for good`
-                    : "Delete this photograph for good"
+              <Confirm
+                trigger={
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="text-muted-foreground"
+                    aria-label={
+                      photo.caption
+                        ? `Delete the photograph "${photo.caption}" for good`
+                        : "Delete this photograph for good"
+                    }
+                    title="Delete for good"
+                    disabled={remove.isPending}
+                  >
+                    <Trash2 className="size-4" aria-hidden />
+                  </Button>
                 }
-                title="Delete for good"
-                disabled={remove.isPending}
-                onClick={() => {
-                  if (
-                    window.confirm(
-                      "Delete this photograph for good? The family's copy on " +
-                        "this page goes too, and it cannot be brought back. " +
-                        "Hide keeps it out of the slideshow without losing it.",
-                    )
-                  ) {
-                    remove.mutate({ photoId: photo.id });
-                  }
-                }}
-              >
-                <Trash2 className="size-4" aria-hidden />
-              </Button>
+                title="Delete this photograph for good?"
+                description="The family's copy on their page goes too, and it cannot be brought back. Hide keeps it out of the slideshow without losing it."
+                confirmLabel="Delete it for good"
+                cancelLabel="Keep it"
+                destructive
+                onConfirm={() => remove.mutate({ photoId: photo.id })}
+              />
             </div>
           </li>
         );

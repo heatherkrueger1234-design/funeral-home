@@ -50,10 +50,15 @@ const buttonVariants = cva(
          * family member clicks them through tears; neither is served by the
          * 32px buttons a dense admin tool would use.
          */
-        default: "min-h-10 px-4 py-2",
-        sm: "min-h-9 rounded-md px-3 text-[0.8125rem]",
+        /*
+         * 44px at the smallest (CRAFT.md's floor for a touch target), on
+         * every size including `sm` — "small" here means less padding and
+         * less weight on the page, never less to aim at.
+         */
+        default: "min-h-11 px-4 py-2",
+        sm: "min-h-11 rounded-md px-3",
         lg: "min-h-12 rounded-lg px-7 text-base",
-        icon: "size-10 rounded-md",
+        icon: "size-11 rounded-md",
       },
     },
     defaultVariants: {

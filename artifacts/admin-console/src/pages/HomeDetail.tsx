@@ -9,7 +9,10 @@ import {
   formatDate,
   formatDay,
   formatDateTime,
+  isNotFound,
+  plural,
   STAFF_ROLE_LABELS,
+  type AdminGroup,
   type AdminHomeDetail,
   type AuditEntry,
 } from "@/lib/api";
@@ -17,9 +20,12 @@ import {
   Button,
   Card,
   CardTitle,
+  EmptyState,
   ErrorState,
   Field,
   LoadingRows,
+  Missing,
+  Select,
   Skeleton,
   Stat,
   Swatch,
@@ -55,6 +61,16 @@ export function HomeDetail({ homeId }: { homeId: number }) {
         <Skeleton className="h-28 w-full" />
         <LoadingRows rows={3} />
       </div>
+    );
+  }
+
+  if (isNotFound(query.error)) {
+    return (
+      <Missing
+        title="That home isn't here"
+        detail="There is no home at this address. It may have been typed wrong."
+        back={{ href: "/homes", label: "Back to the homes" }}
+      />
     );
   }
 
@@ -98,6 +114,22 @@ export function HomeDetail({ homeId }: { homeId: number }) {
             .filter(Boolean)
             .join(" · ")}
         </p>
+        {/* What you need to ring them or find them, and nothing more. */}
+        <p className="mt-0.5 text-sm text-[var(--muted-foreground)]">
+          {[
+            home.phone,
+            `Web address “${home.slug}”`,
+            home.timezone.replace(/_/g, " "),
+          ]
+            .filter(Boolean)
+            .join(" · ")}
+        </p>
+        <Link
+          href={`/audit?homeId=${home.id}`}
+          className="mt-2 inline-block text-sm text-[var(--muted-foreground)] underline underline-offset-4 hover:text-[var(--foreground)]"
+        >
+          This home in the access log
+        </Link>
       </div>
 
       {home.suspendedAt && (
@@ -138,10 +170,12 @@ export function HomeDetail({ homeId }: { homeId: number }) {
         </div>
         {home.engagement.aftercareEnrolled > 0 && (
           <p className="mt-4 max-w-prose text-sm text-[var(--muted-foreground)]">
-            {home.engagement.aftercareDeclined} families were enrolled in
-            aftercare and have not answered either way, and{" "}
-            {home.engagement.aftercareUnsubscribed} asked to stop. Neither is a
-            failure; most people never reply to anything in that first year.
+            {plural(home.engagement.aftercareEnrolled, "family", "families")}{" "}
+            enrolled in aftercare: {home.engagement.aftercareConsented} said
+            yes, {home.engagement.aftercareDeclined} have not answered either
+            way, and {home.engagement.aftercareUnsubscribed} asked to stop.
+            None of that is a failure; most people never reply to anything in
+            that first year.
           </p>
         )}
       </Card>
@@ -176,6 +210,8 @@ export function HomeDetail({ homeId }: { homeId: number }) {
           is never shown here.
         </p>
       </Card>
+
+      <GroupCard home={home} />
 
       <SuspensionCard home={home} />
 
@@ -496,8 +532,8 @@ function StaffRow({
   return (
     <li className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 py-3 first:pt-0 last:pb-0">
       <div className="min-w-0">
-        <span>{person.displayName ?? "Not named yet"}</span>
-        <span className="ml-3 text-sm text-[var(--muted-foreground)]">
+        <span className="mr-3">{person.displayName ?? "Not named yet"}</span>
+        <span className="text-sm text-[var(--muted-foreground)]">
           {[person.title, STAFF_ROLE_LABELS[person.role] ?? person.role]
             .filter(Boolean)
             .join(" · ")}
@@ -663,6 +699,8 @@ function SuspensionCard({ home }: { home: AdminHomeDetail }) {
         <div className="flex flex-col gap-4">
           <Field
             label="Why is this home being suspended?"
+            maxLength={400}
+            autoFocus
             value={reason}
             onChange={(event) => setReason(event.target.value)}
             hint="This goes in the access log, and it is what you will read in six months when somebody asks."
@@ -678,7 +716,14 @@ function SuspensionCard({ home }: { home: AdminHomeDetail }) {
             >
               {change.isPending ? "Suspending…" : `Suspend ${home.name}`}
             </Button>
-            <Button variant="plain" onClick={() => setConfirming(false)}>
+            <Button
+              variant="plain"
+              onClick={() => {
+                setConfirming(false);
+                setReason("");
+                change.reset();
+              }}
+            >
               Cancel
             </Button>
           </div>
@@ -687,6 +732,187 @@ function SuspensionCard({ home }: { home: AdminHomeDetail }) {
         <Button variant="quiet" onClick={() => setConfirming(true)}>
           Suspend this home
         </Button>
+      )}
+    </Card>
+  );
+}
+
+/**
+ * Which contract covers this home.
+ *
+ * Most homes are independent and this card says so in one line. The two
+ * moves -- into a group, out of one -- each change who pays, so each one
+ * says exactly what will happen to the account before it happens, and the
+ * API's two refusals (a home with its own subscription; a home not in a
+ * group) come back here in its own words.
+ *
+ * The list of groups is fetched only when somebody starts a move. Asking
+ * for it on every visit would write a "listed the groups" line to the log
+ * each time anyone opened any home.
+ */
+function GroupCard({ home }: { home: AdminHomeDetail }) {
+  const queryClient = useQueryClient();
+  const [moving, setMoving] = useState(false);
+  const [choice, setChoice] = useState("");
+
+  const groups = useQuery({
+    queryKey: ["groups"],
+    queryFn: () => api.get<AdminGroup[]>("/admin/groups"),
+    enabled: moving,
+  });
+
+  const move = useMutation({
+    mutationFn: (groupId: number | null) =>
+      api.put(`/admin/homes/${home.id}/group`, { groupId }),
+    onSuccess: () => {
+      setMoving(false);
+      setChoice("");
+      void queryClient.invalidateQueries({ queryKey: ["home", home.id] });
+      void queryClient.invalidateQueries({ queryKey: ["homes"] });
+      void queryClient.invalidateQueries({ queryKey: ["groups"] });
+      void queryClient.invalidateQueries({ queryKey: ["group"] });
+      void queryClient.invalidateQueries({ queryKey: ["overview"] });
+    },
+  });
+
+  const cancel = () => {
+    setMoving(false);
+    setChoice("");
+    move.reset();
+  };
+
+  const problem = move.error instanceof Error && (
+    <p role="alert" className="text-sm text-[var(--notice)]">
+      {move.error.message}
+    </p>
+  );
+
+  if (home.group) {
+    return (
+      <Card>
+        <CardTitle>Group</CardTitle>
+        <p className="max-w-prose">
+          Part of{" "}
+          <Link href={`/groups/${home.group.id}`} className="font-semibold">
+            {home.group.name}
+          </Link>
+          , and covered by its contract.
+        </p>
+        <p className="mt-2 mb-4 max-w-prose text-sm text-[var(--muted-foreground)]">
+          Taking it out of the group puts it on a fourteen-day trial of its
+          own, without the group's add-ons, so it keeps working while it sets
+          up its own billing. Nothing in the home changes.
+        </p>
+        {moving ? (
+          <div className="flex flex-col gap-3">
+            {problem}
+            <div className="flex flex-wrap gap-3">
+              <Button
+                variant="destructive"
+                disabled={move.isPending}
+                onClick={() => move.mutate(null)}
+              >
+                {move.isPending
+                  ? "Taking it out…"
+                  : `Take it out of ${home.group.name}`}
+              </Button>
+              <Button variant="plain" onClick={cancel}>
+                Cancel
+              </Button>
+            </div>
+          </div>
+        ) : (
+          <Button onClick={() => setMoving(true)}>Take it out of the group</Button>
+        )}
+      </Card>
+    );
+  }
+
+  const chosen = groups.data?.find((group) => String(group.id) === choice);
+
+  return (
+    <Card>
+      <CardTitle>Group</CardTitle>
+      <p className="mb-4 max-w-prose text-sm text-[var(--muted-foreground)]">
+        An independent home, on its own contract. If it belongs to a group
+        that has one contract for many locations, moving it in puts it on the
+        group's plan and the group's bill.
+      </p>
+
+      {!moving ? (
+        <Button onClick={() => setMoving(true)}>Move into a group</Button>
+      ) : groups.isPending ? (
+        <LoadingRows rows={1} />
+      ) : groups.error ? (
+        <ErrorState error={groups.error} onRetry={() => void groups.refetch()} />
+      ) : groups.data.length === 0 ? (
+        <EmptyState
+          title="There are no groups yet"
+          detail="A group is set up once, on the Groups page, when a contract covering several locations is agreed. Then its locations are moved in from here."
+          action={
+            <div className="flex flex-wrap gap-3">
+              <Link
+                href="/groups"
+                className="inline-flex min-h-11 items-center underline underline-offset-4"
+              >
+                Set up a group
+              </Link>
+              <Button variant="plain" onClick={cancel}>
+                Cancel
+              </Button>
+            </div>
+          }
+        />
+      ) : (
+        <form
+          className="flex flex-col gap-4"
+          onSubmit={(event) => {
+            event.preventDefault();
+            if (chosen) move.mutate(chosen.id);
+          }}
+        >
+          <div className="max-w-sm">
+            <Select
+              label="Which group"
+              value={choice}
+              onChange={(event) => {
+                setChoice(event.target.value);
+                move.reset();
+              }}
+            >
+              <option value="">Choose a group</option>
+              {groups.data.map((group) => (
+                <option key={group.id} value={group.id}>
+                  {group.name} ({plural(group.locations, "location")})
+                </option>
+              ))}
+            </Select>
+          </div>
+          {chosen && (
+            <p className="max-w-prose text-sm">
+              {home.name} will take on {chosen.name}'s contract straight away.
+              If it pays for itself today, that subscription has to be
+              cancelled first, or both would be charged.
+            </p>
+          )}
+          {problem}
+          <div className="flex flex-wrap gap-3">
+            <Button
+              type="submit"
+              variant="primary"
+              disabled={!chosen || move.isPending}
+            >
+              {move.isPending
+                ? "Moving…"
+                : chosen
+                  ? `Move into ${chosen.name}`
+                  : "Move into the group"}
+            </Button>
+            <Button type="button" variant="plain" onClick={cancel}>
+              Cancel
+            </Button>
+          </div>
+        </form>
       )}
     </Card>
   );

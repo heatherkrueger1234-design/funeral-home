@@ -47,7 +47,7 @@ function Count({ length, limit, id }: { length: number; limit: number; id: strin
       id={id}
       aria-live="polite"
       className={`tabular mt-1.5 text-right text-sm ${
-        length > limit ? "font-semibold text-[var(--destructive)]" : "text-muted-foreground"
+        length > limit ? "font-semibold text-[var(--accent-deep)]" : "text-muted-foreground"
       }`}
     >
       {length.toLocaleString("en-US")} of {limit.toLocaleString("en-US")}
@@ -257,7 +257,7 @@ export function EntryForm({
         />
         <Count length={body.trim().length} limit={bodyLimit(kind)} id={`${id}-count`} />
         {showProblem && (
-          <p id={`${id}-body-problem`} className="mt-1.5 text-sm text-[var(--destructive)]">
+          <p id={`${id}-body-problem`} className="mt-1.5 text-sm font-medium text-[var(--accent-deep)]">
             {problem}
           </p>
         )}
@@ -271,7 +271,7 @@ export function EntryForm({
             className="mt-2"
             value={whenText}
             maxLength={WHEN_MAX_LENGTH}
-            placeholder="The summer we had the caravan"
+            placeholder="The summer we rented the lake house"
             onChange={(event) => setWhenText(event.target.value)}
           />
         </div>
@@ -431,7 +431,7 @@ export function ChapterForm({
       <PhotoChoice photos={photos} value={photoId} onChange={setPhotoId} />
 
       {problem && (
-        <p role="alert" className="text-sm text-[var(--destructive)]">
+        <p role="alert" className="text-sm font-medium text-[var(--accent-deep)]">
           {problem}
         </p>
       )}

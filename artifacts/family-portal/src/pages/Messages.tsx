@@ -9,7 +9,7 @@ import {
 import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
 import { Loader2, MessageCircle, Moon, Phone, Send } from "lucide-react";
-import { Empty, LoadError, Loading, PageHeader } from "@/components/page";
+import { Empty, LoadFailed, Loading, PageHeader } from "@/components/page";
 
 /**
  * One thread, with the funeral home.
@@ -91,6 +91,32 @@ function formatSent(value: string | Date): string {
   });
 }
 
+/*
+ * A message half-written survives leaving the screen. Somebody writing to
+ * the director stops to check a date on "What's due", comes back, and finds
+ * the box empty -- and a long question about their mother is not typed out
+ * twice. Kept for this tab only, and only until it is sent; storage that is
+ * blocked simply means no draft is kept.
+ */
+const DRAFT_KEY = "fh.family.message-draft";
+
+function readDraft(): string {
+  try {
+    return window.sessionStorage.getItem(DRAFT_KEY) ?? "";
+  } catch {
+    return "";
+  }
+}
+
+function writeDraft(text: string): void {
+  try {
+    if (text) window.sessionStorage.setItem(DRAFT_KEY, text);
+    else window.sessionStorage.removeItem(DRAFT_KEY);
+  } catch {
+    /* No draft kept; nothing else changes. */
+  }
+}
+
 export default function Messages() {
   const queryClient = useQueryClient();
   /*
@@ -106,7 +132,11 @@ export default function Messages() {
       refetchOnWindowFocus: true,
     },
   });
-  const [body, setBody] = useState("");
+  const [body, setBody] = useState(readDraft);
+
+  useEffect(() => {
+    writeDraft(body);
+  }, [body]);
   const endRef = useRef<HTMLDivElement>(null);
   const sending = useRef(false);
 
@@ -139,9 +169,11 @@ export default function Messages() {
 
   if (thread.isPending) return <Loading rows={3} />;
 
-  if (!thread.data) {
-    return <LoadError title="Messages" onRetry={() => void thread.refetch()} />;
+  if (thread.isError && !thread.data) {
+    return <LoadFailed title="Messages" onRetry={() => void thread.refetch()} />;
   }
+
+  if (!thread.data) return null;
 
   const {
     locked,
@@ -207,7 +239,7 @@ export default function Messages() {
               </p>
               <p
                 className={[
-                  "mt-2 text-xs",
+                  "mt-2 text-sm",
                   fromHome
                     ? "text-[var(--accent-deep)]/65"
                     : "text-muted-foreground",
@@ -224,11 +256,20 @@ export default function Messages() {
       </div>
 
       {locked ? (
-        <p className="rounded-xl border border-border bg-[var(--sunken)] px-4 py-4 text-sm leading-relaxed text-muted-foreground">
+        <div className="rounded-xl border border-border bg-[var(--sunken)] px-4 py-4 text-sm leading-relaxed text-muted-foreground">
           This conversation has been closed now that everything is finished.
           Please call the funeral home if you need them — they would rather
           hear from you than not.
-        </p>
+          {urgentPhone && (
+            <a
+              href={`tel:${urgentPhone.replace(/[^\d+]/g, "")}`}
+              className="mt-2.5 flex min-h-11 items-center gap-2 font-semibold text-[var(--accent-deep)] decoration-[var(--accent)]/40 underline-offset-4 hover:decoration-[var(--accent)]"
+            >
+              <Phone className="size-4" />
+              Call {urgentPhone}
+            </a>
+          )}
+        </div>
       ) : (
         <div className="space-y-3">
           {!withinOfficeHours && (

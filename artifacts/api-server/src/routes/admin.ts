@@ -406,6 +406,8 @@ async function platformListHomes(
     limit: number;
     offset: number;
     includeInternal?: boolean;
+    /** Our own homes only -- the other way to find a home marked ours. */
+    ours?: boolean | undefined;
     status?: HomeStatus | undefined;
   },
 ): Promise<{ homes: FuneralHome[]; total: number }> {
@@ -444,7 +446,12 @@ async function platformListHomes(
    * could only be found again by typing its id into the address bar, and the
    * console's own "It's a customer" button was unreachable.
    */
-  const whose = options.includeInternal ? undefined : customerHomes;
+  // `ours` lists them on their own; `includeInternal` alongside customers.
+  const whose = options.ours
+    ? eq(funeralHomesTable.internalAccount, true)
+    : options.includeInternal
+      ? undefined
+      : customerHomes;
 
   /*
    * By account state, in the same words the list shows. A suspended home is
@@ -479,7 +486,7 @@ async function platformListHomes(
 
   const qualifiers = [
     options.status ? `status ${options.status}` : null,
-    options.includeInternal ? "including ours" : null,
+    options.ours ? "our own" : options.includeInternal ? "including ours" : null,
   ].filter(Boolean);
 
   await recordPlatformAccess(
@@ -697,6 +704,10 @@ function toAdminHome(home: FuneralHome) {
 
 const ListHomesQuery = z.object({
   search: z.string().trim().min(1).max(120).optional(),
+  ours: z
+    .enum(["true", "false"])
+    .optional()
+    .transform((value) => value === "true"),
   limit: z.coerce.number().int().min(1).max(100).default(25),
   offset: z.coerce.number().int().min(0).default(0),
   // Spelled out rather than `z.coerce.boolean()`, which reads the string
@@ -1002,12 +1013,11 @@ router.get("/admin/homes/:homeId", async (req, res) => {
     .where(eq(usersTable.funeralHomeId, home.id))
     .orderBy(asc(usersTable.displayName), asc(usersTable.id));
 
-  // The group's name, so the page can say "billed through Front Range
-  // Funeral Group" rather than a number. One row, and a group row holds
-  // nothing about any family.
+  // The group's name, so the page can say which contract covers this home
+  // without listing every group (and auditing that) on each visit.
   const [group] = home.groupId
     ? await db
-        .select({ name: homeGroupsTable.name })
+        .select({ id: homeGroupsTable.id, name: homeGroupsTable.name })
         .from(homeGroupsTable)
         .where(eq(homeGroupsTable.id, home.groupId))
         .limit(1)
@@ -1017,6 +1027,7 @@ router.get("/admin/homes/:homeId", async (req, res) => {
     ...toAdminHome(home),
     groupName: group?.name ?? null,
     engagement: engagement.get(home.id)!,
+    group: group ?? null,
     licensure,
     practitioners,
     reminders: licensureReminders(licensure, practitioners),
@@ -1454,6 +1465,114 @@ router.get("/admin/overview", async (req, res) => {
     `${homes.length} homes`,
   );
 
+  const now = Date.now();
+  const DAY_MS = 24 * 60 * 60 * 1000;
+
+  /*
+   * Trials about to end, and trials that ended without a subscription.
+   *
+   * The conversation a founder most wants to have on time: a home whose trial
+   * finishes next Tuesday is a phone call this week, and one whose trial ended
+   * a fortnight ago and never subscribed is a home that has stopped opening
+   * cases without anybody noticing. Suspended homes are left out -- somebody
+   * already made a decision about them.
+   */
+  const TRIAL_HORIZON_DAYS = 14;
+  const trials = homes
+    .filter(
+      (home) =>
+        home.subscriptionStatus === "trial" &&
+        home.suspendedAt === null &&
+        home.trialEndsAt !== null &&
+        home.trialEndsAt.getTime() - now <= TRIAL_HORIZON_DAYS * DAY_MS &&
+        now - home.trialEndsAt.getTime() <= 30 * DAY_MS,
+    )
+    .sort((a, b) => a.trialEndsAt!.getTime() - b.trialEndsAt!.getTime())
+    .map((home) => ({
+      home: toAdminHome(home),
+      trialEndsAt: home.trialEndsAt!,
+    }));
+
+  /*
+   * Homes that have gone quiet.
+   *
+   * Facts, not a score. The comment on `platformEngagementFor` explains why
+   * this file must not invent a definition of "engaged"; what it can do is
+   * state the three plain things that, in practice, come before a home
+   * cancels -- nobody ever finished signing in, no case for a month, or links
+   * sent that no family has opened -- and let a person decide whether to
+   * ring. Each is a sentence the screen shows as it stands.
+   */
+  const QUIET_AFTER_DAYS = 30;
+  const homeIds = homes.map((home) => home.id);
+
+  const lastCases = homeIds.length
+    ? await db
+        .select({
+          homeId: casesTable.funeralHomeId,
+          latest: sql<string>`max(${casesTable.createdAt})`,
+        })
+        .from(casesTable)
+        .where(inArray(casesTable.funeralHomeId, homeIds))
+        .groupBy(casesTable.funeralHomeId)
+    : [];
+  const lastCaseAt = new Map(
+    lastCases.map((row) => [row.homeId, new Date(row.latest)]),
+  );
+
+  // Whether anybody at the home can actually sign in. A derived boolean,
+  // as on the home's own page -- no hash is ever selected here.
+  const signedUp = homeIds.length
+    ? await db
+        .select({ homeId: usersTable.funeralHomeId })
+        .from(usersTable)
+        .where(
+          and(
+            inArray(usersTable.funeralHomeId, homeIds),
+            isNull(usersTable.deactivatedAt),
+            sql`${usersTable.passwordHash} is not null`,
+          ),
+        )
+        .groupBy(usersTable.funeralHomeId)
+    : [];
+  const canSignIn = new Set(signedUp.map((row) => row.homeId));
+
+  const quiet = homes
+    .filter((home) => home.suspendedAt === null)
+    .flatMap((home) => {
+      const age = now - home.createdAt.getTime();
+      const latest = lastCaseAt.get(home.id) ?? null;
+      const counts = engagement.get(home.id);
+
+      let reason: string | null = null;
+      // Only said when it is the point: "the last was 3 August" beside
+      // "links sent, none opened" would be answering a different question.
+      let since: Date | null = null;
+      if (!canSignIn.has(home.id)) {
+        // A few days' grace: an invitation sent this morning is not news.
+        if (age >= 3 * DAY_MS) {
+          reason = "Nobody has finished setting up a sign-in yet.";
+        }
+      } else if (latest === null) {
+        if (age >= QUIET_AFTER_DAYS * DAY_MS) {
+          reason = "No case opened since they joined.";
+        }
+      } else if (now - latest.getTime() >= QUIET_AFTER_DAYS * DAY_MS) {
+        reason = "No case opened in the last thirty days.";
+        since = latest;
+      } else if (
+        counts &&
+        counts.familyLinksCreated > 0 &&
+        counts.familyLinksOpened === 0
+      ) {
+        reason = "Family links sent, and none opened yet.";
+      }
+
+      return reason
+        ? [{ home: toAdminHome(home), reason, lastCaseAt: since }]
+        : [];
+    });
+
   /*
    * Is mail actually leaving the building?
    *
@@ -1506,7 +1625,6 @@ router.get("/admin/overview", async (req, res) => {
    * desk. Suspended homes are left out -- they cannot open cases already, and
    * somebody decided that on purpose.
    */
-  const now = Date.now();
   const weekAhead = now + 7 * 24 * 60 * 60 * 1000;
   const trialsEndingSoon = homes
     .filter(
@@ -1525,6 +1643,8 @@ router.get("/admin/overview", async (req, res) => {
     engagement: platformTotals,
     attention,
     trialsEndingSoon,
+    trials,
+    quiet,
     delivery: {
       mailConfigured: isMailConfigured(),
       smsConfigured: isSmsConfigured(),
@@ -1667,7 +1787,10 @@ router.post("/admin/admins", async (req, res) => {
  */
 router.delete("/admin/admins/:email", async (req, res) => {
   const who = actor(req);
-  const email = normaliseEmail(decodeURIComponent(req.params.email ?? ""));
+  // Express has already decoded the path segment. Decoding it a second time
+  // threw a 500 on an address containing "%", and quietly changed one that
+  // contained an encoded sequence.
+  const email = normaliseEmail(req.params.email ?? "");
 
   if (!email) throw badRequest("Which address should be removed?");
 
@@ -1905,7 +2028,12 @@ router.get("/admin/groups/:groupId", async (req, res) => {
     .orderBy(asc(funeralHomesTable.name));
 
   res.json({
+    // `locations` below replaces the summary's count with the list itself;
+    // the console reads the count from its length.
     ...toAdminGroup(group, locations.length),
+    // Whether "start the contract" can work here at all, so the console can
+    // say so before somebody fills in the form rather than after.
+    billingConfigured: isBillingConfigured(),
     addOns: ADD_ONS.map((addOn) => ({
       key: addOn.key,
       title: addOn.title,
@@ -1942,14 +2070,38 @@ const MoveHomeBody = z.object({
 router.put("/admin/homes/:homeId/group", async (req, res) => {
   const who = actor(req);
   const { groupId } = parseBody(MoveHomeBody, req.body);
+
+  // The group first, so the log line can name it -- "moved into group 3" is
+  // a line nobody can read in a year -- and so a group that does not exist is
+  // refused before a line is written saying something happened. A group row
+  // holds no tenant's data (see the section comment), so this read needs no
+  // audit of its own.
+  const [group] =
+    groupId === null
+      ? []
+      : await db
+          .select()
+          .from(homeGroupsTable)
+          .where(eq(homeGroupsTable.id, groupId))
+          .limit(1);
+
+  const target =
+    groupId === null ? null : requireRow(group, "That group could not be found.");
+
   // Found here and logged below, once the move has passed its checks -- see
   // `platformFindHomeForChange` for why a refused move must not leave a line
   // saying it happened.
   const home = await platformFindHomeForChange(parseId(req.params.homeId));
 
-  if (groupId === null) {
-    await recordPlatformAccess(who, "home.group.update", home, "Removed from its group");
+  if (target === null) {
+    // Only a location that is actually in a group can leave one. Without this
+    // an independent, paying home sent here was quietly put back on a
+    // fortnight's trial with its add-ons stripped.
+    if (home.groupId === null) {
+      throw badRequest("This home is not part of a group.");
+    }
 
+    await recordPlatformAccess(who, "home.group.update", home, "Removed from its group");
 
     const graceEnds = new Date(
       Date.now() + GROUP_EXIT_GRACE_DAYS * 24 * 60 * 60 * 1000,
@@ -1975,14 +2127,6 @@ router.put("/admin/homes/:homeId/group", async (req, res) => {
     return;
   }
 
-  const [group] = await db
-    .select()
-    .from(homeGroupsTable)
-    .where(eq(homeGroupsTable.id, groupId))
-    .limit(1);
-
-  const target = requireRow(group, "That group could not be found.");
-
   if (home.stripeSubscriptionId !== null && home.groupId === null) {
     throw new HttpError(
       409,
@@ -1995,7 +2139,7 @@ router.put("/admin/homes/:homeId/group", async (req, res) => {
     who,
     "home.group.update",
     home,
-    `Moved into group ${target.id}`,
+    `Moved into "${target.name}"`,
   );
 
   const [updated] = await db
@@ -2017,7 +2161,12 @@ router.put("/admin/homes/:homeId/group", async (req, res) => {
 });
 
 const GroupCheckoutBody = z.object({
-  returnUrl: z.string().trim().min(1).max(2048),
+  // A real web address: Stripe refuses anything else, and refuses it with an
+  // error the console could only pass on as "something went wrong".
+  returnUrl: z.string().trim().url().max(2048).refine(
+    (value) => /^https?:\/\//.test(value),
+    "Please give a web address starting with http:// or https://",
+  ),
   email: z.string().trim().email().max(254),
   addOns: z.array(z.string().refine(isAddOnKey)).optional(),
 });

@@ -12,7 +12,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Loader2, MessageSquare, Moon, Send } from "lucide-react";
-import { Empty, Loading } from "@/components/page";
+import { Empty, LoadFailed, Loading } from "@/components/page";
 import { formatAtHome } from "@/lib/utils";
 import { useHomeZone } from "@/lib/session";
 
@@ -38,7 +38,13 @@ export function MessagesPanel({ caseId }: { caseId: number }) {
   useEffect(() => {
     if (thread.dataUpdatedAt === 0) return;
     void queryClient.invalidateQueries({ queryKey: getGetHomeInboxQueryKey() });
-  }, [thread.dataUpdatedAt, queryClient]);
+    // And the same for the tab's own badge, the worklist row and the master
+    // page's tile, which all count unread from the case: the tab went on
+    // saying "1" beside the thread the director was reading.
+    void queryClient.invalidateQueries({ queryKey: getGetCaseQueryKey(caseId) });
+    void queryClient.invalidateQueries({ queryKey: getGetCasesQueryKey() });
+    void queryClient.invalidateQueries({ queryKey: getGetHomeDashboardQueryKey() });
+  }, [thread.dataUpdatedAt, queryClient, caseId]);
 
   const send = usePostCaseMessage({
     mutation: {
@@ -73,7 +79,9 @@ export function MessagesPanel({ caseId }: { caseId: number }) {
     );
   }
 
-  if (!thread.data) return null;
+  if (!thread.data) {
+    return <LoadFailed what="The messages" onRetry={() => void thread.refetch()} />;
+  }
 
   const { messages, locked, withinOfficeHours } = thread.data;
 
@@ -125,8 +133,8 @@ export function MessagesPanel({ caseId }: { caseId: number }) {
 
       {locked ? (
         <p className="rounded-xl border border-border bg-[var(--sunken)] px-4 py-4 text-sm leading-relaxed text-muted-foreground">
-          This thread closed a fortnight after the service. Neither side can
-          post to it.
+          This thread has closed, as every thread does once the service is
+          past. Neither side can post to it.
         </p>
       ) : (
         <div className="space-y-3">

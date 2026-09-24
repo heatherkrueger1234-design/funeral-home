@@ -1,5 +1,10 @@
 import { useEffect, useState } from "react";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import {
+  keepPreviousData,
+  useMutation,
+  useQuery,
+  useQueryClient,
+} from "@tanstack/react-query";
 import { Link } from "wouter";
 import {
   api,
@@ -8,6 +13,7 @@ import {
   formatDay,
   HOME_STATUS_LABELS,
   HOME_STATUSES,
+  plural,
   type AdminHome,
   type HomeStatus,
 } from "@/lib/api";
@@ -79,6 +85,9 @@ export function Homes() {
       if (includeInternal) params.set("includeInternal", "true");
       return api.get<HomesPage>(`/admin/homes?${params.toString()}`);
     },
+    // The last answer stays on screen while the next one loads, rather than
+    // the table collapsing to a skeleton on every search and every page.
+    placeholderData: keepPreviousData,
   });
 
   const filtered = Boolean(term || status);
@@ -90,13 +99,17 @@ export function Homes() {
           <h1 className="font-display text-2xl">Homes</h1>
           <p className="mt-1 text-[var(--muted-foreground)]">
             {query.data
-              ? `${query.data.total} ${query.data.total === 1 ? "home" : "homes"}`
+              ? term
+                ? `${plural(query.data.total, "home")} matching “${term}”`
+                : plural(query.data.total, "home")
               : " "}
           </p>
         </div>
-        <Button variant="primary" onClick={() => setCreating(true)}>
-          Add a home
-        </Button>
+        {!creating && (
+          <Button variant="primary" onClick={() => setCreating(true)}>
+            Add a home
+          </Button>
+        )}
       </div>
 
       {creating && (
@@ -116,6 +129,7 @@ export function Homes() {
             type="search"
             value={search}
             placeholder="Name, web address or a staff email"
+            hint="A staff email finds its home only when typed in full."
             onChange={(event) => {
               setSearch(event.target.value);
               setPage(0);
@@ -205,7 +219,12 @@ export function Homes() {
 function HomesTable({ homes }: { homes: AdminHome[] }) {
   return (
     <div className="overflow-x-auto rounded-xl border border-[var(--border)] bg-[var(--card)] shadow-[var(--elevation-1)]">
-      <table className="w-full min-w-[58rem] text-left">
+      {/*
+        On a phone the three usage columns step aside: the name and the
+        account are what anyone looks this list up for, and the rest is on
+        the home's own page one tap away.
+      */}
+      <table className="w-full text-left md:min-w-[58rem]">
         {/*
           The header is a rule and a set of small caps, the way a printed
           table rules its header — not a grey band. The counts are right-aligned
@@ -218,9 +237,9 @@ function HomesTable({ homes }: { homes: AdminHome[] }) {
             <th scope="col" className="eyebrow px-4 py-2.5">Account</th>
             <th scope="col" className="eyebrow px-4 py-2.5">Trial ends</th>
             <th scope="col" className="eyebrow px-4 py-2.5 text-right">Cases</th>
-            <th scope="col" className="eyebrow px-4 py-2.5 text-right">Links opened</th>
-            <th scope="col" className="eyebrow px-4 py-2.5 text-right">Photographs</th>
-            <th scope="col" className="eyebrow px-4 py-2.5 text-right">Joined</th>
+            <th scope="col" className="eyebrow hidden px-4 py-2.5 text-right md:table-cell">Links opened</th>
+            <th scope="col" className="eyebrow hidden px-4 py-2.5 text-right md:table-cell">Photographs</th>
+            <th scope="col" className="eyebrow hidden px-4 py-2.5 text-right md:table-cell">Joined</th>
           </tr>
         </thead>
         <tbody>
@@ -267,17 +286,17 @@ function HomesTable({ homes }: { homes: AdminHome[] }) {
               <td className="tabular px-4 py-3 text-right">
                 {home.engagement.casesOpened}
               </td>
-              <td className="tabular px-4 py-3 text-right">
+              <td className="tabular hidden px-4 py-3 text-right md:table-cell">
                 {home.engagement.familyLinksOpened}
                 <span className="text-[var(--muted-foreground)]">
                   {" "}
                   of {home.engagement.familyLinksCreated}
                 </span>
               </td>
-              <td className="tabular px-4 py-3 text-right">
+              <td className="tabular hidden px-4 py-3 text-right md:table-cell">
                 {home.engagement.photographs}
               </td>
-              <td className="tabular whitespace-nowrap px-4 py-3 text-right text-sm text-[var(--muted-foreground)]">
+              <td className="tabular hidden whitespace-nowrap px-4 py-3 text-right text-sm text-[var(--muted-foreground)] md:table-cell">
                 {formatDate(home.createdAt)}
               </td>
             </tr>
@@ -305,7 +324,7 @@ function Pager({
   if (total <= PAGE_SIZE) return null;
 
   return (
-    <div className="flex items-center justify-between gap-4">
+    <div className="flex flex-wrap items-center justify-between gap-4">
       <p className="tabular text-sm text-[var(--muted-foreground)]">
         {first}–{last} of {total}
       </p>
@@ -472,6 +491,7 @@ function CreateHome({
           <Field
             label="Name of the home"
             required
+            maxLength={160}
             value={form.name}
             onChange={(event) =>
               setForm((current) => ({ ...current, name: event.target.value }))
@@ -481,6 +501,7 @@ function CreateHome({
           <Field
             label="Owner's email address"
             type="email"
+            maxLength={254}
             value={form.ownerEmail}
             onChange={(event) =>
               setForm((current) => ({
@@ -493,6 +514,7 @@ function CreateHome({
           />
           <Field
             label="Town"
+            maxLength={120}
             value={form.city}
             onChange={(event) =>
               setForm((current) => ({ ...current, city: event.target.value }))
@@ -500,6 +522,7 @@ function CreateHome({
           />
           <Field
             label="State"
+            maxLength={120}
             value={form.region}
             onChange={(event) =>
               setForm((current) => ({ ...current, region: event.target.value }))

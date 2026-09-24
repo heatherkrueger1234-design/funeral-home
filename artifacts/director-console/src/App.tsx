@@ -9,6 +9,7 @@ import {
 import { Toaster } from "@/components/ui/toaster";
 import { toast } from "@/hooks/use-toast";
 import { TooltipProvider } from "@/components/ui/tooltip";
+import { getGetCurrentUserQueryKey } from "@workspace/api-client-react";
 import {
   SessionProvider,
   isSessionQuery,
@@ -52,12 +53,23 @@ function describeError(error: unknown): string {
   return message || "Please check your connection and try again.";
 }
 
+/*
+ * A 401 anywhere but the session check means the session has gone — it
+ * expired overnight, or the owner took this person's access away. Re-reading
+ * the session puts the sign-in page in front of them. Before this, every
+ * screen quietly rendered empty and stayed that way until somebody reloaded.
+ */
+function sessionEnded() {
+  void queryClient.invalidateQueries({ queryKey: getGetCurrentUserQueryKey() });
+}
+
 const queryClient = new QueryClient({
   queryCache: new QueryCache({
     onError: (error, query) => {
       // A 401 is handled by showing the sign-in page; the session check
       // itself never toasts, because it runs on the sign-in page too.
-      if (isUnauthorized(error) || isSessionQuery(query.queryKey)) return;
+      if (isSessionQuery(query.queryKey)) return;
+      if (isUnauthorized(error)) return sessionEnded();
       toast({
         title: "Couldn't load that",
         description: describeError(error),
@@ -67,10 +79,13 @@ const queryClient = new QueryClient({
   }),
   mutationCache: new MutationCache({
     onError: (error, _variables, _context, mutation) => {
-      if (isUnauthorized(error)) return;
-      // A screen that explains its own failures says so with this flag;
-      // otherwise the director gets two toasts for one mistake.
-      if (mutation.meta?.handlesOwnErrors) return;
+      if (isUnauthorized(error)) return sessionEnded();
+      /*
+       * A screen that handles its own failure says so in its own words — the
+       * sign-in form, the print studio. Toasting here as well put two
+       * messages about one mistake on screen, one of them generic.
+       */
+      if (mutation.options.onError || mutation.meta?.handlesOwnErrors) return;
       toast({
         title: "That didn't save",
         description: describeError(error),

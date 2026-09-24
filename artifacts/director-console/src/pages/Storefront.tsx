@@ -17,7 +17,8 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
-import { Loading, PageHeader, Panel } from "@/components/page";
+import { Confirm, LoadFailed, Loading, PageHeader, Panel } from "@/components/page";
+import { Link } from "wouter";
 import { Plus, Trash2, Eye, EyeOff } from "lucide-react";
 
 /**
@@ -52,7 +53,9 @@ export default function Storefront() {
 
   if (home.isPending || policies.isPending) return <Loading rows={4} />;
 
-  if (!home.data) return null;
+  if (!home.data) {
+    return <LoadFailed what="Your page" onRetry={() => void home.refetch()} />;
+  }
 
   const row = home.data;
   const save = (data: Record<string, unknown>) =>
@@ -167,7 +170,13 @@ export default function Storefront() {
         Funeral Rule governs how a funeral provider discloses prices, and it
         is not something a text box should be doing on your behalf. Your own
         price sheet — for your staff, at a kitchen table — is under{" "}
-        <span className="font-medium">Prices</span>.
+        <Link
+          href="/prices"
+          className="font-medium text-[var(--accent-deep)] underline decoration-[var(--accent)]/40 underline-offset-4"
+        >
+          Prices
+        </Link>
+        .
       </p>
     </div>
   );
@@ -228,6 +237,7 @@ function Policies({
           >
             <div className="flex items-center gap-2">
               <Input
+                aria-label="Section heading"
                 disabled={readOnly}
                 defaultValue={policy.title}
                 className="font-medium"
@@ -239,19 +249,32 @@ function Policies({
                 }}
               />
               {!readOnly && (
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  aria-label="Remove section"
-                  onClick={() => remove.mutate({ policyId: policy.id })}
-                >
-                  <Trash2 className="size-4" />
-                </Button>
+                <Confirm
+                  trigger={
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      aria-label={`Remove "${policy.title}"`}
+                    >
+                      <Trash2 className="size-4" />
+                    </Button>
+                  }
+                  title={`Remove "${policy.title}"?`}
+                  description={
+                    policy.published
+                      ? "It comes off your page and out of every family's portal, and the wording is not kept. To take it down but keep it, switch it back to a draft instead."
+                      : "The draft and its wording are deleted."
+                  }
+                  confirmLabel="Remove it"
+                  destructive
+                  onConfirm={() => remove.mutate({ policyId: policy.id })}
+                />
               )}
             </div>
 
             <Textarea
               rows={4}
+              aria-label={`What you say about ${policy.title}`}
               disabled={readOnly}
               defaultValue={policy.body}
               onBlur={(event) => {
@@ -292,11 +315,12 @@ function Policies({
       {!readOnly && (
         <div className="flex gap-2">
           <Input
+            aria-label="New section heading"
             value={title}
             placeholder="Add a section — e.g. Cremation timings"
             onChange={(event) => setTitle(event.target.value)}
             onKeyDown={(event) => {
-              if (event.key === "Enter" && heading) {
+              if (event.key === "Enter" && heading && !add.isPending) {
                 add.mutate({
                   data: { title: heading, body: "Write it the way you say it." },
                 });

@@ -13,7 +13,7 @@ import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
 import { Check, Lock } from "lucide-react";
-import { Divider, LoadError, Loading, PageHeader } from "@/components/page";
+import { Divider, LoadFailed, Loading, PageHeader } from "@/components/page";
 
 /**
  * The obituary, as a form rather than a blank page.
@@ -117,9 +117,11 @@ export default function Obituary() {
 
   if (obituary.isPending) return <Loading rows={5} />;
 
-  if (!obituary.data) {
-    return <LoadError title="The obituary" onRetry={() => void obituary.refetch()} />;
+  if (obituary.isError && !obituary.data) {
+    return <LoadFailed title="The obituary" onRetry={() => void obituary.refetch()} />;
   }
+
+  if (!obituary.data) return null;
 
   const draft = obituary.data;
   const locked = draft.status === "approved";
@@ -254,7 +256,7 @@ export default function Obituary() {
         <Field
           id="specialThanks"
           label="Anyone to thank"
-          hint="Carers, a hospice, a ward."
+          hint="Caregivers, a hospice, the nurses on a ward."
           value={draft.specialThanks}
           multiline
           disabled={locked}

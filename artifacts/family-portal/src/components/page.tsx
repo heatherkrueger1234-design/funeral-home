@@ -1,5 +1,5 @@
 import type { ComponentType, ReactNode } from "react";
-import { WifiOff } from "lucide-react";
+import { RotateCw, WifiOff } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
 /**
@@ -130,12 +130,15 @@ export function Panel({
 }
 
 /**
- * A page whose data would not load. Never shown as the page's empty state:
- * "nothing to check" and "we couldn't reach the funeral home" are opposite
- * messages, and on a phone on mobile data the second is common. Says plainly
- * that nothing was lost, because that is the first thing anyone fears.
+ * A screen whose information did not arrive.
+ *
+ * Before this, a page that failed to load drew itself as though it were
+ * empty — "Nothing to check at the moment", "Nothing is waiting on you" —
+ * which is worse than an error: it is a calm, confident, wrong answer. The
+ * toast that said otherwise was gone in five seconds. This says plainly that
+ * the page did not load, that nothing is lost, and offers the one action.
  */
-export function LoadError({
+export function LoadFailed({
   title,
   onRetry,
 }: {
@@ -147,14 +150,16 @@ export function LoadError({
       <PageHeader title={title} />
       <Empty
         icon={WifiOff}
-        title="This couldn't be opened just now"
+        title="This page didn't load"
         action={
           <Button type="button" variant="outline" onClick={onRetry}>
+            <RotateCw className="size-4" />
             Try again
           </Button>
         }
       >
-        Please check your connection. Nothing anybody has added has been lost.
+        Nothing you have added is lost. It is usually the connection — please
+        try again in a moment.
       </Empty>
     </div>
   );

@@ -222,3 +222,17 @@ function validZone(timeZone: string | null | undefined): string | undefined {
     return undefined;
   }
 }
+
+/**
+ * How long a family's thread stays open after the service, in words.
+ *
+ * The console used to say "a fortnight" wherever this came up, which is
+ * neither the home's own setting (Settings → "Thread stays open for") nor a
+ * word American families use.
+ */
+export function lockWindow(days: number | null | undefined): string {
+  if (!days || days < 1) return "two weeks";
+  if (days === 7) return "a week";
+  if (days % 7 === 0) return `${days / 7} weeks`;
+  return days === 1 ? "a day" : `${days} days`;
+}

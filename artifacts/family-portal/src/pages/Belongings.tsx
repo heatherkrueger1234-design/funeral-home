@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, type FocusEvent } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import {
   useGetFamilyBelongings,
@@ -22,7 +22,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Check, Lock, Plus, Shirt, X } from "lucide-react";
-import { Divider, Empty, Loading, PageHeader } from "@/components/page";
+import { Divider, Empty, LoadFailed, Loading, PageHeader } from "@/components/page";
 
 /**
  * What to bring in, and how they should look.
@@ -48,57 +48,12 @@ const KINDS = [
   { value: "clothing", label: "Clothing" },
   { value: "undergarments", label: "Undergarments" },
   { value: "shoes", label: "Shoes" },
-  { value: "jewellery", label: "Jewellery" },
+  // The stored value keeps the schema's spelling; the family reads US English.
+  { value: "jewellery", label: "Jewelry" },
   { value: "glasses", label: "Glasses" },
   { value: "keepsake", label: "Something to go with them" },
   { value: "other", label: "Something else" },
 ];
-
-/**
- * One of the preparation notes. Saved only when this person changed it,
- * never merely because they tabbed through — see the obituary's `Field`.
- * Here it matters twice over: the notes are written by several relatives,
- * and any save clears the preparation room's "we have read this", so a
- * cursor passing through "Their hair" used to undo the home's sign-off and
- * put back whatever the box held when the page opened.
- */
-function PrepField({
-  id,
-  label,
-  rows,
-  placeholder,
-  value,
-  onSave,
-}: {
-  id: string;
-  label: string;
-  rows: number;
-  placeholder: string;
-  value: string | null;
-  onSave: (value: string | null) => void;
-}) {
-  return (
-    <div className="space-y-2">
-      <Label htmlFor={id}>{label}</Label>
-      <Textarea
-        key={value ?? ""}
-        id={id}
-        rows={rows}
-        placeholder={placeholder}
-        defaultValue={value ?? ""}
-        onFocus={(event) => {
-          event.currentTarget.dataset.before = event.currentTarget.value;
-        }}
-        onBlur={(event) => {
-          if (event.target.value === event.target.dataset.before) return;
-          const next = event.target.value.trim() || null;
-          if (next === value) return;
-          onSave(next);
-        }}
-      />
-    </div>
-  );
-}
 
 export default function Belongings() {
   const queryClient = useQueryClient();
@@ -129,7 +84,47 @@ export default function Belongings() {
   const remove = useDeleteFamilyBelonging({ mutation: { onSuccess: refreshItems } });
   const savePrep = useUpdateFamilyPreparation({ mutation: { onSuccess: refreshPrep } });
 
+  // Enter and the button both come here, and neither sends a second copy
+  // while the first is still on its way.
+  const addItem = () => {
+    const text = description.trim();
+    if (!text || add.isPending) return;
+    add.mutate({ data: { kind: kind as "other", description: text } });
+  };
+
+  /*
+   * The four notes save when the box is left, and only if it was changed.
+   * Every blur used to send whatever the box held, so tapping through
+   * "Their hair" on the way to "Makeup" put back the text that was on file
+   * when the page opened -- over a sister's answer typed since on her own
+   * phone. The same rule the obituary follows.
+   */
+  const noteProps = (field: "hairNotes" | "cosmeticsNotes" | "jewelleryNotes" | "otherNotes") => ({
+    defaultValue: preparation.data?.[field] ?? "",
+    onFocus: (event: FocusEvent<HTMLTextAreaElement>) => {
+      event.currentTarget.dataset.before = event.currentTarget.value;
+    },
+    onBlur: (event: FocusEvent<HTMLTextAreaElement>) => {
+      if (event.target.value === event.target.dataset.before) return;
+      const next = event.target.value.trim() || null;
+      if (next === (preparation.data?.[field] ?? null)) return;
+      savePrep.mutate({ data: { [field]: next } });
+    },
+  });
+
   if (items.isPending || preparation.isPending) return <Loading rows={4} />;
+
+  if ((items.isError && !items.data) || (preparation.isError && !preparation.data)) {
+    return (
+      <LoadFailed
+        title="Clothing and belongings"
+        onRetry={() => {
+          void items.refetch();
+          void preparation.refetch();
+        }}
+      />
+    );
+  }
 
   const rows = items.data ?? [];
   const prep = preparation.data;
@@ -162,12 +157,35 @@ export default function Belongings() {
                   held ? "border-[var(--accent)]/30 bg-[var(--sunken)]" : "border-border"
                 }`}
               >
-                <div className="flex items-start gap-2">
-                  <div className="min-w-0 flex-1">
+                {/*
+                  Once the home has the item it is set as plain text rather
+                  than as a greyed-out box. A disabled field cut "Navy dress
+                  with the enamel brooch" off at "Navy dress with the enamel"
+                  in a tint too faint to read, on exactly the rows the family
+                  most wants to check.
+                */}
+                {held ? (
+                  <div className="space-y-1.5">
+                    <p className="break-words font-medium">{item.description}</p>
+                    <p className="flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-muted-foreground">
+                      <span className="inline-flex items-center gap-1 rounded-full bg-[var(--accent-soft)] px-2.5 py-0.5 font-semibold text-[var(--accent-deep)]">
+                        <Lock className="size-3" />
+                        The funeral home has it
+                      </span>
+                      {DISPOSITIONS.find((entry) => entry.value === item.disposition)?.label}
+                    </p>
+                  </div>
+                ) : (
+                  /*
+                    The description takes the full width and the remove sits
+                    beside the choice below it. Sharing a line with "Remove"
+                    cut "Photograph of Donald for her hand" to "Photograph of
+                    Donald fo".
+                  */
+                  <>
                     <Input
                       aria-label="What this is"
                       defaultValue={item.description}
-                      disabled={held}
                       onBlur={(event) => {
                         const next = event.target.value.trim();
                         if (!next || next === item.description) return;
@@ -177,50 +195,43 @@ export default function Belongings() {
                         });
                       }}
                     />
-                  </div>
-
-                  {held ? (
-                    <span
-                      className="mt-2 flex shrink-0 items-center gap-1 rounded-full bg-[var(--accent-soft)] px-2 py-0.5 text-xs font-semibold text-[var(--accent-deep)]"
-                      title="The funeral home has this."
-                    >
-                      <Lock className="size-3" />
-                      With them
-                    </span>
-                  ) : (
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="shrink-0 text-muted-foreground"
-                      aria-label={`Remove ${item.description}`}
-                      onClick={() => remove.mutate({ belongingId: item.id })}
-                    >
-                      <X className="size-4" />
-                    </Button>
-                  )}
-                </div>
-
-                <Select
-                  value={item.disposition}
-                  disabled={held}
-                  onValueChange={(value) =>
-                    update.mutate({
-                      belongingId: item.id,
-                      data: { disposition: value as "undecided" },
-                    })
-                  }
-                >
-                  <SelectTrigger aria-label={`What should happen to ${item.description}`}>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {DISPOSITIONS.map((entry) => (
-                      <SelectItem key={entry.value} value={entry.value}>
-                        {entry.label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                    <div className="flex items-center gap-2">
+                      <div className="min-w-0 flex-1">
+                        <Select
+                          value={item.disposition}
+                          onValueChange={(value) =>
+                            update.mutate({
+                              belongingId: item.id,
+                              data: { disposition: value as "undecided" },
+                            })
+                          }
+                        >
+                          <SelectTrigger aria-label={`What should happen to ${item.description}`}>
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {DISPOSITIONS.map((entry) => (
+                              <SelectItem key={entry.value} value={entry.value}>
+                                {entry.label}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="shrink-0 text-muted-foreground"
+                        aria-label={`Remove ${item.description}`}
+                        disabled={remove.isPending}
+                        onClick={() => remove.mutate({ belongingId: item.id })}
+                      >
+                        <X className="size-4" />
+                        Remove
+                      </Button>
+                    </div>
+                  </>
+                )}
 
                 {held && item.returnedAt && (
                   <p className="text-sm text-muted-foreground">
@@ -234,8 +245,10 @@ export default function Belongings() {
 
         {/* Adding something: one line, kept visually apart from the list. */}
         <div className="flex flex-wrap gap-2 rounded-xl border border-dashed border-[var(--border-strong)] p-2.5">
+          {/* Its own row on a phone: at a fixed 11rem, "Something to go
+              with them" was cut to "Something to go with". */}
           <Select value={kind} onValueChange={setKind}>
-            <SelectTrigger aria-label="Kind of item" className="w-[11rem]">
+            <SelectTrigger aria-label="Kind of item" className="w-full sm:w-[15rem]">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
@@ -249,31 +262,25 @@ export default function Belongings() {
 
           <Input
             value={description}
-            placeholder="Her mother's locket"
+            placeholder="What is it?"
             aria-label="Add something else to bring"
             className="min-w-[10rem] flex-1"
             onChange={(event) => setDescription(event.target.value)}
             onKeyDown={(event) => {
               if (event.key !== "Enter") return;
               event.preventDefault();
-              if (description.trim() && !add.isPending) {
-                add.mutate({ data: { kind: kind as "other", description: description.trim() } });
-              }
+              addItem();
             }}
           />
 
           <Button
             variant="outline"
-            size="icon"
-            aria-label="Add item"
+            aria-label="Add this to the list"
             disabled={!description.trim() || add.isPending}
-            onClick={() =>
-              add.mutate({
-                data: { kind: kind as "other", description: description.trim() },
-              })
-            }
+            onClick={addItem}
           >
             <Plus className="size-4" />
+            Add
           </Button>
         </div>
       </section>
@@ -293,41 +300,49 @@ export default function Belongings() {
           </p>
         )}
 
-        <PrepField
-          id="hair"
-          label="Their hair"
-          rows={3}
-          placeholder="How it was parted, whether it was set, who used to do it."
-          value={prep?.hairNotes ?? null}
-          onSave={(value) => savePrep.mutate({ data: { hairNotes: value } })}
-        />
+        <div className="space-y-2">
+          <Label htmlFor="hair">Their hair</Label>
+          <Textarea
+            id="hair"
+            rows={3}
+            placeholder="How it was parted, whether it was set, who used to do it."
+            key={prep?.hairNotes ?? ""}
+            {...noteProps("hairNotes")}
+          />
+        </div>
 
-        <PrepField
-          id="cosmetics"
-          label="Makeup"
-          rows={3}
-          placeholder="How much, and what they wore. Or that they never wore any."
-          value={prep?.cosmeticsNotes ?? null}
-          onSave={(value) => savePrep.mutate({ data: { cosmeticsNotes: value } })}
-        />
+        <div className="space-y-2">
+          <Label htmlFor="cosmetics">Makeup</Label>
+          <Textarea
+            id="cosmetics"
+            rows={3}
+            placeholder="How much, and what they wore. Or that they never wore any."
+            key={prep?.cosmeticsNotes ?? ""}
+            {...noteProps("cosmeticsNotes")}
+          />
+        </div>
 
-        <PrepField
-          id="jewellery"
-          label="Jewellery they should be wearing"
-          rows={2}
-          placeholder="Her wedding ring, left hand."
-          value={prep?.jewelleryNotes ?? null}
-          onSave={(value) => savePrep.mutate({ data: { jewelleryNotes: value } })}
-        />
+        <div className="space-y-2">
+          <Label htmlFor="jewellery">Jewelry they should be wearing</Label>
+          <Textarea
+            id="jewellery"
+            rows={2}
+            placeholder="Her wedding ring, left hand."
+            key={prep?.jewelleryNotes ?? ""}
+            {...noteProps("jewelleryNotes")}
+          />
+        </div>
 
-        <PrepField
-          id="other"
-          label="Anything else"
-          rows={3}
-          placeholder="A scarf she always wore. Glasses on or off. Anything at all."
-          value={prep?.otherNotes ?? null}
-          onSave={(value) => savePrep.mutate({ data: { otherNotes: value } })}
-        />
+        <div className="space-y-2">
+          <Label htmlFor="other">Anything else</Label>
+          <Textarea
+            id="other"
+            rows={3}
+            placeholder="A scarf she always wore. Glasses on or off. Anything at all."
+            key={prep?.otherNotes ?? ""}
+            {...noteProps("otherNotes")}
+          />
+        </div>
 
         <p className="border-l-2 border-[var(--accent)]/30 pl-4 text-sm leading-relaxed text-muted-foreground">
           It also helps enormously to mark a recent photograph as “this is how

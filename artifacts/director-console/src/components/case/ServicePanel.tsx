@@ -7,7 +7,7 @@ import {
 } from "@workspace/api-client-react";
 import { Button } from "@/components/ui/button";
 import { Check, ListMusic, X } from "lucide-react";
-import { Empty, Loading } from "@/components/page";
+import { Confirm, Empty, LoadFailed, Loading } from "@/components/page";
 
 const LABELS: Record<string, string> = {
   hymn: "Hymns",
@@ -40,6 +40,10 @@ export function ServicePanel({ caseId }: { caseId: number }) {
     return (
       <Loading />
     );
+  }
+
+  if (selections.isError) {
+    return <LoadFailed what="The service choices" onRetry={() => void selections.refetch()} />;
   }
 
   const rows = selections.data ?? [];
@@ -83,6 +87,7 @@ export function ServicePanel({ caseId }: { caseId: number }) {
                     <Button
                       variant={confirmed ? "secondary" : "outline"}
                       size="sm"
+                      aria-pressed={confirmed}
                       onClick={() =>
                         update.mutate({
                           selectionId: row.id,
@@ -94,15 +99,24 @@ export function ServicePanel({ caseId }: { caseId: number }) {
                       {confirmed ? "Confirmed" : "Confirm"}
                     </Button>
 
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="text-muted-foreground"
-                      aria-label={`Remove ${row.value}`}
-                      onClick={() => remove.mutate({ selectionId: row.id })}
-                    >
-                      <X className="size-4" />
-                    </Button>
+                    <Confirm
+                      trigger={
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="text-muted-foreground"
+                          aria-label={`Remove ${row.value}`}
+                        >
+                          <X className="size-4" />
+                        </Button>
+                      }
+                      title={`Remove "${row.value}"?`}
+                      description="The family chose this, and it disappears from their page too. Tell them why, in a message, if they will wonder."
+                      confirmLabel="Remove it"
+                      cancelLabel="Keep it"
+                      destructive
+                      onConfirm={() => remove.mutate({ selectionId: row.id })}
+                    />
                   </li>
                 );
               })}

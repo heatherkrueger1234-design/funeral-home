@@ -4,7 +4,6 @@ import { useQueryClient } from "@tanstack/react-query";
 import {
   useDeleteCase,
   useConvertCaseToAtNeed,
-  getGetCasesQueryKey,
 } from "@workspace/api-client-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -192,7 +191,11 @@ function EraseCase({
   const erase = useDeleteCase({
     mutation: {
       onSuccess: () => {
-        void queryClient.invalidateQueries({ queryKey: getGetCasesQueryKey() });
+        // Everything: the case is on the master page, in the inbox and in
+        // the worklist, and none of them should go on showing it. Marked stale
+        // rather than refetched, so this page does not ask for the case it
+        // has just erased on its way out; the next screen reloads what it shows.
+        void queryClient.invalidateQueries({ refetchType: "none" });
         setOpen(false);
         toast({
           title: "Erased",
@@ -243,7 +246,8 @@ function EraseCase({
       </p>
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogTrigger asChild>
-          <Button variant="destructive" size="sm">
+          {/* Red is kept for the button that actually erases, inside. */}
+          <Button variant="outline" size="sm">
             <Trash2 className="size-4" />
             Erase
           </Button>

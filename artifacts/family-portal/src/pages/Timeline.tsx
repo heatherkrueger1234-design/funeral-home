@@ -8,7 +8,7 @@ import {
 } from "@workspace/api-client-react";
 import { Checkbox } from "@/components/ui/checkbox";
 import { CalendarClock, Church } from "lucide-react";
-import { Empty, LoadError, Loading, PageHeader } from "@/components/page";
+import { Empty, LoadFailed, Loading, PageHeader } from "@/components/page";
 import { formatAtHome } from "@/lib/utils";
 
 /**
@@ -69,8 +69,8 @@ export default function Timeline() {
     );
   }
 
-  if (deadlines.isError) {
-    return <LoadError title="What's due" onRetry={() => void deadlines.refetch()} />;
+  if (deadlines.isError && !deadlines.data) {
+    return <LoadFailed title="What's due" onRetry={() => void deadlines.refetch()} />;
   }
 
   const rows = deadlines.data ?? [];
@@ -130,7 +130,9 @@ export default function Timeline() {
                     </span>
                   ) : (
                     <Checkbox
-                      className="mt-0.5 size-6"
+                      // The box is drawn at 24px; the invisible margin round
+                      // it makes the thing a finger has to hit 44px.
+                      className="relative mt-0.5 size-6 after:absolute after:-inset-2.5 after:content-['']"
                       checked={done}
                       disabled={complete.isPending && complete.variables?.deadlineId === row.id}
                       aria-label={`Mark "${row.title}" done`}
@@ -157,12 +159,17 @@ export default function Timeline() {
                     </p>
                     <p className="mt-0.5 text-sm text-muted-foreground">
                       {formatDue(row.dueAt, timeZone)}
-                      {late && (
-                        <span className="ml-2 font-semibold text-[var(--accent-deep)]">
-                          · overdue
-                        </span>
-                      )}
                     </p>
+                    {/*
+                      Said once, in words, with what is true about it: the
+                      date can move. "Overdue" in bold beside the date was
+                      accurate and read as a mark against somebody.
+                    */}
+                    {late && (
+                      <p className="mt-0.5 text-sm font-semibold text-[var(--accent-deep)]">
+                        The date has passed, and it can move.
+                      </p>
+                    )}
                     {row.description && (
                       <p className="mt-1.5 text-sm leading-relaxed text-muted-foreground">
                         {row.description}

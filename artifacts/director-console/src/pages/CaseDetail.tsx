@@ -34,10 +34,10 @@ import { MemoryBookPanel } from "@/components/case/MemoryBookPanel";
 import { DetailsPanel } from "@/components/case/DetailsPanel";
 import { CaseData } from "@/components/CaseData";
 import { CaseGlance } from "@/components/case/CaseGlance";
-import { Empty, Loading } from "@/components/page";
-import { formatAtHome } from "@/lib/utils";
-import { useHomeZone } from "@/lib/session";
-import { ArrowLeft, CalendarX, FileQuestion, WifiOff } from "lucide-react";
+import { Empty, LoadFailed, Loading } from "@/components/page";
+import { formatAtHome, lockWindow } from "@/lib/utils";
+import { useHomeZone, useSession } from "@/lib/session";
+import { ArrowLeft, CalendarX, FileQuestion, Phone } from "lucide-react";
 
 /**
  * "Sat 26 Sep, 4:51 pm" — the day of the week is half of how a date is read
@@ -56,27 +56,49 @@ function serviceLabel(value: string | Date, zone: string | undefined): string {
   );
 }
 
+/**
+ * The tabs a link may open straight onto.
+ *
+ * The open tab lives in the address rather than in memory, so that "Past
+ * due" on the master page can land on the timeline, a reply in the inbox can
+ * land on the thread, a reload keeps the director where they were, and
+ * moving from one case to the next does not carry the last case's tab along.
+ */
+const TABS = [
+  "family",
+  "photos",
+  "vitals",
+  "belongings",
+  "obituary",
+  "service",
+  "print",
+  "book",
+  "timeline",
+  "messages",
+  "details",
+  "data",
+] as const;
+
+type Tab = (typeof TABS)[number];
+
+const isTab = (value: string | null): value is Tab =>
+  value !== null && (TABS as readonly string[]).includes(value);
+
 export default function CaseDetail() {
   const [, params] = useRoute("/cases/:caseId");
   const caseId = Number(params?.caseId);
   const { toast } = useToast();
   const queryClient = useQueryClient();
-  const zone = useHomeZone();
-
-  /*
-   * The tab lives in the address, not in memory. "Open the case" from the
-   * inbox should land on the messages, and a past-due row on the master
-   * page on the timeline; with the tab held in state every link into a case
-   * dropped the director on Family and left them to find the rest. It also
-   * means the back button and a pasted link both come back to the same tab.
-   */
-  const search = useSearch();
   const [, navigate] = useLocation();
-  const tab = new URLSearchParams(search).get("tab") ?? "family";
+  const requested = new URLSearchParams(useSearch()).get("tab");
+  const tab: Tab = isTab(requested) ? requested : "family";
   const setTab = (next: string) =>
-    navigate(`/cases/${caseId}${next === "family" ? "" : `?tab=${next}`}`, {
-      replace: true,
-    });
+    navigate(
+      next === "family" ? `/cases/${caseId}` : `/cases/${caseId}?tab=${next}`,
+      { replace: true },
+    );
+  const zone = useHomeZone();
+  const { session } = useSession();
 
   const row = useGetCase(caseId, {
     query: {
@@ -94,7 +116,7 @@ export default function CaseDetail() {
         toast({
           title: "Case closed",
           description:
-            "The family's thread locks a fortnight after the service, and their aftercare is waiting on their consent.",
+            `The family's thread locks ${lockWindow(session?.home.messageLockDays)} after the service, and their aftercare is waiting on their consent.`,
         });
       },
     },
@@ -112,30 +134,27 @@ export default function CaseDetail() {
 
   if (row.isPending) return <Loading rows={4} />;
 
-  // A dropped connection is not a missing case, and saying "it may have been
-  // removed" about one that is fine is how a director panics.
-  const missing = (row.error as { status?: number } | null)?.status === 404;
-  if (row.isError && !missing && !row.data) {
-    return (
+  if (!row.data) {
+    // A 404 is a case that is not here; anything else is the connection,
+    // and telling a director their case has gone when it has not is the
+    // wrong fright to give anybody.
+    const missing =
+      !Number.isInteger(caseId) ||
+      (row.error as { status?: number } | null)?.status === 404;
+    return missing ? (
       <Empty
-        icon={WifiOff}
-        title="This case couldn't be opened just now"
+        icon={FileQuestion}
+        title="That case isn't here"
         action={
-          <Button variant="outline" onClick={() => void row.refetch()}>
-            Try again
+          <Button asChild variant="outline" size="sm">
+            <Link href="/cases">All cases</Link>
           </Button>
         }
       >
-        Nothing has been lost. Check the connection and try again.
+        It may have been erased, or the address may be wrong.
       </Empty>
-    );
-  }
-
-  if (!row.data) {
-    return (
-      <Empty icon={FileQuestion} title="That case isn't here">
-        It may have been closed and removed, or the address may be wrong.
-      </Empty>
+    ) : (
+      <LoadFailed what="This case" onRetry={() => void row.refetch()} />
     );
   }
 
@@ -143,6 +162,16 @@ export default function CaseDetail() {
   const closed = detail.status === "closed";
   const serviceAhead =
     detail.serviceAt !== null && new Date(detail.serviceAt).getTime() > Date.now();
+
+  /*
+   * Who to ring. The question a director has with the case open is usually
+   * "what is the daughter's number?", and the answer was a tab away inside
+   * a list. The first next of kin who still has a working link and a number.
+   */
+  const nextOfKin = detail.contacts.find(
+    (contact) =>
+      contact.role === "next_of_kin" && contact.revokedAt === null && contact.phone,
+  );
 
   return (
     <div className="space-y-6">
@@ -233,6 +262,24 @@ export default function CaseDetail() {
                 No service date — the timeline is empty until there is one
               </p>
             ))}
+
+          {nextOfKin?.phone && (
+            <p className="mt-2 text-sm">
+              <span className="eyebrow mr-2">Next of kin</span>
+              <span className="font-semibold">{nextOfKin.name}</span>
+              {nextOfKin.relationship && (
+                <span className="text-muted-foreground"> · {nextOfKin.relationship}</span>
+              )}
+              {" · "}
+              <a
+                href={`tel:${nextOfKin.phone.replace(/[^\d+]/g, "")}`}
+                className="tabular inline-flex items-center gap-1 font-semibold text-[var(--accent-deep)] no-underline hover:underline"
+              >
+                <Phone className="size-3.5" strokeWidth={1.75} aria-hidden />
+                {nextOfKin.phone}
+              </a>
+            </p>
+          )}
         </div>
 
         {!closed && (
@@ -245,7 +292,8 @@ export default function CaseDetail() {
                 <AlertDialogTitle>Close this case?</AlertDialogTitle>
                 <AlertDialogDescription>
                   The family keeps access to everything they added. Their
-                  message thread locks a fortnight after the service, and
+                  message thread locks{" "}
+                  {lockWindow(session?.home.messageLockDays)} after the service, and
                   anyone who left an address is offered the grief check-ins in
                   your name — nothing is sent until they say yes.
                 </AlertDialogDescription>
@@ -280,7 +328,11 @@ export default function CaseDetail() {
         onOpen={setTab}
       />
 
-      <Tabs value={tab} onValueChange={setTab}>
+      <Tabs
+        // A pre-need file has no memory book, so a link to one opens the family.
+        value={detail.kind === "pre_need" && tab === "book" ? "family" : tab}
+        onValueChange={setTab}
+      >
         <TabsList>
           <TabsTrigger value="family">Family</TabsTrigger>
           <TabsTrigger value="photos">Photographs ({detail.photoCount})</TabsTrigger>
@@ -325,7 +377,17 @@ export default function CaseDetail() {
             />
           </TabsContent>
           <TabsContent value="vitals">
-            <VitalsPanel caseId={caseId} />
+            <VitalsPanel
+              caseId={caseId}
+              fromCase={{
+                legalFirstName: detail.decedentFirstName,
+                legalLastName: detail.decedentLastName,
+                // Stored as midnight UTC on the day; the certificate wants the day.
+                dateOfBirth: detail.dateOfBirth
+                  ? new Date(detail.dateOfBirth).toISOString().slice(0, 10)
+                  : null,
+              }}
+            />
           </TabsContent>
           <TabsContent value="belongings">
             <BelongingsPanel caseId={caseId} />

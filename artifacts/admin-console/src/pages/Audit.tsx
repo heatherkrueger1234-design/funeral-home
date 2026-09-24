@@ -40,11 +40,15 @@ export function Audit() {
   const search = useSearch();
   const [, navigate] = useLocation();
   const params = new URLSearchParams(search);
-  const homeId = Number(params.get("homeId")) || null;
+  // `?home=` is accepted as well as `?homeId=`, so a link written either way
+  // -- the home's page has used both -- lands on the same filtered log.
+  const homeId =
+    Number(params.get("homeId")) || Number(params.get("home")) || null;
   const action = params.get("action") ?? "";
 
   const setFilter = (key: "homeId" | "action", value: string) => {
     const next = new URLSearchParams(search);
+    if (key === "homeId") next.delete("home");
     if (value) next.set(key, value);
     else next.delete(key);
     const query = next.toString();
@@ -109,7 +113,7 @@ export function Audit() {
       </div>
 
       <div className="flex flex-wrap items-end gap-x-6 gap-y-4">
-        <div className="w-64">
+        <div className="w-full max-w-xs">
           <Select
             label="Home"
             value={homeId === null ? "" : String(homeId)}
@@ -123,7 +127,7 @@ export function Audit() {
             ))}
           </Select>
         </div>
-        <div className="w-64">
+        <div className="w-full max-w-xs">
           <Select
             label="What"
             value={action}
@@ -153,14 +157,36 @@ export function Audit() {
           title={filtered ? "Nothing matches that" : "Nothing logged yet"}
           detail={
             filtered
-              ? "Nothing in the log matches those filters."
+              ? "Nobody has done that yet, or not to this home."
               : "The first time anyone opens a home from this console, it will appear here."
+          }
+          action={
+            filtered ? (
+              <Button onClick={() => navigate("/audit", { replace: true })}>
+                Show everything
+              </Button>
+            ) : undefined
           }
         />
       ) : (
         <>
           <Card className="overflow-hidden p-0">
-            <div className="overflow-x-auto">
+            {/* A phone gets the same entries as sentences; four columns of a
+                log do not fit 390 pixels, and a sideways-scrolling table hid
+                the "what", which is the column that matters. */}
+            <ul className="divide-y divide-[var(--border)] md:hidden">
+              {entries.map((entry) => (
+                <li key={entry.id} className="flex flex-col gap-0.5 px-4 py-3 text-sm">
+                  <What entry={entry} />
+                  <Subject entry={entry} />
+                  <span className="text-[var(--muted-foreground)] break-words">
+                    {formatDateTime(entry.createdAt)} ·{" "}
+                    {entry.actorEmail.replace("@", "​@")}
+                  </span>
+                </li>
+              ))}
+            </ul>
+            <div className="hidden overflow-x-auto md:block">
               <table className="w-full min-w-[46rem] text-left">
                 <thead>
                   <tr className="border-b border-[var(--border-strong)] bg-[var(--sunken)]">
@@ -179,35 +205,16 @@ export function Audit() {
                       <td className="tabular px-4 py-3 text-sm whitespace-nowrap">
                         {formatDateTime(entry.createdAt)}
                       </td>
-                      <td className="px-4 py-3 text-sm break-all">
-                        {entry.actorEmail}
+                      <td className="px-4 py-3 text-sm break-words">
+                        {/* Allowed to wrap at the @ and nowhere else, rather
+                            than mid-word wherever the column happens to end. */}
+                        {entry.actorEmail.replace("@", "​@")}
                       </td>
                       <td className="px-4 py-3 text-sm">
-                        {AUDIT_ACTION_LABELS[entry.action] ?? entry.action}
-                        {entry.detail && (
-                          <span className="text-[var(--muted-foreground)]">
-                            {" "}
-                            — {entry.detail}
-                          </span>
-                        )}
+                        <What entry={entry} />
                       </td>
                       <td className="px-4 py-3 text-sm">
-                        {entry.subjectHomeId ? (
-                          <Link
-                            href={`/homes/${entry.subjectHomeId}`}
-                            className="no-underline hover:underline"
-                          >
-                            {entry.subjectHomeName ?? `#${entry.subjectHomeId}`}
-                          </Link>
-                        ) : (
-                          // Not "every home": a line with no home is about
-                          // the platform itself -- the overview, the list of
-                          // who has access -- and saying "every home" read as
-                          // though every customer had been opened.
-                          <span className="text-[var(--muted-foreground)]">
-                            Platform
-                          </span>
-                        )}
+                        <Subject entry={entry} />
                       </td>
                     </tr>
                   ))}
@@ -238,5 +245,42 @@ export function Audit() {
         </>
       )}
     </div>
+  );
+}
+
+function What({ entry }: { entry: AuditEntry }) {
+  return (
+    <span>
+      {AUDIT_ACTION_LABELS[entry.action] ?? entry.action}
+      {entry.detail && (
+        <span className="text-[var(--muted-foreground)]"> — {entry.detail}</span>
+      )}
+    </span>
+  );
+}
+
+function Subject({ entry }: { entry: AuditEntry }) {
+  if (entry.subjectHomeId) {
+    return (
+      <Link
+        href={`/homes/${entry.subjectHomeId}`}
+        className="no-underline hover:underline"
+      >
+        {entry.subjectHomeName ?? `#${entry.subjectHomeId}`}
+      </Link>
+    );
+  }
+
+  // Not "every home": a line with no home is about the platform itself --
+  // a group, the list of who has access, the overview -- and saying "every
+  // home" read as though every customer had been opened.
+  return (
+    <span className="text-[var(--muted-foreground)]">
+      {entry.action.startsWith("group.")
+        ? "A group"
+        : entry.action.startsWith("platform.admin")
+          ? "The access list"
+          : "Platform"}
+    </span>
   );
 }

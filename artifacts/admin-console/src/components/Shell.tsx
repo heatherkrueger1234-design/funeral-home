@@ -54,13 +54,14 @@ function useFocusHeadingOnNavigate(mainRef: RefObject<HTMLElement | null>) {
 }
 
 /**
- * The frame. Four places to be, because there are four things this console
- * does, and a list of four does not need a sidebar that collapses.
+ * The frame. Five places to be, because there are five things this console
+ * does, and a list of five does not need a sidebar that collapses.
  */
 
 const PLACES = [
   { href: "/", label: "Overview" },
   { href: "/homes", label: "Homes" },
+  { href: "/groups", label: "Groups" },
   { href: "/audit", label: "Access log" },
   { href: "/admins", label: "Who has access" },
 ] as const;
@@ -118,9 +119,10 @@ export function Shell({
   return (
     <div className="min-h-dvh">
       {/* Sticky: this console is read alongside a long table, and whose
-          platform it is should not scroll away. */}
-      <header className="sticky top-0 z-30 border-b border-[var(--border)] bg-[var(--card)]/95 backdrop-blur-sm supports-[backdrop-filter]:bg-[var(--card)]/85">
-        <div className="mx-auto flex max-w-6xl flex-wrap items-center gap-x-5 gap-y-2 px-6 py-2.5">
+          platform it is should not scroll away. Not on a phone, where the
+          wrapped navigation would take a quarter of the screen with it. */}
+      <header className="z-30 sm:sticky sm:top-0 border-b border-[var(--border)] bg-[var(--card)]/95 backdrop-blur-sm supports-[backdrop-filter]:bg-[var(--card)]/85">
+        <div className="mx-auto flex max-w-6xl flex-wrap items-center gap-x-5 gap-y-2 px-4 py-2.5 sm:px-6">
           <Link href="/" className="font-display text-lg no-underline">
             Continuum Aftercare
           </Link>
@@ -129,13 +131,18 @@ export function Shell({
             className="hidden h-5 w-px shrink-0 bg-[var(--border)] sm:block"
             aria-hidden
           />
-          <nav aria-label="Sections" className="flex flex-wrap items-center gap-1">
+          <nav
+            aria-label="Sections"
+            className="order-last -mx-3 flex w-full flex-wrap items-center gap-1 sm:order-none sm:mx-0 sm:w-auto"
+          >
             {PLACES.map((place) => (
               <NavLink key={place.href} {...place} />
             ))}
           </nav>
           <div className="ml-auto flex items-center gap-3 text-sm">
-            <span className="text-[var(--muted-foreground)]">{signedInAs}</span>
+            <span className="hidden text-[var(--muted-foreground)] md:inline">
+              {signedInAs}
+            </span>
             <Button
               variant="plain"
               onClick={() => signOut.mutate()}
@@ -153,7 +160,7 @@ export function Shell({
         </div>
       </header>
 
-      <main ref={mainRef} className="mx-auto max-w-6xl px-6 py-8">
+      <main ref={mainRef} className="mx-auto max-w-6xl px-4 py-8 sm:px-6">
         {children}
       </main>
 

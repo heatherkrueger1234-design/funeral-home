@@ -66,9 +66,21 @@ export function LicensurePanel({ home }: { home: AdminHomeDetail }) {
       <Card>
         <CardTitle
           action={
-            <Button variant="plain" onClick={() => setEditing((was) => !was)}>
-              {editing ? "Cancel" : "Edit registration"}
-            </Button>
+            // With nothing recorded, the empty state below carries the one
+            // action; a second "Edit" beside it would be two ways to do it.
+            (home.licensure || editing) && (
+              <Button
+                variant="plain"
+                onClick={() => {
+                  // A refusal from the last attempt is not news the next time
+                  // the form opens.
+                  save.reset();
+                  setEditing((was) => !was);
+                }}
+              >
+                {editing ? "Cancel" : "Edit registration"}
+              </Button>
+            )
           }
         >
           DORA registration
@@ -267,7 +279,13 @@ function RegistrationForm({
           rows={3}
           value={form.notes}
           onChange={(event) => set("notes")(event.target.value)}
-          className="rounded-md border border-[var(--border)] bg-white p-3 text-base"
+          maxLength={2000}
+          className={
+            "rounded-md border border-[var(--border-strong)] bg-white p-3 text-base " +
+            "shadow-[inset_0_1px_2px_rgb(40_34_24/0.04)] " +
+            "focus-visible:outline-none focus-visible:border-[var(--accent)] " +
+            "focus-visible:shadow-[0_0_0_3px_color-mix(in_oklab,var(--accent)_16%,transparent)]"
+          }
         />
       </div>
 
@@ -288,6 +306,19 @@ function RegistrationForm({
 
 /* ----------------------------------------------------------- the people -- */
 
+type PractitionerValues = Omit<Practitioner, "id">;
+
+/**
+ * The people, and the three things done to them: add, correct, remove.
+ *
+ * The standing stays a select in the row because it is the one field that
+ * changes on its own schedule -- "application in" becomes "provisional"
+ * becomes "licensed" -- and changing it should not mean opening a form.
+ * Everything else (a misspelt name, a licence number once it is issued) is
+ * corrected through the same form that added them. Removing someone asks
+ * once, by name, because a row gone by accident is a person whose deadline
+ * quietly stops being watched.
+ */
 function PractitionersCard({ home }: { home: AdminHomeDetail }) {
   const queryClient = useQueryClient();
   const [adding, setAdding] = useState(false);
@@ -296,7 +327,7 @@ function PractitionersCard({ home }: { home: AdminHomeDetail }) {
     queryClient.invalidateQueries({ queryKey: ["home", home.id] });
 
   const add = useMutation({
-    mutationFn: (values: Omit<Practitioner, "id">) =>
+    mutationFn: (values: PractitionerValues) =>
       api.post(`/admin/homes/${home.id}/practitioners`, values),
     onSuccess: () => {
       setAdding(false);
@@ -304,12 +335,18 @@ function PractitionersCard({ home }: { home: AdminHomeDetail }) {
     },
   });
 
+  const startAdding = () => {
+    add.reset();
+    setAdding(true);
+  };
+
   return (
     <Card>
       <CardTitle
         action={
-          home.practitioners.length > 0 && (
-            <Button variant="plain" onClick={() => setAdding(true)}>
+          home.practitioners.length > 0 &&
+          !adding && (
+            <Button variant="plain" onClick={startAdding}>
               Add someone
             </Button>
           )
@@ -323,14 +360,14 @@ function PractitionersCard({ home }: { home: AdminHomeDetail }) {
           title="Nobody listed yet"
           detail="Senate Bill 24-173 brought mortuary science practitioners, funeral directors, embalmers, cremationists and natural reductionists under licensure. List the people at this home it applies to — including the ones who don't have a sign-in here, like an embalmer who works across three homes."
           action={
-            <Button variant="primary" onClick={() => setAdding(true)}>
+            <Button variant="primary" onClick={startAdding}>
               Add the first person
             </Button>
           }
         />
-      ) : (
+      ) : home.practitioners.length > 0 ? (
         <div className="overflow-x-auto">
-          <table className="w-full min-w-[40rem] text-left">
+          <table className="w-full min-w-[44rem] text-left">
             <thead className="text-sm text-[var(--muted-foreground)]">
               <tr>
                 <th scope="col" className="pb-2 font-medium">Name</th>
@@ -339,7 +376,7 @@ function PractitionersCard({ home }: { home: AdminHomeDetail }) {
                 <th scope="col" className="pb-2 font-medium">License no.</th>
                 <th scope="col" className="pb-2 font-medium">Expires</th>
                 <th scope="col" className="pb-2 font-medium">
-                  <span className="sr-only">Change</span>
+                  <span className="sr-only">Change or remove</span>
                 </th>
               </tr>
             </thead>
@@ -350,7 +387,7 @@ function PractitionersCard({ home }: { home: AdminHomeDetail }) {
             </tbody>
           </table>
         </div>
-      )}
+      ) : null}
 
       {adding && (
         <PractitionerForm
@@ -536,10 +573,10 @@ function PractitionerForm({
   onSave,
   onCancel,
 }: {
-  initial?: Practitioner;
+  initial?: PractitionerValues;
   pending: boolean;
   problem: string | null;
-  onSave: (values: Omit<Practitioner, "id">) => void;
+  onSave: (values: PractitionerValues) => void;
   onCancel: () => void;
 }) {
   const [form, setForm] = useState({
@@ -565,10 +602,15 @@ function PractitionerForm({
         });
       }}
     >
+      <h3 className="font-display text-base">
+        {initial ? `Correcting ${initial.personName}` : "Add someone"}
+      </h3>
       <div className="grid gap-5 sm:grid-cols-2">
         <Field
           label="Name"
           required
+          maxLength={160}
+          autoFocus
           value={form.personName}
           onChange={(event) =>
             setForm((current) => ({ ...current, personName: event.target.value }))
@@ -608,6 +650,7 @@ function PractitionerForm({
         </Select>
         <Field
           label="License number"
+          maxLength={60}
           value={form.licenceNumber}
           onChange={(event) =>
             setForm((current) => ({

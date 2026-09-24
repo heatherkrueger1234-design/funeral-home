@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import {
   getGetFamilyMessagesQueryKey,
@@ -11,7 +11,7 @@ import {
 } from "@workspace/api-client-react";
 import type { PrintItem } from "@workspace/api-client-react";
 import { Check, FileCheck, Loader2, Maximize2, PencilLine } from "lucide-react";
-import { Empty, LoadError, Loading, PageHeader } from "@/components/page";
+import { Empty, LoadFailed, Loading, PageHeader } from "@/components/page";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import {
@@ -55,6 +55,71 @@ import { plainError } from "@/lib/memory-book";
  * lands in the message thread, which is where the director already looks.
  */
 
+/** Room either side of the card inside the frame, as the template draws it. */
+const MOUNT = 32;
+/** The height of the window onto the card, in CSS pixels (30rem at 16px). */
+const WINDOW = 480;
+
+/**
+ * The card, scaled to fit the width it is given.
+ *
+ * The templates are drawn at their printed size — an order of service is
+ * five and three-quarter inches across — and a phone column is about three
+ * and three-quarters. Drawn at full size it showed the left two-thirds of
+ * the card with the names cut off at the right edge, which on a screen whose
+ * whole purpose is reading the names is the one thing it cannot do. Scaled
+ * down it is small but whole, and "Open it full size" is there for reading
+ * it closely.
+ */
+function ProofFrame({
+  src,
+  title,
+  pageWidth,
+}: {
+  src: string;
+  title: string;
+  pageWidth: number | null;
+}) {
+  const holder = useRef<HTMLDivElement>(null);
+  const [available, setAvailable] = useState<number | null>(null);
+
+  useEffect(() => {
+    const element = holder.current;
+    if (!element || typeof ResizeObserver === "undefined") return;
+    const observer = new ResizeObserver((entries) => {
+      const width = entries[0]?.contentRect.width;
+      if (width) setAvailable(width);
+    });
+    observer.observe(element);
+    return () => observer.disconnect();
+  }, []);
+
+  const natural = pageWidth === null ? null : pageWidth + MOUNT;
+  const scale =
+    natural !== null && available !== null && natural > available
+      ? available / natural
+      : 1;
+
+  return (
+    <div ref={holder} className="relative overflow-hidden" style={{ height: WINDOW }}>
+      {/* Sandboxed: an object URL is same-origin with the portal, so
+          without this the card would run with the family's token in
+          reach. It is a picture of a card; it needs to run nothing. */}
+      <iframe
+        title={title}
+        src={src}
+        sandbox=""
+        className="absolute left-0 top-0 origin-top-left border-0"
+        style={{
+          width: scale < 1 && natural !== null ? natural : "100%",
+          height: WINDOW / scale,
+          transform: scale < 1 ? `scale(${scale})` : undefined,
+        }}
+      />
+    </div>
+  );
+}
+
 type Answer = "approve" | "changes";
 
 function StatusPill({ item }: { item: PrintItem }) {
@@ -94,14 +159,14 @@ function ProofItem({
   onAnswer: (item: PrintItem, answer: Answer) => void;
 }) {
   const title = item.title ?? item.templateName;
-  const { src, isPending, isError } = useAuthedPrintUrl(item.id);
+  const { src, isPending, isError, pageWidth } = useAuthedPrintUrl(item.id);
   const [enlarged, setEnlarged] = useState(false);
   const waiting = item.status === "proof";
 
   return (
     <li>
       <div className="mb-2.5 flex flex-wrap items-center gap-2">
-        <p className="font-semibold">{title}</p>
+        <h2 className="font-semibold">{title}</h2>
         <StatusPill item={item} />
       </div>
 
@@ -112,17 +177,16 @@ function ProofItem({
       */}
       <div className="overflow-hidden rounded-xl border border-[var(--border-strong)] bg-white shadow-[var(--elevation-2)]">
         {src ? (
-          // Sandboxed: an object URL is same-origin with the portal, so
-          // without this the card would run with the family's token in
-          // reach. It is a picture of a card; it needs to run nothing.
-          <iframe title={title} src={src} sandbox="" className="h-[30rem] w-full" />
+          <ProofFrame src={src} title={title} pageWidth={pageWidth} />
         ) : (
           <div
             role="img"
             aria-label={isError ? `${title} (could not be shown)` : title}
             aria-busy={isPending || undefined}
-            className={`h-[30rem] w-full bg-[var(--muted)] ${isPending ? "animate-pulse" : ""}`}
-          />
+            className={`grid h-[30rem] w-full place-items-center bg-[var(--muted)] px-6 text-center text-sm text-muted-foreground ${isPending ? "animate-pulse" : ""}`}
+          >
+            {isError && "This one couldn't be shown just now. Please try again in a little while."}
+          </div>
         )}
       </div>
 
@@ -130,7 +194,7 @@ function ProofItem({
         <button
           type="button"
           onClick={() => setEnlarged(true)}
-          className="mt-2.5 inline-flex items-center gap-1.5 text-sm font-semibold text-[var(--accent-deep)] underline decoration-[var(--accent)]/40 underline-offset-4 hover:decoration-[var(--accent)]"
+          className="mt-1 inline-flex min-h-11 items-center gap-1.5 text-sm font-semibold text-[var(--accent-deep)] underline decoration-[var(--accent)]/40 underline-offset-4 hover:decoration-[var(--accent)]"
         >
           <Maximize2 className="size-4" />
           Open it full size
@@ -228,7 +292,7 @@ export default function Proofs() {
   }
 
   if (items.isError) {
-    return <LoadError title="Things to check" onRetry={() => void items.refetch()} />;
+    return <LoadFailed title="Things to check" onRetry={() => void items.refetch()} />;
   }
 
   // What is waiting on them first; what is settled after. The server's
