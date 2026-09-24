@@ -5,7 +5,7 @@ import {
   useQuery,
   useQueryClient,
 } from "@tanstack/react-query";
-import { Link, useLocation } from "wouter";
+import { Link, useLocation, useSearch } from "wouter";
 import {
   api,
   describeAccount,
@@ -16,6 +16,7 @@ import {
 import {
   Button,
   Card,
+  CopyButton,
   EmptyState,
   ErrorState,
   Field,
@@ -36,41 +37,61 @@ type HomesPage = { total: number; homes: AdminHome[] };
  * "too much data" is a page and a search box, not a longer page.
  */
 export function Homes() {
-  // What is in the box, and what has been asked of the server. Every search
-  // writes a line to the access log, so asking on each keystroke turned
-  // typing "Cedar" into five entries -- "C", "Ce", "Ced"... -- on the page
-  // shown to a customer's insurer. A pause in typing is one search.
-  const [typed, setTyped] = useState("");
-  const [search, setSearch] = useState("");
+  const [, navigate] = useLocation();
+  const urlQuery = new URLSearchParams(useSearch()).get("q") ?? "";
+  const [search, setSearch] = useState(urlQuery);
+  const [asked, setAsked] = useState(urlQuery.trim());
   const [page, setPage] = useState(0);
   const [ours, setOurs] = useState(false);
   const [creating, setCreating] = useState(false);
 
+  // The address changed from outside the box -- the "Homes" link in the
+  // header, or Back -- so the box follows it rather than the other way round.
   useEffect(() => {
-    const next = typed.trim();
-    if (next === search) return;
-    const settled = setTimeout(() => {
-      setSearch(next);
-      setPage(0);
-    }, 400);
-    return () => clearTimeout(settled);
-  }, [typed, search]);
+    setSearch((current) => (current.trim() === urlQuery ? current : urlQuery));
+    setAsked(urlQuery.trim());
+  }, [urlQuery]);
+
+  /*
+   * Asked a moment after the typing stops, not on every key. Every list
+   * request writes a line to the access log -- the log a home's insurer is
+   * shown -- and searching "Riverside" one letter at a time wrote nine of
+   * them. The search also goes in the address, so coming back from a home
+   * lands on the same list rather than the top of all of them.
+   */
+  useEffect(() => {
+    const timer = window.setTimeout(() => {
+      const next = search.trim();
+      setAsked(next);
+      navigate(next ? `/homes?q=${encodeURIComponent(next)}` : "/homes", {
+        replace: true,
+      });
+    }, 350);
+    return () => window.clearTimeout(timer);
+  }, [search, navigate]);
 
   const query = useQuery({
-    queryKey: ["homes", search, page, ours],
+    queryKey: ["homes", asked, page, ours],
     queryFn: () =>
       api.get<HomesPage>(
         `/admin/homes?limit=${PAGE_SIZE}&offset=${page * PAGE_SIZE}` +
-          (search ? `&search=${encodeURIComponent(search)}` : "") +
+          (asked ? `&search=${encodeURIComponent(asked)}` : "") +
           (ours ? "&ours=true" : ""),
       ),
-    // The last answer stays on screen while the next one loads, rather than
-    // the table collapsing to a skeleton on every search and every page.
+    // The table stays while the next page or search loads, instead of
+    // collapsing to skeletons and back on every keystroke.
     placeholderData: keepPreviousData,
   });
 
+  // A page that emptied under us -- the last home on it was marked ours, say
+  // -- goes back to the first page rather than claiming there are no homes.
+  const emptiedPage =
+    page > 0 && query.data !== undefined && query.data.homes.length === 0;
+  useEffect(() => {
+    if (emptiedPage) setPage(0);
+  }, [emptiedPage]);
+
   const clearSearch = () => {
-    setTyped("");
     setSearch("");
     setPage(0);
   };
@@ -89,8 +110,8 @@ export function Homes() {
           </h1>
           <p className="mt-1 text-[var(--muted-foreground)]">
             {query.data
-              ? search
-                ? `${plural(query.data.total, "home")} matching “${search}”`
+              ? asked
+                ? `${plural(query.data.total, "home")} matching “${asked}”`
                 : plural(query.data.total, "home")
               : " "}
           </p>
@@ -112,14 +133,18 @@ export function Homes() {
         />
       )}
 
-      <div className="max-w-sm">
+      <div className="max-w-sm" role="search">
         <Field
           label="Find a home"
           type="search"
-          value={typed}
+          value={search}
           placeholder="Name, web address or a staff email"
-          hint="A staff email finds its home only when typed in full."
-          onChange={(event) => setTyped(event.target.value)}
+          hint="A staff email finds their home only when it is typed in full."
+          maxLength={120}
+          onChange={(event) => {
+            setSearch(event.target.value);
+            setPage(0);
+          }}
         />
       </div>
 
@@ -130,21 +155,21 @@ export function Homes() {
       ) : query.data.homes.length === 0 ? (
         <EmptyState
           title={
-            search
+            asked
               ? "No home matches that"
               : ours
                 ? "None of ours"
                 : "No homes yet"
           }
           detail={
-            search
+            asked
               ? "Nothing here matches what you typed. Clearing the search brings the whole list back."
               : ours
                 ? "A home marked as ours from its own page appears here, out of the customer figures."
                 : "Adding a home creates it with the standard schedule and the default office hours already in place, so whoever signs in first is not starting from an empty screen."
           }
           action={
-            search ? (
+            asked ? (
               <Button onClick={clearSearch}>Clear the search</Button>
             ) : ours ? (
               <Button onClick={() => switchList(false)}>
@@ -200,7 +225,7 @@ export function Homes() {
 
 function HomesTable({ homes }: { homes: AdminHome[] }) {
   return (
-    <div className="overflow-x-auto rounded-xl border border-[var(--border)] bg-[var(--card)] shadow-[var(--elevation-1)]">
+    <div className="relative overflow-x-auto rounded-xl border border-[var(--border)] bg-[var(--card)] shadow-[var(--elevation-1)]">
       {/*
         On a phone the three usage columns step aside: the name and the
         account are what anyone looks this list up for, and the rest is on
@@ -339,7 +364,6 @@ function CreateHome({
     name: string;
     link: string | null;
   } | null>(null);
-  const [copied, setCopied] = useState(false);
 
   const create = useMutation({
     mutationFn: () =>
@@ -369,27 +393,22 @@ function CreateHome({
           It has the standard schedule and the default office hours already in
           place.{" "}
           {made.link
-            ? "An invitation has been emailed to the owner, who sets their own password — nobody here ever types it. Here is the same link, in case the email lands in a spam folder. It works once, for an hour:"
+            ? "An invitation has been emailed to the owner, who sets their own password — nobody here ever types it. Here is the same link, in case the email lands in a spam folder:"
             : "Nobody can sign in to it yet. When you know who the owner is, the home's page is where to go next."}
         </p>
         {made.link && (
-          <div className="mt-3 flex flex-col items-start gap-2 sm:flex-row sm:items-center">
-            <p className="flex-1 rounded-md bg-[var(--muted)] p-3 text-sm break-all">
+          <>
+            <p className="mt-3 rounded-md bg-[var(--muted)] p-3 text-sm break-all">
               {made.link}
             </p>
-            <Button
-              onClick={() => {
-                void navigator.clipboard
-                  ?.writeText(made.link ?? "")
-                  .then(() => setCopied(true))
-                  .catch(() => undefined);
-              }}
-            >
-              {copied ? "Copied" : "Copy the link"}
-            </Button>
-          </div>
+            <p className="mt-2 max-w-prose text-sm text-[var(--muted-foreground)]">
+              It works once, for a week. After that, "Email a reset link" on the
+              home's page sends them a fresh one.
+            </p>
+          </>
         )}
         <div className="mt-4 flex flex-wrap gap-3">
+          {made.link && <CopyButton text={made.link} label="Copy the link" />}
           <Button
             variant="primary"
             onClick={() => navigate(`/homes/${made.id}`)}
@@ -461,7 +480,7 @@ function CreateHome({
         </div>
 
         {problem && !aboutEmail && (
-          <p role="alert" className="text-sm text-[var(--notice)]">
+          <p role="alert" className="max-w-prose text-sm text-[var(--notice)]">
             {problem}
           </p>
         )}

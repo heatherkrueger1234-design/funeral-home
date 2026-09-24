@@ -38,27 +38,58 @@ async function call<T>(
   path: string,
   body?: unknown,
 ): Promise<T> {
-  const response = await fetch(`${BASE}${path}`, {
-    method,
-    // The session is an httpOnly cookie, so it only travels when asked for.
-    credentials: "include",
-    headers: body === undefined ? {} : { "content-type": "application/json" },
-    body: body === undefined ? undefined : JSON.stringify(body),
-  });
+  let response: Response;
+  try {
+    response = await fetch(`${BASE}${path}`, {
+      method,
+      // The session is an httpOnly cookie, so it only travels when asked for.
+      credentials: "include",
+      headers: body === undefined ? {} : { "content-type": "application/json" },
+      body: body === undefined ? undefined : JSON.stringify(body),
+    });
+  } catch {
+    // The browser's own words for this are "Failed to fetch", which is what
+    // every error card on the page used to say when the wifi dropped.
+    throw new ApiError(0, OFFLINE);
+  }
 
   if (response.status === 204) return undefined as T;
 
   const text = await response.text();
-  const parsed: unknown = text ? JSON.parse(text) : null;
+  let parsed: unknown = null;
+  try {
+    parsed = text ? JSON.parse(text) : null;
+  } catch {
+    // A proxy's HTML error page during a deploy, not the API. Reading it as
+    // JSON threw "Unexpected token '<'" into the middle of the screen.
+    parsed = null;
+  }
 
   if (!response.ok) {
-    const message =
-      (parsed as { error?: string } | null)?.error ??
-      "Something went wrong. Please try again.";
-    throw new ApiError(response.status, message);
+    throw new ApiError(response.status, sayWhatWentWrong(response.status, parsed));
   }
 
   return parsed as T;
+}
+
+const OFFLINE =
+  "The server could not be reached. Please check your connection and try again.";
+
+/**
+ * The API's own sentence where it wrote one for a person, and ours where it
+ * did not. The validator's "Invalid request body" and the handler's "Internal
+ * server error" are words for a log, not for somebody on the phone to a home.
+ */
+function sayWhatWentWrong(status: number, parsed: unknown): string {
+  const message = (parsed as { error?: unknown } | null)?.error;
+
+  if (status >= 500 || typeof message !== "string") {
+    return "Something went wrong on our side. Please try again in a moment.";
+  }
+  if (message === "Invalid request body" || message === "Invalid query parameters") {
+    return "Something in that could not be saved as written. Please check each field and try again.";
+  }
+  return message;
 }
 
 export const api = {
@@ -306,9 +337,19 @@ export function formatDate(value: string | null | undefined): string {
   });
 }
 
+/**
+ * A moment, in the reader's own timezone and saying which one it is.
+ *
+ * Most timestamps arrive as ISO strings with a "Z". The overview's "most
+ * recently" does not: it is a raw `max()` over a `timestamp without time
+ * zone` column, which Postgres writes as "2026-09-20 14:05:00.123" -- no "T"
+ * and no offset. Chrome read that as local time (hours out), Safari refused it
+ * and printed the raw string. The columns hold UTC, so it is read as UTC.
+ */
 export function formatDateTime(value: string | null | undefined): string {
   if (!value) return "—";
-  const parsed = new Date(value);
+  const bare = /^\d{4}-\d{2}-\d{2} \d{2}:\d{2}(:\d{2}(\.\d+)?)?$/.test(value);
+  const parsed = new Date(bare ? `${value.replace(" ", "T")}Z` : value);
   if (Number.isNaN(parsed.getTime())) return value;
 
   return parsed.toLocaleString("en-US", {
@@ -317,6 +358,9 @@ export function formatDateTime(value: string | null | undefined): string {
     year: "numeric",
     hour: "numeric",
     minute: "2-digit",
+    // The access log is shown to a home's insurer, who may not be in the
+    // same timezone as whoever printed it.
+    timeZoneName: "short",
   });
 }
 

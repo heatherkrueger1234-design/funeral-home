@@ -231,9 +231,9 @@ function PriceRow({ row, onChanged }: { row: PriceItem; onChanged: () => void })
     >
       <div className="grid grid-cols-[1fr_auto] items-center gap-2 sm:grid-cols-[1fr_auto_auto]">
         <Input
-          aria-label="What it is"
           className="col-span-2 sm:col-span-1"
           defaultValue={row.label}
+          aria-label={`What "${row.label}" is called`}
           onBlur={(event) => {
             const value = event.target.value.trim();
             if (value && value !== row.label) {
@@ -266,7 +266,12 @@ function PriceRow({ row, onChanged }: { row: PriceItem; onChanged: () => void })
         />
         <Confirm
           trigger={
-            <Button variant="ghost" size="sm" aria-label={`Remove ${row.label}`}>
+            <Button
+              variant="ghost"
+              size="sm"
+              aria-label={`Remove ${row.label}`}
+              disabled={remove.isPending}
+            >
               <Trash2 className="size-4" />
             </Button>
           }

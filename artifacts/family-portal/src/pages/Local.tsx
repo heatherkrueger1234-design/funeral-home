@@ -55,6 +55,11 @@ export default function Local() {
   const quotes = useGetFamilyQuotes();
 
   const [zip, setZip] = useState("");
+  /*
+   * "Change" opens the box again. It used to send an empty ZIP, which the
+   * server rightly refuses — so the only visible result of pressing it was an
+   * error, and a family who had typed the wrong ZIP had no way to fix it.
+   */
   const [changingZip, setChangingZip] = useState(false);
   const [asking, setAsking] = useState<number | null>(null);
   const [request, setRequest] = useState("");
@@ -68,8 +73,8 @@ export default function Local() {
   const setPostalCode = useSetFamilyPostalCode({
     mutation: {
       onSuccess: (result) => {
-        setChangingZip(false);
         refresh();
+        setChangingZip(false);
         if (!result.recognised) {
           // Said plainly rather than silently showing an unsorted list.
           toast({
@@ -113,56 +118,48 @@ export default function Local() {
         are under no obligation to use any of them.
       </PageHeader>
 
-      {/*
-        Asked once, here, where it is obviously needed.
-
-        "Change" opens the same question again with the ZIP already in it.
-        It used to send an empty ZIP to clear the old one, which the server
-        refuses -- so the one way to correct a ZIP was a button that only
-        ever produced an error.
-      */}
+      {/* Asked once, here, where it is obviously needed. */}
       {!postalCode || changingZip ? (
         <section className="rounded-xl border border-[var(--accent)]/25 bg-[var(--accent-soft)] p-5">
+          <Label htmlFor="zip" className="mb-1.5 block">
+            Whereabouts are you?
+          </Label>
+          <p id="zip-hint" className="mb-3.5 text-sm leading-relaxed text-muted-foreground">
+            A ZIP code is enough. It lets us show you what's actually nearby.
+          </p>
+          {/* A form, so the keyboard's own "Go" key sends it. */}
           <form
+            className="flex flex-wrap gap-2"
             onSubmit={(event) => {
               event.preventDefault();
               if (zip.trim().length < 5 || setPostalCode.isPending) return;
               setPostalCode.mutate({ data: { postalCode: zip.trim() } });
             }}
           >
-            <Label htmlFor="zip" className="mb-1.5 block">
-              Whereabouts are you?
-            </Label>
-            <p id="zip-hint" className="mb-3.5 text-sm leading-relaxed text-muted-foreground">
-              A ZIP code is enough. It lets us show you what's actually nearby.
-            </p>
-            <div className="flex gap-2">
-              <Input
-                id="zip"
-                value={zip}
-                placeholder="80202"
-                inputMode="numeric"
-                autoComplete="postal-code"
-                maxLength={10}
-                aria-describedby="zip-hint"
-                className="bg-white"
-                onChange={(event) => setZip(event.target.value)}
-              />
-              <Button
-                type="submit"
-                disabled={zip.trim().length < 5 || setPostalCode.isPending}
-              >
-                Show what's near
-              </Button>
-            </div>
+            <Input
+              id="zip"
+              value={zip}
+              placeholder="80202"
+              inputMode="numeric"
+              autoComplete="postal-code"
+              maxLength={10}
+              aria-describedby="zip-hint"
+              className="min-w-0 flex-1 bg-white"
+              onChange={(event) => setZip(event.target.value)}
+            />
+            <Button
+              type="submit"
+              disabled={zip.trim().length < 5 || setPostalCode.isPending}
+            >
+              Show what's nearby
+            </Button>
             {changingZip && (
               <Button
                 type="button"
                 variant="ghost"
-                className="mt-2 -ml-3"
                 onClick={() => setChangingZip(false)}
               >
-                Keep {postalCode}
+                Cancel
               </Button>
             )}
           </form>
@@ -175,7 +172,7 @@ export default function Local() {
           </span>
           <button
             type="button"
-            className="min-h-11 px-1 font-semibold text-[var(--accent-deep)] underline decoration-[var(--accent)]/40 underline-offset-4 hover:decoration-[var(--accent)]"
+            className="inline-flex min-h-11 items-center font-semibold text-[var(--accent-deep)] underline decoration-[var(--accent)]/40 underline-offset-4 hover:decoration-[var(--accent)]"
             onClick={() => {
               setZip(postalCode);
               setChangingZip(true);

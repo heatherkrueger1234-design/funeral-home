@@ -129,8 +129,8 @@ export function BelongingsPanel({ caseId }: { caseId: number }) {
             >
               <div className="flex items-start gap-2">
                 <Input
-                  aria-label="What it is"
                   defaultValue={item.description}
+                  aria-label={`Description of ${item.description}`}
                   onBlur={(event) => {
                     const next = event.target.value.trim();
                     if (!next || next === item.description) return;
@@ -228,7 +228,7 @@ export function BelongingsPanel({ caseId }: { caseId: number }) {
             onKeyDown={(event) => {
               if (event.key !== "Enter") return;
               event.preventDefault();
-              if (description.trim()) {
+              if (description.trim() && !add.isPending) {
                 add.mutate({ caseId, data: { description: description.trim() } });
               }
             }}

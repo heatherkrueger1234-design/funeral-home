@@ -10,6 +10,7 @@ import {
   getGetFamilyBelongingsQueryKey,
   getGetFamilyPreparationQueryKey,
 } from "@workspace/api-client-react";
+import { Link } from "wouter";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
@@ -97,7 +98,9 @@ export default function Belongings() {
    * Every blur used to send whatever the box held, so tapping through
    * "Their hair" on the way to "Makeup" put back the text that was on file
    * when the page opened -- over a sister's answer typed since on her own
-   * phone. The same rule the obituary follows.
+   * phone. And every save clears the home's "we have read this", so the
+   * same tapping undid the preparation room's sign-off without a word
+   * being changed. The same rule the obituary follows.
    */
   const noteProps = (field: "hairNotes" | "cosmeticsNotes" | "jewelleryNotes" | "otherNotes") => ({
     defaultValue: preparation.data?.[field] ?? "",
@@ -188,6 +191,10 @@ export default function Belongings() {
                       defaultValue={item.description}
                       onBlur={(event) => {
                         const next = event.target.value.trim();
+                        // Emptied: an item has to be called something, so the
+                        // box shows what is still on file rather than a blank
+                        // that looks saved and is not.
+                        if (!next) event.target.value = item.description;
                         if (!next || next === item.description) return;
                         update.mutate({
                           belongingId: item.id,
@@ -223,7 +230,7 @@ export default function Belongings() {
                         size="sm"
                         className="shrink-0 text-muted-foreground"
                         aria-label={`Remove ${item.description}`}
-                        disabled={remove.isPending}
+                        disabled={remove.isPending && remove.variables?.belongingId === item.id}
                         onClick={() => remove.mutate({ belongingId: item.id })}
                       >
                         <X className="size-4" />
@@ -345,8 +352,15 @@ export default function Belongings() {
         </div>
 
         <p className="border-l-2 border-[var(--accent)]/30 pl-4 text-sm leading-relaxed text-muted-foreground">
-          It also helps enormously to mark a recent photograph as “this is how
-          they looked” on the photographs page.
+          It also helps enormously to mark a recent photograph as “how they
+          looked” on the{" "}
+          <Link
+            href="/photos"
+            className="font-semibold text-[var(--accent-deep)] underline decoration-[var(--accent)]/40 underline-offset-4"
+          >
+            photographs page
+          </Link>
+          .
         </p>
       </section>
     </div>

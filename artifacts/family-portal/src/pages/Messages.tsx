@@ -5,10 +5,11 @@ import {
   usePostFamilyMessage,
   getGetFamilyMessagesQueryKey,
   getGetFamilySessionQueryKey,
+  type FamilySession,
 } from "@workspace/api-client-react";
 import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
-import { Loader2, MessageCircle, Moon, Phone, Send } from "lucide-react";
+import { Check, Loader2, MessageCircle, Moon, Phone, Send } from "lucide-react";
 import { Empty, LoadFailed, Loading, PageHeader } from "@/components/page";
 
 /**
@@ -92,11 +93,12 @@ function formatSent(value: string | Date): string {
 }
 
 /*
- * A message half-written survives leaving the screen. Somebody writing to
- * the director stops to check a date on "What's due", comes back, and finds
- * the box empty -- and a long question about their mother is not typed out
- * twice. Kept for this tab only, and only until it is sent; storage that is
- * blocked simply means no draft is kept.
+ * What is being written, kept for this tab until it is sent.
+ *
+ * A long question typed with one thumb is lost in full by a stray tap on
+ * "Everything else", and it is rarely typed a second time. Session storage
+ * rather than local: a half-written message should not be sitting on a
+ * borrowed phone tomorrow.
  */
 const DRAFT_KEY = "fh.family.message-draft";
 
@@ -113,25 +115,44 @@ function writeDraft(text: string): void {
     if (text) window.sessionStorage.setItem(DRAFT_KEY, text);
     else window.sessionStorage.removeItem(DRAFT_KEY);
   } catch {
-    /* No draft kept; nothing else changes. */
+    /* Storage blocked: the draft simply lives as long as the screen. */
   }
 }
 
 export default function Messages() {
   const queryClient = useQueryClient();
   const thread = useGetFamilyMessages();
-  const [body, setBody] = useState(readDraft);
-
-  useEffect(() => {
-    writeDraft(body);
-  }, [body]);
+  const [body, setBodyState] = useState(readDraft);
+  const [justSent, setJustSent] = useState(false);
   const endRef = useRef<HTMLDivElement>(null);
   const sending = useRef(false);
+
+  const setBody = (text: string) => {
+    setBodyState(text);
+    writeDraft(text);
+  };
+
+  /*
+   * Opening the thread is what marks the home's replies read, but the hub's
+   * count comes from the session, which is not asked again for a minute or
+   * two — so the badge went on saying "1" about a message just read. The
+   * count is set here instead of refetched, because the server marks them
+   * read after it has answered and a refetch can arrive before it has.
+   */
+  const threadLoadedAt = thread.dataUpdatedAt;
+  useEffect(() => {
+    if (!threadLoadedAt) return;
+    queryClient.setQueryData<FamilySession>(
+      getGetFamilySessionQueryKey(),
+      (current) => (current ? { ...current, unreadMessages: 0 } : current),
+    );
+  }, [threadLoadedAt, queryClient]);
 
   const send = usePostFamilyMessage({
     mutation: {
       onSuccess: () => {
         setBody("");
+        setJustSent(true);
         void queryClient.invalidateQueries({
           queryKey: getGetFamilyMessagesQueryKey(),
         });
@@ -150,11 +171,9 @@ export default function Messages() {
 
   if (thread.isPending) return <Loading rows={3} />;
 
-  if (thread.isError && !thread.data) {
+  if (!thread.data) {
     return <LoadFailed title="Messages" onRetry={() => void thread.refetch()} />;
   }
-
-  if (!thread.data) return null;
 
   const {
     locked,
@@ -288,7 +307,10 @@ export default function Messages() {
               placeholder="What would you like to ask?"
               aria-label="Your message to the funeral home"
               className="min-h-24 resize-y border-0 bg-transparent p-1 shadow-none focus-visible:shadow-none"
-              onChange={(event) => setBody(event.target.value)}
+              onChange={(event) => {
+                setBody(event.target.value);
+                setJustSent(false);
+              }}
             />
             <Button
               type="button"
@@ -304,6 +326,22 @@ export default function Messages() {
               Send
             </Button>
           </div>
+
+          {/*
+            Said in words, because the only other sign was the box emptying,
+            which on a slow connection looks the same as the message
+            vanishing. And it answers "and then what?".
+          */}
+          {justSent && (
+            <p
+              role="status"
+              className="flex items-start gap-2 text-sm leading-relaxed text-muted-foreground"
+            >
+              <Check className="mt-0.5 size-4 shrink-0 text-[var(--accent-deep)]" />
+              Sent. Their reply will appear here, and on the first page when it
+              arrives.
+            </p>
+          )}
         </div>
       )}
     </div>

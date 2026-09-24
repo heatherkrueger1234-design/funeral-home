@@ -228,6 +228,8 @@ export function PortalShell({ children }: { children: ReactNode }) {
               <PasteLink />
             </div>
           ) : (
+            // A dropped signal is the usual reason, and reloading by hand is
+            // not something everybody holding this phone knows how to do.
             <Button
               type="button"
               variant="outline"
@@ -235,7 +237,7 @@ export function PortalShell({ children }: { children: ReactNode }) {
               disabled={session.isFetching}
               onClick={() => void session.refetch()}
             >
-              Try again
+              {session.isFetching ? "Trying again…" : "Try again"}
             </Button>
           )}
         </div>

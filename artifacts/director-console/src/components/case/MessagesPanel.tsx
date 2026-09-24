@@ -38,12 +38,13 @@ export function MessagesPanel({ caseId }: { caseId: number }) {
   useEffect(() => {
     if (thread.dataUpdatedAt === 0) return;
     void queryClient.invalidateQueries({ queryKey: getGetHomeInboxQueryKey() });
-    // And the same for the tab's own badge, the worklist row and the master
-    // page's tile, which all count unread from the case: the tab went on
-    // saying "1" beside the thread the director was reading.
+    // The same count is on this case's own Messages tab, on its row in the
+    // case list and on the master page's tile.
     void queryClient.invalidateQueries({ queryKey: getGetCaseQueryKey(caseId) });
     void queryClient.invalidateQueries({ queryKey: getGetCasesQueryKey() });
-    void queryClient.invalidateQueries({ queryKey: getGetHomeDashboardQueryKey() });
+    void queryClient.invalidateQueries({
+      queryKey: getGetHomeDashboardQueryKey(),
+    });
   }, [thread.dataUpdatedAt, queryClient, caseId]);
 
   const send = usePostCaseMessage({
@@ -133,8 +134,8 @@ export function MessagesPanel({ caseId }: { caseId: number }) {
 
       {locked ? (
         <p className="rounded-xl border border-border bg-[var(--sunken)] px-4 py-4 text-sm leading-relaxed text-muted-foreground">
-          This thread has closed, as every thread does once the service is
-          past. Neither side can post to it.
+          This thread closed when its window after the service ran out.
+          Neither side can post to it.
         </p>
       ) : (
         <div className="space-y-3">
@@ -149,6 +150,7 @@ export function MessagesPanel({ caseId }: { caseId: number }) {
           <Textarea
             rows={3}
             value={body}
+            aria-label="Reply to the family"
             placeholder="Reply to the family"
             onChange={(event) => setBody(event.target.value)}
           />

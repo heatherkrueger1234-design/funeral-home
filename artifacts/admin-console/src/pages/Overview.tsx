@@ -53,9 +53,24 @@ export function Overview() {
       <div>
         <h1 className="font-display text-2xl leading-tight">Overview</h1>
         <p className="mt-1 text-[var(--muted-foreground)]">
-          {homes.homes === 0
-            ? "No homes yet."
-            : `${plural(homes.homes, "home")}, ${homes.paying} subscribed, ${homes.onTrial} on trial${homes.suspended > 0 ? `, ${homes.suspended} suspended` : ""}.`}
+          {homes.homes === 0 ? (
+            <>
+              No homes yet.{" "}
+              <Link href="/homes" className="text-[var(--foreground)] underline">
+                Add the first one
+              </Link>
+            </>
+          ) : (
+            <>
+              {/* The count is the way to the list it counts. The API cannot
+                  yet filter that list by account state, so the other three
+                  figures stay words rather than links to the wrong list. */}
+              <Link href="/homes" className="text-[var(--foreground)] underline">
+                {plural(homes.homes, "home")}
+              </Link>
+              {`, ${homes.paying} subscribed, ${homes.onTrial} on trial${homes.suspended > 0 ? `, ${homes.suspended} suspended` : ""}.`}
+            </>
+          )}
         </p>
       </div>
 
@@ -265,7 +280,7 @@ function Attention({
     <section>
       <h2 className="font-display text-lg">Colorado licensure</h2>
       <p className="mb-5 mt-1 max-w-prose text-sm leading-relaxed text-[var(--muted-foreground)]">
-        Colorado licensure is due 1 January 2027, and an establishment that
+        Colorado licensure is due January 1, 2027, and an establishment that
         changes its services has thirty days to file an amended registration.
         These are the homes with something on either clock.
       </p>

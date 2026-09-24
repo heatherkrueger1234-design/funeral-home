@@ -132,11 +132,11 @@ export function Panel({
 /**
  * A screen whose information did not arrive.
  *
- * Before this, a page that failed to load drew itself as though it were
- * empty — "Nothing to check at the moment", "Nothing is waiting on you" —
- * which is worse than an error: it is a calm, confident, wrong answer. The
- * toast that said otherwise was gone in five seconds. This says plainly that
- * the page did not load, that nothing is lost, and offers the one action.
+ * Without this a failed load drew nothing at all, or — worse — drew the
+ * empty state: "Nothing to check at the moment" over proofs that were
+ * there, and a toast that had gone before anybody read it. A family who
+ * believes the page is empty stops coming back to it, so it says plainly
+ * that nothing is lost and offers the one thing to do.
  */
 export function LoadFailed({
   title,
@@ -150,7 +150,7 @@ export function LoadFailed({
       <PageHeader title={title} />
       <Empty
         icon={WifiOff}
-        title="This page didn't load"
+        title="This couldn't be opened just now"
         action={
           <Button type="button" variant="outline" onClick={onRetry}>
             <RotateCw className="size-4" />
@@ -158,8 +158,8 @@ export function LoadFailed({
           </Button>
         }
       >
-        Nothing you have added is lost. It is usually the connection — please
-        try again in a moment.
+        Please check your connection and try again. Nothing anybody has added
+        has been lost.
       </Empty>
     </div>
   );

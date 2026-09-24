@@ -720,8 +720,8 @@ export const UpdateStaffResponse = zod.object({
 
 /**
  * Owner only, and only for somebody who has not chosen a password yet.
-Invitation links last an hour, and a colleague invited at five opens
-the email the next morning. This emails a new one and returns it once,
+Invitation links last a week, but they land in spam, get deleted, or
+sit through somebody's leave. This emails a new one and returns it once,
 exactly as the invitation did. Any earlier unused link keeps working
 until it runs out; there is nothing to gain by killing it.
 

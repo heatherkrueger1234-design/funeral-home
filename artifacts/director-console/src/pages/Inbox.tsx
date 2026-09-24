@@ -6,9 +6,9 @@ import {
   usePostCaseMessage,
   getGetHomeInboxQueryKey,
   getGetCaseMessagesQueryKey,
-  getGetHomeDashboardQueryKey,
-  getGetCasesQueryKey,
   getGetCaseQueryKey,
+  getGetCasesQueryKey,
+  getGetHomeDashboardQueryKey,
 } from "@workspace/api-client-react";
 import type { InboxEntry } from "@workspace/api-client-react";
 import { Button } from "@/components/ui/button";
@@ -66,11 +66,13 @@ export default function Inbox() {
   });
 
   if (inbox.isPending) return <Loading rows={4} />;
-  if (inbox.isError) {
+  // Not "No conversations yet": a failed load that said so would tell a
+  // director nobody had written, which is the opposite of what they need.
+  if (!inbox.data) {
     return <LoadFailed what="The messages" onRetry={() => void inbox.refetch()} />;
   }
 
-  const rows = inbox.data ?? [];
+  const rows = inbox.data;
   // Waiting means the home can still do something about it. A locked thread
   // drops to the lower group however much is unread behind it, because there
   // is no reply box on it to act with.
@@ -124,8 +126,16 @@ function Conversation({ row }: { row: InboxEntry }) {
       onSuccess: () => {
         setReply("");
         setOpen(false);
+        // Replying marks the family's messages read on the server, so every
+        // count below comes back without them.
         void queryClient.invalidateQueries({
           queryKey: getGetHomeInboxQueryKey(),
+        });
+        void queryClient.invalidateQueries({
+          queryKey: getGetCaseQueryKey(row.caseId),
+        });
+        void queryClient.invalidateQueries({
+          queryKey: getGetCasesQueryKey(),
         });
         void queryClient.invalidateQueries({
           queryKey: getGetCaseMessagesQueryKey(row.caseId),
@@ -246,7 +256,7 @@ function Conversation({ row }: { row: InboxEntry }) {
                 </Button>
                 <Button asChild size="sm" variant="ghost" className="ml-auto">
                   <Link href={`/cases/${row.caseId}?tab=messages`}>
-                    See the whole thread
+                    Open the thread
                   </Link>
                 </Button>
               </div>

@@ -113,23 +113,14 @@ export default defineConfig({
       strict: true,
       deny: ["**/.*"],
     },
-    // Local development against an api-server on another port; see preview.
-    proxy: process.env.E2E_API_PROXY_TARGET
-      ? {
-          "/api": {
-            target: process.env.E2E_API_PROXY_TARGET,
-            changeOrigin: true,
-          },
-        }
-      : undefined,
   },
   preview: {
     port,
     host: "0.0.0.0",
     allowedHosts: true,
-    // Same escape hatch the other two front ends have: mirrors nginx's
-    // `proxy_pass` so this console can be driven against a real api-server on
-    // another port. Unset in every other context, including production.
+    // Mirrors nginx's `proxy_pass` to the API server, for the Playwright e2e
+    // suite in artifacts/e2e-tests only -- the same escape hatch the other two
+    // consoles have. Unset in every other context, including production.
     proxy: process.env.E2E_API_PROXY_TARGET
       ? {
           "/api": {

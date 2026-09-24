@@ -282,7 +282,7 @@ describe("the unsubscribe link at the foot of a check-in", () => {
     await asFamily(familyToken)
       .post("/api/family/aftercare")
       .send({ consent: true })
-      .expect(400);
+      .expect(409);
   });
 
   it("will not stop somebody else's with a forged or borrowed token", async () => {

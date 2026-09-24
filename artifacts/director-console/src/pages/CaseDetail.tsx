@@ -6,6 +6,7 @@ import {
   getGetCaseQueryKey,
   getGetCasesQueryKey,
   getGetHomeDashboardQueryKey,
+  getGetHomeInboxQueryKey,
 } from "@workspace/api-client-react";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -112,6 +113,7 @@ export default function CaseDetail() {
         void queryClient.invalidateQueries({ queryKey: getGetCaseQueryKey(caseId) });
         void queryClient.invalidateQueries({ queryKey: getGetCasesQueryKey() });
         void queryClient.invalidateQueries({ queryKey: getGetHomeDashboardQueryKey() });
+        void queryClient.invalidateQueries({ queryKey: getGetHomeInboxQueryKey() });
         toast({
           title: "Case closed",
           description:
@@ -303,7 +305,7 @@ export default function CaseDetail() {
       >
         <TabsList>
           <TabsTrigger value="family">Family</TabsTrigger>
-          <TabsTrigger value="photos">Photographs ({detail.photoCount})</TabsTrigger>
+          <TabsTrigger value="photos">Photos ({detail.photoCount})</TabsTrigger>
           <TabsTrigger value="vitals">Certificate</TabsTrigger>
           <TabsTrigger value="belongings">Belongings</TabsTrigger>
           <TabsTrigger value="obituary">Obituary</TabsTrigger>

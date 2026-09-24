@@ -6,6 +6,7 @@ import {
   useGetFamilySession,
   useInviteFamilyRelative,
   getGetFamilyRelativesQueryKey,
+  getGetFamilyMessagesQueryKey,
   type FamilyRelativeInvited,
 } from "@workspace/api-client-react";
 import { Check, Copy, Loader2, UserPlus, Users } from "lucide-react";
@@ -136,6 +137,10 @@ export default function Family() {
         void queryClient.invalidateQueries({
           queryKey: getGetFamilyRelativesQueryKey(),
         });
+        // The server notes the addition in the thread with the home.
+        void queryClient.invalidateQueries({
+          queryKey: getGetFamilyMessagesQueryKey(),
+        });
         if (created.link === null) {
           toast({ title: "Sent", description: sentLine(created) });
         }
@@ -153,6 +158,8 @@ export default function Family() {
     );
   }
 
+  // Without this a failed load fell through to "Ask the funeral home to add
+  // someone" — telling the one person allowed to add family that they cannot.
   if (relatives.isError && !relatives.data) {
     return <LoadFailed title="Family" onRetry={() => void relatives.refetch()} />;
   }

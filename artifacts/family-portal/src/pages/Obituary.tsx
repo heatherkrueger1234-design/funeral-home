@@ -99,6 +99,9 @@ export default function Obituary() {
         setSavedAt(Date.now());
         refresh();
       },
+      // "Saved" left on screen over an answer that did not save is the one
+      // thing worse than no indicator. The words stay in the box to retry.
+      onError: () => setSavedAt(null),
     },
   });
 
@@ -116,11 +119,11 @@ export default function Obituary() {
 
   if (obituary.isPending) return <Loading rows={5} />;
 
-  if (obituary.isError && !obituary.data) {
-    return <LoadFailed title="The obituary" onRetry={() => void obituary.refetch()} />;
+  if (!obituary.data) {
+    return (
+      <LoadFailed title="The obituary" onRetry={() => void obituary.refetch()} />
+    );
   }
-
-  if (!obituary.data) return null;
 
   const draft = obituary.data;
   const locked = draft.status === "approved";

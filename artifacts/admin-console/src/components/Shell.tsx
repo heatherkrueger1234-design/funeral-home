@@ -81,8 +81,14 @@ export function Shell({
               <NavLink key={place.href} {...place} />
             ))}
           </nav>
-          <div className="ml-auto flex items-center gap-3 text-sm">
-            <span className="hidden text-[var(--muted-foreground)] md:inline">
+          <div className="ml-auto flex min-w-0 items-center gap-3 text-sm">
+            {/* Not on a phone, where it would cost the header a row; above
+                that, a long address truncates rather than pushing "Sign out"
+                off the edge. */}
+            <span
+              className="hidden min-w-0 truncate text-[var(--muted-foreground)] sm:inline"
+              title={signedInAs}
+            >
               {signedInAs}
             </span>
             <Button

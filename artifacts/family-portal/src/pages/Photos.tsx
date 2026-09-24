@@ -10,6 +10,7 @@ import {
   useSetFamilyPhotoSelection,
   getGetFamilyPhotosQueryKey,
   getGetFamilySessionQueryKey,
+  getGetFamilyPreparationQueryKey,
   postFamilyPhotoMultipart,
   MAX_UPLOAD_BYTES,
   ACCEPTED_UPLOAD_TYPES,
@@ -33,6 +34,7 @@ import { Empty, Loading, PageHeader } from "@/components/page";
 import { AuthedImage } from "@/components/AuthedImage";
 import { voiceFor } from "@/lib/voice";
 import { CroppedPhoto, PortraitCropper } from "@/components/Portrait";
+import { describeError } from "@/lib/utils";
 
 /**
  * The photo bin.
@@ -82,6 +84,26 @@ function fitToText(element: HTMLTextAreaElement | null) {
   element.style.height = `${element.scrollHeight + 2}px`;
 }
 
+/**
+ * Why one photograph did not go, in words about the photograph.
+ *
+ * A 413 is the web server in front of the API refusing a file before the API
+ * sees it, so it arrives with no sentence of ours attached.
+ */
+function uploadProblem(error: unknown): string {
+  if ((error as { status?: number }).status === 413) {
+    return `Photographs need to be under ${Math.floor(MAX_UPLOAD_BYTES / (1024 * 1024))} MB.`;
+  }
+  return describeError(error);
+}
+
+/*
+ * What the picker offers. The file extensions as well as the types, because
+ * some Android pickers report an iPhone's HEIC with no type at all and would
+ * otherwise grey out exactly the photographs somebody's sister sent them.
+ */
+const ACCEPT = [...ACCEPTED_UPLOAD_TYPES, ".heic", ".heif"].join(",");
+
 export default function Photos() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
@@ -93,6 +115,13 @@ export default function Photos() {
   const [uploading, setUploading] = useState<{ done: number; total: number } | null>(
     null,
   );
+  /*
+   * The ones that did not go, kept so they can be sent again with one tap.
+   * On a patchy connection a batch of forty loses a few, and asking somebody
+   * to find exactly those three again in a camera roll of thousands is asking
+   * them to give up and email the director instead.
+   */
+  const [failed, setFailed] = useState<File[]>([]);
 
   const refresh = () => {
     void queryClient.invalidateQueries({ queryKey: getGetFamilyPhotosQueryKey() });
@@ -128,7 +157,15 @@ export default function Photos() {
     },
   });
   const setReference = useSetFamilyReferencePhoto({
-    mutation: { onSuccess: refresh },
+    mutation: {
+      onSuccess: () => {
+        refresh();
+        // The clothing page shows the same photograph under "How they looked".
+        void queryClient.invalidateQueries({
+          queryKey: getGetFamilyPreparationQueryKey(),
+        });
+      },
+    },
   });
   const setSelection = useSetFamilyPhotoSelection({
     mutation: {
@@ -173,10 +210,11 @@ export default function Photos() {
     setSelection.mutate({ data: { photoIds: next } });
   };
 
-  async function onFilesChosen(files: FileList | null) {
-    if (!files?.length) return;
+  async function onFilesChosen(files: File[]) {
+    if (!files.length) return;
 
-    const chosen = Array.from(files).slice(0, remaining);
+    const chosen = files.slice(0, remaining);
+    const missed: File[] = [];
 
     if (chosen.length < files.length) {
       toast({
@@ -194,24 +232,31 @@ export default function Photos() {
           description: `Photographs need to be under ${Math.floor(MAX_UPLOAD_BYTES / (1024 * 1024))} MB.`,
           variant: "destructive",
         });
-        continue;
+      } else {
+        try {
+          await uploadWithPatience(file);
+        } catch (error) {
+          const status = (error as { status?: number }).status;
+          // Kept for "try again" unless the server refused the photograph
+          // itself, which sending it a second time would not change.
+          if (status === undefined || status === 429 || status >= 500) {
+            missed.push(file);
+          }
+          toast({
+            title: `Couldn't add "${file.name}"`,
+            description: uploadProblem(error),
+            variant: "destructive",
+          });
+        }
       }
 
-      try {
-        await uploadWithPatience(file);
-      } catch (error) {
-        toast({
-          title: `Couldn't add "${file.name}"`,
-          description:
-            error instanceof Error ? error.message : "Please try that one again.",
-          variant: "destructive",
-        });
-      }
-
+      // Counted whether it went or not, so "Adding 3 of 5" never stalls on
+      // a number while the next photograph is actually on its way.
       setUploading({ done: index + 1, total: chosen.length });
     }
 
     setUploading(null);
+    setFailed(missed);
     refresh();
     if (fileInput.current) fileInput.current.value = "";
   }
@@ -316,13 +361,15 @@ export default function Photos() {
           ref={fileInput}
           type="file"
           multiple
-          accept={ACCEPTED_UPLOAD_TYPES.join(",")}
+          accept={ACCEPT}
           className="sr-only"
           // The visible button below is what people press; this is only
           // reached through it, so it is kept out of the tab order.
           tabIndex={-1}
           aria-label="Choose photographs"
-          onChange={(event) => void onFilesChosen(event.target.files)}
+          onChange={(event) =>
+            void onFilesChosen(Array.from(event.target.files ?? []))
+          }
         />
         <Button
           type="button"
@@ -348,6 +395,33 @@ export default function Photos() {
             ? "You can pick several at once, and come back later for more."
             : "That's as many as we can hold — please ask the funeral home."}
         </p>
+
+        {failed.length > 0 && uploading === null && (
+          <div
+            role="status"
+            className="mt-4 rounded-xl border border-border bg-[var(--sunken)] px-4 py-3.5"
+          >
+            <p className="text-sm leading-relaxed">
+              {failed.length === 1
+                ? "One photograph didn't reach the funeral home."
+                : `${failed.length} photographs didn't reach the funeral home.`}{" "}
+              Everything else is safely here.
+            </p>
+            <div className="mt-2.5 flex flex-wrap gap-2">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => void onFilesChosen(failed)}
+              >
+                <Upload className="size-4" />
+                {failed.length === 1 ? "Send it again" : "Send them again"}
+              </Button>
+              <Button type="button" variant="ghost" onClick={() => setFailed([])}>
+                Leave them
+              </Button>
+            </div>
+          </div>
+        )}
       </div>
 
       {photos.isPending ? (
@@ -507,9 +581,16 @@ export default function Photos() {
                     {photo.uploadedByContactId === session.data?.contact.id && (
                       <button
                         type="button"
-                        className="-mr-1 inline-flex min-h-11 shrink-0 items-center gap-1.5 rounded-md px-2 text-sm
-                                   text-muted-foreground transition-gentle hover:text-[var(--destructive)]"
-                        disabled={removePhoto.isPending}
+                        className="-mr-2 inline-flex min-h-11 shrink-0 items-center gap-1.5 rounded-md px-2 text-sm
+                                   text-muted-foreground transition-gentle hover:text-[var(--destructive)]
+                                   disabled:opacity-45"
+                        // A second tap on a slow connection would otherwise
+                        // ask to remove a photograph already gone, and be
+                        // told off for it.
+                        disabled={
+                          removePhoto.isPending &&
+                          removePhoto.variables?.photoId === photo.id
+                        }
                         onClick={() => removePhoto.mutate({ photoId: photo.id })}
                       >
                         <Trash2 className="size-3.5" strokeWidth={1.75} />

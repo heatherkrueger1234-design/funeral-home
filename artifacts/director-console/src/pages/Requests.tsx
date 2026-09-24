@@ -10,6 +10,7 @@ import {
   getGetHomeDashboardQueryKey,
 } from "@workspace/api-client-react";
 import { Button } from "@/components/ui/button";
+import { toast } from "@/hooks/use-toast";
 import {
   Dialog,
   DialogContent,
@@ -20,7 +21,6 @@ import {
 } from "@/components/ui/dialog";
 import { Copy, Inbox, Mail, Phone, CalendarClock, Check } from "lucide-react";
 import { Confirm, Empty, LoadFailed, Loading, PageHeader } from "@/components/page";
-import { toast } from "@/hooks/use-toast";
 
 /**
  * People who asked, and whom nobody has answered yet.
@@ -47,6 +47,14 @@ function ago(value: string | Date): string {
 
   const days = Math.round(hours / 24);
   return `${days} day${days === 1 ? "" : "s"} ago`;
+}
+
+/** Clipboard access can be refused; the link is on screen either way. */
+function copyFailed() {
+  toast({
+    title: "Couldn't copy that",
+    description: "Select the link and copy it by hand.",
+  });
 }
 
 export default function Requests() {
@@ -152,7 +160,7 @@ export default function Requests() {
                         </span>
                       ) : (
                         <span className="text-[var(--notice)]">
-                          A death — ring them
+                          A death — call them
                         </span>
                       )}
                     </p>
@@ -266,18 +274,18 @@ export default function Requests() {
               aria-label="Copy the link"
               onClick={() => {
                 if (!link) return;
-                navigator.clipboard
+                // Missing outside a secure context, as well as refusable.
+                if (!navigator.clipboard) {
+                  copyFailed();
+                  return;
+                }
+                void navigator.clipboard
                   .writeText(link.url)
                   .then(() => {
                     setCopied(true);
                     setTimeout(() => setCopied(false), 2000);
                   })
-                  .catch(() =>
-                    toast({
-                      title: "Couldn't copy that",
-                      description: "Select the link and copy it by hand.",
-                    }),
-                  );
+                  .catch(copyFailed);
               }}
             >
               {copied ? <Check className="size-4" /> : <Copy className="size-4" />}

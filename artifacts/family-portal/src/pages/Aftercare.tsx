@@ -9,6 +9,17 @@ import {
   getGetFamilySessionQueryKey,
 } from "@workspace/api-client-react";
 import { Button } from "@/components/ui/button";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 import { Check, Loader2, Mail } from "lucide-react";
 import { Empty, Loading, PageHeader } from "@/components/page";
 
@@ -84,8 +95,9 @@ export default function Aftercare() {
     return (
       <div className="space-y-6">
         <PageHeader title="Checking in">
-          {home?.name} will write to you on the days below. You can stop them
-          at any time.
+          {home?.name} will write to you on the days below
+          {aftercare.email ? `, at ${aftercare.email}` : ""}. You can stop
+          them at any time.
         </PageHeader>
 
         <ul className="divide-y divide-border overflow-hidden rounded-xl border border-border bg-card shadow-[var(--elevation-1)]">
@@ -112,14 +124,40 @@ export default function Aftercare() {
           ))}
         </ul>
 
-        <Button
-          variant="outline"
-          className="w-full"
-          disabled={respond.isPending}
-          onClick={() => respond.mutate({ data: { consent: false } })}
-        >
-          Stop these
-        </Button>
+        {/*
+          Asked once, because it is final: the server will not start them
+          again, and a stray tap on a phone should not cost somebody the note
+          on the anniversary of their mother's death.
+        */}
+        <AlertDialog>
+          <AlertDialogTrigger asChild>
+            <Button
+              variant="outline"
+              className="w-full"
+              disabled={respond.isPending}
+            >
+              Stop these
+            </Button>
+          </AlertDialogTrigger>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Stop the notes?</AlertDialogTitle>
+              <AlertDialogDescription>
+                None of the rest will be sent, and they can't be started again
+                from here. {home?.name ?? "The funeral home"} is still there if
+                you need them.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>Keep them</AlertDialogCancel>
+              <AlertDialogAction
+                onClick={() => respond.mutate({ data: { consent: false } })}
+              >
+                Stop them
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
       </div>
     );
   }

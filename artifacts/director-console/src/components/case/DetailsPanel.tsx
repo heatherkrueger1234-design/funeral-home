@@ -89,8 +89,10 @@ export function DetailsPanel({
             key={`${detail.serviceAt ?? "none"}-${zone ?? ""}`}
             defaultValue={toHomeInput(detail.serviceAt, zone)}
             onBlur={(event) => {
-              // Only when it changed: saving the same time again re-ran the
-              // schedule and sent every panel back to the server for nothing.
+              // Half-typed, the picker reports an empty value, which used to
+              // save as "no service date" and wipe it. Unchanged saves
+              // nothing: every save of this field reschedules the timeline.
+              if (event.target.validity.badInput) return;
               const value = event.target.value;
               if (value === toHomeInput(detail.serviceAt, zone)) return;
               save({ serviceAt: value ? fromHomeInput(value, zone) : null });
@@ -112,9 +114,8 @@ export function DetailsPanel({
             defaultValue={detail.serviceLocation ?? ""}
             onBlur={(event) => {
               const value = event.target.value.trim() || null;
-              if (value !== (detail.serviceLocation ?? null)) {
-                save({ serviceLocation: value });
-              }
+              if (value === (detail.serviceLocation ?? null)) return;
+              save({ serviceLocation: value });
             }}
           />
         </div>
@@ -191,9 +192,8 @@ export function DetailsPanel({
             defaultValue={detail.decedentPreferredName ?? ""}
             onBlur={(event) => {
               const value = event.target.value.trim() || null;
-              if (value !== (detail.decedentPreferredName ?? null)) {
-                save({ decedentPreferredName: value });
-              }
+              if (value === (detail.decedentPreferredName ?? null)) return;
+              save({ decedentPreferredName: value });
             }}
           />
           <p className="text-sm leading-snug text-muted-foreground">
@@ -209,6 +209,7 @@ export function DetailsPanel({
               type="date"
               defaultValue={toDateInput(detail.dateOfBirth)}
               onBlur={(event) => {
+                if (event.target.validity.badInput) return;
                 const value = event.target.value;
                 if (value !== toDateInput(detail.dateOfBirth)) {
                   save({
@@ -226,6 +227,7 @@ export function DetailsPanel({
                 type="date"
                 defaultValue={toDateInput(detail.dateOfDeath)}
                 onBlur={(event) => {
+                  if (event.target.validity.badInput) return;
                   const value = event.target.value;
                   if (value !== toDateInput(detail.dateOfDeath)) {
                     save({

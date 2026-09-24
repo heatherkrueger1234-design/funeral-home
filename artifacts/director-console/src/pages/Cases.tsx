@@ -5,6 +5,8 @@ import {
   useGetCases,
   useCreateCase,
   getGetCasesQueryKey,
+  getGetHomeDashboardQueryKey,
+  type CaseSummary,
 } from "@workspace/api-client-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -59,10 +61,32 @@ function formatService(
   );
 }
 
+/** One status's slice of the list, fetched only while it is on screen. */
+function useListedCases(
+  status: "intake" | "active" | "closed",
+  search: string | undefined,
+  enabled: boolean,
+) {
+  const params = { status, search };
+  return useGetCases(params, {
+    query: { queryKey: getGetCasesQueryKey(params), enabled },
+  });
+}
+
+/** The server's own order: undated first, then soonest service, then newest. */
+function worklistOrder(a: CaseSummary, b: CaseSummary): number {
+  if (a.serviceAt !== b.serviceAt) {
+    if (a.serviceAt === null) return -1;
+    if (b.serviceAt === null) return 1;
+    return new Date(a.serviceAt).getTime() - new Date(b.serviceAt).getTime();
+  }
+  return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+}
+
 function NewCaseDialog() {
   const [, navigate] = useLocation();
-  const zone = useHomeZone();
   const queryClient = useQueryClient();
+  const zone = useHomeZone();
   const [open, setOpen] = useState(false);
   const [first, setFirst] = useState("");
   const [last, setLast] = useState("");
@@ -74,6 +98,9 @@ function NewCaseDialog() {
     mutation: {
       onSuccess: (row) => {
         void queryClient.invalidateQueries({ queryKey: getGetCasesQueryKey() });
+        void queryClient.invalidateQueries({
+          queryKey: getGetHomeDashboardQueryKey(),
+        });
         setOpen(false);
         setFirst("");
         setLast("");
@@ -110,6 +137,9 @@ function NewCaseDialog() {
           className="space-y-4"
           onSubmit={(event) => {
             event.preventDefault();
+            // The service is a moment, typed on the home's clock -- the same
+            // as everywhere else it is edited (see `fromHomeInput`).
+            const service = serviceAt ? fromHomeInput(serviceAt, zone) : null;
             create.mutate({
               data: {
                 decedentFirstName: first.trim(),
@@ -118,11 +148,7 @@ function NewCaseDialog() {
                 // midnight UTC, which is how every other screen reads them.
                 ...(born ? { dateOfBirth: new Date(born).toISOString() } : {}),
                 ...(died ? { dateOfDeath: new Date(died).toISOString() } : {}),
-                // A moment at the chapel, typed on the home's clock, not this
-                // laptop's (`fromHomeInput`) -- as on every other time picker.
-                ...(serviceAt && fromHomeInput(serviceAt, zone)
-                  ? { serviceAt: fromHomeInput(serviceAt, zone)! }
-                  : {}),
+                ...(service ? { serviceAt: service } : {}),
               },
             });
           }}
@@ -195,15 +221,29 @@ export default function Cases() {
   const [search, setSearch] = useState("");
   const zone = useHomeZone();
 
-  const cases = useGetCases({
-    status: showClosed ? "closed" : undefined,
-    // The list is bounded, so searching is how an older case is reached.
-    search: search.trim() || undefined,
-  });
+  // The list is bounded, so searching is how an older case is reached.
+  const term = search.trim() || undefined;
 
-  const rows = (cases.data ?? []).filter((row) =>
-    showClosed ? true : row.status !== "closed",
-  );
+  /*
+   * Open cases are asked for by status, never as "everything, minus the
+   * closed ones". The server returns at most a hundred rows, soonest service
+   * first, and a home a few years in has hundreds of closed cases whose
+   * services are all in the past -- so they filled the hundred, and the
+   * cases being worked this week fell off the end of a list that then
+   * filtered down to "No open cases". There is no single "open" status to
+   * ask for, so it is the two that make one, merged in the server's order.
+   */
+  const closed = useListedCases("closed", term, showClosed);
+  const active = useListedCases("active", term, !showClosed);
+  const intake = useListedCases("intake", term, !showClosed);
+
+  const pending = showClosed
+    ? closed.isPending
+    : active.isPending || intake.isPending;
+  const failed = showClosed ? closed.isError : active.isError || intake.isError;
+  const rows = showClosed
+    ? (closed.data ?? [])
+    : [...(active.data ?? []), ...(intake.data ?? [])].sort(worklistOrder);
 
   return (
     <div className="space-y-6">
@@ -243,10 +283,20 @@ export default function Cases() {
         />
       </div>
 
-      {cases.isPending ? (
+      {pending ? (
         <Loading />
-      ) : cases.isError ? (
-        <LoadFailed what="The cases" onRetry={() => void cases.refetch()} />
+      ) : failed ? (
+        <LoadFailed
+          what="The cases"
+          onRetry={() => {
+            if (showClosed) {
+              void closed.refetch();
+            } else {
+              void active.refetch();
+              void intake.refetch();
+            }
+          }}
+        />
       ) : rows.length === 0 ? (
         search.trim() ? (
           <Empty
@@ -332,12 +382,14 @@ export default function Cases() {
                   <span className="grid w-14 place-items-center" title="Messages waiting for a reply">
                     {row.unreadFamilyMessages > 0 ? (
                       <span className="flex items-center gap-1 rounded-full bg-[var(--accent)] px-2 py-0.5 font-semibold text-white">
-                        <MessageCircle className="size-3.5" />
+                        <MessageCircle className="size-3.5" aria-hidden />
                         {row.unreadFamilyMessages}
+                        <span className="sr-only"> waiting for a reply</span>
                       </span>
                     ) : (
                       <span className="flex items-center gap-1 text-muted-foreground/35">
-                        <MessageCircle className="size-3.5" />0
+                        <MessageCircle className="size-3.5" aria-hidden />0
+                        <span className="sr-only"> waiting for a reply</span>
                       </span>
                     )}
                   </span>
@@ -350,8 +402,9 @@ export default function Cases() {
                           : "flex items-center gap-1 text-muted-foreground/35"
                       }
                     >
-                      <TriangleAlert className="size-3.5" />
+                      <TriangleAlert className="size-3.5" aria-hidden />
                       {row.outstandingDeadlines}
+                      <span className="sr-only"> outstanding</span>
                     </span>
                   </span>
 
@@ -363,8 +416,9 @@ export default function Cases() {
                           : "flex items-center gap-1 text-muted-foreground/35"
                       }
                     >
-                      <Images className="size-3.5" />
+                      <Images className="size-3.5" aria-hidden />
                       {row.photoCount}
+                      <span className="sr-only"> photographs</span>
                     </span>
                   </span>
                 </span>

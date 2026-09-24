@@ -35,8 +35,8 @@ import { useSession } from "@/lib/session";
  * following this list wants to be sent.
  */
 const DESTINATIONS: Record<string, string> = {
-  // Both happen on the case list — "/" is this checklist's own page, so
-  // pointing there went nowhere.
+  // The case list, where both happen. These pointed at "/", which is the
+  // page this checklist sits on: pressing the words did nothing at all.
   case: "/cases",
   family: "/cases",
   branding: "/settings",

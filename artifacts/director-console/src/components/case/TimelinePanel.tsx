@@ -8,6 +8,8 @@ import {
   useDeleteDeadline,
   getGetDeadlinesQueryKey,
   getGetCaseQueryKey,
+  getGetCasesQueryKey,
+  getGetHomeDashboardQueryKey,
 } from "@workspace/api-client-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -47,6 +49,12 @@ export function TimelinePanel({
       queryKey: getGetDeadlinesQueryKey(caseId),
     });
     void queryClient.invalidateQueries({ queryKey: getGetCaseQueryKey(caseId) });
+    // Ticking a step off is what clears it from the master page's past-due
+    // list and the case list's outstanding count.
+    void queryClient.invalidateQueries({ queryKey: getGetCasesQueryKey() });
+    void queryClient.invalidateQueries({
+      queryKey: getGetHomeDashboardQueryKey(),
+    });
   };
 
   const add = useCreateDeadline({

@@ -175,6 +175,7 @@ export default function Vitals() {
         setSavedAt(Date.now());
         refresh();
       },
+      onError: () => setSavedAt(null),
     },
   });
 
@@ -192,11 +193,14 @@ export default function Vitals() {
 
   if (vitals.isPending) return <Loading rows={5} />;
 
-  if (vitals.isError && !vitals.data) {
-    return <LoadFailed title="Details for the certificate" onRetry={() => void vitals.refetch()} />;
+  if (!vitals.data) {
+    return (
+      <LoadFailed
+        title="Details for the certificate"
+        onRetry={() => void vitals.refetch()}
+      />
+    );
   }
-
-  if (!vitals.data) return null;
 
   const record = vitals.data as unknown as Record<string, unknown>;
   const stored = (name: string) => (record[name] as string | null) ?? "";
@@ -344,10 +348,9 @@ export default function Vitals() {
             <Button
               variant="outline"
               disabled={ssn.replace(/\D/g, "").length !== 9 || save.isPending}
-              // Cleared once it is safely stored, not before: a number that
-              // failed to save on a bad connection should still be there to
-              // send again, not have to be fetched from a drawer twice.
               onClick={() =>
+                // Cleared once it is stored, not before: a number that failed
+                // to send on a dropped signal should still be there to resend.
                 save.mutate(
                   { data: { socialSecurityNumber: ssn } },
                   { onSuccess: () => setSsn("") },

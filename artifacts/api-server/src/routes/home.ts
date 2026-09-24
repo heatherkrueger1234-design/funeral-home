@@ -26,8 +26,9 @@ import {
 import { currentUser, tenant } from "../middleware/require-auth";
 import {
   createPasswordReset,
+  INVITE_TTL_DAYS,
+  INVITE_TTL_MS,
   normaliseEmail,
-  PASSWORD_RESET_TTL_MS,
 } from "../lib/auth";
 import { sendStaffInviteEmail } from "@workspace/mailer";
 import { templateFor, toTemplateJson } from "../lib/timeline";
@@ -205,7 +206,7 @@ router.post("/home/staff", async (req, res) => {
     })
     .returning();
 
-  const token = await createPasswordReset(created!.id);
+  const token = await createPasswordReset(created!.id, INVITE_TTL_MS);
   const base = process.env["CONSOLE_URL"]?.replace(/\/+$/, "") ?? "";
   const inviteLink = `${base}/reset-password?invited=1&token=${encodeURIComponent(token)}`;
 
@@ -214,7 +215,7 @@ router.post("/home/staff", async (req, res) => {
     homeName: home.name,
     invitedBy: user.displayName ?? user.email,
     inviteLink,
-    expiresInMinutes: Math.round(PASSWORD_RESET_TTL_MS / 60000),
+    expiresInDays: INVITE_TTL_DAYS,
   });
 
   // Returned once, so the owner can hand it over directly when the email is
@@ -228,9 +229,11 @@ router.post("/home/staff", async (req, res) => {
 /**
  * Send the invitation again.
  *
- * The link above lasts an hour, and before this the only way on for somebody
- * who opened it the next morning was the "forgotten my password" page -- a
- * true answer, and a strange thing to tell a new colleague on their first day.
+ * The link above lasts a week, which covers the colleague who reads their
+ * email late, but not the one whose invitation went to spam, got deleted, or
+ * sat unopened through a fortnight's leave. Before this the only way on was
+ * the "forgotten my password" page -- a true answer, and a strange thing to
+ * tell a new colleague on their first day.
  * Refused once they have a password: past that point it would be a password
  * reset the owner triggered on somebody else's account, which is a different
  * thing with a different name.
@@ -264,7 +267,7 @@ router.post("/home/staff/:userId/invitation", async (req, res) => {
     );
   }
 
-  const token = await createPasswordReset(member.id);
+  const token = await createPasswordReset(member.id, INVITE_TTL_MS);
   const base = process.env["CONSOLE_URL"]?.replace(/\/+$/, "") ?? "";
   const inviteLink = `${base}/reset-password?invited=1&token=${encodeURIComponent(token)}`;
 
@@ -273,7 +276,7 @@ router.post("/home/staff/:userId/invitation", async (req, res) => {
     homeName: home.name,
     invitedBy: actor.displayName ?? actor.email,
     inviteLink,
-    expiresInMinutes: Math.round(PASSWORD_RESET_TTL_MS / 60000),
+    expiresInDays: INVITE_TTL_DAYS,
   });
 
   res.json({ ...toPublicUser(member), inviteLink });

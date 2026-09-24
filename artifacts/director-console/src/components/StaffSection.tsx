@@ -35,9 +35,9 @@ import { Loading } from "@/components/page";
  * The invitation is the ordinary single-use password link, emailed, and also
  * shown here once, because for a funeral home on a shared mail host the email
  * lands in spam more often than not and an owner standing next to the new
- * hire should be able to hand it over. It lasts an hour, so anyone who has
+ * hire should be able to hand it over. It lasts a week, so anyone who has
  * not yet chosen a password gets a "Send a new invitation" button in the list
- * below: the colleague who opens the email the next morning should not have
+ * below: a colleague who finds the email after it has run out should not have
  * to be told to use "I've forgotten my password" on their first day.
  */
 
@@ -153,7 +153,7 @@ export function StaffSection({
                       Hasn't chosen a password yet.
                       {readOnly
                         ? " The owner can send them a new invitation."
-                        : " Their invitation lasts an hour; send a new one if it has run out."}
+                        : " Their invitation lasts a week; send a new one if it has run out."}
                     </p>
                   )}
                 </div>
@@ -209,7 +209,7 @@ export function StaffSection({
           <p className="text-sm">
             We've emailed <span className="font-medium">{lastInvite.email}</span>{" "}
             a link to choose a password. If it doesn't arrive, send them this
-            one — it works once, for an hour, and won't be shown again.
+            one — it works once, for a week, and won't be shown again.
           </p>
           <div className="flex gap-2">
             <Input

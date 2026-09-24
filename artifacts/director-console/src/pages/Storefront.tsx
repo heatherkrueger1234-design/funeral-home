@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { Link } from "wouter";
 import { useQueryClient } from "@tanstack/react-query";
 import {
   useGetHome,
@@ -13,13 +14,21 @@ import {
 import type { HomePolicy } from "@workspace/api-client-react";
 import { useSession } from "@/lib/session";
 import { Button } from "@/components/ui/button";
+import { toast } from "@/hooks/use-toast";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import { Confirm, LoadFailed, Loading, PageHeader, Panel } from "@/components/page";
-import { Link } from "wouter";
 import { Plus, Trash2, Eye, EyeOff } from "lucide-react";
+
+/** Clipboard access can be refused; the address is on screen either way. */
+function copyFailed() {
+  toast({
+    title: "Couldn't copy that",
+    description: "Select the address and copy it by hand.",
+  });
+}
 
 /**
  * The home's own page, and the sentences it repeats at every kitchen table.
@@ -66,7 +75,7 @@ export default function Storefront() {
       <PageHeader title="Your page">
         {readOnly
           ? "Only an owner can change what the home publishes."
-          : "What a family reads before they ring you, and what you find yourself explaining every time."}
+          : "What a family reads before they call you, and what you find yourself explaining every time."}
       </PageHeader>
 
       <PublicPageLink slug={row.slug} />
@@ -255,6 +264,7 @@ function Policies({
                       variant="ghost"
                       size="sm"
                       aria-label={`Remove "${policy.title}"`}
+                      disabled={remove.isPending}
                     >
                       <Trash2 className="size-4" />
                     </Button>
@@ -376,10 +386,18 @@ function PublicPageLink({ slug }: { slug: string }) {
           variant="outline"
           size="sm"
           onClick={() => {
-            void navigator.clipboard?.writeText(url).then(() => {
-              setCopied(true);
-              setTimeout(() => setCopied(false), 2000);
-            });
+            // Missing outside a secure context, as well as refusable.
+            if (!navigator.clipboard) {
+              copyFailed();
+              return;
+            }
+            void navigator.clipboard
+              .writeText(url)
+              .then(() => {
+                setCopied(true);
+                setTimeout(() => setCopied(false), 2000);
+              })
+              .catch(copyFailed);
           }}
         >
           {copied ? "Copied" : "Copy"}

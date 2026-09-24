@@ -110,7 +110,7 @@ describe("the aftercare loop closes", () => {
     await asFamily(token)
       .post("/api/family/aftercare")
       .send({ consent: true })
-      .expect(400);
+      .expect(409);
 
     const session = await asFamily(token).get("/api/family/session").expect(200);
     expect(session.body.aftercare.status).toBe("done");

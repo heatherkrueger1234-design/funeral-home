@@ -77,8 +77,9 @@ export default function Vendors() {
     },
   );
 
-  const refresh = () =>
+  const refresh = () => {
     void queryClient.invalidateQueries({ queryKey: getGetVendorsQueryKey() });
+  };
 
   const create = useCreateVendor({
     mutation: {
@@ -87,6 +88,11 @@ export default function Vendors() {
         setPhone("");
         setPostalCode("");
         refresh();
+        // The lookup marks what is already saved; without this a result
+        // stayed "Save" after saving, and a second press saved it twice. Only
+        // here: a lookup is a paid call, and starring or hiding a vendor does
+        // not change what it would say.
+        void queryClient.invalidateQueries({ queryKey: getLookupPlacesQueryKey() });
       },
     },
   });
@@ -143,7 +149,7 @@ export default function Vendors() {
         </Button>
       </div>
 
-      {lookupOpen && (
+      {lookupOpen && near.trim().length >= 5 && (
         <section className="rounded-xl border border-border bg-card p-5 shadow-[var(--elevation-1)]">
           {lookup.isPending ? (
             <LoadingLines lines={3} />
@@ -178,7 +184,7 @@ export default function Vendors() {
                   <Button
                     size="sm"
                     variant={candidate.alreadySaved ? "ghost" : "outline"}
-                    disabled={candidate.alreadySaved}
+                    disabled={candidate.alreadySaved || create.isPending}
                     onClick={() =>
                       create.mutate({
                         data: {
@@ -259,11 +265,13 @@ export default function Vendors() {
               >
                 <Star
                   className={vendor.preferred ? "size-4 fill-current" : "size-4"}
+                  aria-hidden
                 />
               </Button>
 
               <label className="flex shrink-0 items-center gap-2 text-sm text-muted-foreground">
                 <Switch
+                  aria-label={`Show ${vendor.name} to families`}
                   checked={vendor.visibleToFamily}
                   onCheckedChange={(checked) =>
                     update.mutate({
@@ -286,6 +294,7 @@ export default function Vendors() {
                     size="icon"
                     className="text-muted-foreground"
                     aria-label={`Remove ${vendor.name}`}
+                    disabled={archive.isPending}
                   >
                     <Trash2 className="size-4" />
                   </Button>
@@ -344,7 +353,11 @@ export default function Vendors() {
             onChange={(event) => setPostalCode(event.target.value)}
           />
         </div>
-        <Button type="submit" variant="outline" disabled={!name.trim()}>
+        <Button
+          type="submit"
+          variant="outline"
+          disabled={!name.trim() || create.isPending}
+        >
           <Plus className="size-4" />
           Add
         </Button>

@@ -80,8 +80,11 @@ export default function Selections() {
 
   if (selections.isPending) return <Loading rows={4} />;
 
+  // Not the empty sections, which would say nothing had been chosen yet.
   if (selections.isError && !selections.data) {
-    return <LoadFailed title="Hymns and readings" onRetry={() => void selections.refetch()} />;
+    return (
+      <LoadFailed title="Hymns and readings" onRetry={() => void selections.refetch()} />
+    );
   }
 
   const rows = selections.data ?? [];
@@ -184,7 +187,10 @@ export default function Selections() {
                         size="sm"
                         className="-mr-2 shrink-0 text-muted-foreground"
                         aria-label={`Remove ${item.value}`}
-                        disabled={remove.isPending}
+                        disabled={
+                          remove.isPending &&
+                          remove.variables?.selectionId === item.id
+                        }
                         onClick={() =>
                           remove.mutate({ selectionId: item.id })
                         }
@@ -257,6 +263,8 @@ export default function Selections() {
                   }}
                 />
               )}
+              {/* Worded, not a bare "+": nobody should have to guess that the
+                  cross in the corner is what sends it. */}
               <Button
                 type="button"
                 variant="outline"

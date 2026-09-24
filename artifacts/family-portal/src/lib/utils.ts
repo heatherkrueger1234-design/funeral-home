@@ -71,3 +71,21 @@ function validZone(timeZone: string | null | undefined): string | undefined {
     return undefined;
   }
 }
+
+/**
+ * What to tell a family when a request fails.
+ *
+ * Only the API's own sentences are shown as they are. A request that never
+ * reached the server fails with the browser's words ("Failed to fetch",
+ * "Load failed"), and a proxy's refusal with only its status line ("HTTP 413
+ * Payload Too Large"); neither means anything to somebody on a phone in a
+ * hospital car park, and both read like the portal has broken.
+ */
+export function describeError(error: unknown): string {
+  const message = error instanceof Error ? error.message.trim() : "";
+  const fromServer = typeof (error as { status?: unknown })?.status === "number";
+  if (!message || !fromServer || /^HTTP \d{3}\b/.test(message)) {
+    return "Please check your connection and try again.";
+  }
+  return message;
+}

@@ -88,6 +88,7 @@ export function ServicePanel({ caseId }: { caseId: number }) {
                       variant={confirmed ? "secondary" : "outline"}
                       size="sm"
                       aria-pressed={confirmed}
+                      disabled={update.isPending}
                       onClick={() =>
                         update.mutate({
                           selectionId: row.id,
@@ -106,6 +107,7 @@ export function ServicePanel({ caseId }: { caseId: number }) {
                           size="icon"
                           className="text-muted-foreground"
                           aria-label={`Remove ${row.value}`}
+                          disabled={remove.isPending}
                         >
                           <X className="size-4" />
                         </Button>

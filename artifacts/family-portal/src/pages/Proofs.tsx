@@ -281,8 +281,12 @@ export default function Proofs() {
     );
   }
 
+  // Not "Nothing to check", which would send them away from proofs that
+  // are there.
   if (items.isError && !items.data) {
-    return <LoadFailed title="Things to check" onRetry={() => void items.refetch()} />;
+    return (
+      <LoadFailed title="Things to check" onRetry={() => void items.refetch()} />
+    );
   }
 
   const rows = items.data ?? [];
@@ -292,7 +296,7 @@ export default function Proofs() {
       <PageHeader title="Things to check">
         {canAnswer
           ? "Please read the names carefully — spellings are the one thing we can't check for you. Under each one, tell the funeral home whether it's right."
-          : "Please read the names carefully — spellings are the one thing we can't check for you. If anything is wrong, telephone the funeral home."}
+          : "Please read the names carefully — spellings are the one thing we can't check for you. If anything is wrong, please call the funeral home."}
       </PageHeader>
 
       {rows.length === 0 ? (

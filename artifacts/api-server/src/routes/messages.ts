@@ -17,7 +17,7 @@ router.get("/cases/:caseId/messages", async (req, res) => {
 
   // Opening the thread is what marks the family's messages read; a read
   // receipt failing must not fail the request that produced it.
-  void markRead(row.id, "home").catch((err: unknown) => {
+  await markRead(row.id, "home").catch((err: unknown) => {
     req.log?.warn({ err }, "Could not mark family messages read");
   });
 
@@ -53,14 +53,9 @@ router.post("/cases/:caseId/messages", async (req, res) => {
     })
     .returning();
 
-  /*
-   * Answering is reading. A reply sent from the console's inbox never opened
-   * the thread, so the family's message stayed "unread" beneath the answer
-   * to it, and the home was told a family was waiting on a reply they had
-   * just been given. Awaited, unlike the read receipt on GET, because the
-   * counts the director sees next are read straight after this returns.
-   */
-  await markRead(row.id, "home", now);
+  await markRead(row.id, "home", now).catch((err: unknown) => {
+    req.log?.warn({ err }, "Could not mark family messages read");
+  });
 
   res.status(201).json({
     id: created!.id,

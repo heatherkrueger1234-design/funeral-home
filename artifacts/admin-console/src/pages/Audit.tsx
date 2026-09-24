@@ -36,7 +36,8 @@ export function Audit() {
    */
   const params = new URLSearchParams(useSearch());
   const [, navigate] = useLocation();
-  const homeId = Number(params.get("home")) || null;
+  const rawHome = params.get("home");
+  const homeId = rawHome && /^[1-9]\d*$/.test(rawHome) ? Number(rawHome) : null;
   const action = params.get("action") ?? "";
   const limit = params.get("more") ? MOST : FIRST_PAGE;
 
@@ -59,6 +60,9 @@ export function Audit() {
           (action ? `&action=${encodeURIComponent(action)}` : ""),
       ),
     placeholderData: keepPreviousData,
+    // Opening a home writes a line here, so a log fifteen seconds stale is
+    // missing the very visit that brought somebody to it.
+    staleTime: 0,
   });
 
   const homeName =

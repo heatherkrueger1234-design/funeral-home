@@ -99,22 +99,22 @@ export function HomeDetail({ homeId }: { homeId: number }) {
             .filter(Boolean)
             .join(" · ")}
         </p>
-        {/* What you need to ring them or find them, and nothing more. */}
-        <p className="mt-0.5 text-sm text-[var(--muted-foreground)]">
-          {[
-            home.phone,
-            `Web address “${home.slug}”`,
-            home.timezone.replace(/_/g, " "),
-          ]
-            .filter(Boolean)
-            .join(" · ")}
+        {/* The two things wanted on a call: their number, and what time it
+            is where they are before dialling it. */}
+        <p className="mt-1 flex flex-wrap gap-x-4 gap-y-1 text-sm text-[var(--muted-foreground)]">
+          {home.phone ? (
+            <a href={`tel:${home.phone}`} className="text-[var(--foreground)] underline">
+              {home.phone}
+            </a>
+          ) : (
+            <span>No phone number on file</span>
+          )}
+          <span>Web address “{home.slug}”</span>
+          <span>{home.timezone.replace(/_/g, " ")}</span>
+          <Link href={`/audit?home=${home.id}`} className="underline">
+            The access log for this home
+          </Link>
         </p>
-        <Link
-          href={`/audit?home=${home.id}`}
-          className="mt-2 inline-block text-sm text-[var(--muted-foreground)] underline underline-offset-4 hover:text-[var(--foreground)]"
-        >
-          This home in the access log
-        </Link>
       </div>
 
       {home.suspendedAt && (
@@ -153,12 +153,15 @@ export function HomeDetail({ homeId }: { homeId: number }) {
         </div>
         {home.engagement.aftercareEnrolled > 0 && (
           <p className="mt-4 max-w-prose text-sm text-[var(--muted-foreground)]">
-            {plural(home.engagement.aftercareEnrolled, "family", "families")}{" "}
-            enrolled in aftercare: {home.engagement.aftercareConsented} said
-            yes, {home.engagement.aftercareDeclined} have not answered either
-            way, and {home.engagement.aftercareUnsubscribed} asked to stop.
-            None of that is a failure; most people never reply to anything in
-            that first year.
+            {home.engagement.aftercareDeclined}{" "}
+            {home.engagement.aftercareDeclined === 1
+              ? "family was"
+              : "families were"}{" "}
+            enrolled in aftercare and{" "}
+            {home.engagement.aftercareDeclined === 1 ? "has" : "have"} not
+            answered either way, and {home.engagement.aftercareUnsubscribed}{" "}
+            asked to stop. Neither is a
+            failure; most people never reply to anything in that first year.
           </p>
         )}
       </Card>
@@ -234,8 +237,8 @@ function StaffRow({
   return (
     <li className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 py-3 first:pt-0 last:pb-0">
       <div className="min-w-0">
-        <span className="mr-3">{person.displayName ?? "Not named yet"}</span>
-        <span className="text-sm text-[var(--muted-foreground)]">
+        <span>{person.displayName ?? "Not named yet"}</span>
+        <span className="ml-3 text-sm text-[var(--muted-foreground)]">
           {[person.title, STAFF_ROLE_LABELS[person.role] ?? person.role]
             .filter(Boolean)
             .join(" · ")}
@@ -290,6 +293,7 @@ function OursCard({ home }: { home: AdminHomeDetail }) {
       void queryClient.invalidateQueries({ queryKey: ["home", home.id] });
       void queryClient.invalidateQueries({ queryKey: ["homes"] });
       void queryClient.invalidateQueries({ queryKey: ["overview"] });
+      void queryClient.invalidateQueries({ queryKey: ["audit"] });
     },
   });
 
@@ -354,6 +358,7 @@ function SuspensionCard({ home }: { home: AdminHomeDetail }) {
       void queryClient.invalidateQueries({ queryKey: ["home", home.id] });
       void queryClient.invalidateQueries({ queryKey: ["homes"] });
       void queryClient.invalidateQueries({ queryKey: ["overview"] });
+      void queryClient.invalidateQueries({ queryKey: ["audit"] });
     },
   });
 

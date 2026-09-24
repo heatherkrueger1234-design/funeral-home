@@ -127,6 +127,8 @@ export default function Dashboard() {
   const zone = useHomeZone();
 
   if (dashboard.isPending || billing.isPending) return <Loading rows={4} />;
+  // A blank page here reads as "nothing is waiting", which is the one thing
+  // this screen must never say by accident.
   if (!dashboard.data) {
     return (
       <LoadFailed what="Today's page" onRetry={() => void dashboard.refetch()} />
@@ -269,7 +271,8 @@ export default function Dashboard() {
           <ul className="space-y-2">
             {data.awaitingServiceDate.map((row) => (
               <li key={row.caseId}>
-                <Link href={`/cases/${row.caseId}`} className={ROW}>
+                {/* Straight to the tab that sets the date or offers times. */}
+                <Link href={`/cases/${row.caseId}?tab=details`} className={ROW}>
                   <span className="min-w-0">
                     <span className="block truncate font-semibold">
                       {row.decedentName}
@@ -316,7 +319,7 @@ export default function Dashboard() {
         <span className="min-w-0 flex-1">
           <span className="block font-semibold">Your own page</span>
           <span className="block text-sm leading-snug text-muted-foreground">
-            What families read before they ring you, and the policies you find
+            What families read before they call you, and the policies you find
             yourself repeating at every kitchen table.
           </span>
         </span>

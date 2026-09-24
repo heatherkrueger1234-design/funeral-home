@@ -2,6 +2,7 @@ import { useRef, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import {
   getGetCasesQueryKey,
+  getGetHomeDashboardQueryKey,
   type ImportPreview,
   type ImportResult,
 } from "@workspace/api-client-react";
@@ -95,6 +96,9 @@ export function ImportCases() {
       const result = await postCsv<ImportResult>("/api/cases/import", file);
 
       void queryClient.invalidateQueries({ queryKey: getGetCasesQueryKey() });
+      void queryClient.invalidateQueries({
+        queryKey: getGetHomeDashboardQueryKey(),
+      });
 
       toast({
         title: `${result.created} case${result.created === 1 ? "" : "s"} imported`,

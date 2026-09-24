@@ -208,10 +208,10 @@ function Studio({
             )}
 
             {/*
-              Keyed by the stored wording so that choosing one of the home's
-              saved paragraphs above shows up here. Without it the box kept
-              the old words, and leaving it saved them straight back over the
-              paragraph that had just been chosen.
+              Keyed on the saved value so that picking saved wording above
+              shows it here. Uncontrolled and unkeyed, the box kept the old
+              text, and leaving it saved that old text straight back over
+              the wording just chosen.
             */}
             <Textarea
               key={`${slot.key}:${item.values[slot.key] ?? ""}`}
@@ -319,6 +319,7 @@ export function PrintPanel({ caseId }: { caseId: number }) {
     },
   });
   const remove = useDeletePrintItem({ mutation: { onSuccess: refresh } });
+  const templateList = templates.data ?? [];
 
   if (templates.isPending || items.isPending) {
     return (
@@ -339,7 +340,7 @@ export function PrintPanel({ caseId }: { caseId: number }) {
   }
 
   const open = (items.data ?? []).find((item) => item.id === editing);
-  const openTemplate = (templates.data ?? []).find(
+  const openTemplate = templateList.find(
     (template) => template.key === open?.templateKey,
   );
 
@@ -386,6 +387,7 @@ export function PrintPanel({ caseId }: { caseId: number }) {
                   href={`/api/print/${item.id}/render`}
                   target="_blank"
                   rel="noreferrer"
+                  aria-label={`Open ${item.title ?? item.templateName} to print`}
                 >
                   <Printer className="size-4" aria-hidden />
                   Print
@@ -398,6 +400,7 @@ export function PrintPanel({ caseId }: { caseId: number }) {
                     size="icon"
                     className="text-muted-foreground"
                     aria-label={`Delete ${item.title ?? item.templateName}`}
+                    disabled={remove.isPending}
                   >
                     <Trash2 className="size-4" />
                   </Button>
@@ -416,12 +419,13 @@ export function PrintPanel({ caseId }: { caseId: number }) {
       <section className="space-y-3">
         <h3 className="font-display text-base">Start something</h3>
         <ul className="grid gap-3 sm:grid-cols-2">
-          {(templates.data ?? []).map((template) => (
+          {templateList.map((template) => (
             <li key={template.key}>
               <button
                 type="button"
+                className="w-full lift rounded-xl border border-border bg-card p-5 text-left shadow-[var(--elevation-1)] transition-gentle hover:border-[color-mix(in_oklab,var(--accent)_45%,var(--border))] disabled:opacity-60"
+                // One press, one item: a double click started two.
                 disabled={create.isPending}
-                className="w-full lift rounded-xl disabled:opacity-60 border border-border bg-card p-5 text-left shadow-[var(--elevation-1)] transition-gentle hover:border-[color-mix(in_oklab,var(--accent)_45%,var(--border))]"
                 onClick={() =>
                   create.mutate({ caseId, data: { templateKey: template.key } })
                 }

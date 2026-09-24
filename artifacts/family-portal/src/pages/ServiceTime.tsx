@@ -96,11 +96,9 @@ export default function ServiceTime() {
 
   if (offers.isPending) return <Loading rows={3} />;
 
-  if (offers.isError && !offers.data) {
+  if (!offers.data) {
     return <LoadFailed title="The service" onRetry={() => void offers.refetch()} />;
   }
-
-  if (!offers.data) return null;
 
   const data = offers.data;
   const homeName = session.data?.home.name ?? "The funeral home";
