@@ -174,6 +174,41 @@ call and not an agent's, even for the eighteen that are provably lossless.
   `website` profile is started; the bare domain goes to the console.
 - `LAUNCH.md` → *What is not ready* is the fuller list for launch readiness.
 
+## The polish pass of 24 September
+
+All three apps were walked page by page, in a real browser at desktop and phone
+width, with the showcase data in them, and every screen's code read through.
+What that found and fixed is in the commit history; the ones worth knowing:
+
+- **Invitations died after an hour.** A new owner's or new director's
+  invitation used the password-reset lifetime. They now last seven days.
+- **Replying from the inbox left the family "waiting".** Only opening the
+  thread marked their messages read. Replying now does too, on both sides.
+- **A relative tabbing through the preparation notes undid the director's
+  sign-off** without changing a word. Only a real change resets it now.
+- **The case list could show "No open cases"** at a home with many closed
+  ones, because it fetched 100 of everything and hid the closed ones.
+- **Changing the family's ZIP code on *Local help* was impossible**, and the
+  setup checklist's "open a case" step linked to the page it was on.
+- Every page that used to go blank, or say "nothing here", when its data failed
+  to load now says so and offers *Try again*.
+- The e2e suite covers the admin console, and the full message round trip
+  between a family and the inbox, for the first time.
+
+Left for an owner, because each is a decision or needs a new API parameter
+rather than a fix:
+
+- The admin *Homes* list cannot filter by state (trial, suspended, past due)
+  or sort, and the access log cannot page past 200. Both need `admin.ts`
+  parameters first; sorting in the browser would only sort one page.
+- A home marked "ours" disappears from *Homes* with no way to list it again.
+- Pre-need files still use after-death wording on *Belongings*, *Certificate*
+  and the family hub.
+- The family portal uses the red `--destructive` colour for form errors, which
+  `CRAFT.md` rules out for families. Needs a softer token, which is a design
+  call.
+- The groups endpoints (`/admin/groups`) have no screen.
+
 ## What to do next, in order
 
 1. Disable or configure the three scheduled workflows (Problem 1). Five minutes,

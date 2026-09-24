@@ -58,7 +58,13 @@ import {
   requireRow,
 } from "../lib/http";
 import { currentUser } from "../middleware/require-auth";
-import { createPasswordReset, normaliseEmail, PASSWORD_RESET_TTL_MS } from "../lib/auth";
+import {
+  createPasswordReset,
+  INVITE_TTL_DAYS,
+  INVITE_TTL_MS,
+  normaliseEmail,
+  PASSWORD_RESET_TTL_MS,
+} from "../lib/auth";
 import {
   grantPlatformAdmin,
   isPlatformAdmin,
@@ -896,7 +902,10 @@ async function sendInvitation(
   home: { id: number; name: string },
   person: { id: number; email: string },
 ): Promise<boolean> {
-  const token = await createPasswordReset(person.id);
+  // A week, not a password reset's hour: an owner is invited on a sales
+  // call and opens the email days later, and a link that died in the
+  // meantime is a support ticket on their first morning.
+  const token = await createPasswordReset(person.id, INVITE_TTL_MS);
   const base = process.env["CONSOLE_URL"]?.replace(/\/+$/, "") ?? "";
 
   try {
@@ -905,7 +914,7 @@ async function sendInvitation(
       homeName: home.name,
       invitedBy: who.email,
       inviteLink: `${base}/reset-password?invited=1&token=${encodeURIComponent(token)}`,
-      expiresInMinutes: Math.round(PASSWORD_RESET_TTL_MS / 60000),
+      expiresInDays: INVITE_TTL_DAYS,
     });
   } catch (err) {
     // The account exists either way, so a mail server having a bad morning

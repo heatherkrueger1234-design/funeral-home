@@ -179,6 +179,7 @@ export function SnippetLibrary({ readOnly }: { readOnly: boolean }) {
 
             <Input
               value={title}
+              aria-label="What you call it"
               placeholder="What you call it"
               className="min-w-[10rem] flex-1"
               onChange={(event) => setTitle(event.target.value)}
@@ -201,7 +202,7 @@ export function SnippetLibrary({ readOnly }: { readOnly: boolean }) {
           <Button
             type="submit"
             variant="outline"
-            disabled={!title.trim() || !body.trim()}
+            disabled={!title.trim() || !body.trim() || add.isPending}
           >
             <Plus className="size-4" />
             Add

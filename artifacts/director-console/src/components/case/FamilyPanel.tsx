@@ -7,6 +7,7 @@ import {
   useRevokeContact,
   useUpdateContact,
   getGetCaseQueryKey,
+  getGetCasesQueryKey,
   type FamilyContact,
 } from "@workspace/api-client-react";
 import { Button } from "@/components/ui/button";
@@ -116,8 +117,12 @@ export function FamilyPanel({ caseId, contacts }: Props) {
   const [email, setEmail] = useState("");
   const [role, setRole] = useState<"next_of_kin" | "contributor">("next_of_kin");
 
-  const refresh = () =>
+  const refresh = () => {
     void queryClient.invalidateQueries({ queryKey: getGetCaseQueryKey(caseId) });
+    // The first person added takes a case out of intake, and the list shows
+    // the next of kin on each row.
+    void queryClient.invalidateQueries({ queryKey: getGetCasesQueryKey() });
+  };
 
   const add = useCreateCaseContact({
     mutation: {
@@ -298,10 +303,13 @@ export function FamilyPanel({ caseId, contacts }: Props) {
                     quietly stopped the one the family already had. A new link
                     for somebody who has one now says what it costs first.
                   */}
+                  {/* Pending-guarded: a double press minted two links and
+                      the one on screen was already dead. */}
                   {revoked ? (
                     <Button
                       variant="ghost"
                       size="sm"
+                      disabled={reissue.isPending}
                       onClick={() => reissue.mutate({ contactId: contact.id })}
                     >
                       <Link2 className="size-4" />
@@ -310,7 +318,7 @@ export function FamilyPanel({ caseId, contacts }: Props) {
                   ) : (
                     <Confirm
                       trigger={
-                        <Button variant="ghost" size="sm">
+                        <Button variant="ghost" size="sm" disabled={reissue.isPending}>
                           <Link2 className="size-4" />
                           New link
                         </Button>
@@ -338,6 +346,7 @@ export function FamilyPanel({ caseId, contacts }: Props) {
                           variant="ghost"
                           size="sm"
                           className="text-muted-foreground"
+                          disabled={revoke.isPending}
                         >
                           Stop their link
                         </Button>

@@ -382,9 +382,9 @@ export async function sendStaffInviteEmail(options: {
   homeName: string;
   invitedBy: string;
   inviteLink: string;
-  expiresInMinutes: number;
+  expiresInDays: number;
 }): Promise<void> {
-  const { to, homeName, invitedBy, inviteLink, expiresInMinutes } = options;
+  const { to, homeName, invitedBy, inviteLink, expiresInDays } = options;
 
   const text = [
     `${invitedBy} has added you to ${homeName} on Continuum Aftercare.`,
@@ -392,7 +392,7 @@ export async function sendStaffInviteEmail(options: {
     "Choose a password to get in:",
     inviteLink,
     "",
-    `The link works once, and expires in ${expiresInMinutes} minutes. Ask`,
+    `The link works once, and expires in ${expiresInDays} days. Ask`,
     "them to send another if it runs out.",
     "",
     "— Continuum Aftercare",
@@ -412,7 +412,7 @@ export async function sendStaffInviteEmail(options: {
               font-weight:600">Choose a password</a>
   </p>
   <p style="margin:0 0 20px;color:#6b7280;font-size:13px">
-    The link works once and expires in ${expiresInMinutes} minutes. If the
+    The link works once and expires in ${expiresInDays} days. If the
     button doesn't work, paste this into your browser:<br>
     <span style="word-break:break-all">${esc(inviteLink)}</span>
   </p>

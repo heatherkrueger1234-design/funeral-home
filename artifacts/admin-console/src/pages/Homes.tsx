@@ -20,6 +20,7 @@ import {
 import {
   Button,
   Card,
+  CopyButton,
   EmptyState,
   ErrorState,
   Field,

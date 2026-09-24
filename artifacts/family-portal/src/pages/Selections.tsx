@@ -257,6 +257,8 @@ export default function Selections() {
                   }}
                 />
               )}
+              {/* Worded, not a bare "+": nobody should have to guess that the
+                  cross in the corner is what sends it. */}
               <Button
                 type="button"
                 variant="outline"

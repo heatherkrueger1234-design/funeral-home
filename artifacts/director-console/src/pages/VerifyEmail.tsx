@@ -4,6 +4,7 @@ import { useVerifyEmail } from "@workspace/api-client-react";
 import { Button } from "@/components/ui/button";
 import { Loader2 } from "lucide-react";
 import { AuthPage } from "@/components/AuthPage";
+import { useSession } from "@/lib/session";
 
 /**
  * Where a `/verify-email?token=…` link lands.
@@ -20,6 +21,7 @@ import { AuthPage } from "@/components/AuthPage";
  */
 export default function VerifyEmail() {
   const [, navigate] = useLocation();
+  const { refresh } = useSession();
   const token =
     typeof window === "undefined"
       ? ""
@@ -36,7 +38,12 @@ export default function VerifyEmail() {
     mutation: {
       // The failure is shown on the page itself; a toast on top says it twice.
       meta: { handlesOwnErrors: true },
-      onSuccess: () => setState("done"),
+      onSuccess: () => {
+        setState("done");
+        // A director already signed in on this device would otherwise go on
+        // being asked to confirm the address they just confirmed.
+        refresh();
+      },
       onError: (error: unknown) => {
         setState("failed");
         setProblem(

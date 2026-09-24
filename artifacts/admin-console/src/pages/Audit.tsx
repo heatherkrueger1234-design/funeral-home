@@ -34,6 +34,16 @@ const PAGE_SIZE = 100;
  * filters live in the address, so a home's page can link straight to its own
  * history and the link can be sent to whoever asked.
  */
+const LIMIT = 100;
+
+/**
+ * The actions whose missing home means "all of them" rather than "none". The
+ * rest -- granting access, groups -- are about no home, and used to be
+ * labelled "Every home" as well, which on a page shown to an insurer reads as
+ * a far larger read than it was.
+ */
+const ACROSS_EVERY_HOME = new Set(["homes.list", "platform.overview"]);
+
 export function Audit() {
   usePageTitle("Access log");
 
@@ -110,6 +120,15 @@ export function Audit() {
           same leak wearing a different hat. The same person looking at the
           same thing again within five minutes is one line.
         </p>
+        {homeId && (
+          <p className="mt-3 text-sm">
+            Showing only what was done to {homes.find(([id]) => id === homeId)?.[1] ?? "one home"}. Listing
+            every home is not included, because it names none of them.{" "}
+            <Link href="/audit" className="underline">
+              Show the whole log
+            </Link>
+          </p>
+        )}
       </div>
 
       <div className="flex flex-wrap items-end gap-x-6 gap-y-4">

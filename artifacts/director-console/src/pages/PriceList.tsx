@@ -266,7 +266,12 @@ function PriceRow({ row, onChanged }: { row: PriceItem; onChanged: () => void })
         />
         <Confirm
           trigger={
-            <Button variant="ghost" size="sm" aria-label={`Remove ${row.label}`}>
+            <Button
+              variant="ghost"
+              size="sm"
+              aria-label={`Remove ${row.label}`}
+              disabled={remove.isPending}
+            >
               <Trash2 className="size-4" />
             </Button>
           }

@@ -33,12 +33,24 @@ function splitServices(value: string): string[] {
     .filter(Boolean);
 }
 
-export function LicensurePanel({ home }: { home: AdminHomeDetail }) {
+/**
+ * Everything a licensure change can make stale: this home, the overview's
+ * "Worth a look" list, and the access log the change was written to.
+ */
+function useRefreshAfterLicensure(homeId: number) {
   const queryClient = useQueryClient();
-  const [editing, setEditing] = useState(false);
 
-  const refresh = () =>
-    queryClient.invalidateQueries({ queryKey: ["home", home.id] });
+  return () =>
+    Promise.all([
+      queryClient.invalidateQueries({ queryKey: ["home", homeId] }),
+      queryClient.invalidateQueries({ queryKey: ["overview"] }),
+      queryClient.invalidateQueries({ queryKey: ["audit"] }),
+    ]);
+}
+
+export function LicensurePanel({ home }: { home: AdminHomeDetail }) {
+  const [editing, setEditing] = useState(false);
+  const refresh = useRefreshAfterLicensure(home.id);
 
   const save = useMutation({
     mutationFn: (values: Partial<HomeLicensure>) =>
@@ -221,18 +233,21 @@ function RegistrationForm({
           label="DORA registration number"
           value={form.doraRegistrationNumber}
           onChange={(event) => set("doraRegistrationNumber")(event.target.value)}
+          maxLength={60}
           hint="Exactly as it appears on the certificate."
         />
         <Field
           label="Appointed designee"
           value={form.designeeName}
           onChange={(event) => set("designeeName")(event.target.value)}
+          maxLength={160}
           hint="The person named on the registration."
         />
         <Field
           label="Designee's title"
           value={form.designeeTitle}
           onChange={(event) => set("designeeTitle")(event.target.value)}
+          maxLength={160}
         />
         <Field
           label="Began business at this location"
@@ -277,9 +292,9 @@ function RegistrationForm({
         <textarea
           id="licensure-notes"
           rows={3}
+          maxLength={2000}
           value={form.notes}
           onChange={(event) => set("notes")(event.target.value)}
-          maxLength={2000}
           className={
             "rounded-md border border-[var(--border-strong)] bg-white p-3 text-base " +
             "shadow-[inset_0_1px_2px_rgb(40_34_24/0.04)] " +
@@ -320,11 +335,11 @@ type PractitionerValues = Omit<Practitioner, "id">;
  * quietly stops being watched.
  */
 function PractitionersCard({ home }: { home: AdminHomeDetail }) {
-  const queryClient = useQueryClient();
   const [adding, setAdding] = useState(false);
-
-  const refresh = () =>
-    queryClient.invalidateQueries({ queryKey: ["home", home.id] });
+  // Which row is asking "are you sure". Removing somebody is the one thing on
+  // this card that cannot be put back by choosing a different option.
+  const [removing, setRemoving] = useState<number | null>(null);
+  const refresh = useRefreshAfterLicensure(home.id);
 
   const add = useMutation({
     mutationFn: (values: PractitionerValues) =>
@@ -352,7 +367,7 @@ function PractitionersCard({ home }: { home: AdminHomeDetail }) {
           )
         }
       >
-        Who needs a license by 1 January 2027
+        Who needs a license by January 1, 2027
       </CardTitle>
 
       {home.practitioners.length === 0 && !adding ? (

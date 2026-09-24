@@ -403,6 +403,7 @@ export function PrintPanel({ caseId }: { caseId: number }) {
     },
   });
   const remove = useDeletePrintItem({ mutation: { onSuccess: refresh } });
+  const templateList = templates.data ?? [];
 
   if (templates.isPending || items.isPending) {
     return (
@@ -423,7 +424,7 @@ export function PrintPanel({ caseId }: { caseId: number }) {
   }
 
   const open = (items.data ?? []).find((item) => item.id === editing);
-  const openTemplate = (templates.data ?? []).find(
+  const openTemplate = templateList.find(
     (template) => template.key === open?.templateKey,
   );
 
@@ -479,6 +480,7 @@ export function PrintPanel({ caseId }: { caseId: number }) {
                     size="icon"
                     className="text-muted-foreground"
                     aria-label={`Delete ${item.title ?? item.templateName}`}
+                    disabled={remove.isPending}
                   >
                     <Trash2 className="size-4" />
                   </Button>
@@ -502,7 +504,7 @@ export function PrintPanel({ caseId }: { caseId: number }) {
       <section className="space-y-3">
         <h3 className="font-display text-base">Start something</h3>
         <ul className="grid gap-3 sm:grid-cols-2">
-          {(templates.data ?? []).map((template) => (
+          {templateList.map((template) => (
             <li key={template.key}>
               <button
                 type="button"

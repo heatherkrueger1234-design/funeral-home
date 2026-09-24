@@ -206,7 +206,11 @@ export function StandardSchedule({ readOnly }: { readOnly: boolean }) {
             </Select>
           </div>
 
-          <Button type="submit" variant="outline" disabled={!title.trim()}>
+          <Button
+            type="submit"
+            variant="outline"
+            disabled={!title.trim() || add.isPending}
+          >
             <Plus className="size-4" />
             Add
           </Button>

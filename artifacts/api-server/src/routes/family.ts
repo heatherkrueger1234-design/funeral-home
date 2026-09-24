@@ -1171,7 +1171,7 @@ router.get("/messages", async (req, res) => {
 
   const thread = await buildThread({ case: row, home });
 
-  void markRead(row.id, "family").catch((err: unknown) => {
+  await markRead(row.id, "family").catch((err: unknown) => {
     req.log?.warn({ err }, "Could not mark home messages read");
   });
 
@@ -1210,6 +1210,10 @@ router.post("/messages", async (req, res) => {
       sentOutsideOfficeHours: outsideHours,
     })
     .returning();
+
+  await markRead(row.id, "family", now).catch((err: unknown) => {
+    req.log?.warn({ err }, "Could not mark home messages read");
+  });
 
   res.status(201).json({
     id: created!.id,
@@ -1279,7 +1283,7 @@ router.post("/service-offers/:offerId/choose", async (req, res) => {
   if (row.status === "closed") {
     throw new HttpError(
       409,
-      "This service is settled. Please ring the funeral home if something needs to change.",
+      "This service is settled. Please call the funeral home if something needs to change.",
     );
   }
 
@@ -1298,7 +1302,7 @@ router.post("/service-offers/:offerId/choose", async (req, res) => {
   if (row.serviceAt !== null) {
     throw new HttpError(
       409,
-      "The service time is already settled. Please ring the funeral home if it needs to change.",
+      "The service time is already settled. Please call the funeral home if it needs to change.",
     );
   }
 
@@ -1316,7 +1320,7 @@ router.post("/service-offers/:offerId/choose", async (req, res) => {
   if (offer && offer.startsAt.getTime() <= Date.now()) {
     throw new HttpError(
       409,
-      "That time has already passed. Please ring the funeral home to settle another.",
+      "That time has already passed. Please call the funeral home to settle another.",
     );
   }
 
@@ -1432,7 +1436,13 @@ router.post("/aftercare", async (req, res) => {
   // has already said no — exactly what the comment above promises never
   // happens.
   if (values.consent && found.unsubscribedAt !== null) {
-    throw badRequest("This family already declined and cannot be re-enrolled.");
+    // Said to the family, who are the only ones who can reach this route --
+    // not the staff-facing sentence it used to be.
+    throw new HttpError(
+      409,
+      "You've already said no to these notes, so they won't start again. " +
+        "If you've changed your mind, the funeral home can help.",
+    );
   }
 
   /*
@@ -2152,6 +2162,10 @@ router.put("/memory-book/chapters/:chapterId", async (req, res) => {
   res.json({ ...toChapterJson(updated!), mine: true });
 });
 
+/**
+ * Take their own chapter back out. Deliberately allowed after the book closes,
+ * for the same reason as a memory above: what they wrote is theirs to withdraw.
+ */
 router.delete("/memory-book/chapters/:chapterId", async (req, res) => {
   const row = familyCase(req);
   const contact = familyContact(req);

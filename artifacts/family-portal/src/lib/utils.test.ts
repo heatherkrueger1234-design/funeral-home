@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { formatAtHome } from "./utils";
+import { describeError, formatAtHome } from "./utils";
 
 /**
  * The family is told when to be somewhere, so the hour has to be the funeral
@@ -32,5 +32,26 @@ describe("formatAtHome", () => {
   it("falls back quietly on a zone the browser does not know", () => {
     expect(formatAtHome(service, "Not/AZone", opts)).not.toBe("");
     expect(formatAtHome(null, "America/Denver", opts)).toBe("");
+  });
+});
+
+describe("describeError", () => {
+  const refusal = (status: number, message: string) =>
+    Object.assign(new Error(message), { status });
+
+  it("passes the API's own sentence through", () => {
+    expect(describeError(refusal(409, "The funeral home already has this one."))).toBe(
+      "The funeral home already has this one.",
+    );
+  });
+
+  it("does not show the browser's words for a dropped connection", () => {
+    expect(describeError(new TypeError("Failed to fetch"))).toMatch(/connection/);
+  });
+
+  it("does not show a bare status line", () => {
+    expect(describeError(refusal(413, "HTTP 413 Payload Too Large"))).toMatch(
+      /connection/,
+    );
   });
 });

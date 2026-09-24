@@ -202,7 +202,7 @@ function EraseCase({
           description:
             "Gone from this system. It stays in your backups until they age out.",
         });
-        navigate("/");
+        navigate("/cases");
       },
     },
   });

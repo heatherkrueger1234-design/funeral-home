@@ -92,7 +92,7 @@ describe("offering a family a time", () => {
       .expect(409);
 
     // And it tells them what to do instead, rather than just refusing.
-    expect(second.body.error).toMatch(/ring the funeral home/i);
+    expect(second.body.error).toMatch(/call the funeral home/i);
   });
 
   it("does not blank a location the case already had", async () => {

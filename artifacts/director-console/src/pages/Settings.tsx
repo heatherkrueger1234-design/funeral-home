@@ -5,6 +5,7 @@ import {
   useUpdateHome,
   getGetHomeQueryKey,
   getGetCurrentUserQueryKey,
+  getGetHomeDashboardQueryKey,
 } from "@workspace/api-client-react";
 import { useSession } from "@/lib/session";
 import { Input } from "@/components/ui/input";
@@ -64,6 +65,10 @@ export default function Settings() {
         void queryClient.invalidateQueries({ queryKey: getGetHomeQueryKey() });
         void queryClient.invalidateQueries({
           queryKey: getGetCurrentUserQueryKey(),
+        });
+        // The master page heads itself with the home's name.
+        void queryClient.invalidateQueries({
+          queryKey: getGetHomeDashboardQueryKey(),
         });
       },
     },

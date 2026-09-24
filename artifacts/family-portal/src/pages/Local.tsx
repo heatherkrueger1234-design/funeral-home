@@ -70,6 +70,7 @@ export default function Local() {
       onSuccess: (result) => {
         setChangingZip(false);
         refresh();
+        setChangingZip(false);
         if (!result.recognised) {
           // Said plainly rather than silently showing an unsorted list.
           toast({

@@ -228,7 +228,7 @@ export function BelongingsPanel({ caseId }: { caseId: number }) {
             onKeyDown={(event) => {
               if (event.key !== "Enter") return;
               event.preventDefault();
-              if (description.trim()) {
+              if (description.trim() && !add.isPending) {
                 add.mutate({ caseId, data: { description: description.trim() } });
               }
             }}

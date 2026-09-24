@@ -104,13 +104,16 @@ export function DateOptions({ caseId }: { caseId: number }) {
     mutation: {
       onSuccess: (result) => {
         refresh();
+        // Moved steps are dated from it too; counting only the new ones said
+        // "0 steps" whenever the schedule already existed.
+        const dated = result.scheduleCreated + result.scheduleMoved;
         toast({
           title: "Service date set",
           description:
-            result.scheduleCreated + result.scheduleMoved === 0
+            dated === 0
               ? "The family can see it. Your standard schedule added nothing — check it under Settings."
-              : `The family can see it, and ${result.scheduleCreated} ${
-                  result.scheduleCreated === 1 ? "step is" : "steps are"
+              : `The family can see it, and ${dated} ${
+                  dated === 1 ? "step is" : "steps are"
                 } now dated on their timeline.`,
         });
       },
@@ -196,7 +199,8 @@ export function DateOptions({ caseId }: { caseId: number }) {
                     variant="ghost"
                     size="icon"
                     className="text-muted-foreground"
-                    aria-label="Withdraw this time"
+                    aria-label={`Withdraw ${offerLabel(row.startsAt, zone)}`}
+                    disabled={withdraw.isPending}
                     onClick={() => withdraw.mutate({ offerId: row.id })}
                   >
                     <X className="size-4" />

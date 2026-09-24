@@ -358,7 +358,7 @@ export default function Dashboard() {
         <span className="min-w-0 flex-1">
           <span className="block font-semibold">Your own page</span>
           <span className="block text-sm leading-snug text-muted-foreground">
-            What families read before they ring you, and the policies you find
+            What families read before they call you, and the policies you find
             yourself repeating at every kitchen table.
           </span>
         </span>

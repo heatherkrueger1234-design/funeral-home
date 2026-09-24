@@ -14,6 +14,7 @@ import { LinkProvider, isUnauthorized } from "@/lib/link";
 import { PortalShell } from "@/components/PortalShell";
 import { BASE_PATH } from "@/lib/base-path";
 import { Loading } from "@/components/page";
+import { describeError } from "@/lib/utils";
 import Hub from "@/pages/Hub";
 import Start from "@/pages/Start";
 import NotFound from "@/pages/NotFound";
@@ -41,25 +42,6 @@ const Family = lazy(() => import("@/pages/Family"));
 // Reached from the foot of a grief check-in, often long after the texted
 // link has expired, so it sits outside the shell like the front door.
 const Stop = lazy(() => import("@/pages/Stop"));
-
-/**
- * The server's own sentence when it sent one — those are written for a
- * family to read. What it must never show is the machinery: a dropped
- * connection surfaces from the browser as "Failed to fetch" (Chrome), "Load
- * failed" (Safari) or "NetworkError when attempting…" (Firefox), and a proxy
- * that answered in place of the server leaves only "HTTP 502 Bad Gateway".
- * None of those tells a daughter on hospital wifi what to do next.
- */
-function describeError(error: unknown): string {
-  const fallback = "Please check your connection and try again.";
-  const message = error instanceof Error ? error.message.trim() : "";
-  if (!message) return fallback;
-  if (/^HTTP \d{3}\b/.test(message)) return fallback;
-  if (/failed to fetch|load failed|networkerror|network request failed/i.test(message)) {
-    return fallback;
-  }
-  return message;
-}
 
 /**
  * A failed request must never be invisible: a failed photo upload that looks

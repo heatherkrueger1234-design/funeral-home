@@ -95,8 +95,9 @@ export default function Aftercare() {
     return (
       <div className="space-y-6">
         <PageHeader title="Checking in">
-          {home?.name} will write to you on the days below. You can stop them
-          at any time.
+          {home?.name} will write to you on the days below
+          {aftercare.email ? `, at ${aftercare.email}` : ""}. You can stop
+          them at any time.
         </PageHeader>
 
         <ul className="divide-y divide-border overflow-hidden rounded-xl border border-border bg-card shadow-[var(--elevation-1)]">

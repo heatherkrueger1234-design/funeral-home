@@ -88,8 +88,13 @@ export async function buildThread({ case: row, home, now = new Date() }: ThreadO
  * Mark the other side's messages read.
  *
  * Which messages count as "the other side's" depends on who is looking, so
- * the caller says. Deliberately not awaited by the read path in a way that
- * could fail it: a read receipt is not worth a failed page load.
+ * the caller says. Callers await it -- so the unread counts on the very next
+ * request already agree -- but catch its failure: a read receipt is not worth
+ * a failed page load.
+ *
+ * Replying marks the thread read too. Nobody answers a message they have not
+ * read, and a reply sent from the inbox used to leave the family counted as
+ * waiting for one.
  */
 export async function markRead(
   caseId: number,

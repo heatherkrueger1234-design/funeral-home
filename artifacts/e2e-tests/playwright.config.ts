@@ -4,6 +4,8 @@ import {
   API_PORT,
   FAMILY_PORTAL_PORT,
   DIRECTOR_CONSOLE_PORT,
+  ADMIN_CONSOLE_PORT,
+  PLATFORM_ADMIN_EMAIL,
   apiBase,
 } from "./ports";
 
@@ -86,6 +88,9 @@ export default defineConfig({
         PORT: String(API_PORT),
         NODE_ENV: "production",
         TASK_SECRET: "e2e-task-secret",
+        // Read once, into an empty table, at boot. admin-console.spec.ts
+        // registers the matching staff account itself.
+        PLATFORM_ADMIN_EMAILS: PLATFORM_ADMIN_EMAIL,
         FAMILY_PORTAL_URL: `http://localhost:${FAMILY_PORTAL_PORT}`,
         CONSOLE_URL: `http://localhost:${DIRECTOR_CONSOLE_PORT}`,
         /*
@@ -125,6 +130,18 @@ export default defineConfig({
       reuseExistingServer: false,
       env: {
         PORT: String(DIRECTOR_CONSOLE_PORT),
+        E2E_API_PROXY_TARGET: apiBase,
+      },
+    },
+    {
+      command:
+        "pnpm --filter @workspace/admin-console run build && pnpm --filter @workspace/admin-console run serve",
+      cwd: "../..",
+      url: `http://localhost:${ADMIN_CONSOLE_PORT}`,
+      timeout: 120_000,
+      reuseExistingServer: false,
+      env: {
+        PORT: String(ADMIN_CONSOLE_PORT),
         E2E_API_PROXY_TARGET: apiBase,
       },
     },

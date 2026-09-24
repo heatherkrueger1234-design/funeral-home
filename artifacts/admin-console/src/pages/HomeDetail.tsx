@@ -594,6 +594,7 @@ function OursCard({ home }: { home: AdminHomeDetail }) {
       void queryClient.invalidateQueries({ queryKey: ["home", home.id] });
       void queryClient.invalidateQueries({ queryKey: ["homes"] });
       void queryClient.invalidateQueries({ queryKey: ["overview"] });
+      void queryClient.invalidateQueries({ queryKey: ["audit"] });
     },
   });
 
@@ -658,6 +659,7 @@ function SuspensionCard({ home }: { home: AdminHomeDetail }) {
       void queryClient.invalidateQueries({ queryKey: ["home", home.id] });
       void queryClient.invalidateQueries({ queryKey: ["homes"] });
       void queryClient.invalidateQueries({ queryKey: ["overview"] });
+      void queryClient.invalidateQueries({ queryKey: ["audit"] });
     },
   });
 

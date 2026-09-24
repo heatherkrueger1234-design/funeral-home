@@ -6,9 +6,9 @@ import {
   usePostCaseMessage,
   getGetHomeInboxQueryKey,
   getGetCaseMessagesQueryKey,
-  getGetHomeDashboardQueryKey,
-  getGetCasesQueryKey,
   getGetCaseQueryKey,
+  getGetCasesQueryKey,
+  getGetHomeDashboardQueryKey,
 } from "@workspace/api-client-react";
 import type { InboxEntry } from "@workspace/api-client-react";
 import { Button } from "@/components/ui/button";
@@ -124,18 +124,22 @@ function Conversation({ row }: { row: InboxEntry }) {
       onSuccess: () => {
         setReply("");
         setOpen(false);
+        // Replying marks the family's messages read on the server, so every
+        // count below comes back without them.
         void queryClient.invalidateQueries({
           queryKey: getGetHomeInboxQueryKey(),
+        });
+        void queryClient.invalidateQueries({
+          queryKey: getGetCaseQueryKey(row.caseId),
+        });
+        void queryClient.invalidateQueries({
+          queryKey: getGetCasesQueryKey(),
         });
         void queryClient.invalidateQueries({
           queryKey: getGetCaseMessagesQueryKey(row.caseId),
         });
         void queryClient.invalidateQueries({
           queryKey: getGetHomeDashboardQueryKey(),
-        });
-        void queryClient.invalidateQueries({ queryKey: getGetCasesQueryKey() });
-        void queryClient.invalidateQueries({
-          queryKey: getGetCaseQueryKey(row.caseId),
         });
       },
     },
