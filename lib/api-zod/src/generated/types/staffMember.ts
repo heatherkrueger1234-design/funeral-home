@@ -29,4 +29,7 @@ export interface StaffMember {
    */
   emailVerified: boolean;
   deactivatedAt: Date | null;
+  /** False until the person has chosen a password from their invitation. The console offers to send a new invitation while it is false.
+   */
+  hasPassword: boolean;
 }

@@ -798,14 +798,16 @@ async function seedShowcaseCase(
    * of its steps is an offset from a service four days away, so all of them are
    * still ahead. But "what went past due while you were at a graveside" is the
    * master page's headline, and a demo of it against an empty list demonstrates
-   * nothing. This is the step a director really does miss.
+   * nothing. This is the family's step that really does slip, and it is
+   * written to them: the timeline is what the family reads, so a staff chore
+   * ("confirm the plot number") here would land on Anne's phone as her job.
    */
   await db.insert(caseDeadlinesTable).values({
     funeralHomeId: homeId,
     caseId,
-    title: "Confirm the plot number with Fairmount Rise",
+    title: "Send us the plot deed for Fairmount Rise",
     description:
-      "They will not hold a time without it, and the office shuts at four.",
+      "A photo of the deed is fine. The cemetery needs the plot number before it will hold a time.",
     dueAt: at(-1, 15),
     isEvent: false,
     position: 99,

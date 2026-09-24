@@ -324,8 +324,13 @@ export function licensureReminders(
     reminders.push({
       key: "deadline-outstanding",
       summary:
-        `${unlicensed.length} of ${practitioners.length} people here do not ` +
-        `have a license yet. The deadline is ${describeWhen(
+        (practitioners.length === 1
+          ? "The one person here does not have a license yet. "
+          : unlicensed.length === practitioners.length
+            ? `None of the ${practitioners.length} people here has a license yet. `
+            : `${unlicensed.length} of ${practitioners.length} people here ` +
+              `${unlicensed.length === 1 ? "does" : "do"} not have a license yet. `) +
+        `The deadline is ${describeWhen(
           PRACTITIONER_LICENSURE_DEADLINE,
           now,
         )}.`,
@@ -338,7 +343,10 @@ export function licensureReminders(
   } else if (deadlineDays < 0 && unlicensed.length > 0) {
     reminders.push({
       key: "deadline-passed",
-      summary: `${unlicensed.length} people here are working without a license on record.`,
+      summary:
+        unlicensed.length === 1
+          ? "1 person here is working without a license on record."
+          : `${unlicensed.length} people here are working without a license on record.`,
       detail:
         "The 1 January 2027 deadline has passed. This is the home's own " +
         "record to correct with DORA; what we can do is make sure it is not " +
