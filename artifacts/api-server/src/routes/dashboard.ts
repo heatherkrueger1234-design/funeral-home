@@ -1,11 +1,27 @@
 import { Router, type IRouter } from "express";
-import { and, asc, desc, eq, gt, gte, isNull, lt, lte, ne, or, sql } from "drizzle-orm";
+import {
+  and,
+  asc,
+  desc,
+  eq,
+  gt,
+  gte,
+  inArray,
+  isNull,
+  lt,
+  lte,
+  ne,
+  or,
+  sql,
+} from "drizzle-orm";
 import {
   db,
   caseDeadlinesTable,
   caseMessagesTable,
   casesTable,
   intakeRequestsTable,
+  vendorQuotesTable,
+  vendorsTable,
   decedentDisplayName,
 } from "@workspace/db";
 import { tenant } from "../middleware/require-auth";
@@ -50,6 +66,23 @@ const PREVIEW_LENGTH = 140;
 const unlockedThread = (now: Date) =>
   or(isNull(casesTable.messagesLockAt), gt(casesTable.messagesLockAt, now));
 /**
+ * A price request nobody has answered, on a case still open.
+ *
+ * "Answered" is the same test `PUT /quotes/:id` uses to stamp `respondedAt`:
+ * an amount or a reply recorded. Status alone is not enough — `passed_on`
+ * means the home rang the vendor, and the family is still waiting to hear.
+ * A request marked declined without a word written is closed too, because
+ * the family has been told the outcome on their page.
+ */
+const unansweredQuotes = (funeralHomeId: number) =>
+  and(
+    eq(vendorQuotesTable.funeralHomeId, funeralHomeId),
+    isNull(vendorQuotesTable.respondedAt),
+    inArray(vendorQuotesTable.status, ["requested", "passed_on"]),
+    ne(casesTable.status, "closed"),
+  );
+
+/**
  * How many conversations the inbox will hand back.
  *
  * Unbounded, this is the one screen in the console that grows without limit:
@@ -84,6 +117,8 @@ router.get("/home/dashboard", async (req, res) => {
     unread,
     pendingRequests,
     awaitingChoice,
+    quoteCount,
+    quoteRows,
   ] = await Promise.all([
     db
       .select({ value: sql<number>`count(*)::int` })
@@ -144,11 +179,18 @@ router.get("/home/dashboard", async (req, res) => {
     deadlineWindow(home.id, { from: now, before: soon }),
 
     /*
-     * Unread family messages, and how many families they are.
+     * Unanswered family messages, and how many families they are.
      *
      * Both numbers, because they say different things. Twenty messages from
      * one family is a conversation; four messages from four families is four
      * people each waiting on an answer, which is the worse morning.
+     *
+     * "Unanswered" means written after the home last wrote on that thread —
+     * so a family is waiting exactly when the latest message is theirs. This
+     * used to count *unread* messages, and opening a thread marks it read,
+     * so a director who glanced at a message on their phone between
+     * services made the family disappear from this screen without a word
+     * being sent back. Read is a "new" marker; only a reply is an answer.
      */
     db
       .select({
@@ -160,10 +202,15 @@ router.get("/home/dashboard", async (req, res) => {
       .where(
         and(
           eq(caseMessagesTable.funeralHomeId, home.id),
-          isNull(caseMessagesTable.readAt),
-          // Written by the family: the home's own unread messages are
-          // unread by the family, which is not the home's problem.
+          // Written by the family...
           isNull(caseMessagesTable.authorUserId),
+          // ...since the home last wrote. Ids are the thread's order, the
+          // same order the inbox reads "latest" from.
+          sql`${caseMessagesTable.id} > coalesce((
+            select max(reply.id) from case_messages reply
+            where reply.case_id = ${caseMessagesTable.caseId}
+              and reply.author_user_id is not null
+          ), 0)`,
           /*
            * And on a thread the home could still answer.
            *
@@ -189,6 +236,37 @@ router.get("/home/dashboard", async (req, res) => {
       ),
 
     casesAwaitingChoice(home.id),
+
+    /*
+     * Prices a family asked for from their portal, not yet answered.
+     *
+     * The family presses one button and is told the home will find out. If
+     * nothing on this screen says so, the only person who knows the request
+     * exists is the one waiting on it. Oldest first, because the family who
+     * asked on Monday has waited longest.
+     */
+    db
+      .select({ value: sql<number>`count(*)::int` })
+      .from(vendorQuotesTable)
+      .innerJoin(casesTable, eq(casesTable.id, vendorQuotesTable.caseId))
+      .where(unansweredQuotes(home.id)),
+
+    db
+      .select({
+        id: vendorQuotesTable.id,
+        caseId: vendorQuotesTable.caseId,
+        vendorName: vendorsTable.name,
+        requestedAt: vendorQuotesTable.createdAt,
+        decedentFirstName: casesTable.decedentFirstName,
+        decedentLastName: casesTable.decedentLastName,
+        decedentPreferredName: casesTable.decedentPreferredName,
+      })
+      .from(vendorQuotesTable)
+      .innerJoin(casesTable, eq(casesTable.id, vendorQuotesTable.caseId))
+      .innerJoin(vendorsTable, eq(vendorsTable.id, vendorQuotesTable.vendorId))
+      .where(unansweredQuotes(home.id))
+      .orderBy(asc(vendorQuotesTable.createdAt))
+      .limit(LIST_LIMIT),
   ]);
 
   res.json({
@@ -211,6 +289,14 @@ router.get("/home/dashboard", async (req, res) => {
     dueSoon,
     unansweredMessages: unread[0]?.messages ?? 0,
     casesWaitingOnReply: unread[0]?.cases ?? 0,
+    quoteRequestsWaiting: quoteCount[0]?.value ?? 0,
+    quoteRequests: quoteRows.map((row) => ({
+      id: row.id,
+      caseId: row.caseId,
+      decedentName: decedentDisplayName(row),
+      vendorName: row.vendorName,
+      requestedAt: row.requestedAt,
+    })),
     pendingRequests: pendingRequests[0]?.value ?? 0,
     offersAwaitingChoice: awaitingChoice.length,
     /*
@@ -341,22 +427,43 @@ router.get("/home/inbox", async (req, res) => {
     .from(latest)
     .innerJoin(caseMessagesTable, eq(caseMessagesTable.id, latest.lastId))
     .innerJoin(casesTable, eq(casesTable.id, latest.caseId))
-    .orderBy(desc(latest.unread), desc(caseMessagesTable.createdAt))
+    /*
+     * Waiting first — the latest word is the family's and the thread can
+     * still be answered — then everything by recency. This used to sort by
+     * unread count, which put a family the director had opened but not
+     * answered below one they had answered at length.
+     */
+    .orderBy(
+      desc(
+        sql`(${caseMessagesTable.authorUserId} is null
+          and (${casesTable.messagesLockAt} is null
+            or ${casesTable.messagesLockAt} > ${now}))`,
+      ),
+      desc(caseMessagesTable.createdAt),
+    )
     .limit(INBOX_LIMIT);
 
   res.json(
-    rows.map((row) => ({
-      caseId: row.caseId,
-      decedentName: decedentDisplayName(row),
-      kind: row.kind,
-      lastMessageBody: preview(row.body),
-      lastMessageAt: row.createdAt,
-      lastMessageFrom: row.authorUserId === null ? "family" : "home",
-      unreadFromFamily: row.unread,
-      sentOutsideOfficeHours:
-        row.authorUserId === null && row.sentOutsideOfficeHours !== null,
-      locked: isThreadLocked(row, now),
-    })),
+    rows.map((row) => {
+      const locked = isThreadLocked(row, now);
+      const fromFamily = row.authorUserId === null;
+
+      return {
+        caseId: row.caseId,
+        decedentName: decedentDisplayName(row),
+        kind: row.kind,
+        lastMessageBody: preview(row.body),
+        lastMessageAt: row.createdAt,
+        lastMessageFrom: fromFamily ? "family" : "home",
+        unreadFromFamily: row.unread,
+        // Who spoke last, not whether anybody has looked. Same definition
+        // as the dashboard's count, so the tile and this list agree.
+        waitingOnReply: fromFamily && !locked,
+        sentOutsideOfficeHours:
+          fromFamily && row.sentOutsideOfficeHours !== null,
+        locked,
+      };
+    }),
   );
 });
 

@@ -31,10 +31,16 @@ export interface InboxEntry {
   lastMessageBody: string;
   lastMessageAt: Date;
   lastMessageFrom: InboxEntryLastMessageFrom;
-  /** How many the home has not opened. This is what sorts the list:
-somebody waiting comes before somebody who was answered.
+  /** How many the home has not opened yet. A "new" marker only -
+opening a thread is not answering it; see `waitingOnReply`.
  */
   unreadFromFamily: number;
+  /** The latest message is from the family and the thread can still
+be answered. This is what sorts the list: somebody waiting comes
+before somebody who was answered, whether or not the home has
+opened their message.
+ */
+  waitingOnReply: boolean;
   /** Whether the latest family message arrived outside the home's
 hours. Not a reason to reply at 2am - it is context for a
 director reading at eight.

@@ -7635,7 +7635,7 @@ export const composeObituary = async (
 };
 
 export const getComposeObituaryMutationOptions = <
-  TError = ErrorType<unknown>,
+  TError = ErrorType<void>,
   TContext = unknown,
 >(options?: {
   mutation?: UseMutationOptions<
@@ -7676,13 +7676,13 @@ export type ComposeObituaryMutationResult = NonNullable<
   Awaited<ReturnType<typeof composeObituary>>
 >;
 export type ComposeObituaryMutationBody = BodyType<ComposeObituaryInput>;
-export type ComposeObituaryMutationError = ErrorType<unknown>;
+export type ComposeObituaryMutationError = ErrorType<void>;
 
 /**
  * @summary Recompose the draft text from the fields
  */
 export const useComposeObituary = <
-  TError = ErrorType<unknown>,
+  TError = ErrorType<void>,
   TContext = unknown,
 >(options?: {
   mutation?: UseMutationOptions<
@@ -7783,6 +7783,95 @@ export const useApproveObituary = <
   TContext
 > => {
   return useMutation(getApproveObituaryMutationOptions(options));
+};
+
+/**
+ * For the misspelt grandchild found after approval. Returns the
+obituary to `submitted` - the director's to edit again - and clears
+the approval, so nothing downstream treats the old text as final.
+The family can edit from their portal again until it is re-approved.
+
+ * @summary Take the print sign-off back
+ */
+export const getReopenObituaryUrl = (caseId: number) => {
+  return `/api/cases/${caseId}/obituary/reopen`;
+};
+
+export const reopenObituary = async (
+  caseId: number,
+  options?: RequestInit,
+): Promise<ObituaryDraft> => {
+  return customFetch<ObituaryDraft>(getReopenObituaryUrl(caseId), {
+    ...options,
+    method: "POST",
+  });
+};
+
+export const getReopenObituaryMutationOptions = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof reopenObituary>>,
+    TError,
+    { caseId: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof reopenObituary>>,
+  TError,
+  { caseId: number },
+  TContext
+> => {
+  const mutationKey = ["reopenObituary"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof reopenObituary>>,
+    { caseId: number }
+  > = (props) => {
+    const { caseId } = props ?? {};
+
+    return reopenObituary(caseId, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type ReopenObituaryMutationResult = NonNullable<
+  Awaited<ReturnType<typeof reopenObituary>>
+>;
+
+export type ReopenObituaryMutationError = ErrorType<void>;
+
+/**
+ * @summary Take the print sign-off back
+ */
+export const useReopenObituary = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof reopenObituary>>,
+    TError,
+    { caseId: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof reopenObituary>>,
+  TError,
+  { caseId: number },
+  TContext
+> => {
+  return useMutation(getReopenObituaryMutationOptions(options));
 };
 
 /**

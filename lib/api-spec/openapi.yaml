@@ -1775,6 +1775,8 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ObituaryDraft"
+        "409":
+          description: The text has been edited by hand; send `force` to replace it
 
   /cases/{caseId}/obituary/approve:
     post:
@@ -1790,6 +1792,28 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ObituaryDraft"
+
+  /cases/{caseId}/obituary/reopen:
+    post:
+      operationId: reopenObituary
+      tags: [obituary]
+      summary: Take the print sign-off back
+      description: |
+        For the misspelt grandchild found after approval. Returns the
+        obituary to `submitted` - the director's to edit again - and clears
+        the approval, so nothing downstream treats the old text as final.
+        The family can edit from their portal again until it is re-approved.
+      parameters:
+        - $ref: "#/components/parameters/CaseId"
+      responses:
+        "200":
+          description: Reopened
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ObituaryDraft"
+        "409":
+          description: It was not approved, so there is nothing to reopen
 
   /cases/{caseId}/selections:
     get:
@@ -4053,10 +4077,24 @@ components:
             $ref: "#/components/schemas/DashboardDeadline"
         unansweredMessages:
           type: integer
-          description: Messages from families nobody at the home has read.
+          description: |
+            Family messages written since the home last wrote on that thread.
+            Answering clears them; merely opening the thread does not.
         casesWaitingOnReply:
           type: integer
-          description: How many separate families those are sitting in.
+          description: |
+            How many separate families those are sitting in - threads whose
+            latest message is from the family and which can still be answered.
+        quoteRequestsWaiting:
+          type: integer
+          description: |
+            Prices families have asked for from their portal that nobody at
+            the home has answered yet, across every open case.
+        quoteRequests:
+          type: array
+          description: The oldest of those first, capped for the screen.
+          items:
+            $ref: "#/components/schemas/DashboardQuoteRequest"
         pendingRequests:
           type: integer
           description: Requests off the public page waiting for a director.
@@ -4073,9 +4111,28 @@ components:
           dueSoon,
           unansweredMessages,
           casesWaitingOnReply,
+          quoteRequestsWaiting,
+          quoteRequests,
           pendingRequests,
           offersAwaitingChoice,
         ]
+
+    DashboardQuoteRequest:
+      type: object
+      description: One unanswered price request, and whose case it is on.
+      properties:
+        id:
+          type: integer
+        caseId:
+          type: integer
+        decedentName:
+          type: string
+        vendorName:
+          type: string
+        requestedAt:
+          type: string
+          format: date-time
+      required: [id, caseId, decedentName, vendorName, requestedAt]
 
     DashboardCase:
       type: object
@@ -4154,8 +4211,15 @@ components:
         unreadFromFamily:
           type: integer
           description: |
-            How many the home has not opened. This is what sorts the list:
-            somebody waiting comes before somebody who was answered.
+            How many the home has not opened yet. A "new" marker only -
+            opening a thread is not answering it; see `waitingOnReply`.
+        waitingOnReply:
+          type: boolean
+          description: |
+            The latest message is from the family and the thread can still
+            be answered. This is what sorts the list: somebody waiting comes
+            before somebody who was answered, whether or not the home has
+            opened their message.
         sentOutsideOfficeHours:
           type: boolean
           description: |
@@ -4174,6 +4238,7 @@ components:
           lastMessageAt,
           lastMessageFrom,
           unreadFromFamily,
+          waitingOnReply,
           sentOutsideOfficeHours,
           locked,
         ]

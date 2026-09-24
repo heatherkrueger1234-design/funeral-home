@@ -861,10 +861,32 @@ export const GetHomeDashboardResponse = zod
       .describe("Due in the next three days."),
     unansweredMessages: zod
       .number()
-      .describe("Messages from families nobody at the home has read."),
+      .describe(
+        "Family messages written since the home last wrote on that thread.\nAnswering clears them; merely opening the thread does not.\n",
+      ),
     casesWaitingOnReply: zod
       .number()
-      .describe("How many separate families those are sitting in."),
+      .describe(
+        "How many separate families those are sitting in - threads whose\nlatest message is from the family and which can still be answered.\n",
+      ),
+    quoteRequestsWaiting: zod
+      .number()
+      .describe(
+        "Prices families have asked for from their portal that nobody at\nthe home has answered yet, across every open case.\n",
+      ),
+    quoteRequests: zod
+      .array(
+        zod
+          .object({
+            id: zod.number(),
+            caseId: zod.number(),
+            decedentName: zod.string(),
+            vendorName: zod.string(),
+            requestedAt: zod.date(),
+          })
+          .describe("One unanswered price request, and whose case it is on."),
+      )
+      .describe("The oldest of those first, capped for the screen."),
     pendingRequests: zod
       .number()
       .describe("Requests off the public page waiting for a director."),
@@ -903,7 +925,12 @@ export const GetHomeInboxResponseItem = zod
     unreadFromFamily: zod
       .number()
       .describe(
-        "How many the home has not opened. This is what sorts the list:\nsomebody waiting comes before somebody who was answered.\n",
+        'How many the home has not opened yet. A \"new\" marker only -\nopening a thread is not answering it; see `waitingOnReply`.\n',
+      ),
+    waitingOnReply: zod
+      .boolean()
+      .describe(
+        "The latest message is from the family and the thread can still\nbe answered. This is what sorts the list: somebody waiting comes\nbefore somebody who was answered, whether or not the home has\nopened their message.\n",
       ),
     sentOutsideOfficeHours: zod
       .boolean()
@@ -3268,6 +3295,39 @@ export const ApproveObituaryParams = zod.object({
 });
 
 export const ApproveObituaryResponse = zod.object({
+  id: zod.number(),
+  caseId: zod.number(),
+  fullName: zod.string().nullable(),
+  bornOn: zod.string().nullable(),
+  birthPlace: zod.string().nullable(),
+  diedOn: zod.string().nullable(),
+  deathPlace: zod.string().nullable(),
+  survivedBy: zod.string().nullable(),
+  precededBy: zod.string().nullable(),
+  biography: zod.string().nullable(),
+  inLieuOfFlowers: zod.string().nullable(),
+  specialThanks: zod.string().nullable(),
+  draftText: zod.string().nullable(),
+  draftEditedByStaff: zod.date().nullable(),
+  status: zod.enum(["family_draft", "submitted", "approved"]),
+  submittedAt: zod.date().nullable(),
+  approvedAt: zod.date().nullable(),
+  updatedAt: zod.date(),
+});
+
+/**
+ * For the misspelt grandchild found after approval. Returns the
+obituary to `submitted` - the director's to edit again - and clears
+the approval, so nothing downstream treats the old text as final.
+The family can edit from their portal again until it is re-approved.
+
+ * @summary Take the print sign-off back
+ */
+export const ReopenObituaryParams = zod.object({
+  caseId: zod.coerce.number(),
+});
+
+export const ReopenObituaryResponse = zod.object({
   id: zod.number(),
   caseId: zod.number(),
   fullName: zod.string().nullable(),
