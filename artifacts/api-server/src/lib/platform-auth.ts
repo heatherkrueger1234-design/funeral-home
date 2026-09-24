@@ -1,4 +1,4 @@
-import { and, asc, eq, isNull } from "drizzle-orm";
+import { and, asc, eq, isNull, sql } from "drizzle-orm";
 import {
   db,
   platformAdminsTable,
@@ -142,37 +142,66 @@ export async function isPlatformAdmin(email: string): Promise<boolean> {
  * restores them rather than colliding with the unique index — which is what
  * somebody rejoining looks like, and the alternative is an error message about
  * a row they cannot see.
+ *
+ * Restoring somebody used to wipe the row clean: the name and the note were
+ * overwritten with nulls whenever the form left them blank, and the
+ * revocation vanished with no trace in the table. Now a name or note is only
+ * replaced when a new one is given, and the caller is handed what the row
+ * said *before* -- when and by whom they were taken off -- so the log line
+ * for the grant can say "restored, having been removed on ..." rather than
+ * reading like a first grant. The row itself can only hold the current state;
+ * the log is where the history lives, and this is what keeps it complete.
  */
 export async function grantPlatformAdmin(options: {
   email: string;
   displayName?: string | null;
   note?: string | null;
   addedByEmail: string;
-}): Promise<PlatformAdmin> {
+}): Promise<{
+  admin: PlatformAdmin;
+  /** The row as it stood before, when there was one. */
+  previous: PlatformAdmin | null;
+}> {
   const email = normaliseEmail(options.email);
+  const displayName = options.displayName?.trim() || null;
+  const note = options.note?.trim() || null;
 
-  const [row] = await db
-    .insert(platformAdminsTable)
-    .values({
-      email,
-      displayName: options.displayName ?? null,
-      note: options.note ?? null,
-      addedByEmail: options.addedByEmail,
-    })
-    .onConflictDoUpdate({
-      target: platformAdminsTable.email,
-      set: {
-        displayName: options.displayName ?? null,
-        note: options.note ?? null,
+  return db.transaction(async (tx) => {
+    const [previous] = await tx
+      .select()
+      .from(platformAdminsTable)
+      .where(eq(platformAdminsTable.email, email))
+      .limit(1);
+
+    const [row] = await tx
+      .insert(platformAdminsTable)
+      .values({
+        email,
+        displayName,
+        note,
         addedByEmail: options.addedByEmail,
-        revokedAt: null,
-        revokedByEmail: null,
-        updatedAt: new Date(),
-      },
-    })
-    .returning();
+      })
+      .onConflictDoUpdate({
+        target: platformAdminsTable.email,
+        set: {
+          // Kept unless replaced. A blank field on the form means "nothing
+          // to add", not "forget what we knew".
+          displayName: displayName ?? sql`${platformAdminsTable.displayName}`,
+          note: note ?? sql`${platformAdminsTable.note}`,
+          // Re-granting an active admin changes nothing about who let them
+          // in; restoring a revoked one is a new decision, by this person.
+          addedByEmail: previous?.revokedAt
+            ? options.addedByEmail
+            : sql`${platformAdminsTable.addedByEmail}`,
+          revokedAt: null,
+          revokedByEmail: null,
+          updatedAt: new Date(),
+        },
+      })
+      .returning();
 
-  return row!;
+    return { admin: row!, previous: previous ?? null };
+  });
 }
 
 /**

@@ -152,6 +152,28 @@ describe("the inbox", () => {
     expect(res.body[1].lastMessageFrom).toBe("home");
   });
 
+  it("counts a family as answered once the home replies, even from the inbox", async () => {
+    const staff = await signUpHome();
+    const row = await createCase(staff, { decedentLastName: "Replied" });
+    const family = await inviteFamily(staff, row.id as number);
+    await asFamily(family.token)
+      .post("/api/family/messages")
+      .send({ body: "Is Friday still right?" })
+      .expect(201);
+
+    // Straight from the inbox's reply box: the thread itself is never opened.
+    await staff.agent
+      .post(`/api/cases/${row.id}/messages`)
+      .send({ body: "Yes, eleven o'clock." })
+      .expect(201);
+
+    const inbox = await staff.agent.get("/api/home/inbox").expect(200);
+    expect(inbox.body[0].unreadFromFamily).toBe(0);
+
+    const dashboard = await staff.agent.get("/api/home/dashboard").expect(200);
+    expect(dashboard.body.casesWaitingOnReply).toBe(0);
+  });
+
   it("lists nothing for a case nobody has written on", async () => {
     const staff = await signUpHome();
     const row = await createCase(staff);

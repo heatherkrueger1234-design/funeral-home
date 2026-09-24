@@ -113,19 +113,51 @@ export default defineConfig({
       strict: true,
       deny: ["**/.*"],
     },
+    // Local development against an api-server on another port; see preview.
+    proxy: process.env.E2E_API_PROXY_TARGET
+      ? {
+          "/api": {
+            target: process.env.E2E_API_PROXY_TARGET,
+            /*
+             * Host is passed through unchanged, which is what nginx and Caddy
+             * do in the real deployments (see deploy/nginx.conf.template, and
+             * the note on it in api-server/src/lib/cors.ts). It matters:
+             * `rejectCrossOriginWrites` allows a write when the Origin's host
+             * equals the request's Host, so rewriting Host to this proxy's
+             * target makes the two permanently unequal and every POST, PUT and
+             * DELETE through here answers "That request came from somewhere we
+             * don't recognise." Reads are unaffected, which is what makes it
+             * look like a broken session rather than a proxy setting.
+             */
+            changeOrigin: false,
+          },
+        }
+      : undefined,
   },
   preview: {
     port,
     host: "0.0.0.0",
     allowedHosts: true,
-    // Mirrors nginx's `proxy_pass` to the API server, for the Playwright e2e
-    // suite in artifacts/e2e-tests only -- the same escape hatch the other two
-    // consoles have. Unset in every other context, including production.
+    // Mirrors nginx's `proxy_pass` to the API server, as the other two
+    // consoles do, so the Playwright suite in artifacts/e2e-tests can drive
+    // this app against a real api-server. Unset in every other context,
+    // including production.
     proxy: process.env.E2E_API_PROXY_TARGET
       ? {
           "/api": {
             target: process.env.E2E_API_PROXY_TARGET,
-            changeOrigin: true,
+            /*
+             * Host is passed through unchanged, which is what nginx and Caddy
+             * do in the real deployments (see deploy/nginx.conf.template, and
+             * the note on it in api-server/src/lib/cors.ts). It matters:
+             * `rejectCrossOriginWrites` allows a write when the Origin's host
+             * equals the request's Host, so rewriting Host to this proxy's
+             * target makes the two permanently unequal and every POST, PUT and
+             * DELETE through here answers "That request came from somewhere we
+             * don't recognise." Reads are unaffected, which is what makes it
+             * look like a broken session rather than a proxy setting.
+             */
+            changeOrigin: false,
           },
         }
       : undefined,

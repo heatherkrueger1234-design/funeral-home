@@ -103,6 +103,10 @@ export function isUnauthorized(error: unknown): boolean {
   return error instanceof ApiError && error.status === 401;
 }
 
+export function isNotFound(error: unknown): boolean {
+  return error instanceof ApiError && error.status === 404;
+}
+
 /** A 403 here means "you are signed in, and this is not yours". */
 export function isForbidden(error: unknown): boolean {
   return error instanceof ApiError && error.status === 403;
@@ -122,7 +126,8 @@ export type Engagement = {
   aftercareUnsubscribed: number;
 };
 
-export type AdminHome = {
+/** A home without its engagement counts: `toAdminHome` on its own. */
+export type AdminHomeSummary = {
   id: number;
   name: string;
   slug: string;
@@ -133,13 +138,47 @@ export type AdminHome = {
   accentColor: string;
   subscriptionStatus: string;
   trialDaysLeft: number | null;
+  trialEndsAt: string | null;
+  currentPeriodEndsAt: string | null;
+  /** Set when a group's contract pays for this home. */
+  groupId: number | null;
   canOpenCases: boolean;
   suspendedAt: string | null;
   suspendedReason: string | null;
   internalAccount: boolean;
   onboardingDone: string[];
   createdAt: string;
-  engagement: Engagement;
+};
+
+export type AdminHome = AdminHomeSummary & { engagement: Engagement };
+
+/**
+ * The account states the homes list can be filtered by, in the words the
+ * list itself uses -- see `describeAccount`. "Suspended" wins over the
+ * subscription, on the server as here.
+ */
+export const HOME_STATUSES = [
+  "trial",
+  "active",
+  "past_due",
+  "canceled",
+  "suspended",
+] as const;
+export type HomeStatus = (typeof HOME_STATUSES)[number];
+
+export const HOME_STATUS_LABELS: Record<HomeStatus, string> = {
+  trial: "On trial",
+  active: "Subscribed",
+  past_due: "Payment outstanding",
+  canceled: "Subscription ended",
+  suspended: "Suspended",
+};
+
+/** Staff roles, as a person would say them. The keys are the database's. */
+export const STAFF_ROLE_LABELS: Record<string, string> = {
+  owner: "Owner",
+  director: "Funeral director",
+  staff: "Staff",
 };
 
 export type ReminderStanding = "settled" | "ahead" | "soon" | "passed";
@@ -217,6 +256,9 @@ export type HomeStaff = {
 };
 
 export type AdminHomeDetail = AdminHome & {
+  /** The covering group's name; the same as `group?.name`. */
+  groupName: string | null;
+  group: { id: number; name: string } | null;
   licensure: HomeLicensure | null;
   practitioners: Practitioner[];
   reminders: LicensureReminder[];
@@ -224,7 +266,14 @@ export type AdminHomeDetail = AdminHome & {
 };
 
 export type PlatformOverview = {
-  homes: { homes: number; suspended: number; paying: number; onTrial: number };
+  homes: {
+    homes: number;
+    suspended: number;
+    paying: number;
+    onTrial: number;
+    pastDue: number;
+    canceled: number;
+  };
   engagement: {
     casesOpened: number;
     familyLinksCreated: number;
@@ -233,7 +282,18 @@ export type PlatformOverview = {
     aftercareEnrolled: number;
     aftercareConsented: number;
   };
-  attention: Array<{ home: AdminHome; reminders: LicensureReminder[] }>;
+  attention: Array<{ home: AdminHomeSummary; reminders: LicensureReminder[] }>;
+  /** On trial, not suspended, ending within seven days; soonest first. */
+  trialsEndingSoon: AdminHomeSummary[];
+  /** On trial and ending within a fortnight, or ended within the month. */
+  trials: Array<{ home: AdminHomeSummary; trialEndsAt: string }>;
+  /** One plain sentence each; see the overview route for the three reasons. */
+  quiet: Array<{
+    home: AdminHomeSummary;
+    reason: string;
+    /** Set only when the reason is a month without a case. */
+    lastCaseAt: string | null;
+  }>;
   delivery: {
     mailConfigured: boolean;
     smsConfigured: boolean;
@@ -252,6 +312,32 @@ export type PlatformAdmin = {
   revokedAt: string | null;
   revokedByEmail: string | null;
   createdAt: string;
+};
+
+export type AdminGroup = {
+  id: number;
+  name: string;
+  slug: string;
+  locations: number;
+  subscriptionStatus: string;
+  trialEndsAt: string | null;
+  currentPeriodEndsAt: string | null;
+  hasSubscription: boolean;
+  entitlements: string[];
+  createdAt: string;
+};
+
+/**
+ * On the detail, `locations` is the list itself rather than the count the
+ * list endpoint gives -- the route spreads the summary and then overwrites
+ * that one key. Typing it as both is how "[object Object] locations" reached
+ * the screen.
+ */
+export type AdminGroupDetail = Omit<AdminGroup, "locations"> & {
+  billingConfigured: boolean;
+  addOns: Array<{ key: string; title: string; detail: string; included: boolean }>;
+  /** Locations carry no engagement here; the group page is about the contract. */
+  locations: AdminHomeSummary[];
 };
 
 export type AuditEntry = {
@@ -289,14 +375,25 @@ export function formatDate(value: string | null | undefined): string {
 }
 
 /**
- * A moment, in the reader's own timezone and saying which one it is.
+ * The day an *instant* falls on, where the reader is.
  *
- * Most timestamps arrive as ISO strings with a "Z". The overview's "most
- * recently" does not: it is a raw `max()` over a `timestamp without time
- * zone` column, which Postgres writes as "2026-09-20 14:05:00.123" -- no "T"
- * and no offset. Chrome read that as local time (hours out), Safari refused it
- * and printed the raw string. The columns hold UTC, so it is read as UTC.
+ * Not `formatDate`: a trial end is a moment (`2026-10-01T03:00:00Z`), not a
+ * calendar date, and cutting the first ten characters off it gives the day
+ * in Greenwich -- which for a trial ending in the Denver evening is the day
+ * after the one the owner will actually be refused a case on.
  */
+export function formatDay(value: string | null | undefined): string {
+  if (!value) return "—";
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) return value;
+
+  return parsed.toLocaleDateString("en-US", {
+    day: "numeric",
+    month: "long",
+    year: "numeric",
+  });
+}
+
 export function formatDateTime(value: string | null | undefined): string {
   if (!value) return "—";
   const bare = /^\d{4}-\d{2}-\d{2} \d{2}:\d{2}(:\d{2}(\.\d+)?)?$/.test(value);
@@ -315,27 +412,49 @@ export function formatDateTime(value: string | null | undefined): string {
   });
 }
 
+/** "1 home", "3 homes". Every count on these screens goes through it. */
+export function plural(count: number, one: string, many = `${one}s`): string {
+  return `${count.toLocaleString("en-US")} ${count === 1 ? one : many}`;
+}
+
+/** How a contract is doing, for a home or a group, in a phrase. */
+export function describeSubscription(status: string): string {
+  if (status === "trial") return "On trial";
+  if (status === "active") return "Subscribed";
+  if (status === "past_due") return "Payment outstanding";
+  return "Subscription ended";
+}
+
+/** A group's contract in a phrase, with the one date that matters next. */
+export function describeContract(
+  group: Pick<AdminGroup, "subscriptionStatus" | "trialEndsAt" | "currentPeriodEndsAt">,
+): string {
+  const status = describeSubscription(group.subscriptionStatus);
+
+  if (group.subscriptionStatus === "trial" && group.trialEndsAt) {
+    return `${status} until ${formatDate(group.trialEndsAt)}`;
+  }
+  if (group.subscriptionStatus === "active" && group.currentPeriodEndsAt) {
+    return `${status}, renews ${formatDate(group.currentPeriodEndsAt)}`;
+  }
+  return status;
+}
+
 /** How the account is doing, in a phrase rather than a status chip. */
-export function describeAccount(home: AdminHome): string {
+export function describeAccount(
+  home: Pick<AdminHomeSummary, "suspendedAt" | "subscriptionStatus" | "trialDaysLeft">,
+): string {
   if (home.suspendedAt) return "Suspended";
   if (home.subscriptionStatus === "trial") {
     return home.trialDaysLeft === null
       ? "On trial"
       : home.trialDaysLeft === 0
         ? "Trial finished"
-        : `On trial, ${home.trialDaysLeft} ${home.trialDaysLeft === 1 ? "day" : "days"} left`;
+        : `On trial, ${plural(home.trialDaysLeft, "day")} left`;
   }
-  if (home.subscriptionStatus === "active") return "Subscribed";
-  if (home.subscriptionStatus === "past_due") return "Payment outstanding";
-  return "Subscription ended";
+  return describeSubscription(home.subscriptionStatus);
 }
 
-/** A staff role as the home itself would say it. */
-export const STAFF_ROLE_LABELS: Record<string, string> = {
-  owner: "Owner",
-  director: "Director",
-  staff: "Staff",
-};
 
 /** What the log line says, in English. */
 export const AUDIT_ACTION_LABELS: Record<string, string> = {
@@ -352,6 +471,8 @@ export const AUDIT_ACTION_LABELS: Record<string, string> = {
   "home.internal.update": "Changed whether a home is ours",
   "home.group.update": "Moved a home between groups",
   "home.staff.reset": "Emailed a director a password reset",
+  "home.owner.invite": "Invited an owner",
+  "home.trial.extend": "Extended a trial",
   "group.list": "Listed the groups",
   "group.create": "Created a group",
   "group.open": "Opened a group",

@@ -8,6 +8,25 @@ import { beforeEach, afterAll } from "vitest";
  * that way, so it would agree with whatever the code does.
  */
 
+/*
+ * Every test below starts by truncating every table, so point this suite at
+ * the wrong database and it empties it without a word. That has happened: a
+ * run aimed at a seeded demo database wiped the home, its cases and every
+ * family link mid-session. The name is the cheapest thing that can't be
+ * wrong by accident, and CI already uses `funeral_home_test`.
+ */
+{
+  const url = process.env["DATABASE_URL"] ?? "";
+  const name = url.split("?")[0]!.split("/").pop() ?? "";
+  if (!name.endsWith("_test")) {
+    throw new Error(
+      `Refusing to run: these tests truncate every table, and DATABASE_URL ` +
+        `points at "${name || "(nothing)"}". Use a database whose name ends ` +
+        `in _test, e.g. postgresql://postgres:postgres@localhost:5432/funeral_home_test`,
+    );
+  }
+}
+
 // Must be set before anything imports the crypto module.
 process.env["ENCRYPTION_KEY"] ??= "BwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwc=";
 process.env["NODE_ENV"] ??= "test";

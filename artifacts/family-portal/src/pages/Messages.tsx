@@ -121,7 +121,19 @@ function writeDraft(text: string): void {
 
 export default function Messages() {
   const queryClient = useQueryClient();
-  const thread = useGetFamilyMessages();
+  /*
+   * Polled while the screen is open. Somebody who has just asked "do we need
+   * to send the reading in advance?" sits and waits on this page for the
+   * answer; without it the director's reply never appeared until they left
+   * and came back.
+   */
+  const thread = useGetFamilyMessages({
+    query: {
+      queryKey: getGetFamilyMessagesQueryKey(),
+      refetchInterval: 30_000,
+      refetchOnWindowFocus: true,
+    },
+  });
   const [body, setBodyState] = useState(readDraft);
   const [justSent, setJustSent] = useState(false);
   const endRef = useRef<HTMLDivElement>(null);
@@ -169,11 +181,20 @@ export default function Messages() {
     endRef.current?.scrollIntoView({ block: "end" });
   }, [messages?.length]);
 
+  // Reading the thread marks it read on the server; tell the hub, so its
+  // badge does not go on counting messages this person has just read.
+  useEffect(() => {
+    if (!thread.dataUpdatedAt) return;
+    void queryClient.invalidateQueries({ queryKey: getGetFamilySessionQueryKey() });
+  }, [thread.dataUpdatedAt, queryClient]);
+
   if (thread.isPending) return <Loading rows={3} />;
 
-  if (!thread.data) {
+  if (thread.isError && !thread.data) {
     return <LoadFailed title="Messages" onRetry={() => void thread.refetch()} />;
   }
+
+  if (!thread.data) return null;
 
   const {
     locked,
@@ -239,7 +260,7 @@ export default function Messages() {
               </p>
               <p
                 className={[
-                  "mt-2 text-xs",
+                  "mt-2 text-sm",
                   fromHome
                     ? "text-[var(--accent-deep)]/65"
                     : "text-muted-foreground",
@@ -256,11 +277,20 @@ export default function Messages() {
       </div>
 
       {locked ? (
-        <p className="rounded-xl border border-border bg-[var(--sunken)] px-4 py-4 text-sm leading-relaxed text-muted-foreground">
+        <div className="rounded-xl border border-border bg-[var(--sunken)] px-4 py-4 text-sm leading-relaxed text-muted-foreground">
           This conversation has been closed now that everything is finished.
           Please call the funeral home if you need them — they would rather
           hear from you than not.
-        </p>
+          {urgentPhone && (
+            <a
+              href={`tel:${urgentPhone.replace(/[^\d+]/g, "")}`}
+              className="mt-2.5 flex min-h-11 items-center gap-2 font-semibold text-[var(--accent-deep)] decoration-[var(--accent)]/40 underline-offset-4 hover:decoration-[var(--accent)]"
+            >
+              <Phone className="size-4" />
+              Call {urgentPhone}
+            </a>
+          )}
+        </div>
       ) : (
         <div className="space-y-3">
           {!withinOfficeHours && (

@@ -20,7 +20,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Copy, Inbox, Mail, Phone, CalendarClock, Check } from "lucide-react";
-import { Empty, Loading, PageHeader } from "@/components/page";
+import { Confirm, Empty, LoadFailed, Loading, PageHeader } from "@/components/page";
 
 /**
  * People who asked, and whom nobody has answered yet.
@@ -74,9 +74,7 @@ export default function Requests() {
       queryKey: getGetIntakeRequestsQueryKey({ status: "pending" }),
     });
     void queryClient.invalidateQueries({ queryKey: getGetCasesQueryKey() });
-    void queryClient.invalidateQueries({
-      queryKey: getGetHomeDashboardQueryKey(),
-    });
+    void queryClient.invalidateQueries({ queryKey: getGetHomeDashboardQueryKey() });
   };
 
   const accept = useAcceptIntakeRequest({
@@ -96,7 +94,17 @@ export default function Requests() {
       // itself stayed on screen looking untouched, with both buttons still
       // enabled — inviting a repeat click on a request that is already
       // spoken for. Refreshing clears it from the pending queue.
-      onError: refresh,
+      onError: (error) => {
+        refresh();
+        toast({
+          title: "That request has already been dealt with",
+          description:
+            error instanceof Error && error.message.trim()
+              ? error.message
+              : "Somebody else here may have answered it. The list has been refreshed.",
+          variant: "destructive",
+        });
+      },
     },
   });
 
@@ -104,13 +112,8 @@ export default function Requests() {
 
   if (queue.isPending) return <Loading rows={3} />;
 
-  if (!queue.data) {
-    return (
-      <Empty icon={Inbox} title="The requests didn't load">
-        Nothing has been lost. This is usually the connection — try again in a
-        moment.
-      </Empty>
-    );
+  if (queue.isError) {
+    return <LoadFailed what="The requests" onRetry={() => void queue.refetch()} />;
   }
 
   const rows = queue.data ?? [];
@@ -219,25 +222,27 @@ export default function Requests() {
                   >
                     {preNeed ? "Open a pre-need file" : "Open a case"}
                   </Button>
-                  <Button
-                    size="sm"
-                    variant="ghost"
-                    disabled={accept.isPending || decline.isPending}
-                    onClick={() => {
-                      // One tap took a bereaved family off the only list
-                      // anybody reads, with nothing sent to them and no undo.
-                      if (
-                        window.confirm(
-                          `Dismiss the request from ${row.requesterName}? ` +
-                            "It leaves this list and they are sent nothing.",
-                        )
-                      ) {
-                        decline.mutate({ intakeId: row.id });
-                      }
-                    }}
-                  >
-                    Dismiss
-                  </Button>
+                  {/*
+                    Asked twice, because a request dismissed by a slip of the
+                    finger is a family who never gets the telephone call they
+                    were promised by your page, and nothing tells them.
+                  */}
+                  <Confirm
+                    trigger={
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        disabled={accept.isPending || decline.isPending}
+                      >
+                        Dismiss
+                      </Button>
+                    }
+                    title={`Dismiss ${preNeed ? row.requesterName : row.subjectDisplayName}'s request?`}
+                    description="It leaves this list and no case is opened. They are sent nothing, so if they need telling, tell them yourself."
+                    confirmLabel="Dismiss it"
+                    cancelLabel="Keep it"
+                    onConfirm={() => decline.mutate({ intakeId: row.id })}
+                  />
                 </div>
                 <p className="mt-2.5 text-sm leading-relaxed text-muted-foreground">
                   Dismissing sends them nothing. If they need telling, tell them
@@ -266,12 +271,14 @@ export default function Requests() {
             </code>
             <Button
               variant="outline"
-              size="icon"
               aria-label="Copy the link"
               onClick={() => {
                 if (!link) return;
-                void navigator.clipboard
-                  ?.writeText(link.url)
+                // No clipboard at all outside a secure context: say so,
+                // rather than a button that does nothing.
+                if (!navigator.clipboard) return copyFailed();
+                navigator.clipboard
+                  .writeText(link.url)
                   .then(() => {
                     setCopied(true);
                     setTimeout(() => setCopied(false), 2000);
@@ -280,16 +287,21 @@ export default function Requests() {
               }}
             >
               {copied ? <Check className="size-4" /> : <Copy className="size-4" />}
+              {copied ? "Copied" : "Copy"}
             </Button>
           </div>
           <DialogFooter>
             <Button variant="ghost" onClick={() => setLink(null)}>
-              Close
+              Stay on requests
             </Button>
-            {/* The next thing is the case itself, and it was not linked. */}
+            {/* The next thing is almost always the case itself: a date,
+                the rest of the family, the photographs. */}
             <Button
               onClick={() => {
-                if (link) navigate(`/cases/${link.caseId}`);
+                if (!link) return;
+                const caseId = link.caseId;
+                setLink(null);
+                navigate(`/cases/${caseId}`);
               }}
             >
               Open the case

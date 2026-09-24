@@ -94,22 +94,19 @@ export default defineConfig({
         FAMILY_PORTAL_URL: `http://localhost:${FAMILY_PORTAL_PORT}`,
         CONSOLE_URL: `http://localhost:${DIRECTOR_CONSOLE_PORT}`,
         /*
-         * Each front end is on its own port here and the API is on a third, so
-         * a browser write carries an Origin the API does not recognise as its
-         * own Host and `rejectCrossOriginWrites` refuses it — which is the
-         * check doing its job, not a bug in it. `CORS_ORIGINS` is the escape
-         * hatch `lib/cors.ts` documents for exactly this: "a separate dev
-         * server".
+         * No CORS_ORIGINS. Each front end is on its own port here and the API
+         * is on a third, so a browser write used to carry an Origin the API
+         * did not recognise as its own Host and `rejectCrossOriginWrites`
+         * refused it — the check doing its job. The escape hatch was the
+         * obvious fix and the wrong one: it made the suite pass by switching
+         * off the control, so the one test that renders a real page was the one
+         * place that control was never exercised.
          *
-         * Neither real deployment needs it. Under Docker each app's nginx
-         * serves the bundle and proxies /api on the same hostname, and on
-         * Replit all of it is one domain, so Origin and Host already agree.
+         * Each front end's vite preview proxy now passes Host through
+         * unchanged, which is what nginx and Caddy do in the real deployments,
+         * so Origin and Host agree here for the same reason they agree in
+         * production and the check passes on its own terms.
          */
-        CORS_ORIGINS: [
-          `http://localhost:${FAMILY_PORTAL_PORT}`,
-          `http://localhost:${DIRECTOR_CONSOLE_PORT}`,
-          `http://localhost:${ADMIN_CONSOLE_PORT}`,
-        ].join(","),
       },
     },
     {

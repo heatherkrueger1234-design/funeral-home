@@ -484,6 +484,31 @@ paths:
               schema:
                 $ref: "#/components/schemas/StaffMember"
 
+  /home/staff/{userId}/invitation:
+    post:
+      operationId: resendStaffInvite
+      tags: [home]
+      summary: Send a colleague a fresh link to choose a password
+      description: |
+        Owner only, and only for somebody who has not chosen a password yet.
+        Invitation links last an hour, and a colleague invited at five opens
+        the email the next morning. This emails a new one and returns it once,
+        exactly as the invitation did. Any earlier unused link keeps working
+        until it runs out; there is nothing to gain by killing it.
+      parameters:
+        - name: userId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Sent
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StaffMemberWithInvite"
+
   /home/timeline-template:
     get:
       operationId: getTimelineTemplate
@@ -1775,6 +1800,8 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ObituaryDraft"
+        "409":
+          description: The text has been edited by hand; send `force` to replace it
 
   /cases/{caseId}/obituary/approve:
     post:
@@ -1790,6 +1817,28 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ObituaryDraft"
+
+  /cases/{caseId}/obituary/reopen:
+    post:
+      operationId: reopenObituary
+      tags: [obituary]
+      summary: Take the print sign-off back
+      description: |
+        For the misspelt grandchild found after approval. Returns the
+        obituary to `submitted` - the director's to edit again - and clears
+        the approval, so nothing downstream treats the old text as final.
+        The family can edit from their portal again until it is re-approved.
+      parameters:
+        - $ref: "#/components/parameters/CaseId"
+      responses:
+        "200":
+          description: Reopened
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ObituaryDraft"
+        "409":
+          description: It was not approved, so there is nothing to reopen
 
   /cases/{caseId}/selections:
     get:
@@ -3278,6 +3327,50 @@ paths:
                 type: string
                 format: binary
 
+  /family/print/{printItemId}/approve:
+    post:
+      operationId: approveFamilyPrintItem
+      tags: [family]
+      summary: Sign off a proof so it can be printed
+      description: |
+        Only a next of kin may approve, and only a proof the home has shared
+        and not already approved. Posts a line into the message thread so the
+        director hears about it where they already look.
+      parameters:
+        - $ref: "#/components/parameters/PrintItemId"
+      responses:
+        "200":
+          description: Approved
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PrintItem"
+
+  /family/print/{printItemId}/changes:
+    post:
+      operationId: requestFamilyPrintChanges
+      tags: [family]
+      summary: Say something on a proof needs changing
+      description: |
+        Any relative with a link may ask — the cousin who spots the misspelled
+        grandchild is the reason the proof step exists. Sends the proof back
+        to draft and posts the note into the message thread.
+      parameters:
+        - $ref: "#/components/parameters/PrintItemId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PrintChangesInput"
+      responses:
+        "200":
+          description: Recorded
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PrintItem"
+
   /family/print/{printItemId}/render:
     get:
       operationId: renderFamilyPrintItem
@@ -3481,7 +3574,12 @@ components:
           type: string
           format: date-time
           nullable: true
-      required: [id, email, displayName, title, role, emailVerified, deactivatedAt]
+        hasPassword:
+          type: boolean
+          description: >
+            False until the person has chosen a password from their invitation.
+            The console offers to send a new invitation while it is false.
+      required: [id, email, displayName, title, role, emailVerified, deactivatedAt, hasPassword]
 
     TimelineTemplate:
       type: object
@@ -4009,10 +4107,24 @@ components:
             $ref: "#/components/schemas/DashboardDeadline"
         unansweredMessages:
           type: integer
-          description: Messages from families nobody at the home has read.
+          description: |
+            Family messages written since the home last wrote on that thread.
+            Answering clears them; merely opening the thread does not.
         casesWaitingOnReply:
           type: integer
-          description: How many separate families those are sitting in.
+          description: |
+            How many separate families those are sitting in - threads whose
+            latest message is from the family and which can still be answered.
+        quoteRequestsWaiting:
+          type: integer
+          description: |
+            Prices families have asked for from their portal that nobody at
+            the home has answered yet, across every open case.
+        quoteRequests:
+          type: array
+          description: The oldest of those first, capped for the screen.
+          items:
+            $ref: "#/components/schemas/DashboardQuoteRequest"
         pendingRequests:
           type: integer
           description: Requests off the public page waiting for a director.
@@ -4029,9 +4141,28 @@ components:
           dueSoon,
           unansweredMessages,
           casesWaitingOnReply,
+          quoteRequestsWaiting,
+          quoteRequests,
           pendingRequests,
           offersAwaitingChoice,
         ]
+
+    DashboardQuoteRequest:
+      type: object
+      description: One unanswered price request, and whose case it is on.
+      properties:
+        id:
+          type: integer
+        caseId:
+          type: integer
+        decedentName:
+          type: string
+        vendorName:
+          type: string
+        requestedAt:
+          type: string
+          format: date-time
+      required: [id, caseId, decedentName, vendorName, requestedAt]
 
     DashboardCase:
       type: object
@@ -4110,8 +4241,15 @@ components:
         unreadFromFamily:
           type: integer
           description: |
-            How many the home has not opened. This is what sorts the list:
-            somebody waiting comes before somebody who was answered.
+            How many the home has not opened yet. A "new" marker only -
+            opening a thread is not answering it; see `waitingOnReply`.
+        waitingOnReply:
+          type: boolean
+          description: |
+            The latest message is from the family and the thread can still
+            be answered. This is what sorts the list: somebody waiting comes
+            before somebody who was answered, whether or not the home has
+            opened their message.
         sentOutsideOfficeHours:
           type: boolean
           description: |
@@ -4130,6 +4268,7 @@ components:
           lastMessageAt,
           lastMessageFrom,
           unreadFromFamily,
+          waitingOnReply,
           sentOutsideOfficeHours,
           locked,
         ]
@@ -5502,6 +5641,28 @@ components:
           type: string
           format: date-time
           nullable: true
+        approvedByName:
+          type: string
+          nullable: true
+          description: |
+            Who signed it off — the director, or the family member who
+            approved it from the portal.
+        approvedByFamily:
+          type: boolean
+          description: True when the family approved it from the portal.
+        changesRequestedAt:
+          type: string
+          format: date-time
+          nullable: true
+          description: |
+            The family asked for a change. Cleared when the home sends a new
+            proof or approves it.
+        changesRequestedNote:
+          type: string
+          nullable: true
+        changesRequestedBy:
+          type: string
+          nullable: true
         updatedAt:
           type: string
           format: date-time
@@ -5520,8 +5681,22 @@ components:
           status,
           sharedWithFamily,
           approvedAt,
+          approvedByName,
+          approvedByFamily,
+          changesRequestedAt,
+          changesRequestedNote,
+          changesRequestedBy,
           updatedAt,
         ]
+    PrintChangesInput:
+      type: object
+      properties:
+        note:
+          type: string
+          minLength: 1
+          maxLength: 2000
+          description: What needs changing, in the family's words.
+      required: [note]
 
     PrintItemInput:
       type: object
@@ -7394,6 +7569,9 @@ components:
           type: integer
         messagesLocked:
           type: boolean
+        proofsToCheck:
+          type: integer
+          description: Proofs the home has shared that are waiting on the family.
         awaitingServiceChoice:
           type: boolean
           description: |
@@ -7418,6 +7596,7 @@ components:
           outstandingDeadlines,
           unreadMessages,
           messagesLocked,
+          proofsToCheck,
           awaitingServiceChoice,
           aftercare,
         ]

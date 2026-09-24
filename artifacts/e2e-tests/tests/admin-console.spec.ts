@@ -72,20 +72,25 @@ test("a platform admin signs in, adds a home, and opens it", async ({ page }) =>
     .fill(`owner-${randomUUID()}@e2e.test`);
   await page.getByRole("button", { name: "Create the home" }).click();
 
-  // The invitation is shown once, with the week it lasts -- the owner's first
-  // contact with the product, so it had better not be dead on arrival.
   await expect(page.getByRole("heading", { name: `${name} is ready` })).toBeVisible();
-  await expect(page.getByText("It works once, for a week.")).toBeVisible();
+
+  // The owner's invitation goes to the owner's inbox and nowhere else. The
+  // link *is* their account -- whoever opens it first chooses the password --
+  // so the console must never be handed one. There is no mail server in
+  // this suite, and the page says so honestly rather than claiming it sent.
+  await expect(page.getByText("no invitation was sent")).toBeVisible();
+  await expect(page.locator("body")).not.toContainText("reset-password");
+  await expect(page.locator("body")).not.toContainText("token=");
 
   // The new home is findable, and opens.
   await page.getByLabel("Find a home").fill(name);
-  await page.getByRole("link", { name }).click();
+  await page.getByRole("link", { name, exact: true }).click();
   await expect(page).toHaveURL(/\/homes\/\d+$/);
   await expect(page.getByRole("heading", { name })).toBeVisible();
 
   // Creating it was written to the access log, which is the console's
   // promise to an insurer: every look across the tenant line leaves a line.
-  await page.getByRole("link", { name: "The access log for this home" }).click();
-  await expect(page).toHaveURL(/\/audit\?home=\d+$/);
+  await page.getByRole("link", { name: "This home in the access log" }).click();
+  await expect(page).toHaveURL(/\/audit\?homeId=\d+$/);
   await expect(page.getByText(name).first()).toBeVisible();
 });

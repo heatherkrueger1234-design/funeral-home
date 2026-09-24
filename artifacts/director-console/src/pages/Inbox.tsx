@@ -13,18 +13,10 @@ import {
 import type { InboxEntry } from "@workspace/api-client-react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
-import { Divider, Empty, Loading, PageHeader } from "@/components/page";
+import { Divider, Empty, LoadFailed, Loading, PageHeader } from "@/components/page";
 import { cn, formatAtHome } from "@/lib/utils";
 import { useHomeZone } from "@/lib/session";
-import {
-  CloudOff,
-  Loader2,
-  Moon,
-  Lock,
-  MessageSquare,
-  RotateCcw,
-  Send,
-} from "lucide-react";
+import { Loader2, Moon, Lock, MessageSquare, Send } from "lucide-react";
 
 /**
  * Every family conversation in one list.
@@ -74,31 +66,15 @@ export default function Inbox() {
   });
 
   if (inbox.isPending) return <Loading rows={4} />;
-
-  // Not "No conversations yet": a failed load that said so would tell a
-  // director nobody had written, which is the opposite of what they need.
-  if (!inbox.data) {
-    return (
-      <Empty
-        icon={CloudOff}
-        title="The messages didn't load"
-        action={
-          <Button variant="outline" size="sm" onClick={() => void inbox.refetch()}>
-            <RotateCcw className="size-4" />
-            Try again
-          </Button>
-        }
-      >
-        Nothing has been lost. This is usually the connection.
-      </Empty>
-    );
+  if (inbox.isError) {
+    return <LoadFailed what="The messages" onRetry={() => void inbox.refetch()} />;
   }
 
   const rows = inbox.data ?? [];
   // Waiting means the home can still do something about it. A locked thread
   // drops to the lower group however much is unread behind it, because there
   // is no reply box on it to act with.
-  const waiting = rows.filter((row) => row.unreadFromFamily > 0 && !row.locked);
+  const waiting = rows.filter((row) => row.waitingOnReply && !row.locked);
   const rest = rows.filter((row) => !waiting.includes(row));
 
   return (
@@ -211,7 +187,7 @@ function Conversation({ row }: { row: InboxEntry }) {
 
       <div className="mt-3 flex flex-wrap items-center gap-3 text-xs">
         {waiting && (
-          <span className="tabular rounded-full bg-[var(--notice)] px-2 py-0.5 font-semibold text-white">
+          <span className="tabular rounded-full bg-[var(--accent)] px-2 py-0.5 font-semibold text-white">
             {row.unreadFromFamily} unread
           </span>
         )}
@@ -241,8 +217,8 @@ function Conversation({ row }: { row: InboxEntry }) {
             <div className="space-y-2">
               <Textarea
                 autoFocus
-                rows={3}
                 aria-label={`Reply about ${row.decedentName}`}
+                rows={3}
                 value={reply}
                 placeholder={`Reply to the ${row.decedentName.split(" ").slice(-1)[0]} family`}
                 onChange={(event) => setReply(event.target.value)}
@@ -274,7 +250,7 @@ function Conversation({ row }: { row: InboxEntry }) {
                 </Button>
                 <Button asChild size="sm" variant="ghost" className="ml-auto">
                   <Link href={`/cases/${row.caseId}?tab=messages`}>
-                    Open the thread
+                    See the whole thread
                   </Link>
                 </Button>
               </div>

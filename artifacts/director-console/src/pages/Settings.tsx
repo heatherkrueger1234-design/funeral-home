@@ -12,12 +12,30 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Button } from "@/components/ui/button";
+import { toast } from "@/hooks/use-toast";
 import { StandardSchedule } from "@/components/StandardSchedule";
 import { BillingSection } from "@/components/BillingSection";
 import { SnippetLibrary } from "@/components/SnippetLibrary";
 import { StaffSection } from "@/components/StaffSection";
-import { Empty, Loading, PageHeader } from "@/components/page";
-import { Settings as SettingsIcon } from "lucide-react";
+import { LoadFailed, Loading, PageHeader } from "@/components/page";
+
+/** Every zone this browser can format in; the home's clock must be one. */
+const TIMEZONES: string[] = (() => {
+  try {
+    return Intl.supportedValuesOf("timeZone");
+  } catch {
+    return [];
+  }
+})();
+
+function isTimezone(value: string): boolean {
+  try {
+    new Intl.DateTimeFormat(undefined, { timeZone: value });
+    return true;
+  } catch {
+    return false;
+  }
+}
 
 /** "08:00" for a time input, from minutes since midnight. */
 const toTimeInput = (minute: number) =>
@@ -59,12 +77,7 @@ export default function Settings() {
   if (home.isPending) return <Loading rows={4} />;
 
   if (!home.data) {
-    return (
-      <Empty icon={SettingsIcon} title="Settings didn't load">
-        Nothing has changed. This is usually the connection — try again in a
-        moment.
-      </Empty>
-    );
+    return <LoadFailed what="Your settings" onRetry={() => void home.refetch()} />;
   }
 
   const row = home.data;
@@ -181,15 +194,33 @@ export default function Settings() {
           </div>
           <div className="space-y-1.5">
             <Label htmlFor="timezone">Timezone</Label>
+            {/* Typed, with every zone the browser knows offered as it is
+                typed: a misspelt "America/Denvr" would otherwise be saved
+                and quietly put every time in the console out by hours. */}
             <Input
               id="timezone"
+              list="timezones"
               disabled={readOnly}
               defaultValue={row.timezone}
               onBlur={(event) => {
                 const value = event.target.value.trim();
-                if (value && value !== row.timezone) save({ timezone: value });
+                if (!value || value === row.timezone) return;
+                if (!isTimezone(value)) {
+                  event.target.value = row.timezone;
+                  toast({
+                    title: "That isn't a timezone we know",
+                    description: "Choose one from the list, like America/Denver.",
+                  });
+                  return;
+                }
+                save({ timezone: value });
               }}
             />
+            <datalist id="timezones">
+              {TIMEZONES.map((zone) => (
+                <option key={zone} value={zone} />
+              ))}
+            </datalist>
           </div>
         </div>
       </section>

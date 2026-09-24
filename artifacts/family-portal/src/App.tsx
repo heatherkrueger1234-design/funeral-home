@@ -6,6 +6,7 @@ import {
   QueryClient,
   QueryClientProvider,
 } from "@tanstack/react-query";
+import { getGetFamilySessionQueryKey } from "@workspace/api-client-react";
 import { Toaster } from "@/components/ui/toaster";
 import { toast } from "@/hooks/use-toast";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -47,19 +48,32 @@ const Stop = lazy(() => import("@/pages/Stop"));
  * like nothing happened is how a family ends up sending the same forty
  * pictures to the director by email anyway.
  *
- * The exception is a 401, which means the link has stopped working. The shell
- * already replaces the whole screen with an explanation in that case, and a
- * red error box on top of it would only add noise.
+ * So every failed *write* is said in a toast, unless the form says it beside
+ * the field. A failed *read* is not: every screen now draws its own "this
+ * didn't load" with a way to try again (`LoadFailed`), as do the front door,
+ * the stop page, a proof and a photograph. The toast on top of those said the
+ * same thing twice in red; on a screen already showing its data, it announced
+ * a background refresh nobody asked about.
+ *
+ * A 401 means the link has stopped working. The shell replaces the whole
+ * screen with an explanation in that case, and a red error box on top of it
+ * would only add noise.
  */
 const queryClient = new QueryClient({
   queryCache: new QueryCache({
-    onError: (error) => {
-      if (isUnauthorized(error)) return;
-      toast({
-        title: "Couldn't load this",
-        description: describeError(error),
-        variant: "destructive",
-      });
+    onError: (error, query) => {
+      if (isUnauthorized(error)) {
+        /*
+         * The link stopped working while a screen was open. The shell shows
+         * the "ask for a new link" page only when the session itself fails,
+         * so ask for the session again; otherwise this one screen would say
+         * it "didn't load" and invite retries that can never succeed.
+         */
+        const key = getGetFamilySessionQueryKey();
+        if (JSON.stringify(query.queryKey) !== JSON.stringify(key)) {
+          void queryClient.invalidateQueries({ queryKey: key });
+        }
+      }
     },
   }),
   mutationCache: new MutationCache({
@@ -82,7 +96,14 @@ const queryClient = new QueryClient({
       // window focus costs the family bandwidth for data that changes when
       // their director gets round to it, not by the second.
       refetchOnWindowFocus: false,
-      retry: 1,
+      // Once, for a dropped connection. Not for a link that has stopped
+      // working or a thing that is not there: asking again cannot change
+      // either answer, and only delays the screen that explains it.
+      retry: (failures, error) => {
+        const status = (error as { status?: number } | null)?.status;
+        if (status === 401 || status === 404) return false;
+        return failures < 1;
+      },
       staleTime: 30_000,
     },
   },

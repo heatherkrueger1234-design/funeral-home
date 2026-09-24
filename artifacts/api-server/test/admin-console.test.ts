@@ -137,6 +137,8 @@ describe("the tenant boundary", () => {
       ["put", `/api/admin/homes/${home.homeId}/internal`],
       ["put", `/api/admin/homes/${home.homeId}/group`],
       ["post", `/api/admin/homes/${home.homeId}/staff/${home.userId}/password-reset`],
+      ["post", `/api/admin/homes/${home.homeId}/invite-owner`],
+      ["post", `/api/admin/homes/${home.homeId}/extend-trial`],
       ["get", "/api/admin/groups"],
       ["post", "/api/admin/groups"],
       ["get", "/api/admin/groups/1"],
@@ -212,8 +214,13 @@ describe("homes", () => {
     expect(created.body.slug).toBe("green-lawn-funeral-chapel");
     expect(created.body.subscriptionStatus).toBe("trial");
     expect(created.body.canOpenCases).toBe(true);
-    // The owner sets their own password; none was ever typed here.
-    expect(created.body.inviteLink).toContain("/reset-password?invited=1&token=");
+    // The owner sets their own password; none was ever typed here -- and the
+    // link that lets them do it went to their inbox, not back to us. Holding
+    // it would let whoever created the home sign in as its owner.
+    expect(created.body).not.toHaveProperty("inviteLink");
+    expect(JSON.stringify(created.body)).not.toMatch(/token|reset-password/);
+    // No SMTP in the test environment, and the console is told so.
+    expect(created.body.mailSent).toBe(false);
 
     // Blank template: the standard schedule is there, so the first case this
     // home opens gets a working timeline without anybody configuring one.
@@ -383,7 +390,8 @@ describe("Colorado licensure", () => {
     const deadline = detail.body.reminders.find(
       (reminder: { key: string }) => reminder.key === "deadline-outstanding",
     );
-    expect(deadline.summary).toContain("1 of 1");
+    // One person: said as a sentence, not as "1 of 1".
+    expect(deadline.summary).toContain("The one person here does not have a license yet");
     expect(deadline.summary).not.toMatch(/urgent|immediately|!/i);
     // Four months out and nobody has applied: still worth a look. The
     // ninety-day horizon the renewals use would file this under "in hand".

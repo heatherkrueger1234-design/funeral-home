@@ -123,6 +123,7 @@ import type {
   PriceItem,
   PriceItemInput,
   PriceItemUpdate,
+  PrintChangesInput,
   PrintItem,
   PrintItemInput,
   PrintItemUpdate,
@@ -2032,6 +2033,96 @@ export const useUpdateStaff = <
   TContext
 > => {
   return useMutation(getUpdateStaffMutationOptions(options));
+};
+
+/**
+ * Owner only, and only for somebody who has not chosen a password yet.
+Invitation links last an hour, and a colleague invited at five opens
+the email the next morning. This emails a new one and returns it once,
+exactly as the invitation did. Any earlier unused link keeps working
+until it runs out; there is nothing to gain by killing it.
+
+ * @summary Send a colleague a fresh link to choose a password
+ */
+export const getResendStaffInviteUrl = (userId: number) => {
+  return `/api/home/staff/${userId}/invitation`;
+};
+
+export const resendStaffInvite = async (
+  userId: number,
+  options?: RequestInit,
+): Promise<StaffMemberWithInvite> => {
+  return customFetch<StaffMemberWithInvite>(getResendStaffInviteUrl(userId), {
+    ...options,
+    method: "POST",
+  });
+};
+
+export const getResendStaffInviteMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof resendStaffInvite>>,
+    TError,
+    { userId: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof resendStaffInvite>>,
+  TError,
+  { userId: number },
+  TContext
+> => {
+  const mutationKey = ["resendStaffInvite"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof resendStaffInvite>>,
+    { userId: number }
+  > = (props) => {
+    const { userId } = props ?? {};
+
+    return resendStaffInvite(userId, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type ResendStaffInviteMutationResult = NonNullable<
+  Awaited<ReturnType<typeof resendStaffInvite>>
+>;
+
+export type ResendStaffInviteMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Send a colleague a fresh link to choose a password
+ */
+export const useResendStaffInvite = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof resendStaffInvite>>,
+    TError,
+    { userId: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof resendStaffInvite>>,
+  TError,
+  { userId: number },
+  TContext
+> => {
+  return useMutation(getResendStaffInviteMutationOptions(options));
 };
 
 /**
@@ -7634,7 +7725,7 @@ export const composeObituary = async (
 };
 
 export const getComposeObituaryMutationOptions = <
-  TError = ErrorType<unknown>,
+  TError = ErrorType<void>,
   TContext = unknown,
 >(options?: {
   mutation?: UseMutationOptions<
@@ -7675,13 +7766,13 @@ export type ComposeObituaryMutationResult = NonNullable<
   Awaited<ReturnType<typeof composeObituary>>
 >;
 export type ComposeObituaryMutationBody = BodyType<ComposeObituaryInput>;
-export type ComposeObituaryMutationError = ErrorType<unknown>;
+export type ComposeObituaryMutationError = ErrorType<void>;
 
 /**
  * @summary Recompose the draft text from the fields
  */
 export const useComposeObituary = <
-  TError = ErrorType<unknown>,
+  TError = ErrorType<void>,
   TContext = unknown,
 >(options?: {
   mutation?: UseMutationOptions<
@@ -7782,6 +7873,95 @@ export const useApproveObituary = <
   TContext
 > => {
   return useMutation(getApproveObituaryMutationOptions(options));
+};
+
+/**
+ * For the misspelt grandchild found after approval. Returns the
+obituary to `submitted` - the director's to edit again - and clears
+the approval, so nothing downstream treats the old text as final.
+The family can edit from their portal again until it is re-approved.
+
+ * @summary Take the print sign-off back
+ */
+export const getReopenObituaryUrl = (caseId: number) => {
+  return `/api/cases/${caseId}/obituary/reopen`;
+};
+
+export const reopenObituary = async (
+  caseId: number,
+  options?: RequestInit,
+): Promise<ObituaryDraft> => {
+  return customFetch<ObituaryDraft>(getReopenObituaryUrl(caseId), {
+    ...options,
+    method: "POST",
+  });
+};
+
+export const getReopenObituaryMutationOptions = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof reopenObituary>>,
+    TError,
+    { caseId: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof reopenObituary>>,
+  TError,
+  { caseId: number },
+  TContext
+> => {
+  const mutationKey = ["reopenObituary"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof reopenObituary>>,
+    { caseId: number }
+  > = (props) => {
+    const { caseId } = props ?? {};
+
+    return reopenObituary(caseId, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type ReopenObituaryMutationResult = NonNullable<
+  Awaited<ReturnType<typeof reopenObituary>>
+>;
+
+export type ReopenObituaryMutationError = ErrorType<void>;
+
+/**
+ * @summary Take the print sign-off back
+ */
+export const useReopenObituary = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof reopenObituary>>,
+    TError,
+    { caseId: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof reopenObituary>>,
+  TError,
+  { caseId: number },
+  TContext
+> => {
+  return useMutation(getReopenObituaryMutationOptions(options));
 };
 
 /**
@@ -14360,6 +14540,185 @@ export function useGetFamilyUpload<
 
   return { ...query, queryKey: queryOptions.queryKey };
 }
+
+/**
+ * Only a next of kin may approve, and only a proof the home has shared
+and not already approved. Posts a line into the message thread so the
+director hears about it where they already look.
+
+ * @summary Sign off a proof so it can be printed
+ */
+export const getApproveFamilyPrintItemUrl = (printItemId: number) => {
+  return `/api/family/print/${printItemId}/approve`;
+};
+
+export const approveFamilyPrintItem = async (
+  printItemId: number,
+  options?: RequestInit,
+): Promise<PrintItem> => {
+  return customFetch<PrintItem>(getApproveFamilyPrintItemUrl(printItemId), {
+    ...options,
+    method: "POST",
+  });
+};
+
+export const getApproveFamilyPrintItemMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof approveFamilyPrintItem>>,
+    TError,
+    { printItemId: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof approveFamilyPrintItem>>,
+  TError,
+  { printItemId: number },
+  TContext
+> => {
+  const mutationKey = ["approveFamilyPrintItem"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof approveFamilyPrintItem>>,
+    { printItemId: number }
+  > = (props) => {
+    const { printItemId } = props ?? {};
+
+    return approveFamilyPrintItem(printItemId, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type ApproveFamilyPrintItemMutationResult = NonNullable<
+  Awaited<ReturnType<typeof approveFamilyPrintItem>>
+>;
+
+export type ApproveFamilyPrintItemMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Sign off a proof so it can be printed
+ */
+export const useApproveFamilyPrintItem = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof approveFamilyPrintItem>>,
+    TError,
+    { printItemId: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof approveFamilyPrintItem>>,
+  TError,
+  { printItemId: number },
+  TContext
+> => {
+  return useMutation(getApproveFamilyPrintItemMutationOptions(options));
+};
+
+/**
+ * Any relative with a link may ask — the cousin who spots the misspelled
+grandchild is the reason the proof step exists. Sends the proof back
+to draft and posts the note into the message thread.
+
+ * @summary Say something on a proof needs changing
+ */
+export const getRequestFamilyPrintChangesUrl = (printItemId: number) => {
+  return `/api/family/print/${printItemId}/changes`;
+};
+
+export const requestFamilyPrintChanges = async (
+  printItemId: number,
+  printChangesInput: PrintChangesInput,
+  options?: RequestInit,
+): Promise<PrintItem> => {
+  return customFetch<PrintItem>(getRequestFamilyPrintChangesUrl(printItemId), {
+    ...options,
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(printChangesInput),
+  });
+};
+
+export const getRequestFamilyPrintChangesMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof requestFamilyPrintChanges>>,
+    TError,
+    { printItemId: number; data: BodyType<PrintChangesInput> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof requestFamilyPrintChanges>>,
+  TError,
+  { printItemId: number; data: BodyType<PrintChangesInput> },
+  TContext
+> => {
+  const mutationKey = ["requestFamilyPrintChanges"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof requestFamilyPrintChanges>>,
+    { printItemId: number; data: BodyType<PrintChangesInput> }
+  > = (props) => {
+    const { printItemId, data } = props ?? {};
+
+    return requestFamilyPrintChanges(printItemId, data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type RequestFamilyPrintChangesMutationResult = NonNullable<
+  Awaited<ReturnType<typeof requestFamilyPrintChanges>>
+>;
+export type RequestFamilyPrintChangesMutationBody = BodyType<PrintChangesInput>;
+export type RequestFamilyPrintChangesMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Say something on a proof needs changing
+ */
+export const useRequestFamilyPrintChanges = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof requestFamilyPrintChanges>>,
+    TError,
+    { printItemId: number; data: BodyType<PrintChangesInput> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof requestFamilyPrintChanges>>,
+  TError,
+  { printItemId: number; data: BodyType<PrintChangesInput> },
+  TContext
+> => {
+  return useMutation(getRequestFamilyPrintChangesMutationOptions(options));
+};
 
 /**
  * Same document as the staff `renderPrintItem`, scoped to this case and

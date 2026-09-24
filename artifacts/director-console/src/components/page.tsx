@@ -1,4 +1,17 @@
 import type { ComponentType, ReactNode } from "react";
+import { CloudOff, RotateCcw } from "lucide-react";
+import { Button, buttonVariants } from "@/components/ui/button";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 
 /**
  * The parts every screen in the console is built from.
@@ -125,5 +138,82 @@ export function Panel({
     >
       {children}
     </section>
+  );
+}
+
+/**
+ * Something did not load. Said plainly, with the one thing to do about it.
+ *
+ * Several screens used to fall through to their empty state when a request
+ * failed, so a dropped connection read as "Nothing waiting" — the one
+ * sentence on the requests screen that must never be false.
+ */
+export function LoadFailed({
+  what,
+  onRetry,
+}: {
+  what: string;
+  onRetry: () => void;
+}) {
+  return (
+    <Empty
+      icon={CloudOff}
+      title={`${what} couldn't be loaded`}
+      action={
+        <Button variant="outline" size="sm" onClick={onRetry}>
+          <RotateCcw className="size-4" aria-hidden />
+          Try again
+        </Button>
+      }
+    >
+      Nothing has been lost. This is usually the connection.
+    </Empty>
+  );
+}
+
+/**
+ * The one way this console asks "are you sure?".
+ *
+ * Revoking a family's link, dismissing a request, deleting a line somebody
+ * wrote: each used to be a single click with no way back, while erasing a
+ * case had a ceremony of its own. They now share this, and the confirming
+ * button is red only when the thing is actually destroyed.
+ */
+export function Confirm({
+  trigger,
+  title,
+  description,
+  confirmLabel,
+  cancelLabel = "Cancel",
+  destructive = false,
+  onConfirm,
+}: {
+  trigger: ReactNode;
+  title: string;
+  description: ReactNode;
+  confirmLabel: string;
+  cancelLabel?: string;
+  destructive?: boolean;
+  onConfirm: () => void;
+}) {
+  return (
+    <AlertDialog>
+      <AlertDialogTrigger asChild>{trigger}</AlertDialogTrigger>
+      <AlertDialogContent>
+        <AlertDialogHeader>
+          <AlertDialogTitle>{title}</AlertDialogTitle>
+          <AlertDialogDescription>{description}</AlertDialogDescription>
+        </AlertDialogHeader>
+        <AlertDialogFooter>
+          <AlertDialogCancel>{cancelLabel}</AlertDialogCancel>
+          <AlertDialogAction
+            className={destructive ? buttonVariants({ variant: "destructive" }) : undefined}
+            onClick={onConfirm}
+          >
+            {confirmLabel}
+          </AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
   );
 }

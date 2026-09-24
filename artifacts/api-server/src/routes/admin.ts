@@ -1,5 +1,19 @@
 import { Router, type IRouter, type RequestHandler } from "express";
-import { and, asc, count, desc, eq, gte, ilike, inArray, isNull, or, sql } from "drizzle-orm";
+import {
+  and,
+  asc,
+  count,
+  desc,
+  eq,
+  gte,
+  ilike,
+  inArray,
+  isNotNull,
+  isNull,
+  lt,
+  or,
+  sql,
+} from "drizzle-orm";
 import { z } from "zod";
 import {
   db,
@@ -90,6 +104,11 @@ import {
  *     forgotten and not behind a flag. The two that only ever run *after* one
  *     of those (`platformEngagementFor`, `platformLicensureFor`) say so on
  *     themselves; calling either from anywhere new means auditing there.
+ *     Two refinements, both in `recordPlatformAccess` and
+ *     `platformFindHomeForChange`: the same look repeated within a few
+ *     minutes is one line, not one per request, and a change that has to be
+ *     checked first is logged after the check and before the change, so a
+ *     refused request never leaves a line saying it happened.
  *
  * And one rule about what it may do at all: a platform admin can create a
  * home and suspend a home. That is the complete list of writes that touch a
@@ -102,7 +121,10 @@ import {
  * (Two more have joined that list since, and both are narrower than they
  * sound: marking a home as our own, which changes only which figures it is
  * counted in, and emailing a director a password-reset link to their own
- * inbox, which never shows the link here -- see that route for why.)
+ * inbox, which never shows the link here -- see that route for why. Two more
+ * after those: inviting an owner into a home that has none, and giving a
+ * home on trial more time. Neither reads or changes anything a family put
+ * there.)
  */
 
 const router: IRouter = Router();
@@ -227,8 +249,34 @@ const AUDIT_ACTIONS = [
   "platform.admin.revoke",
   "home.internal.update",
   "home.staff.reset",
+  "home.owner.invite",
+  "home.trial.extend",
 ] as const;
 type AuditAction = (typeof AUDIT_ACTIONS)[number];
+
+/**
+ * The actions that are only *looking*, as opposed to changing something.
+ *
+ * These are the ones a person generates by using the console normally --
+ * opening a home, coming back to the overview, paging through the list -- and
+ * the ones that, logged every time, buried the log. A director's insurer
+ * reading "Opened Horan & McConaty" eleven times in four minutes learns less
+ * than one line would have told them, and the change that actually matters
+ * (a suspension, a reset link) scrolls off the first page.
+ *
+ * Writes are never on this list. Every change is recorded every time.
+ */
+const READ_ACTIONS: ReadonlySet<AuditAction> = new Set<AuditAction>([
+  "homes.list",
+  "home.open",
+  "group.list",
+  "group.open",
+  "platform.overview",
+  "platform.admins.list",
+]);
+
+/** How long one "looked at it" line stands for repeated looks. */
+const READ_AUDIT_WINDOW_MS = 5 * 60 * 1000;
 
 /**
  * Record that somebody at the platform looked at, or changed, a home.
@@ -246,6 +294,45 @@ async function recordPlatformAccess(
   subject: { id: number; name: string } | null,
   detail?: string,
 ): Promise<void> {
+  /*
+   * One line per look, not one per request.
+   *
+   * The same person reading the same thing again within a few minutes -- the
+   * console refetching after a save, a second tab, the back button -- is the
+   * same look, and a line for each made the log unreadable. The detail is
+   * part of what counts as "the same": searching for one director's address
+   * and then another's is two different questions, and the second must not
+   * vanish because it came soon after the first.
+   *
+   * Checked here rather than in the console, because the console is only one
+   * client and the log has to be right whoever is calling.
+   */
+  if (READ_ACTIONS.has(action)) {
+    // Measured against the database's clock, the same one `defaultNow()`
+    // stamped the earlier line with, so a server whose own clock or zone
+    // disagrees with Postgres cannot stretch or shrink the window.
+    const since = sql`now() - make_interval(secs => ${READ_AUDIT_WINDOW_MS / 1000})`;
+    const [recent] = await db
+      .select({ id: platformAuditTable.id })
+      .from(platformAuditTable)
+      .where(
+        and(
+          eq(platformAuditTable.actorEmail, who.email),
+          eq(platformAuditTable.action, action),
+          subject
+            ? eq(platformAuditTable.subjectHomeId, subject.id)
+            : isNull(platformAuditTable.subjectHomeId),
+          detail === undefined
+            ? isNull(platformAuditTable.detail)
+            : eq(platformAuditTable.detail, detail),
+          sql`${platformAuditTable.createdAt} >= ${since}`,
+        ),
+      )
+      .limit(1);
+
+    if (recent) return;
+  }
+
   await db.insert(platformAuditTable).values({
     actorEmail: who.email,
     action,
@@ -285,21 +372,50 @@ async function platformLoadHome(
   action: AuditAction = "home.open",
   detail?: string,
 ): Promise<FuneralHome> {
+  const home = await platformFindHomeForChange(homeId);
+  await recordPlatformAccess(who, action, home, detail);
+  return home;
+}
+
+/**
+ * One home, *not yet audited*, for a route that changes something and has to
+ * check the request first.
+ *
+ * Writing the log line before the checks meant a refused request -- a group
+ * that does not exist, a person who works somewhere else -- left a line saying
+ * the change had been made, and the log is the one page here that is shown to
+ * customers as the truth. So the few routes that validate against the home
+ * load it with this, check, and then call `recordPlatformAccess` themselves
+ * before they write anything or return anything.
+ *
+ * It reads the `funeral_homes` row only. Calling it from a route that does
+ * not then audit is the mistake rule 3 at the top of this file is about.
+ */
+async function platformFindHomeForChange(homeId: number): Promise<FuneralHome> {
   const [row] = await db
     .select()
     .from(funeralHomesTable)
     .where(eq(funeralHomesTable.id, homeId))
     .limit(1);
 
-  const home = requireRow(row, "That home could not be found.");
-  await recordPlatformAccess(who, action, home, detail);
-  return home;
+  return requireRow(row, "That home could not be found.");
 }
+
+const HOME_STATUSES = ["trial", "active", "past_due", "canceled", "suspended"] as const;
+type HomeStatus = (typeof HOME_STATUSES)[number];
 
 /** The customer list. Names and account state only — no case ever loads here. */
 async function platformListHomes(
   who: PlatformActor,
-  options: { search?: string | undefined; limit: number; offset: number },
+  options: {
+    search?: string | undefined;
+    limit: number;
+    offset: number;
+    includeInternal?: boolean;
+    /** Our own homes only -- the other way to find a home marked ours. */
+    ours?: boolean | undefined;
+    status?: HomeStatus | undefined;
+  },
 ): Promise<{ homes: FuneralHome[]; total: number }> {
   const search = options.search?.trim();
   // `%` and `_` are wildcards to ILIKE, so a search for "100%" or "a_b" was
@@ -328,7 +444,38 @@ async function platformListHomes(
       )
     : undefined;
 
-  const scoped = filter ? and(customerHomes, filter) : customerHomes;
+  /*
+   * Our own homes, when asked for.
+   *
+   * Leaving them out by default is right -- the list is "our customers" -- but
+   * leaving them out with no way back meant a home marked ours by mistake
+   * could only be found again by typing its id into the address bar, and the
+   * console's own "It's a customer" button was unreachable.
+   */
+  // `ours` lists them on their own; `includeInternal` alongside customers.
+  const whose = options.ours
+    ? eq(funeralHomesTable.internalAccount, true)
+    : options.includeInternal
+      ? undefined
+      : customerHomes;
+
+  /*
+   * By account state, in the same words the list shows. A suspended home is
+   * "Suspended" whatever its subscription says, so the other four exclude
+   * it: filtering for "on trial" and getting a suspended home back would be
+   * the list disagreeing with itself.
+   */
+  const byStatus =
+    options.status === undefined
+      ? undefined
+      : options.status === "suspended"
+        ? isNotNull(funeralHomesTable.suspendedAt)
+        : and(
+            eq(funeralHomesTable.subscriptionStatus, options.status),
+            isNull(funeralHomesTable.suspendedAt),
+          );
+
+  const scoped = and(whose, filter, byStatus);
 
   const homes = await db
     .select()
@@ -343,11 +490,17 @@ async function platformListHomes(
     .from(funeralHomesTable)
     .where(scoped);
 
+  const qualifiers = [
+    options.status ? `status ${options.status}` : null,
+    options.ours ? "our own" : options.includeInternal ? "including ours" : null,
+  ].filter(Boolean);
+
   await recordPlatformAccess(
     who,
     "homes.list",
     null,
-    search ? `searched for "${search}"` : `${homes.length} homes listed`,
+    (search ? `searched for "${search}"` : `${homes.length} homes listed`) +
+      (qualifiers.length > 0 ? ` (${qualifiers.join(", ")})` : ""),
   );
 
   return { homes, total: totals?.total ?? 0 };
@@ -531,6 +684,16 @@ function toAdminHome(home: FuneralHome) {
     accentColor: home.accentColor,
     subscriptionStatus: home.subscriptionStatus,
     trialDaysLeft: trialDaysLeft(home),
+    // The dates behind the status. "On trial, 3 days left" answers the
+    // question on the day; the date is what goes in the follow-up email, and
+    // a renewal date is the only way to tell "subscribed" from "subscribed
+    // until Friday".
+    trialEndsAt: home.trialEndsAt,
+    currentPeriodEndsAt: home.currentPeriodEndsAt,
+    // Which contract pays for it, when it is not its own. A home in a group
+    // cannot have its trial extended or its billing changed from here -- the
+    // group's does that -- and the page has to be able to say so.
+    groupId: home.groupId,
     canOpenCases: canOpenCases(home),
     suspendedAt: home.suspendedAt,
     suspendedReason: home.suspendedReason,
@@ -547,8 +710,19 @@ function toAdminHome(home: FuneralHome) {
 
 const ListHomesQuery = z.object({
   search: z.string().trim().min(1).max(120).optional(),
+  ours: z
+    .enum(["true", "false"])
+    .optional()
+    .transform((value) => value === "true"),
   limit: z.coerce.number().int().min(1).max(100).default(25),
   offset: z.coerce.number().int().min(0).default(0),
+  // Spelled out rather than `z.coerce.boolean()`, which reads the string
+  // "false" as true -- the one value a checkbox that was just unticked sends.
+  includeInternal: z
+    .enum(["true", "false"])
+    .optional()
+    .transform((value) => value === "true"),
+  status: z.enum(HOME_STATUSES).optional(),
 });
 
 router.get("/admin/homes", async (req, res) => {
@@ -693,37 +867,132 @@ router.post("/admin/homes", async (req, res) => {
     ownerEmail ? "with an owner invited" : "with nobody invited yet",
   );
 
-  let inviteLink: string | null = null;
-
-  if (ownerId !== null && ownerEmail !== null) {
-    const token = await createPasswordReset(ownerId, INVITE_TTL_MS);
-    const base = process.env["CONSOLE_URL"]?.replace(/\/+$/, "") ?? "";
-    inviteLink = `${base}/reset-password?invited=1&token=${encodeURIComponent(token)}`;
-
-    try {
-      await sendStaffInviteEmail({
-        to: ownerEmail,
-        homeName: home.name,
-        invitedBy: who.email,
-        inviteLink,
-        expiresInDays: INVITE_TTL_DAYS,
-      });
-    } catch (err) {
-      // The home exists and the link is about to be handed back on screen,
-      // so a mail server having a bad morning is not a reason to fail a
-      // request that already did the thing it was asked to do.
-      logger.warn({ err, homeId: home.id }, "Could not send the owner's invitation");
-    }
-  }
+  const mailSent =
+    ownerId !== null && ownerEmail !== null
+      ? await sendInvitation(who, home, { id: ownerId, email: ownerEmail })
+      : false;
 
   res.status(201).json({
     ...toAdminHome(home),
     engagement: (await platformEngagementFor([home.id])).get(home.id)!,
-    // Shown once. A funeral home on a shared mail host does not reliably
-    // receive anything, and the alternative to handing this over is a phone
-    // call that starts with "check your spam folder".
-    inviteLink,
+    mailSent,
   });
+});
+
+/**
+ * Email somebody at a home the link that lets them choose their first
+ * password, and say whether it actually went.
+ *
+ * **The link itself never comes back to the console.** It used to: creating a
+ * home handed the owner's invitation link back on screen, "in case the email
+ * lands in spam". But that link *is* the owner's account -- whoever opens it
+ * first chooses the password -- so a platform admin holding it could sign in
+ * as the owner of any home they had just created, and nothing would record
+ * that they had. It goes to the owner's own inbox, the same as the reset link
+ * below, and the most the console learns is whether it was sent.
+ *
+ * "Sent" means handed to a configured mail server. Without SMTP the mailer
+ * writes the message to the log (with the token redacted) instead, and the
+ * console has to say so rather than tell whoever is on the phone that an
+ * invitation is on its way. A provider that accepts the message and then
+ * loses it is past what this process can see.
+ */
+async function sendInvitation(
+  who: PlatformActor,
+  home: { id: number; name: string },
+  person: { id: number; email: string },
+): Promise<boolean> {
+  // A week, not a password reset's hour: an owner is invited on a sales
+  // call and opens the email days later, and a link that died in the
+  // meantime is a support ticket on their first morning.
+  const token = await createPasswordReset(person.id, INVITE_TTL_MS);
+  const base = process.env["CONSOLE_URL"]?.replace(/\/+$/, "") ?? "";
+
+  try {
+    await sendStaffInviteEmail({
+      to: person.email,
+      homeName: home.name,
+      invitedBy: who.email,
+      inviteLink: `${base}/reset-password?invited=1&token=${encodeURIComponent(token)}`,
+      expiresInDays: INVITE_TTL_DAYS,
+    });
+  } catch (err) {
+    // The account exists either way, so a mail server having a bad morning
+    // is not a reason to fail a request that already did what it was asked.
+    // It is a reason to say "not sent".
+    logger.warn({ err, homeId: home.id }, "Could not send an invitation");
+    return false;
+  }
+
+  return isMailConfigured();
+}
+
+const InviteOwnerBody = z.object({
+  email: z.string().trim().email().max(254),
+  name: z.string().trim().max(120).optional(),
+});
+
+/**
+ * Invite an owner into a home that has nobody.
+ *
+ * A home created with the owner's address left blank -- a real answer when
+ * the paperwork is ahead of the people -- used to be a dead end: the console
+ * said "an owner has to be invited" and offered no way to invite one. This is
+ * that way, and it is exactly what creating the home with an address would
+ * have done: an owner account with no password, and an invitation to its own
+ * inbox.
+ *
+ * Only while the home has no owner at all. Once it has one, adding people is
+ * the home's own business, done from their console, and a vendor that could
+ * add an owner to a customer's account whenever it liked could make itself
+ * one.
+ */
+router.post("/admin/homes/:homeId/invite-owner", async (req, res) => {
+  const who = actor(req);
+  const values = parseBody(InviteOwnerBody, req.body);
+  const home = await platformFindHomeForChange(parseId(req.params.homeId));
+  const email = normaliseEmail(values.email);
+
+  const [owner] = await db
+    .select({ id: usersTable.id })
+    .from(usersTable)
+    .where(and(eq(usersTable.funeralHomeId, home.id), eq(usersTable.role, "owner")))
+    .limit(1);
+
+  if (owner) {
+    throw new HttpError(
+      409,
+      "This home already has an owner. Anybody else is theirs to invite.",
+    );
+  }
+
+  const [existing] = await db
+    .select({ id: usersTable.id })
+    .from(usersTable)
+    .where(eq(usersTable.email, email))
+    .limit(1);
+
+  if (existing) {
+    throw badRequest("That email address is already in use.");
+  }
+
+  // Checked, so now it is a change, and the log says so before it happens.
+  await recordPlatformAccess(who, "home.owner.invite", home, "invited an owner");
+
+  const [created] = await db
+    .insert(usersTable)
+    .values({
+      funeralHomeId: home.id,
+      email,
+      displayName: values.name || null,
+      passwordHash: null,
+      role: "owner",
+    })
+    .returning({ id: usersTable.id });
+
+  const mailSent = await sendInvitation(who, home, { id: created!.id, email });
+
+  res.status(201).json({ mailSent });
 });
 
 router.get("/admin/homes/:homeId", async (req, res) => {
@@ -753,9 +1022,21 @@ router.get("/admin/homes/:homeId", async (req, res) => {
     .where(eq(usersTable.funeralHomeId, home.id))
     .orderBy(asc(usersTable.displayName), asc(usersTable.id));
 
+  // The group's name, so the page can say which contract covers this home
+  // without listing every group (and auditing that) on each visit.
+  const [group] = home.groupId
+    ? await db
+        .select({ id: homeGroupsTable.id, name: homeGroupsTable.name })
+        .from(homeGroupsTable)
+        .where(eq(homeGroupsTable.id, home.groupId))
+        .limit(1)
+    : [];
+
   res.json({
     ...toAdminHome(home),
+    groupName: group?.name ?? null,
     engagement: engagement.get(home.id)!,
+    group: group ?? null,
     licensure,
     practitioners,
     reminders: licensureReminders(licensure, practitioners),
@@ -811,6 +1092,72 @@ router.put("/admin/homes/:homeId/suspension", async (req, res) => {
   res.json(toAdminHome(updated!));
 });
 
+/* --------------------------------------------------------- more time -- */
+
+const ExtendTrialBody = z.object({
+  days: z.number().int().min(1).max(60),
+});
+
+/**
+ * Give a home on trial more time.
+ *
+ * The call this is for: the owner was in hospital for a fortnight of their
+ * thirty days, or the board meets on the 3rd and the trial ends on the 1st.
+ * Before this the answer was a database edit, which is the kind of change
+ * nobody can later say who made.
+ *
+ * Counted from whichever is later, today or the current end date -- so ten
+ * more days on a trial with five left is fifteen, and ten more days on one
+ * that ran out last week is ten from now rather than three. Sixty at most,
+ * because past that it is not a trial any more, it is a discount, and a
+ * discount is a conversation with a price on it.
+ *
+ * Refused for a home that is not on trial (a subscribed home has nothing to
+ * extend, and a cancelled one needs to subscribe, not to be quietly given
+ * another month) and for a home in a group, whose trial is the group's and
+ * would be overwritten the next time the group's contract changed.
+ */
+router.post("/admin/homes/:homeId/extend-trial", async (req, res) => {
+  const who = actor(req);
+  const { days } = parseBody(ExtendTrialBody, req.body);
+  const home = await platformFindHomeForChange(parseId(req.params.homeId));
+
+  if (home.groupId !== null) {
+    throw badRequest(
+      "This home's trial belongs to its group. Change it on the group instead.",
+    );
+  }
+
+  if (home.subscriptionStatus !== "trial") {
+    throw badRequest("Only a home on trial can be given more trial time.");
+  }
+
+  const from = Math.max(Date.now(), home.trialEndsAt?.getTime() ?? 0);
+  const trialEndsAt = new Date(from + days * 24 * 60 * 60 * 1000);
+
+  await recordPlatformAccess(
+    who,
+    "home.trial.extend",
+    home,
+    `${days} more ${days === 1 ? "day" : "days"}, to ${trialEndsAt.toISOString().slice(0, 10)}`,
+  );
+
+  const [updated] = await db
+    .update(funeralHomesTable)
+    .set({
+      trialEndsAt,
+      // The reminders count down to the old date. Cleared, so the owner
+      // hears a week before the *new* end rather than nothing at all --
+      // "trial-7" already sent would otherwise stay sent.
+      trialRemindersSent: "",
+      updatedAt: new Date(),
+    })
+    .where(eq(funeralHomesTable.id, home.id))
+    .returning();
+
+  res.json(toAdminHome(updated!));
+});
+
 /* ------------------------------------------------ a director locked out -- */
 
 /**
@@ -841,20 +1188,24 @@ router.post(
     const homeId = parseId(req.params.homeId);
     const userId = parseId(req.params.userId);
 
-    // The home first, so the log row is written before anything about the
-    // person is read -- the rule every other route in this file keeps.
-    const home = await platformLoadHome(
-      who,
-      homeId,
-      "home.staff.reset",
-      `emailed a password reset to staff #${userId}`,
-    );
+    /*
+     * Checked first, logged second, sent third.
+     *
+     * The log line used to be written before the checks, so a request for
+     * somebody who works at another home -- refused with a 404 -- still left
+     * "Emailed a director a password reset" in the log a customer is shown.
+     * The person's row is read to decide whether the request is allowed; its
+     * address is used only to send to, and neither is ever returned. Nothing
+     * leaves this handler, and nothing is sent, until the line is written.
+     */
+    const home = await platformFindHomeForChange(homeId);
 
     const [person] = await db
       .select({
         id: usersTable.id,
         email: usersTable.email,
         deactivatedAt: usersTable.deactivatedAt,
+        hasPassword: sql<boolean>`${usersTable.passwordHash} is not null`,
       })
       .from(usersTable)
       .where(and(eq(usersTable.id, userId), eq(usersTable.funeralHomeId, home.id)))
@@ -867,6 +1218,27 @@ router.post(
         "That account has been switched off by the home. Their owner can " +
           "switch it back on; a reset link will not.",
       );
+    }
+
+    await recordPlatformAccess(
+      who,
+      "home.staff.reset",
+      home,
+      found.hasPassword
+        ? `emailed a password reset to staff #${userId}`
+        : `resent the invitation to staff #${userId}`,
+    );
+
+    /*
+     * Somebody who never finished their invitation gets the invitation again,
+     * not a "reset your password" email for a password they never had -- which
+     * reads as somebody else trying to get into their account, and gets
+     * deleted. Same kind of single-use link either way, to the same inbox.
+     */
+    if (!found.hasPassword) {
+      const mailConfigured = await sendInvitation(who, home, found);
+      res.status(202).json({ mailConfigured });
+      return;
     }
 
     const token = await createPasswordReset(found.id);
@@ -1035,6 +1407,11 @@ router.get("/admin/overview", async (req, res) => {
       suspended: sql<number>`count(*) filter (where ${funeralHomesTable.suspendedAt} is not null)`.mapWith(Number),
       paying: sql<number>`count(*) filter (where ${funeralHomesTable.subscriptionStatus} = 'active')`.mapWith(Number),
       onTrial: sql<number>`count(*) filter (where ${funeralHomesTable.subscriptionStatus} = 'trial')`.mapWith(Number),
+      // The two that are money going wrong. Without them the four figures
+      // above did not add up to the total, and the difference was exactly
+      // the homes somebody should be ringing.
+      pastDue: sql<number>`count(*) filter (where ${funeralHomesTable.subscriptionStatus} = 'past_due')`.mapWith(Number),
+      canceled: sql<number>`count(*) filter (where ${funeralHomesTable.subscriptionStatus} = 'canceled')`.mapWith(Number),
     })
     .from(funeralHomesTable)
     .where(customerHomes);
@@ -1097,6 +1474,114 @@ router.get("/admin/overview", async (req, res) => {
     `${homes.length} homes`,
   );
 
+  const now = Date.now();
+  const DAY_MS = 24 * 60 * 60 * 1000;
+
+  /*
+   * Trials about to end, and trials that ended without a subscription.
+   *
+   * The conversation a founder most wants to have on time: a home whose trial
+   * finishes next Tuesday is a phone call this week, and one whose trial ended
+   * a fortnight ago and never subscribed is a home that has stopped opening
+   * cases without anybody noticing. Suspended homes are left out -- somebody
+   * already made a decision about them.
+   */
+  const TRIAL_HORIZON_DAYS = 14;
+  const trials = homes
+    .filter(
+      (home) =>
+        home.subscriptionStatus === "trial" &&
+        home.suspendedAt === null &&
+        home.trialEndsAt !== null &&
+        home.trialEndsAt.getTime() - now <= TRIAL_HORIZON_DAYS * DAY_MS &&
+        now - home.trialEndsAt.getTime() <= 30 * DAY_MS,
+    )
+    .sort((a, b) => a.trialEndsAt!.getTime() - b.trialEndsAt!.getTime())
+    .map((home) => ({
+      home: toAdminHome(home),
+      trialEndsAt: home.trialEndsAt!,
+    }));
+
+  /*
+   * Homes that have gone quiet.
+   *
+   * Facts, not a score. The comment on `platformEngagementFor` explains why
+   * this file must not invent a definition of "engaged"; what it can do is
+   * state the three plain things that, in practice, come before a home
+   * cancels -- nobody ever finished signing in, no case for a month, or links
+   * sent that no family has opened -- and let a person decide whether to
+   * ring. Each is a sentence the screen shows as it stands.
+   */
+  const QUIET_AFTER_DAYS = 30;
+  const homeIds = homes.map((home) => home.id);
+
+  const lastCases = homeIds.length
+    ? await db
+        .select({
+          homeId: casesTable.funeralHomeId,
+          latest: sql<string>`max(${casesTable.createdAt})`,
+        })
+        .from(casesTable)
+        .where(inArray(casesTable.funeralHomeId, homeIds))
+        .groupBy(casesTable.funeralHomeId)
+    : [];
+  const lastCaseAt = new Map(
+    lastCases.map((row) => [row.homeId, new Date(row.latest)]),
+  );
+
+  // Whether anybody at the home can actually sign in. A derived boolean,
+  // as on the home's own page -- no hash is ever selected here.
+  const signedUp = homeIds.length
+    ? await db
+        .select({ homeId: usersTable.funeralHomeId })
+        .from(usersTable)
+        .where(
+          and(
+            inArray(usersTable.funeralHomeId, homeIds),
+            isNull(usersTable.deactivatedAt),
+            sql`${usersTable.passwordHash} is not null`,
+          ),
+        )
+        .groupBy(usersTable.funeralHomeId)
+    : [];
+  const canSignIn = new Set(signedUp.map((row) => row.homeId));
+
+  const quiet = homes
+    .filter((home) => home.suspendedAt === null)
+    .flatMap((home) => {
+      const age = now - home.createdAt.getTime();
+      const latest = lastCaseAt.get(home.id) ?? null;
+      const counts = engagement.get(home.id);
+
+      let reason: string | null = null;
+      // Only said when it is the point: "the last was 3 August" beside
+      // "links sent, none opened" would be answering a different question.
+      let since: Date | null = null;
+      if (!canSignIn.has(home.id)) {
+        // A few days' grace: an invitation sent this morning is not news.
+        if (age >= 3 * DAY_MS) {
+          reason = "Nobody has finished setting up a sign-in yet.";
+        }
+      } else if (latest === null) {
+        if (age >= QUIET_AFTER_DAYS * DAY_MS) {
+          reason = "No case opened since they joined.";
+        }
+      } else if (now - latest.getTime() >= QUIET_AFTER_DAYS * DAY_MS) {
+        reason = "No case opened in the last thirty days.";
+        since = latest;
+      } else if (
+        counts &&
+        counts.familyLinksCreated > 0 &&
+        counts.familyLinksOpened === 0
+      ) {
+        reason = "Family links sent, and none opened yet.";
+      }
+
+      return reason
+        ? [{ home: toAdminHome(home), reason, lastCaseAt: since }]
+        : [];
+    });
+
   /*
    * Is mail actually leaving the building?
    *
@@ -1114,8 +1599,11 @@ router.get("/admin/overview", async (req, res) => {
     .select({
       failed: count(),
       homes: sql<number>`count(distinct ${aftercareEnrollmentsTable.funeralHomeId})`.mapWith(Number),
-      // mapWith, or the raw aggregate comes back as Postgres's own text --
-      // no "T", no zone -- and every browser reads it differently.
+      // Mapped through the column, not left as `sql<string>`. `failed_at` is
+      // a timestamp without a zone, so the raw aggregate came back as
+      // "2026-09-14 16:02:11.5" -- which a browser reads as *local* time and
+      // renders hours out -- while every other date in this API is an ISO
+      // string in UTC. The column's own mapping is what makes those agree.
       latest: sql<Date | null>`max(${aftercareDeliveriesTable.failedAt})`.mapWith(
         aftercareDeliveriesTable.failedAt,
       ),
@@ -1137,10 +1625,35 @@ router.get("/admin/overview", async (req, res) => {
       ),
     );
 
+  /*
+   * Trials that end this week, soonest first.
+   *
+   * The one billing question that has a deadline attached: a home whose
+   * trial runs out stops being able to open cases, and the time to ring them
+   * is before a director finds that out with a family sitting across the
+   * desk. Suspended homes are left out -- they cannot open cases already, and
+   * somebody decided that on purpose.
+   */
+  const weekAhead = now + 7 * 24 * 60 * 60 * 1000;
+  const trialsEndingSoon = homes
+    .filter(
+      (home) =>
+        home.subscriptionStatus === "trial" &&
+        home.suspendedAt === null &&
+        home.trialEndsAt !== null &&
+        home.trialEndsAt.getTime() > now &&
+        home.trialEndsAt.getTime() <= weekAhead,
+    )
+    .sort((a, b) => a.trialEndsAt!.getTime() - b.trialEndsAt!.getTime())
+    .map(toAdminHome);
+
   res.json({
     homes: totals,
     engagement: platformTotals,
     attention,
+    trialsEndingSoon,
+    trials,
+    quiet,
     delivery: {
       mailConfigured: isMailConfigured(),
       smsConfigured: isSmsConfigured(),
@@ -1155,6 +1668,14 @@ router.get("/admin/overview", async (req, res) => {
 
 const AuditQuery = z.object({
   homeId: z.coerce.number().int().positive().optional(),
+  action: z.enum(AUDIT_ACTIONS).optional(),
+  /**
+   * Older than this entry. An id rather than a page number, because the log
+   * grows at the top while somebody is reading it: "page 2" would shift under
+   * them and repeat lines, where "older than #4812" means the same thing
+   * however many rows arrive in the meantime.
+   */
+  before: z.coerce.number().int().positive().optional(),
   limit: z.coerce.number().int().min(1).max(200).default(50),
 });
 
@@ -1228,19 +1749,24 @@ router.post("/admin/admins", async (req, res) => {
   const who = actor(req);
   const values = parseBody(GrantAdminBody, req.body);
 
-  const granted = await grantPlatformAdmin({
+  const { admin: granted, previous } = await grantPlatformAdmin({
     email: values.email,
     displayName: values.displayName ?? null,
     note: values.note ?? null,
     addedByEmail: who.email,
   });
 
-  await recordPlatformAccess(
-    who,
-    "platform.admin.grant",
-    null,
-    `granted ${granted.email}`,
-  );
+  // A restoration says so, and says what it undid. The row can only hold
+  // who has access now; this line is where "they were taken off in March by
+  // X and put back in June by Y" survives.
+  const detail = previous?.revokedAt
+    ? `restored ${granted.email}, removed ${previous.revokedAt.toISOString().slice(0, 10)}` +
+      (previous.revokedByEmail ? ` by ${previous.revokedByEmail}` : "")
+    : previous
+      ? `granted ${granted.email} (already had access)`
+      : `granted ${granted.email}`;
+
+  await recordPlatformAccess(who, "platform.admin.grant", null, detail);
 
   logger.warn(
     { actor: who.email, granted: granted.email },
@@ -1270,7 +1796,10 @@ router.post("/admin/admins", async (req, res) => {
  */
 router.delete("/admin/admins/:email", async (req, res) => {
   const who = actor(req);
-  const email = normaliseEmail(decodeURIComponent(req.params.email ?? ""));
+  // Express has already decoded the path segment. Decoding it a second time
+  // threw a 500 on an address containing "%", and quietly changed one that
+  // contained an encoded sequence.
+  const email = normaliseEmail(req.params.email ?? "");
 
   if (!email) throw badRequest("Which address should be removed?");
 
@@ -1344,15 +1873,22 @@ router.put("/admin/homes/:homeId/internal", async (req, res) => {
 router.get("/admin/audit", async (req, res) => {
   const options = parseQuery(AuditQuery, req.query);
 
+  // Ordered by id alone. It is assigned in insert order, so it is the same
+  // order as `createdAt`, and it is the only ordering a `before` cursor can
+  // page through without skipping two lines written in the same millisecond.
   const rows = await db
     .select()
     .from(platformAuditTable)
     .where(
-      options.homeId
-        ? eq(platformAuditTable.subjectHomeId, options.homeId)
-        : undefined,
+      and(
+        options.homeId
+          ? eq(platformAuditTable.subjectHomeId, options.homeId)
+          : undefined,
+        options.action ? eq(platformAuditTable.action, options.action) : undefined,
+        options.before ? lt(platformAuditTable.id, options.before) : undefined,
+      ),
     )
-    .orderBy(desc(platformAuditTable.createdAt), desc(platformAuditTable.id))
+    .orderBy(desc(platformAuditTable.id))
     .limit(options.limit);
 
   res.json(rows);
@@ -1501,7 +2037,12 @@ router.get("/admin/groups/:groupId", async (req, res) => {
     .orderBy(asc(funeralHomesTable.name));
 
   res.json({
+    // `locations` below replaces the summary's count with the list itself;
+    // the console reads the count from its length.
     ...toAdminGroup(group, locations.length),
+    // Whether "start the contract" can work here at all, so the console can
+    // say so before somebody fills in the form rather than after.
+    billingConfigured: isBillingConfigured(),
     addOns: ADD_ONS.map((addOn) => ({
       key: addOn.key,
       title: addOn.title,
@@ -1538,14 +2079,39 @@ const MoveHomeBody = z.object({
 router.put("/admin/homes/:homeId/group", async (req, res) => {
   const who = actor(req);
   const { groupId } = parseBody(MoveHomeBody, req.body);
-  const home = await platformLoadHome(
-    who,
-    parseId(req.params.homeId),
-    "home.group.update",
-    groupId === null ? "Removed from its group" : `Moved into group ${groupId}`,
-  );
 
-  if (groupId === null) {
+  // The group first, so the log line can name it -- "moved into group 3" is
+  // a line nobody can read in a year -- and so a group that does not exist is
+  // refused before a line is written saying something happened. A group row
+  // holds no tenant's data (see the section comment), so this read needs no
+  // audit of its own.
+  const [group] =
+    groupId === null
+      ? []
+      : await db
+          .select()
+          .from(homeGroupsTable)
+          .where(eq(homeGroupsTable.id, groupId))
+          .limit(1);
+
+  const target =
+    groupId === null ? null : requireRow(group, "That group could not be found.");
+
+  // Found here and logged below, once the move has passed its checks -- see
+  // `platformFindHomeForChange` for why a refused move must not leave a line
+  // saying it happened.
+  const home = await platformFindHomeForChange(parseId(req.params.homeId));
+
+  if (target === null) {
+    // Only a location that is actually in a group can leave one. Without this
+    // an independent, paying home sent here was quietly put back on a
+    // fortnight's trial with its add-ons stripped.
+    if (home.groupId === null) {
+      throw badRequest("This home is not part of a group.");
+    }
+
+    await recordPlatformAccess(who, "home.group.update", home, "Removed from its group");
+
     const graceEnds = new Date(
       Date.now() + GROUP_EXIT_GRACE_DAYS * 24 * 60 * 60 * 1000,
     );
@@ -1570,14 +2136,6 @@ router.put("/admin/homes/:homeId/group", async (req, res) => {
     return;
   }
 
-  const [group] = await db
-    .select()
-    .from(homeGroupsTable)
-    .where(eq(homeGroupsTable.id, groupId))
-    .limit(1);
-
-  const target = requireRow(group, "That group could not be found.");
-
   if (home.stripeSubscriptionId !== null && home.groupId === null) {
     throw new HttpError(
       409,
@@ -1585,6 +2143,13 @@ router.put("/admin/homes/:homeId/group", async (req, res) => {
         "the group's contract and this one will both be charged.",
     );
   }
+
+  await recordPlatformAccess(
+    who,
+    "home.group.update",
+    home,
+    `Moved into "${target.name}"`,
+  );
 
   const [updated] = await db
     .update(funeralHomesTable)
@@ -1605,7 +2170,12 @@ router.put("/admin/homes/:homeId/group", async (req, res) => {
 });
 
 const GroupCheckoutBody = z.object({
-  returnUrl: z.string().trim().min(1).max(2048),
+  // A real web address: Stripe refuses anything else, and refuses it with an
+  // error the console could only pass on as "something went wrong".
+  returnUrl: z.string().trim().url().max(2048).refine(
+    (value) => /^https?:\/\//.test(value),
+    "Please give a web address starting with http:// or https://",
+  ),
   email: z.string().trim().email().max(254),
   addOns: z.array(z.string().refine(isAddOnKey)).optional(),
 });

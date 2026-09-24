@@ -2,6 +2,7 @@ import { useRef, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import {
   useGetFamilyPhotos,
+  getFamilyPhotos,
   useGetFamilySession,
   useDeleteFamilyPhoto,
   useUpdateFamilyPhoto,
@@ -16,7 +17,7 @@ import {
   ACCEPTED_UPLOAD_TYPES,
 } from "@workspace/api-client-react";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
 import {
   Check,
@@ -32,6 +33,7 @@ import {
 } from "lucide-react";
 import { Empty, Loading, PageHeader } from "@/components/page";
 import { AuthedImage } from "@/components/AuthedImage";
+import { voiceFor } from "@/lib/voice";
 import { CroppedPhoto, PortraitCropper } from "@/components/Portrait";
 import { describeError } from "@/lib/utils";
 
@@ -74,6 +76,13 @@ async function uploadWithPatience(file: File): Promise<void> {
       await new Promise((resolve) => setTimeout(resolve, seconds * 1000));
     }
   }
+}
+
+/** Size a caption box to its words: two lines at least, never a scrollbar. */
+function fitToText(element: HTMLTextAreaElement | null) {
+  if (!element) return;
+  element.style.height = "auto";
+  element.style.height = `${element.scrollHeight + 2}px`;
 }
 
 /**
@@ -193,13 +202,38 @@ export default function Photos() {
    * Selection is expressed as the whole list, so a tap has to rebuild it.
    * Toggling on appends, which puts a newly chosen photograph at the end of
    * the running order — where somebody adding one more expects it to land.
+   *
+   * Rebuilt from the server's list as it is now, not from this screen's copy.
+   * Brothers and sisters choose from their own phones at the same time; a
+   * page opened before a sister picked twenty would otherwise send its
+   * older list with the brother's one tap and quietly undo all twenty.
    */
-  const toggle = (photoId: number) => {
-    const current = chosen.map((photo) => photo.id);
-    const next = current.includes(photoId)
-      ? current.filter((id) => id !== photoId)
-      : [...current, photoId];
-    setSelection.mutate({ data: { photoIds: next } });
+  const [reading, setReading] = useState(false);
+  const toggle = async (photoId: number) => {
+    setReading(true);
+    try {
+      const fresh = await queryClient.fetchQuery({
+        queryKey: getGetFamilyPhotosQueryKey(),
+        queryFn: () => getFamilyPhotos(),
+        staleTime: 0,
+      });
+      const current = fresh
+        .filter((photo) => photo.selected)
+        .sort((a, b) => a.position - b.position)
+        .map((photo) => photo.id);
+      const next = current.includes(photoId)
+        ? current.filter((id) => id !== photoId)
+        : [...current, photoId];
+      setSelection.mutate({ data: { photoIds: next } });
+    } catch {
+      toast({
+        title: "That didn't save",
+        description: "Please check your connection and try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setReading(false);
+    }
   };
 
   async function onFilesChosen(files: File[]) {
@@ -418,12 +452,50 @@ export default function Photos() {
 
       {photos.isPending ? (
         <Loading rows={3} />
+      ) : photos.isError && !photos.data ? (
+        // Not "Nothing here yet": that would tell a family their forty
+        // photographs had gone when only the list failed to arrive.
+        <Empty
+          icon={Images}
+          title="The photographs didn't load"
+          action={
+            <Button type="button" variant="outline" onClick={() => void photos.refetch()}>
+              Try again
+            </Button>
+          }
+        >
+          Nothing you have added is lost. It is usually the connection.
+        </Empty>
       ) : count === 0 ? (
         <Empty icon={Images} title="Nothing here yet">
           Anything you have is welcome — old, blurry, or from someone's camera
           roll. There is no such thing as a photograph that is not good enough.
         </Empty>
       ) : (
+        <>
+        {/*
+          What the three switches under each photograph mean, once, above the
+          list. "How they looked" in particular is not a phrase anybody
+          guesses the purpose of, and a tooltip does not exist on a phone.
+        */}
+        <dl className="space-y-1.5 rounded-xl border border-border bg-[var(--sunken)] px-4 py-3.5 text-sm leading-snug text-muted-foreground">
+          <div>
+            <dt className="inline font-semibold text-foreground">Slideshow</dt>
+            <dd className="inline"> — shown at the service.</dd>
+          </div>
+          <div>
+            <dt className="inline font-semibold text-foreground">Main photo</dt>
+            <dd className="inline"> — the one on the printed cards. Just one.</dd>
+          </div>
+          <div>
+            <dt className="inline font-semibold text-foreground">How they looked</dt>
+            <dd className="inline">
+              {voiceFor(session.data?.case.kind).preNeed
+                ? " — a recent, clear one of you, so the funeral home knows how you like to look. Just one."
+                : " — a recent, clear one, so the funeral home can prepare them as you remember them. Just one."}
+            </dd>
+          </div>
+        </dl>
         <ul className="space-y-3">
           {photos.data!.map((photo) => (
             <li
@@ -470,7 +542,20 @@ export default function Photos() {
                 </div>
 
                 <div className="min-w-0 flex-1 space-y-2">
-                  <Input
+                  {/*
+                    Two lines rather than one. A caption is "Mum and Dad on
+                    the porch at Aspen, the summer before he retired", and a
+                    single-line box cut every one of them off at "Mum and Dad
+                    on the por", so nobody could read back what they had
+                    written without tapping into it.
+                  */}
+                  <Textarea
+                    rows={2}
+                    className="min-h-0 resize-none overflow-hidden py-2 leading-snug"
+                    // Grows to fit what is written, so the whole caption
+                    // is always readable without tapping into it.
+                    ref={fitToText}
+                    onInput={(event) => fitToText(event.currentTarget)}
                     // Re-drawn when somebody else's caption arrives, so this box
                     // never holds a version older than the one on file.
                     key={photo.caption ?? ""}
@@ -566,8 +651,8 @@ export default function Photos() {
                   // round-trips would build its payload from the same
                   // stale list and silently overwrite this choice, so the
                   // button is disabled until the refetch it triggers lands.
-                  disabled={setSelection.isPending}
-                  onClick={() => toggle(photo.id)}
+                  disabled={setSelection.isPending || reading}
+                  onClick={() => void toggle(photo.id)}
                 />
                 <PhotoToggle
                   icon={Star}
@@ -589,12 +674,18 @@ export default function Photos() {
                   icon={Eye}
                   label="How they looked"
                   on={photo.isReference}
-                  onClick={() => setReference.mutate({ data: { photoId: photo.id } })}
+                  // One photograph holds this at a time, like the main one,
+                  // so tapping the one that already has it changes nothing.
+                  onClick={() =>
+                    !photo.isReference &&
+                    setReference.mutate({ data: { photoId: photo.id } })
+                  }
                 />
               </div>
             </li>
           ))}
         </ul>
+        </>
       )}
     </div>
   );
@@ -630,7 +721,7 @@ function PhotoToggle({
       onClick={onClick}
       className={[
         "flex min-h-[3.75rem] flex-col items-center justify-center gap-1.5 px-1.5 py-2.5",
-        "text-center text-[0.8125rem] font-semibold leading-tight transition-gentle",
+        "text-center text-sm font-semibold leading-tight transition-gentle",
         "focus-visible:relative focus-visible:z-10 disabled:opacity-60",
         on
           ? "bg-[var(--accent-soft)] text-[var(--accent-deep)]"

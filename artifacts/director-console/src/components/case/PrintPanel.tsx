@@ -25,8 +25,49 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
-import { Check, Printer, Trash2, Plus } from "lucide-react";
-import { Loading } from "@/components/page";
+import { Check, Loader2, MessageSquareWarning, Printer, Send, Trash2, Plus } from "lucide-react";
+import { Confirm, LoadFailed, Loading } from "@/components/page";
+
+/**
+ * Where a piece stands, in the words a director would use on the phone.
+ *
+ * The family's answer is the part that used to be missing: a proof went
+ * "with the family" and stayed there, because nothing they could do changed
+ * it. Now it comes back approved (by whom) or with a change asked for.
+ */
+function statusLine(item: PrintItem): string {
+  if (item.status === "approved") {
+    if (!item.approvedByName) return "approved";
+    return item.approvedByFamily
+      ? `approved by ${item.approvedByName} (family)`
+      : `approved by ${item.approvedByName}`;
+  }
+  if (item.changesRequestedAt) {
+    return `${item.changesRequestedBy ?? "the family"} asked for a change`;
+  }
+  if (item.status === "proof" && item.sharedWithFamily) {
+    return "with the family to check";
+  }
+  return "draft";
+}
+
+/** The family's note, set where the director will be making the change. */
+function ChangesAsked({ item }: { item: PrintItem }) {
+  if (!item.changesRequestedAt || !item.changesRequestedNote) return null;
+  return (
+    <div className="flex gap-3 rounded-lg border border-[var(--notice)]/30 bg-[var(--notice-soft)] p-3 text-sm">
+      <MessageSquareWarning className="mt-0.5 size-4 shrink-0 text-[var(--notice)]" />
+      <div className="min-w-0">
+        <p className="font-medium">
+          {item.changesRequestedBy ?? "The family"} asked for a change
+        </p>
+        <p className="mt-0.5 whitespace-pre-line text-muted-foreground">
+          {item.changesRequestedNote}
+        </p>
+      </div>
+    </div>
+  );
+}
 
 /**
  * The print studio.
@@ -72,15 +113,22 @@ function Studio({
 
   const update = useUpdatePrintItem({
     mutation: {
+      meta: { handlesOwnErrors: true },
       onSuccess: refresh,
       onError: (error) =>
         toast({
-          title: "That didn't fit",
+          title: "That didn't save",
           description: error instanceof Error ? error.message : undefined,
           variant: "destructive",
         }),
     },
   });
+
+  // Signed off means frozen: the server refuses edits to an approved card's
+  // wording or photograph, so the fields say so rather than failing on blur.
+  const locked = item.status === "approved";
+  const awaitingResend =
+    item.status === "draft" && item.sharedWithFamily && item.changesRequestedAt !== null;
 
   const save = (values: Record<string, string>) =>
     update.mutate({ printItemId: item.id, data: { values } });
@@ -122,12 +170,20 @@ function Studio({
       </div>
 
       <div className="space-y-4">
+        <ChangesAsked item={item} />
+        {locked && (
+          <p className="rounded-lg bg-muted p-3 text-sm text-muted-foreground">
+            Approved{item.approvedByName ? ` by ${item.approvedByName}` : ""}, so the
+            wording is set. Reopen it below to change anything.
+          </p>
+        )}
         {template.slots
           .filter((slot) => slot.kind === "photo")
           .map((slot) => (
             <div key={slot.key} className="space-y-1.5">
               <Label>{slot.label}</Label>
               <Select
+                disabled={locked}
                 value={item.photoId ? String(item.photoId) : "portrait"}
                 onValueChange={(value) =>
                   update.mutate({
@@ -165,6 +221,11 @@ function Studio({
               )}
               <Input
                 id={slot.key}
+                // Keyed on the saved value so a change from elsewhere (a
+                // snippet, another tab) replaces what is shown, instead of
+                // the stale text being saved back over it on the next blur.
+                key={`${slot.key}:${item.values[slot.key] ?? ""}`}
+                disabled={locked}
                 defaultValue={item.values[slot.key] ?? ""}
                 placeholder={item.resolved[slot.key] ?? ""}
                 onBlur={(event) => {
@@ -186,6 +247,8 @@ function Studio({
             {/* Pick from the home's own list rather than retyping it. */}
             {(snippets.data ?? []).length > 0 && (
               <Select
+                disabled={locked}
+                value=""
                 onValueChange={(value) => {
                   const snippet = (snippets.data ?? []).find(
                     (entry) => String(entry.id) === value,
@@ -207,14 +270,15 @@ function Studio({
             )}
 
             {/*
-              Keyed on the saved value so that picking saved wording above
-              shows it here. Uncontrolled and unkeyed, the box kept the old
-              text, and leaving it saved that old text straight back over
-              the wording just chosen.
+              Keyed by the stored wording so that choosing one of the home's
+              saved paragraphs above shows up here. Without it the box kept
+              the old words, and leaving it saved them straight back over the
+              paragraph that had just been chosen.
             */}
             <Textarea
               id={slot.key}
-              key={item.values[slot.key] ?? ""}
+              key={`${slot.key}:${item.values[slot.key] ?? ""}`}
+              disabled={locked}
               rows={5}
               defaultValue={item.values[slot.key] ?? ""}
               placeholder={item.resolved[slot.key] ?? ""}
@@ -238,12 +302,15 @@ function Studio({
             id="quantity"
             type="number"
             min={1}
+            key={`quantity:${item.quantity ?? ""}`}
             defaultValue={item.quantity ?? ""}
             onBlur={(event) => {
               const value = Number(event.target.value);
+              const next = Number.isInteger(value) && value > 0 ? value : null;
+              if (next === (item.quantity ?? null)) return;
               update.mutate({
                 printItemId: item.id,
-                data: { quantity: Number.isInteger(value) && value > 0 ? value : null },
+                data: { quantity: next },
               });
             }}
           />
@@ -256,14 +323,20 @@ function Studio({
         <label className="flex items-start gap-3 rounded-lg border border-border p-3">
           <Switch
             checked={item.sharedWithFamily}
+            disabled={update.isPending}
             onCheckedChange={(checked) =>
               update.mutate({
                 printItemId: item.id,
                 data: {
                   sharedWithFamily: checked,
+                  // Sharing a draft sends it as a proof; taking it back
+                  // returns it to draft, so the list never says "with the
+                  // family" about something they can no longer see.
                   ...(checked && item.status === "draft"
                     ? { status: "proof" as const }
-                    : {}),
+                    : !checked && item.status === "proof"
+                      ? { status: "draft" as const }
+                      : {}),
                 },
               })
             }
@@ -276,9 +349,23 @@ function Studio({
           </span>
         </label>
 
+        {awaitingResend && (
+          <Button
+            className="w-full"
+            disabled={update.isPending}
+            onClick={() =>
+              update.mutate({ printItemId: item.id, data: { status: "proof" } })
+            }
+          >
+            <Send className="size-4" />
+            Send the corrected proof
+          </Button>
+        )}
+
         <Button
           className="w-full"
-          variant={item.status === "approved" ? "secondary" : "default"}
+          disabled={update.isPending}
+          variant={item.status === "approved" || awaitingResend ? "secondary" : "default"}
           onClick={() =>
             update.mutate({
               printItemId: item.id,
@@ -324,6 +411,18 @@ export function PrintPanel({ caseId }: { caseId: number }) {
     );
   }
 
+  if (templates.isError || items.isError) {
+    return (
+      <LoadFailed
+        what="The print studio"
+        onRetry={() => {
+          void templates.refetch();
+          void items.refetch();
+        }}
+      />
+    );
+  }
+
   const open = (items.data ?? []).find((item) => item.id === editing);
   const openTemplate = templateList.find(
     (template) => template.key === open?.templateKey,
@@ -349,18 +448,14 @@ export function PrintPanel({ caseId }: { caseId: number }) {
               key={item.id}
               className="flex flex-wrap items-center gap-3 rounded-xl border border-border bg-card px-4 py-3.5 shadow-[var(--elevation-1)]"
             >
-              <span className="min-w-0 flex-1">
+              <span className="min-w-[12rem] flex-1">
                 <span className="block truncate font-medium">
                   {item.title ?? item.templateName}
                 </span>
                 <span className="block text-sm text-muted-foreground">
                   {item.templateName}
                   {item.quantity ? ` · ${item.quantity} copies` : ""}
-                  {item.status === "approved"
-                    ? " · approved"
-                    : item.sharedWithFamily
-                      ? " · with the family"
-                      : " · draft"}
+                  {` · ${statusLine(item)}`}
                 </span>
               </span>
 
@@ -375,26 +470,32 @@ export function PrintPanel({ caseId }: { caseId: number }) {
                   aria-label={`Open ${item.title ?? item.templateName} to print`}
                 >
                   <Printer className="size-4" aria-hidden />
+                  Print
                 </a>
               </Button>
-              <Button
-                variant="ghost"
-                size="icon"
-                className="text-muted-foreground"
-                aria-label={`Delete ${item.title ?? item.templateName}`}
-                disabled={remove.isPending}
-                onClick={() => {
-                  if (
-                    window.confirm(
-                      `Delete ${item.title ?? item.templateName}? Everything typed into it goes too.`,
-                    )
-                  ) {
-                    remove.mutate({ printItemId: item.id });
-                  }
-                }}
-              >
-                <Trash2 className="size-4" />
-              </Button>
+              <Confirm
+                trigger={
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="text-muted-foreground"
+                    aria-label={`Delete ${item.title ?? item.templateName}`}
+                    disabled={remove.isPending}
+                  >
+                    <Trash2 className="size-4" />
+                  </Button>
+                }
+                title={`Delete ${item.title ?? item.templateName}?`}
+                description="Everything typed into it goes, and any proof the family was shown disappears from their page. Starting it again is one click, but the wording is not kept."
+                confirmLabel="Delete it"
+                destructive
+                onConfirm={() => remove.mutate({ printItemId: item.id })}
+              />
+              {item.changesRequestedAt && (
+                <div className="basis-full">
+                  <ChangesAsked item={item} />
+                </div>
+              )}
             </li>
           ))}
         </ul>
@@ -407,9 +508,8 @@ export function PrintPanel({ caseId }: { caseId: number }) {
             <li key={template.key}>
               <button
                 type="button"
-                className="w-full lift rounded-xl border border-border bg-card p-5 text-left shadow-[var(--elevation-1)] transition-gentle hover:border-[color-mix(in_oklab,var(--accent)_45%,var(--border))] disabled:opacity-60"
-                // One press, one item: a double click started two.
                 disabled={create.isPending}
+                className="w-full lift rounded-xl disabled:opacity-60 border border-border bg-card p-5 text-left shadow-[var(--elevation-1)] transition-gentle hover:border-[color-mix(in_oklab,var(--accent)_45%,var(--border))]"
                 onClick={() =>
                   create.mutate({ caseId, data: { templateKey: template.key } })
                 }
@@ -430,6 +530,7 @@ export function PrintPanel({ caseId }: { caseId: number }) {
           ))}
         </ul>
       </section>
+
     </div>
   );
 }

@@ -13,7 +13,10 @@
     "verify-backup": "tsx ./src/verify-backup.ts",
     "seed-demo": "tsx ./src/seed-demo.ts",
     "send-test-email": "tsx ./src/send-test-email.ts",
-    "seed-showcase": "tsx ./src/seed-showcase.ts"
+    "seed-showcase": "tsx ./src/seed-showcase.ts",
+    "check-artifact-paths": "tsx ./src/check-artifact-paths.ts",
+    "test": "tsx ./src/check-artifact-paths.ts",
+    "dead-branches": "tsx ./src/dead-branches.ts"
   },
   "devDependencies": {
     "@types/node": "catalog:",

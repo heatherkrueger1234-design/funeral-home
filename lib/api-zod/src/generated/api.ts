@@ -228,6 +228,11 @@ export const LoginResponse = zod.object({
         "Whether this address has been confirmed from the emailed link. The one thing it gates is the request form on the home's public page — see routes\/public.ts. The console reads it to ask, once, calmly.\n",
       ),
     deactivatedAt: zod.date().nullable(),
+    hasPassword: zod
+      .boolean()
+      .describe(
+        "False until the person has chosen a password from their invitation. The console offers to send a new invitation while it is false.\n",
+      ),
   }),
   home: zod.object({
     id: zod.number(),
@@ -304,6 +309,11 @@ export const GetCurrentUserResponse = zod.object({
         "Whether this address has been confirmed from the emailed link. The one thing it gates is the request form on the home's public page — see routes\/public.ts. The console reads it to ask, once, calmly.\n",
       ),
     deactivatedAt: zod.date().nullable(),
+    hasPassword: zod
+      .boolean()
+      .describe(
+        "False until the person has chosen a password from their invitation. The console offers to send a new invitation while it is false.\n",
+      ),
   }),
   home: zod.object({
     id: zod.number(),
@@ -650,6 +660,11 @@ export const GetStaffResponseItem = zod.object({
       "Whether this address has been confirmed from the emailed link. The one thing it gates is the request form on the home's public page — see routes\/public.ts. The console reads it to ask, once, calmly.\n",
     ),
   deactivatedAt: zod.date().nullable(),
+  hasPassword: zod
+    .boolean()
+    .describe(
+      "False until the person has chosen a password from their invitation. The console offers to send a new invitation while it is false.\n",
+    ),
 });
 export const GetStaffResponse = zod.array(GetStaffResponseItem);
 
@@ -696,7 +711,53 @@ export const UpdateStaffResponse = zod.object({
       "Whether this address has been confirmed from the emailed link. The one thing it gates is the request form on the home's public page — see routes\/public.ts. The console reads it to ask, once, calmly.\n",
     ),
   deactivatedAt: zod.date().nullable(),
+  hasPassword: zod
+    .boolean()
+    .describe(
+      "False until the person has chosen a password from their invitation. The console offers to send a new invitation while it is false.\n",
+    ),
 });
+
+/**
+ * Owner only, and only for somebody who has not chosen a password yet.
+Invitation links last an hour, and a colleague invited at five opens
+the email the next morning. This emails a new one and returns it once,
+exactly as the invitation did. Any earlier unused link keeps working
+until it runs out; there is nothing to gain by killing it.
+
+ * @summary Send a colleague a fresh link to choose a password
+ */
+export const ResendStaffInviteParams = zod.object({
+  userId: zod.coerce.number(),
+});
+
+export const ResendStaffInviteResponse = zod
+  .object({
+    id: zod.number(),
+    email: zod.string(),
+    displayName: zod.string().nullable(),
+    title: zod.string().nullable(),
+    role: zod.enum(["owner", "director", "staff"]),
+    emailVerified: zod
+      .boolean()
+      .describe(
+        "Whether this address has been confirmed from the emailed link. The one thing it gates is the request form on the home's public page — see routes\/public.ts. The console reads it to ask, once, calmly.\n",
+      ),
+    deactivatedAt: zod.date().nullable(),
+    hasPassword: zod
+      .boolean()
+      .describe(
+        "False until the person has chosen a password from their invitation. The console offers to send a new invitation while it is false.\n",
+      ),
+  })
+  .and(
+    zod.object({
+      inviteLink: zod.string(),
+    }),
+  )
+  .describe(
+    "Returned once, when a colleague is added. `inviteLink` is shown to the\nowner so they can pass it on if the email does not arrive; it is the\nordinary single-use password-reset link and is never retrievable again.\n",
+  );
 
 /**
  * @summary The home's standard schedule, as offsets from the service
@@ -861,10 +922,32 @@ export const GetHomeDashboardResponse = zod
       .describe("Due in the next three days."),
     unansweredMessages: zod
       .number()
-      .describe("Messages from families nobody at the home has read."),
+      .describe(
+        "Family messages written since the home last wrote on that thread.\nAnswering clears them; merely opening the thread does not.\n",
+      ),
     casesWaitingOnReply: zod
       .number()
-      .describe("How many separate families those are sitting in."),
+      .describe(
+        "How many separate families those are sitting in - threads whose\nlatest message is from the family and which can still be answered.\n",
+      ),
+    quoteRequestsWaiting: zod
+      .number()
+      .describe(
+        "Prices families have asked for from their portal that nobody at\nthe home has answered yet, across every open case.\n",
+      ),
+    quoteRequests: zod
+      .array(
+        zod
+          .object({
+            id: zod.number(),
+            caseId: zod.number(),
+            decedentName: zod.string(),
+            vendorName: zod.string(),
+            requestedAt: zod.date(),
+          })
+          .describe("One unanswered price request, and whose case it is on."),
+      )
+      .describe("The oldest of those first, capped for the screen."),
     pendingRequests: zod
       .number()
       .describe("Requests off the public page waiting for a director."),
@@ -903,7 +986,12 @@ export const GetHomeInboxResponseItem = zod
     unreadFromFamily: zod
       .number()
       .describe(
-        "How many the home has not opened. This is what sorts the list:\nsomebody waiting comes before somebody who was answered.\n",
+        'How many the home has not opened yet. A \"new\" marker only -\nopening a thread is not answering it; see `waitingOnReply`.\n',
+      ),
+    waitingOnReply: zod
+      .boolean()
+      .describe(
+        "The latest message is from the family and the thread can still\nbe answered. This is what sorts the list: somebody waiting comes\nbefore somebody who was answered, whether or not the home has\nopened their message.\n",
       ),
     sentOutsideOfficeHours: zod
       .boolean()
@@ -3289,6 +3377,39 @@ export const ApproveObituaryResponse = zod.object({
 });
 
 /**
+ * For the misspelt grandchild found after approval. Returns the
+obituary to `submitted` - the director's to edit again - and clears
+the approval, so nothing downstream treats the old text as final.
+The family can edit from their portal again until it is re-approved.
+
+ * @summary Take the print sign-off back
+ */
+export const ReopenObituaryParams = zod.object({
+  caseId: zod.coerce.number(),
+});
+
+export const ReopenObituaryResponse = zod.object({
+  id: zod.number(),
+  caseId: zod.number(),
+  fullName: zod.string().nullable(),
+  bornOn: zod.string().nullable(),
+  birthPlace: zod.string().nullable(),
+  diedOn: zod.string().nullable(),
+  deathPlace: zod.string().nullable(),
+  survivedBy: zod.string().nullable(),
+  precededBy: zod.string().nullable(),
+  biography: zod.string().nullable(),
+  inLieuOfFlowers: zod.string().nullable(),
+  specialThanks: zod.string().nullable(),
+  draftText: zod.string().nullable(),
+  draftEditedByStaff: zod.date().nullable(),
+  status: zod.enum(["family_draft", "submitted", "approved"]),
+  submittedAt: zod.date().nullable(),
+  approvedAt: zod.date().nullable(),
+  updatedAt: zod.date(),
+});
+
+/**
  * @summary Hymns, readings, music, pallbearers
  */
 export const GetSelectionsParams = zod.object({
@@ -4572,6 +4693,23 @@ export const GetPrintItemsResponseItem = zod.object({
   status: zod.enum(["draft", "proof", "approved"]),
   sharedWithFamily: zod.boolean(),
   approvedAt: zod.date().nullable(),
+  approvedByName: zod
+    .string()
+    .nullable()
+    .describe(
+      "Who signed it off — the director, or the family member who\napproved it from the portal.\n",
+    ),
+  approvedByFamily: zod
+    .boolean()
+    .describe("True when the family approved it from the portal."),
+  changesRequestedAt: zod
+    .date()
+    .nullable()
+    .describe(
+      "The family asked for a change. Cleared when the home sends a new\nproof or approves it.\n",
+    ),
+  changesRequestedNote: zod.string().nullable(),
+  changesRequestedBy: zod.string().nullable(),
   updatedAt: zod.date(),
 });
 export const GetPrintItemsResponse = zod.array(GetPrintItemsResponseItem);
@@ -4620,6 +4758,23 @@ export const UpdatePrintItemResponse = zod.object({
   status: zod.enum(["draft", "proof", "approved"]),
   sharedWithFamily: zod.boolean(),
   approvedAt: zod.date().nullable(),
+  approvedByName: zod
+    .string()
+    .nullable()
+    .describe(
+      "Who signed it off — the director, or the family member who\napproved it from the portal.\n",
+    ),
+  approvedByFamily: zod
+    .boolean()
+    .describe("True when the family approved it from the portal."),
+  changesRequestedAt: zod
+    .date()
+    .nullable()
+    .describe(
+      "The family asked for a change. Cleared when the home sends a new\nproof or approves it.\n",
+    ),
+  changesRequestedNote: zod.string().nullable(),
+  changesRequestedBy: zod.string().nullable(),
   updatedAt: zod.date(),
 });
 
@@ -4656,6 +4811,23 @@ export const GetFamilyPrintItemsResponseItem = zod.object({
   status: zod.enum(["draft", "proof", "approved"]),
   sharedWithFamily: zod.boolean(),
   approvedAt: zod.date().nullable(),
+  approvedByName: zod
+    .string()
+    .nullable()
+    .describe(
+      "Who signed it off — the director, or the family member who\napproved it from the portal.\n",
+    ),
+  approvedByFamily: zod
+    .boolean()
+    .describe("True when the family approved it from the portal."),
+  changesRequestedAt: zod
+    .date()
+    .nullable()
+    .describe(
+      "The family asked for a change. Cleared when the home sends a new\nproof or approves it.\n",
+    ),
+  changesRequestedNote: zod.string().nullable(),
+  changesRequestedBy: zod.string().nullable(),
   updatedAt: zod.date(),
 });
 export const GetFamilyPrintItemsResponse = zod.array(
@@ -4803,6 +4975,9 @@ export const GetFamilySessionResponse = zod
     outstandingDeadlines: zod.number(),
     unreadMessages: zod.number(),
     messagesLocked: zod.boolean(),
+    proofsToCheck: zod
+      .number()
+      .describe("Proofs the home has shared that are waiting on the family."),
     awaitingServiceChoice: zod
       .boolean()
       .describe(
@@ -5788,6 +5963,110 @@ export const DeleteFamilyLifeChapterParams = zod.object({
  */
 export const GetFamilyUploadParams = zod.object({
   uploadId: zod.coerce.number(),
+});
+
+/**
+ * Only a next of kin may approve, and only a proof the home has shared
+and not already approved. Posts a line into the message thread so the
+director hears about it where they already look.
+
+ * @summary Sign off a proof so it can be printed
+ */
+export const ApproveFamilyPrintItemParams = zod.object({
+  printItemId: zod.coerce.number(),
+});
+
+export const ApproveFamilyPrintItemResponse = zod.object({
+  id: zod.number(),
+  caseId: zod.number(),
+  templateKey: zod.string(),
+  templateName: zod.string(),
+  title: zod.string().nullable(),
+  photoId: zod.number().nullable(),
+  photoUploadId: zod.number().nullable(),
+  values: zod.record(zod.string(), zod.string()),
+  resolved: zod
+    .record(zod.string(), zod.string())
+    .describe("Slots with the case's own details filled in."),
+  quantity: zod.number().nullable(),
+  status: zod.enum(["draft", "proof", "approved"]),
+  sharedWithFamily: zod.boolean(),
+  approvedAt: zod.date().nullable(),
+  approvedByName: zod
+    .string()
+    .nullable()
+    .describe(
+      "Who signed it off — the director, or the family member who\napproved it from the portal.\n",
+    ),
+  approvedByFamily: zod
+    .boolean()
+    .describe("True when the family approved it from the portal."),
+  changesRequestedAt: zod
+    .date()
+    .nullable()
+    .describe(
+      "The family asked for a change. Cleared when the home sends a new\nproof or approves it.\n",
+    ),
+  changesRequestedNote: zod.string().nullable(),
+  changesRequestedBy: zod.string().nullable(),
+  updatedAt: zod.date(),
+});
+
+/**
+ * Any relative with a link may ask — the cousin who spots the misspelled
+grandchild is the reason the proof step exists. Sends the proof back
+to draft and posts the note into the message thread.
+
+ * @summary Say something on a proof needs changing
+ */
+export const RequestFamilyPrintChangesParams = zod.object({
+  printItemId: zod.coerce.number(),
+});
+
+export const requestFamilyPrintChangesBodyNoteMax = 2000;
+
+export const RequestFamilyPrintChangesBody = zod.object({
+  note: zod
+    .string()
+    .min(1)
+    .max(requestFamilyPrintChangesBodyNoteMax)
+    .describe("What needs changing, in the family's words."),
+});
+
+export const RequestFamilyPrintChangesResponse = zod.object({
+  id: zod.number(),
+  caseId: zod.number(),
+  templateKey: zod.string(),
+  templateName: zod.string(),
+  title: zod.string().nullable(),
+  photoId: zod.number().nullable(),
+  photoUploadId: zod.number().nullable(),
+  values: zod.record(zod.string(), zod.string()),
+  resolved: zod
+    .record(zod.string(), zod.string())
+    .describe("Slots with the case's own details filled in."),
+  quantity: zod.number().nullable(),
+  status: zod.enum(["draft", "proof", "approved"]),
+  sharedWithFamily: zod.boolean(),
+  approvedAt: zod.date().nullable(),
+  approvedByName: zod
+    .string()
+    .nullable()
+    .describe(
+      "Who signed it off — the director, or the family member who\napproved it from the portal.\n",
+    ),
+  approvedByFamily: zod
+    .boolean()
+    .describe("True when the family approved it from the portal."),
+  changesRequestedAt: zod
+    .date()
+    .nullable()
+    .describe(
+      "The family asked for a change. Cleared when the home sends a new\nproof or approves it.\n",
+    ),
+  changesRequestedNote: zod.string().nullable(),
+  changesRequestedBy: zod.string().nullable(),
+  updatedAt: zod.date(),
 });
 
 /**

@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import {
   useGetVitals,
@@ -9,7 +10,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Check, ShieldCheck, TriangleAlert } from "lucide-react";
-import { Loading } from "@/components/page";
+import { LoadFailed, Loading } from "@/components/page";
 
 /**
  * The certificate details, from the home's side.
@@ -89,9 +90,23 @@ const GROUPS: Array<{ title: string; fields: Array<[string, string]> }> = [
   },
 ];
 
-export function VitalsPanel({ caseId }: { caseId: number }) {
+/** What the case already knows that the certificate asks for again. */
+type FromCase = {
+  legalFirstName: string;
+  legalLastName: string;
+  dateOfBirth: string | null;
+};
+
+export function VitalsPanel({
+  caseId,
+  fromCase,
+}: {
+  caseId: number;
+  fromCase: FromCase;
+}) {
   const queryClient = useQueryClient();
   const vitals = useGetVitals(caseId);
+  const [ssnProblem, setSsnProblem] = useState(false);
 
   const save = useUpdateVitals({
     mutation: {
@@ -108,9 +123,25 @@ export function VitalsPanel({ caseId }: { caseId: number }) {
     );
   }
 
-  if (!vitals.data) return null;
+  if (!vitals.data) {
+    return (
+      <LoadFailed what="The certificate details" onRetry={() => void vitals.refetch()} />
+    );
+  }
 
   const record = vitals.data as unknown as Record<string, unknown>;
+
+  /*
+   * Never ask twice. The name and date of birth were typed when the case
+   * was opened; the certificate asked for them again from blank. Offered
+   * rather than copied silently, because the legal name on a certificate is
+   * sometimes not the one the family uses.
+   */
+  const fill = Object.fromEntries(
+    (Object.entries(fromCase) as Array<[keyof FromCase, string | null]>).filter(
+      ([field, value]) => value && !record[field],
+    ),
+  );
   const missing = vitals.data.missingForFiling;
   const verified = vitals.data.status === "verified";
 
@@ -155,6 +186,29 @@ export function VitalsPanel({ caseId }: { caseId: number }) {
         </div>
       </div>
 
+      {Object.keys(fill).length > 0 && (
+        <div className="flex flex-wrap items-center gap-3 rounded-xl border border-border bg-[var(--sunken)] px-4 py-3">
+          <p className="min-w-0 flex-1 text-sm leading-snug text-muted-foreground">
+            The case already has{" "}
+            {[
+              fill.legalFirstName || fill.legalLastName ? "the name" : null,
+              fill.dateOfBirth ? "the date of birth" : null,
+            ]
+              .filter(Boolean)
+              .join(" and ")}
+            . Check it is the legal one before filing.
+          </p>
+          <Button
+            variant="outline"
+            size="sm"
+            disabled={save.isPending}
+            onClick={() => save.mutate({ caseId, data: fill })}
+          >
+            Fill in from the case
+          </Button>
+        </div>
+      )}
+
       {verified && (
         <p className="text-sm text-muted-foreground">
           The family can no longer edit these. You still can.
@@ -176,14 +230,28 @@ export function VitalsPanel({ caseId }: { caseId: number }) {
           className="w-[11rem]"
           inputMode="numeric"
           autoComplete="off"
-          placeholder="Replace"
+          placeholder={vitals.data.hasSocialSecurityNumber ? "Replace" : "123-45-6789"}
+          aria-invalid={ssnProblem || undefined}
+          aria-describedby={ssnProblem ? "ssn-problem" : undefined}
+          onChange={() => setSsnProblem(false)}
           onBlur={(event) => {
             const digits = event.target.value.replace(/\D/g, "");
-            if (digits.length !== 9) return;
+            // Anything but nine digits used to vanish without a word, and the
+            // director believed it was on file.
+            if (digits.length === 0) return;
+            if (digits.length !== 9) {
+              setSsnProblem(true);
+              return;
+            }
             save.mutate({ caseId, data: { socialSecurityNumber: digits } });
             event.target.value = "";
           }}
         />
+        {ssnProblem && (
+          <p id="ssn-problem" role="alert" className="basis-full text-sm text-foreground">
+            A social security number is nine digits. Nothing has been saved yet.
+          </p>
+        )}
       </section>
 
       {GROUPS.map((group) => (
@@ -195,6 +263,17 @@ export function VitalsPanel({ caseId }: { caseId: number }) {
                 <Label htmlFor={field}>{label}</Label>
                 <Input
                   id={field}
+                  // Keyed by the stored value, so "Fill in from the case"
+                  // shows up in the boxes it filled.
+                  key={`${field}:${(record[field] as string) ?? ""}`}
+                  // A date picker, as the family has — unless an older record
+                  // holds the date as words, which a picker would hide.
+                  type={
+                    field === "dateOfBirth" &&
+                    /^(\d{4}-\d{2}-\d{2})?$/.test((record[field] as string) ?? "")
+                      ? "date"
+                      : undefined
+                  }
                   defaultValue={(record[field] as string) ?? ""}
                   className={
                     missing.includes(field) ? "border-[var(--accent)]" : ""

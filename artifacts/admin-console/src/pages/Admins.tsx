@@ -13,6 +13,7 @@ import {
   ErrorState,
   Field,
   LoadingRows,
+  usePageTitle,
 } from "@/components/ui";
 
 /**
@@ -32,6 +33,7 @@ import {
  * button that only ever fails.
  */
 export function Admins() {
+  usePageTitle("Who has access");
   const queryClient = useQueryClient();
   const me = queryClient.getQueryData<{ email: string }>(["platform-access"]);
 

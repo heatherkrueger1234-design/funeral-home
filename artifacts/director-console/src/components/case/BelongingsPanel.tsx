@@ -113,6 +113,14 @@ export function BelongingsPanel({ caseId }: { caseId: number }) {
           )}
         </div>
 
+        {rows.length === 0 && (
+          <p className="rounded-lg bg-[var(--sunken)] px-4 py-3 text-sm leading-snug text-muted-foreground">
+            Nothing logged yet. Write down anything handed over — a ring, a
+            watch, the clothes — so the question &ldquo;where did it go?&rdquo;
+            always has an answer.
+          </p>
+        )}
+
         <ul className="space-y-2">
           {rows.map((item) => (
             <li
@@ -121,8 +129,8 @@ export function BelongingsPanel({ caseId }: { caseId: number }) {
             >
               <div className="flex items-start gap-2">
                 <Input
+                  aria-label="What it is"
                   defaultValue={item.description}
-                  aria-label={`Description of ${item.description}`}
                   onBlur={(event) => {
                     const next = event.target.value.trim();
                     if (!next || next === item.description) return;
@@ -213,9 +221,9 @@ export function BelongingsPanel({ caseId }: { caseId: number }) {
 
         <div className="flex gap-2">
           <Input
+            aria-label="Add an item to the custody log"
             value={description}
-            aria-label="Add an item"
-            placeholder="Add an item"
+            placeholder="Add an item — a wedding ring, a watch"
             onChange={(event) => setDescription(event.target.value)}
             onKeyDown={(event) => {
               if (event.key !== "Enter") return;
@@ -287,12 +295,11 @@ export function BelongingsPanel({ caseId }: { caseId: number }) {
               rows={2}
               defaultValue={prep?.[field] ?? ""}
               placeholder="Nothing from the family yet"
-              onBlur={(event) =>
-                savePrep.mutate({
-                  caseId,
-                  data: { [field]: event.target.value.trim() || null },
-                })
-              }
+              onBlur={(event) => {
+                const value = event.target.value.trim() || null;
+                if (value === (prep?.[field] ?? null)) return;
+                savePrep.mutate({ caseId, data: { [field]: value } });
+              }}
             />
           </div>
         ))}

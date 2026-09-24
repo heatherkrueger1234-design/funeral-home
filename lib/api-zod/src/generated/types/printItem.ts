@@ -36,5 +36,17 @@ export interface PrintItem {
   status: PrintItemStatus;
   sharedWithFamily: boolean;
   approvedAt: Date | null;
+  /** Who signed it off — the director, or the family member who
+approved it from the portal.
+ */
+  approvedByName: string | null;
+  /** True when the family approved it from the portal. */
+  approvedByFamily: boolean;
+  /** The family asked for a change. Cleared when the home sends a new
+proof or approves it.
+ */
+  changesRequestedAt: Date | null;
+  changesRequestedNote: string | null;
+  changesRequestedBy: string | null;
   updatedAt: Date;
 }

@@ -1,17 +1,67 @@
-import type { ReactNode } from "react";
-import { Link, useRoute } from "wouter";
+import { useEffect, useRef, type ReactNode, type RefObject } from "react";
+import { Link, useLocation, useRoute } from "wouter";
 import { useMutation } from "@tanstack/react-query";
-import { api, cn } from "@/lib/api";
+import { api, cn, isUnauthorized } from "@/lib/api";
 import { Button } from "./ui";
 
 /**
- * The frame. Four places to be, because there are four things this console
- * does, and a list of four does not need a sidebar that collapses.
+ * Move focus to the new page's heading when the page changes.
+ *
+ * A client-side route change swaps the content and leaves focus on the link
+ * that was clicked, up in the navigation, so somebody using a screen reader
+ * or a keyboard hears nothing and has to find their way back down the page.
+ * Focusing the `h1` is what a full page load would have given them.
+ *
+ * Most pages draw their heading only once their data arrives, so this waits
+ * for one to appear -- briefly; a page that never draws one is left alone.
+ * Not on first load: the browser already puts focus at the top of the
+ * document then, and stealing it would be rude.
+ */
+function useFocusHeadingOnNavigate(mainRef: RefObject<HTMLElement | null>) {
+  const [location] = useLocation();
+  const first = useRef(true);
+
+  useEffect(() => {
+    if (first.current) {
+      first.current = false;
+      return;
+    }
+
+    const main = mainRef.current;
+    if (!main) return;
+
+    const focusHeading = (): boolean => {
+      const heading = main.querySelector("h1");
+      if (!heading) return false;
+      heading.setAttribute("tabindex", "-1");
+      heading.focus({ preventScroll: false });
+      return true;
+    };
+
+    if (focusHeading()) return;
+
+    const observer = new MutationObserver(() => {
+      if (focusHeading()) observer.disconnect();
+    });
+    observer.observe(main, { childList: true, subtree: true });
+    const giveUp = window.setTimeout(() => observer.disconnect(), 5000);
+
+    return () => {
+      observer.disconnect();
+      window.clearTimeout(giveUp);
+    };
+  }, [location, mainRef]);
+}
+
+/**
+ * The frame. Five places to be, because there are five things this console
+ * does, and a list of five does not need a sidebar that collapses.
  */
 
 const PLACES = [
   { href: "/", label: "Overview" },
   { href: "/homes", label: "Homes" },
+  { href: "/groups", label: "Groups" },
   { href: "/audit", label: "Access log" },
   { href: "/admins", label: "Who has access" },
 ] as const;
@@ -51,18 +101,28 @@ export function Shell({
 }) {
   const signOut = useMutation({
     mutationFn: () => api.post("/auth/logout"),
-    // Settled, not success: a logout that failed on the network left the
-    // button dead and the console on screen. The sign-in form coming back is
-    // right either way -- `NotForYou` already treats it the same.
-    onSettled: onSignedOut,
+    onSuccess: onSignedOut,
+    /*
+     * A 401 means the session was already gone -- which is what signing out
+     * was for -- so that goes to the front door too. Anything else is said
+     * out loud: a button that silently did nothing leaves somebody on a
+     * shared laptop believing they have signed out when they have not.
+     */
+    onError: (error) => {
+      if (isUnauthorized(error)) onSignedOut();
+    },
   });
+
+  const mainRef = useRef<HTMLElement>(null);
+  useFocusHeadingOnNavigate(mainRef);
 
   return (
     <div className="min-h-dvh">
       {/* Sticky: this console is read alongside a long table, and whose
-          platform it is should not scroll away. */}
-      <header className="sticky top-0 z-30 border-b border-[var(--border)] bg-[var(--card)]/95 backdrop-blur-sm supports-[backdrop-filter]:bg-[var(--card)]/85">
-        <div className="mx-auto flex max-w-6xl flex-wrap items-center gap-x-5 gap-y-2 px-6 py-2.5">
+          platform it is should not scroll away. Not on a phone, where the
+          wrapped navigation would take a quarter of the screen with it. */}
+      <header className="z-30 sm:sticky sm:top-0 border-b border-[var(--border)] bg-[var(--card)]/95 backdrop-blur-sm supports-[backdrop-filter]:bg-[var(--card)]/85">
+        <div className="mx-auto flex max-w-6xl flex-wrap items-center gap-x-5 gap-y-2 px-4 py-2.5 sm:px-6">
           <Link href="/" className="font-display text-lg no-underline">
             Continuum Aftercare
           </Link>
@@ -71,18 +131,16 @@ export function Shell({
             className="hidden h-5 w-px shrink-0 bg-[var(--border)] sm:block"
             aria-hidden
           />
-          <nav aria-label="Sections" className="flex flex-wrap items-center gap-1">
+          <nav
+            aria-label="Sections"
+            className="order-last -mx-3 flex w-full flex-wrap items-center gap-1 sm:order-none sm:mx-0 sm:w-auto"
+          >
             {PLACES.map((place) => (
               <NavLink key={place.href} {...place} />
             ))}
           </nav>
-          <div className="ml-auto flex min-w-0 items-center gap-3 text-sm">
-            {/* A long address truncates on a phone rather than pushing
-                "Sign out" off the edge of the screen. */}
-            <span
-              className="min-w-0 truncate text-[var(--muted-foreground)]"
-              title={signedInAs}
-            >
+          <div className="ml-auto flex items-center gap-3 text-sm">
+            <span className="hidden text-[var(--muted-foreground)] md:inline">
               {signedInAs}
             </span>
             <Button
@@ -90,13 +148,21 @@ export function Shell({
               onClick={() => signOut.mutate()}
               disabled={signOut.isPending}
             >
-              Sign out
+              {signOut.isPending ? "Signing out…" : "Sign out"}
             </Button>
           </div>
+          {signOut.error && !isUnauthorized(signOut.error) && (
+            <p role="alert" className="w-full text-right text-sm text-[var(--notice)]">
+              That didn't sign you out -- you are still signed in. Please try
+              again, or close the browser if this is a shared computer.
+            </p>
+          )}
         </div>
       </header>
 
-      <main className="mx-auto max-w-6xl px-6 py-8">{children}</main>
+      <main ref={mainRef} className="mx-auto max-w-6xl px-4 py-8 sm:px-6">
+        {children}
+      </main>
 
     </div>
   );

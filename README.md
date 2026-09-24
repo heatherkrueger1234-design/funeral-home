@@ -45,7 +45,10 @@ export ENCRYPTION_KEY=$(pnpm --filter @workspace/scripts run generate-encryption
 
 pnpm --filter @workspace/db run push   # create the tables
 pnpm run typecheck
-pnpm run test                          # integration tests, against the database above
+# Integration tests TRUNCATE every table, so they get their own database.
+# setup.ts refuses any database whose name does not end in _test.
+createdb funeral_home_test
+DATABASE_URL=postgresql://postgres:postgres@localhost:5432/funeral_home_test pnpm run test
 pnpm run build
 ```
 

@@ -187,7 +187,15 @@ export function TimelinePanel({
           });
         }}
       >
-        <p className="font-medium">Add to the timeline</p>
+        <div>
+          <p className="font-medium">Add to the timeline</p>
+          {/* The timeline is the family's list, word for word. A staff chore
+              typed here lands on a bereaved person's phone as their job. */}
+          <p className="text-sm text-muted-foreground">
+            The family sees every step here, so write it to them. Your own
+            to-dos belong in your case system.
+          </p>
+        </div>
 
         <div className="grid gap-4 sm:grid-cols-[1fr_auto]">
           <div className="space-y-1.5">

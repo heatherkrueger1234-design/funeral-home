@@ -1,9 +1,12 @@
 import { Router, type IRouter, type Response } from "express";
-import { and, asc, desc, eq, isNull, max } from "drizzle-orm";
+import { and, asc, desc, eq, inArray, isNull, max } from "drizzle-orm";
 import {
   db,
   casePrintItemsTable,
+  caseMessagesTable,
   casePhotosTable,
+  familyContactsTable,
+  usersTable,
   snippetsTable,
   uploadsTable,
   type Case,
@@ -20,6 +23,7 @@ import {
   GetSnippetsQueryParams,
 } from "@workspace/api-zod";
 import {
+  HttpError,
   assertHasUpdates,
   badRequest,
   parseBody,
@@ -205,13 +209,56 @@ async function photoUploadFor(
   };
 }
 
-async function toPrintItemJson(
+/**
+ * The names behind a sign-off or a request for changes, so the print list can
+ * say "approved by Anne Whitfield" rather than just "approved". At most a
+ * handful of rows per case, so two small lookups are cheaper than a join
+ * threaded through every query that returns a print item.
+ */
+async function peopleFor(item: CasePrintItem) {
+  const contactIds = [
+    item.approvedByContactId,
+    item.changesRequestedByContactId,
+  ].filter((id): id is number => id != null);
+
+  const [contacts, [user]] = await Promise.all([
+    contactIds.length
+      ? db
+          .select({ id: familyContactsTable.id, name: familyContactsTable.name })
+          .from(familyContactsTable)
+          .where(inArray(familyContactsTable.id, contactIds))
+      : Promise.resolve([] as { id: number; name: string }[]),
+    item.approvedByUserId != null
+      ? db
+          .select({ name: usersTable.displayName })
+          .from(usersTable)
+          .where(eq(usersTable.id, item.approvedByUserId))
+          .limit(1)
+      : Promise.resolve([undefined]),
+  ]);
+
+  const nameOf = (id: number | null) =>
+    contacts.find((contact) => contact.id === id)?.name ?? null;
+
+  return {
+    approvedByName:
+      item.approvedByContactId != null
+        ? nameOf(item.approvedByContactId)
+        : (user?.name ?? null),
+    changesRequestedBy: nameOf(item.changesRequestedByContactId),
+  };
+}
+
+export async function toPrintItemJson(
   item: CasePrintItem,
   row: Case,
   timeZone: string,
 ) {
   const template = findTemplate(item.templateKey);
-  const { photoId, uploadId } = await photoUploadFor(item, row);
+  const [{ photoId, uploadId }, people] = await Promise.all([
+    photoUploadFor(item, row),
+    peopleFor(item),
+  ]);
   const values = (item.values ?? {}) as Record<string, string>;
 
   return {
@@ -232,6 +279,12 @@ async function toPrintItemJson(
     status: item.status,
     sharedWithFamily: item.sharedWithFamily,
     approvedAt: item.approvedAt,
+    approvedByName: item.status === "approved" ? people.approvedByName : null,
+    approvedByFamily:
+      item.status === "approved" && item.approvedByContactId != null,
+    changesRequestedAt: item.changesRequestedAt,
+    changesRequestedNote: item.changesRequestedNote,
+    changesRequestedBy: people.changesRequestedBy,
     updatedAt: item.updatedAt,
   };
 }
@@ -324,6 +377,27 @@ router.put("/print/:printItemId", async (req, res) => {
   const template = findTemplate(existing.templateKey);
 
   /*
+   * An approved card is the one the family signed off. Changing its words or
+   * its photograph afterwards would print something nobody checked, so the
+   * wording is frozen until it is reopened — in the same request is fine,
+   * which is what the studio's "Approved — reopen" does. The number of copies
+   * is not something a family proofreads, so that stays editable.
+   */
+  const reopening = patch.status != null && patch.status !== "approved";
+  if (
+    existing.status === "approved" &&
+    !reopening &&
+    (patch.values !== undefined ||
+      patch.photoId !== undefined ||
+      patch.title !== undefined)
+  ) {
+    throw new HttpError(
+      409,
+      "This one has been approved. Reopen it before changing what it says.",
+    );
+  }
+
+  /*
    * Slot values are merged rather than replaced, and unknown keys dropped.
    * Merged because the studio saves one field at a time as a director types;
    * filtered because `values` is JSON and an unchecked write there is the one
@@ -377,14 +451,45 @@ router.put("/print/:printItemId", async (req, res) => {
       ...patch,
       ...(nextValues ? { values: nextValues } : {}),
       ...(approving
-        ? { approvedAt: new Date(), approvedByUserId: user.id }
+        ? {
+            approvedAt: new Date(),
+            approvedByUserId: user.id,
+            approvedByContactId: null,
+          }
         : patch.status && patch.status !== "approved"
-          ? { approvedAt: null, approvedByUserId: null }
+          ? { approvedAt: null, approvedByUserId: null, approvedByContactId: null }
           : {}),
+      // Sending a fresh proof, or signing it off, answers whatever the family
+      // asked for last time; leaving the old note up would read as unhandled.
+      ...(patch.status === "proof" || approving
+        ? {
+            changesRequestedAt: null,
+            changesRequestedNote: null,
+            changesRequestedByContactId: null,
+          }
+        : {}),
       updatedAt: new Date(),
     })
     .where(eq(casePrintItemsTable.id, existing.id))
     .returning();
+
+  /*
+   * The moment a proof becomes something the family can act on — shared and
+   * waiting on them — say so in the thread. Without this the family only
+   * finds it if they happen to open "Things to check", and the director
+   * waits on an answer nobody knows they owe.
+   */
+  const wasWaiting = existing.sharedWithFamily && existing.status === "proof";
+  const nowWaiting = updated!.sharedWithFamily && updated!.status === "proof";
+  if (nowWaiting && !wasWaiting) {
+    const name = updated!.title ?? template?.name ?? "card";
+    await db.insert(caseMessagesTable).values({
+      funeralHomeId: existing.funeralHomeId,
+      caseId: existing.caseId,
+      authorUserId: user.id,
+      body: `A proof of "${name}" is ready for you to read before it's printed. You'll find it under "Things to check" — please look closely at the spellings, and approve it or tell us what needs changing.`,
+    });
+  }
 
   res.json(
     await toPrintItemJson(

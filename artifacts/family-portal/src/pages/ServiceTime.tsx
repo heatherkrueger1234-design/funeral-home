@@ -96,9 +96,11 @@ export default function ServiceTime() {
 
   if (offers.isPending) return <Loading rows={3} />;
 
-  if (!offers.data) {
+  if (offers.isError && !offers.data) {
     return <LoadFailed title="The service" onRetry={() => void offers.refetch()} />;
   }
+
+  if (!offers.data) return null;
 
   const data = offers.data;
   const homeName = session.data?.home.name ?? "The funeral home";
@@ -127,9 +129,15 @@ export default function ServiceTime() {
             <CalendarCheck className="size-3.5" strokeWidth={1.75} />
             Settled
           </p>
+          {/* The day and the hour on lines of their own, as on the hub: run
+              together at this size it broke as "Monday, September / 28 at
+              10:00 AM", splitting the date in half. */}
           <p className="font-display text-xl">
-            {data.serviceAt ? full(data.serviceAt) : "Confirmed"}
+            {data.serviceAt ? day(data.serviceAt) : "Confirmed"}
           </p>
+          {data.serviceAt && (
+            <p className="tabular mt-0.5 text-lg">{time(data.serviceAt)}</p>
+          )}
           {data.serviceLocation && (
             <p className="mt-1 text-muted-foreground">{data.serviceLocation}</p>
           )}
@@ -145,7 +153,7 @@ export default function ServiceTime() {
           <Button asChild variant="outline" className="w-full">
             <a href={`tel:${data.homePhone.replace(/[^\d+]/g, "")}`}>
               <Phone className="size-4" />
-              {data.homePhone}
+              Call {data.homePhone}
             </a>
           </Button>
         )}

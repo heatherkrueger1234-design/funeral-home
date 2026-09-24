@@ -21,9 +21,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { useToast } from "@/hooks/use-toast";
 import { Contact, MapPin, Plus, Search, Star, Trash2 } from "lucide-react";
-import { Empty, Loading, LoadingLines, PageHeader } from "@/components/page";
+import { Confirm, Empty, LoadFailed, Loading, LoadingLines, PageHeader } from "@/components/page";
 
 /**
  * The home's local network.
@@ -54,7 +53,6 @@ const KINDS = [
 ];
 
 export default function Vendors() {
-  const { toast } = useToast();
   const queryClient = useQueryClient();
   const { session } = useSession();
 
@@ -85,6 +83,8 @@ export default function Vendors() {
 
   const create = useCreateVendor({
     mutation: {
+      // Toasts its own failure below; the catch-all would say it twice.
+      meta: { handlesOwnErrors: true },
       onSuccess: () => {
         setName("");
         setPhone("");
@@ -96,18 +96,13 @@ export default function Vendors() {
         // not change what it would say.
         void queryClient.invalidateQueries({ queryKey: getLookupPlacesQueryKey() });
       },
-      onError: (error) =>
-        toast({
-          title: "Couldn't save that",
-          description: error instanceof Error ? error.message : undefined,
-          variant: "destructive",
-        }),
     },
   });
   const update = useUpdateVendor({ mutation: { onSuccess: refresh } });
   const archive = useArchiveVendor({ mutation: { onSuccess: refresh } });
 
   const rows = vendors.data ?? [];
+  const kindLabel = (KINDS.find((entry) => entry.value === kind)?.label ?? "").toLowerCase();
 
   return (
     <div className="space-y-6">
@@ -225,8 +220,10 @@ export default function Vendors() {
 
       {vendors.isPending ? (
         <Loading />
+      ) : vendors.isError ? (
+        <LoadFailed what="Your local network" onRetry={() => void vendors.refetch()} />
       ) : rows.length === 0 ? (
-        <Empty icon={Contact} title="Nobody here yet">
+        <Empty icon={Contact} title={`No ${kindLabel} saved yet`}>
           Add someone you'd actually recommend. Families see this list, and a
           name you would not give over the telephone does not belong on it.
         </Empty>
@@ -237,7 +234,7 @@ export default function Vendors() {
               key={vendor.id}
               className="flex flex-wrap items-center gap-3 rounded-xl border border-border bg-card px-4 py-3.5 shadow-[var(--elevation-1)]"
             >
-              <span className="min-w-0 flex-1">
+              <span className="min-w-[12rem] flex-1">
                 <span className="block truncate font-medium">{vendor.name}</span>
                 <span className="block truncate text-sm text-muted-foreground">
                   {[vendor.city, vendor.region].filter(Boolean).join(", ")}
@@ -258,9 +255,9 @@ export default function Vendors() {
               <Button
                 variant="ghost"
                 size="sm"
-                title="Recommend this one first"
-                aria-label={`Recommend ${vendor.name} first`}
                 aria-pressed={vendor.preferred}
+                aria-label={`Recommend ${vendor.name} first`}
+                title="Recommend this one first"
                 onClick={() =>
                   update.mutate({
                     vendorId: vendor.id,
@@ -292,24 +289,23 @@ export default function Vendors() {
                 Families
               </label>
 
-              <Button
-                variant="ghost"
-                size="icon"
-                className="text-muted-foreground"
-                aria-label={`Remove ${vendor.name}`}
-                disabled={archive.isPending}
-                onClick={() => {
-                  if (
-                    window.confirm(
-                      `Remove ${vendor.name}? They come off your list and out of every family's portal.`,
-                    )
-                  ) {
-                    archive.mutate({ vendorId: vendor.id });
-                  }
-                }}
-              >
-                <Trash2 className="size-4" />
-              </Button>
+              <Confirm
+                trigger={
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="text-muted-foreground"
+                    aria-label={`Remove ${vendor.name}`}
+                    disabled={archive.isPending}
+                  >
+                    <Trash2 className="size-4" />
+                  </Button>
+                }
+                title={`Take ${vendor.name} off your list?`}
+                description="Families stop seeing them, and they leave this list. Anything a family was already told stays true; you can add them again later."
+                confirmLabel="Take them off"
+                onConfirm={() => archive.mutate({ vendorId: vendor.id })}
+              />
             </li>
           ))}
         </ul>
@@ -330,7 +326,7 @@ export default function Vendors() {
         }}
       >
         <div className="min-w-[12rem] flex-1 space-y-1.5">
-          <Label htmlFor="vendorName">Add by hand</Label>
+          <Label htmlFor="vendorName">Add someone under {kindLabel}</Label>
           <Input
             id="vendorName"
             required

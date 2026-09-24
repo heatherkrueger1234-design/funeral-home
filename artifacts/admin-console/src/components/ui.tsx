@@ -1,6 +1,27 @@
-import type { ButtonHTMLAttributes, InputHTMLAttributes, ReactNode } from "react";
-import { useId, useState } from "react";
+import { useState } from "react";
+import type {
+  ButtonHTMLAttributes,
+  InputHTMLAttributes,
+  ReactNode,
+  SelectHTMLAttributes,
+} from "react";
+import { useEffect, useId } from "react";
+import { Link } from "wouter";
 import { cn } from "@/lib/api";
+
+/**
+ * Name the browser tab after the page.
+ *
+ * Every screen used to be called the same thing, so six tabs of this console
+ * were six identical tabs, and a screen reader arriving on a new page heard
+ * the same title it heard on the last one. Pass `null` while the name is
+ * still loading; the previous title stays until there is a real one.
+ */
+export function usePageTitle(title: string | null) {
+  useEffect(() => {
+    if (title) document.title = `${title} · Continuum Aftercare platform`;
+  }, [title]);
+}
 
 /**
  * The console's small vocabulary of parts.
@@ -120,27 +141,37 @@ export function Field({ label, hint, problem, className, ...props }: FieldProps)
           className,
         )}
       />
-      {(hint || problem) && (
-        <p
-          id={hintId}
-          className={cn(
-            "text-sm",
-            problem ? "text-[var(--notice)]" : "text-[var(--muted-foreground)]",
-          )}
-        >
-          {problem ?? hint}
+      {/*
+        Two elements with different keys rather than one whose text changes,
+        so that a problem arriving is a new `role="alert"` node -- which a
+        screen reader announces -- instead of a quiet edit to the hint that
+        somebody who cannot see the red text never hears about.
+      */}
+      {problem ? (
+        <p key="problem" id={hintId} role="alert" className="text-sm text-[var(--notice)]">
+          {problem}
         </p>
-      )}
+      ) : hint ? (
+        <p key="hint" id={hintId} className="text-sm text-[var(--muted-foreground)]">
+          {hint}
+        </p>
+      ) : null}
     </div>
   );
 }
 
 export function Select({
   label,
+  hint,
   children,
   ...props
-}: InputHTMLAttributes<HTMLSelectElement> & { label: string; children: ReactNode }) {
+}: SelectHTMLAttributes<HTMLSelectElement> & {
+  label: string;
+  hint?: string;
+  children: ReactNode;
+}) {
   const id = useId();
+  const hintId = `${id}-hint`;
 
   return (
     <div className="flex flex-col gap-1.5">
@@ -148,8 +179,9 @@ export function Select({
         {label}
       </label>
       <select
-        {...(props as object)}
+        {...props}
         id={id}
+        aria-describedby={hint ? hintId : undefined}
         className={cn(
           "min-h-11 rounded-md border border-[var(--border-strong)] bg-white px-3 text-base",
           "shadow-[inset_0_1px_2px_rgb(40_34_24/0.04)]",
@@ -161,6 +193,11 @@ export function Select({
       >
         {children}
       </select>
+      {hint && (
+        <p id={hintId} className="text-sm text-[var(--muted-foreground)]">
+          {hint}
+        </p>
+      )}
     </div>
   );
 }
@@ -353,15 +390,26 @@ export function Stat({
 }
 
 /**
- * A hairline with a name on it — the same section marker the other two
- * applications use, so a heading means the same thing at the staff door as it
- * does in a family's portal.
+ * The page is not there -- an address typed wrong, or a home or group that
+ * does not exist. Never a "Try again": trying again will not make it exist,
+ * so the one way out is back to the list it would have been in.
  */
-export function Divider({ label }: { label: string }) {
+export function Missing({
+  title,
+  detail,
+  back,
+}: {
+  title: string;
+  detail: string;
+  back: { href: string; label: string };
+}) {
   return (
-    <div className="flex items-center gap-3">
-      <h2 className="eyebrow">{label}</h2>
-      <span className="h-px flex-1 bg-[var(--border)]" aria-hidden />
-    </div>
+    <Card>
+      <h1 className="font-display text-xl">{title}</h1>
+      <p className="mt-2 max-w-prose text-[var(--muted-foreground)]">{detail}</p>
+      <Link href={back.href} className="mt-4 inline-block underline">
+        {back.label}
+      </Link>
+    </Card>
   );
 }

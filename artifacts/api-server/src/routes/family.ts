@@ -47,6 +47,7 @@ import {
   GetFamilyVendorsQueryParams,
   UpdateFamilyVitalsBody,
   InviteFamilyRelativeBody,
+  RequestFamilyPrintChangesBody,
 } from "@workspace/api-zod";
 import { MailNotSentError, sendFamilyLinkEmail } from "@workspace/mailer";
 import { linkUrl, mintLink } from "../lib/family-link";
@@ -110,7 +111,12 @@ import {
   vitalsForCase,
 } from "../lib/vitals";
 import { quotesForCase } from "./vendors";
-import { printItemsForCase, renderPrintItemHtml, sendRenderedHtml } from "./print";
+import {
+  printItemsForCase,
+  renderPrintItemHtml,
+  sendRenderedHtml,
+  toPrintItemJson,
+} from "./print";
 import {
   belongingsForCase,
   ensureBelongingPrompts,
@@ -159,6 +165,7 @@ router.get("/session", async (req, res) => {
     home_,
     openOffers,
     settled,
+    proofs,
   ] = await Promise.all([
     db
       .select({ value: count() })
@@ -213,6 +220,16 @@ router.get("/session", async (req, res) => {
     publicHome(home),
     openOfferCount(row.id),
     chosenOffer(row.id),
+    db
+      .select({ value: count() })
+      .from(casePrintItemsTable)
+      .where(
+        and(
+          eq(casePrintItemsTable.caseId, row.id),
+          eq(casePrintItemsTable.sharedWithFamily, true),
+          eq(casePrintItemsTable.status, "proof"),
+        ),
+      ),
   ]);
 
   const deliveries = aftercare[0]
@@ -236,6 +253,7 @@ router.get("/session", async (req, res) => {
     outstandingDeadlines: Number(deadlines[0]?.value ?? 0),
     unreadMessages: Number(unread[0]?.value ?? 0),
     messagesLocked: isThreadLocked(row),
+    proofsToCheck: Number(proofs[0]?.value ?? 0),
     /*
      * The one thing on this screen somebody else is waiting on. Everything
      * else the portal asks for can wait until the family is ready; a date
@@ -751,11 +769,12 @@ router.put("/preparation", async (req, res) => {
   );
 
   // Editing after staff have signed the sheet off resets that: what the
-  // preparation room read is no longer what the family has said. Only an
-  // actual change does, though -- a relative tabbing through the boxes sends
-  // the same words back, and that used to undo the sign-off on its own.
-  const changed = (Object.keys(values) as (keyof typeof values)[]).some(
-    (key) => values[key] !== undefined && values[key] !== sheet[key],
+  // preparation room read is no longer what the family has said. Only a real
+  // change does — a save that repeats what is on file (a stale tab, a
+  // double tap) leaves the sign-off standing.
+  const changed = Object.entries(values).some(
+    ([key, value]) =>
+      (sheet as Record<string, unknown>)[key] !== (value ?? null),
   );
 
   const [updated] = await db
@@ -1006,6 +1025,144 @@ router.get("/print/:printItemId/render", async (req, res) => {
   sendRenderedHtml(res, await renderPrintItemHtml(item, row, home));
 });
 
+/**
+ * A proof the family may answer: on this case, shared, and still out for
+ * checking. Anything else — a draft, one already signed off, one the home has
+ * taken back — gets the same 409, because a stale tab is the usual reason.
+ */
+async function answerableProof(caseId: number, printItemId: string | undefined) {
+  const id = parseId(printItemId);
+  const [existing] = await db
+    .select()
+    .from(casePrintItemsTable)
+    .where(
+      and(
+        eq(casePrintItemsTable.id, id),
+        eq(casePrintItemsTable.caseId, caseId),
+        eq(casePrintItemsTable.sharedWithFamily, true),
+      ),
+    )
+    .limit(1);
+
+  const item = requireRow(existing, "That could not be found.");
+
+  if (item.status !== "proof") {
+    throw new HttpError(
+      409,
+      item.status === "approved"
+        ? "This one has already been approved."
+        : "The funeral home is working on this one again. They'll send a new proof.",
+    );
+  }
+
+  return item;
+}
+
+/** A line in the thread, written as the family member who acted. */
+async function postFamilyLine(
+  home: ReturnType<typeof familyHome>,
+  caseId: number,
+  contactId: number,
+  body: string,
+) {
+  const now = new Date();
+  await db.insert(caseMessagesTable).values({
+    funeralHomeId: home.id,
+    caseId,
+    authorContactId: contactId,
+    body,
+    // Recorded exactly as a typed message would be — see POST /messages.
+    sentOutsideOfficeHours: isWithinOfficeHours(home, now) ? null : now,
+  });
+}
+
+/**
+ * Sign a proof off.
+ *
+ * Only the next of kin: they are who the home takes instructions from, and
+ * an approval is an instruction to print two hundred of something. Anybody
+ * with a link can still say something is wrong, below — that is the half
+ * that matters most, and the cousin is as likely to catch it as anyone.
+ */
+router.post("/print/:printItemId/approve", async (req, res) => {
+  const contact = familyContact(req);
+  const row = familyCase(req);
+  const home = familyHome(req);
+
+  if (contact.role !== "next_of_kin") {
+    throw new HttpError(
+      403,
+      "Approving is for the family's main contact. If it looks right to you, tell them — or tell the funeral home if something is wrong.",
+    );
+  }
+
+  const item = await answerableProof(row.id, req.params.printItemId);
+
+  const [updated] = await db
+    .update(casePrintItemsTable)
+    .set({
+      status: "approved",
+      approvedAt: new Date(),
+      approvedByUserId: null,
+      approvedByContactId: contact.id,
+      changesRequestedAt: null,
+      changesRequestedNote: null,
+      changesRequestedByContactId: null,
+      updatedAt: new Date(),
+    })
+    .where(eq(casePrintItemsTable.id, item.id))
+    .returning();
+
+  const name = updated!.title ?? "the card";
+  await postFamilyLine(
+    home,
+    row.id,
+    contact.id,
+    `I've read "${name}" and it's right. Please go ahead and print it.`,
+  );
+
+  res.json(await toPrintItemJson(updated!, row, home.timezone));
+});
+
+/**
+ * Something on a proof is wrong. Sent back to draft so it leaves "with the
+ * family" on the director's list, and the note goes into the thread where
+ * it will be seen — the print list shows it too, beside the card.
+ */
+router.post("/print/:printItemId/changes", async (req, res) => {
+  const contact = familyContact(req);
+  const row = familyCase(req);
+  const home = familyHome(req);
+  const { note } = parseBody(RequestFamilyPrintChangesBody, req.body);
+
+  const text = note.trim();
+  if (!text) throw badRequest("Say what needs changing.");
+
+  const item = await answerableProof(row.id, req.params.printItemId);
+
+  const [updated] = await db
+    .update(casePrintItemsTable)
+    .set({
+      status: "draft",
+      changesRequestedAt: new Date(),
+      changesRequestedNote: text,
+      changesRequestedByContactId: contact.id,
+      updatedAt: new Date(),
+    })
+    .where(eq(casePrintItemsTable.id, item.id))
+    .returning();
+
+  const name = updated!.title ?? "the card";
+  await postFamilyLine(
+    home,
+    row.id,
+    contact.id,
+    `Something on "${name}" needs changing:\n\n${text}`,
+  );
+
+  res.json(await toPrintItemJson(updated!, row, home.timezone));
+});
+
 /* ------------------------------------------------------------ messages --- */
 
 router.get("/messages", async (req, res) => {
@@ -1214,6 +1371,15 @@ router.post("/deadlines/:deadlineId", async (req, res) => {
 
   if (found.isEvent) {
     throw badRequest("That's when something happens, not something to do.");
+  }
+
+  // The home ticked this off — the plot confirmed, the permit filed. A tap
+  // on a family's phone must not quietly put it back on the director's list.
+  if (!completed && found.completedByUserId !== null) {
+    throw new HttpError(
+      409,
+      "The funeral home marked this one done. If it isn't, send them a message.",
+    );
   }
 
   await db
@@ -1587,7 +1753,16 @@ router.post("/relatives", async (req, res) => {
       });
       sentBySms = true;
     } catch (error) {
-      if (!(error instanceof SmsNotSentError)) throw error;
+      /*
+       * Any failure, not just "not configured". The relative's row is
+       * already committed, so throwing here would lose the only copy of their
+       * link: the retry is refused as "already has a link", and nobody can
+       * see the token again. Logged, and the link is shown to the inviter
+       * instead, below.
+       */
+      if (!(error instanceof SmsNotSentError)) {
+        req.log?.error({ err: error }, "Relative's link text failed to send");
+      }
     }
   }
 
@@ -1602,7 +1777,9 @@ router.post("/relatives", async (req, res) => {
       });
       sentByEmail = true;
     } catch (error) {
-      if (!(error instanceof MailNotSentError)) throw error;
+      if (!(error instanceof MailNotSentError)) {
+        req.log?.error({ err: error }, "Relative's link email failed to send");
+      }
     }
   }
 
@@ -1833,12 +2010,22 @@ router.put("/memory-book/entries/:entryId", async (req, res) => {
 router.delete("/memory-book/entries/:entryId", async (req, res) => {
   const row = familyCase(req);
   const contact = familyContact(req);
+  const book = await loadOrCreateBook(row.id, row.funeralHomeId);
 
   const entry = await loadOwnEntry(
     parseId(req.params.entryId),
     row.id,
     contact.id,
   );
+
+  // Closed for printing means closed: a stale tab's "remove" must not take
+  // a page out of a book that has gone to the printer.
+  if (!bookIsOpen(book)) {
+    throw new HttpError(
+      409,
+      "This book has been closed for printing, so it can no longer be changed here.",
+    );
+  }
 
   await db.delete(memoryEntriesTable).where(eq(memoryEntriesTable.id, entry.id));
 
@@ -1982,12 +2169,22 @@ router.put("/memory-book/chapters/:chapterId", async (req, res) => {
 router.delete("/memory-book/chapters/:chapterId", async (req, res) => {
   const row = familyCase(req);
   const contact = familyContact(req);
+  const book = await loadOrCreateBook(row.id, row.funeralHomeId);
 
   const chapter = await loadOwnChapter(
     parseId(req.params.chapterId),
     row.id,
     contact.id,
   );
+
+  // Closed for printing means closed: a stale tab's "remove" must not take
+  // a page out of a book that has gone to the printer.
+  if (!bookIsOpen(book)) {
+    throw new HttpError(
+      409,
+      "This book has been closed for printing, so it can no longer be changed here.",
+    );
+  }
 
   await db.delete(lifeChaptersTable).where(eq(lifeChaptersTable.id, chapter.id));
 

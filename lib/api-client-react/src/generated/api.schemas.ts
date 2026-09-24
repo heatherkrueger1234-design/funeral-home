@@ -87,6 +87,9 @@ export interface StaffMember {
    */
   emailVerified: boolean;
   deactivatedAt: string | null;
+  /** False until the person has chosen a password from their invitation. The console offers to send a new invitation while it is false.
+   */
+  hasPassword: boolean;
 }
 
 /**
@@ -461,6 +464,17 @@ export interface DashboardDeadline {
 }
 
 /**
+ * One unanswered price request, and whose case it is on.
+ */
+export interface DashboardQuoteRequest {
+  id: number;
+  caseId: number;
+  decedentName: string;
+  vendorName: string;
+  requestedAt: string;
+}
+
+/**
  * The landing screen, in one read. Counts and the few rows behind them -
 never the whole case list, because a home three years in has hundreds
 and a dashboard that loads them all stops being a dashboard.
@@ -482,10 +496,20 @@ one has an empty timeline and a family being told nothing.
   overdue: DashboardDeadline[];
   /** Due in the next three days. */
   dueSoon: DashboardDeadline[];
-  /** Messages from families nobody at the home has read. */
+  /** Family messages written since the home last wrote on that thread.
+Answering clears them; merely opening the thread does not.
+ */
   unansweredMessages: number;
-  /** How many separate families those are sitting in. */
+  /** How many separate families those are sitting in - threads whose
+latest message is from the family and which can still be answered.
+ */
   casesWaitingOnReply: number;
+  /** Prices families have asked for from their portal that nobody at
+the home has answered yet, across every open case.
+ */
+  quoteRequestsWaiting: number;
+  /** The oldest of those first, capped for the screen. */
+  quoteRequests: DashboardQuoteRequest[];
   /** Requests off the public page waiting for a director. */
   pendingRequests: number;
   /** Cases where the home has offered times and nobody has picked. */
@@ -519,10 +543,16 @@ export interface InboxEntry {
   lastMessageBody: string;
   lastMessageAt: string;
   lastMessageFrom: InboxEntryLastMessageFrom;
-  /** How many the home has not opened. This is what sorts the list:
-somebody waiting comes before somebody who was answered.
+  /** How many the home has not opened yet. A "new" marker only -
+opening a thread is not answering it; see `waitingOnReply`.
  */
   unreadFromFamily: number;
+  /** The latest message is from the family and the thread can still
+be answered. This is what sorts the list: somebody waiting comes
+before somebody who was answered, whether or not the home has
+opened their message.
+ */
+  waitingOnReply: boolean;
   /** Whether the latest family message arrived outside the home's
 hours. Not a reason to reply at 2am - it is context for a
 director reading at eight.
@@ -1439,7 +1469,28 @@ export interface PrintItem {
   status: PrintItemStatus;
   sharedWithFamily: boolean;
   approvedAt: string | null;
+  /** Who signed it off — the director, or the family member who
+approved it from the portal.
+ */
+  approvedByName: string | null;
+  /** True when the family approved it from the portal. */
+  approvedByFamily: boolean;
+  /** The family asked for a change. Cleared when the home sends a new
+proof or approves it.
+ */
+  changesRequestedAt: string | null;
+  changesRequestedNote: string | null;
+  changesRequestedBy: string | null;
   updatedAt: string;
+}
+
+export interface PrintChangesInput {
+  /**
+   * What needs changing, in the family's words.
+   * @minLength 1
+   * @maxLength 2000
+   */
+  note: string;
 }
 
 export interface PrintItemInput {
@@ -2617,6 +2668,8 @@ export interface FamilySession {
   outstandingDeadlines: number;
   unreadMessages: number;
   messagesLocked: boolean;
+  /** Proofs the home has shared that are waiting on the family. */
+  proofsToCheck: number;
   /** The home has offered times and nobody has picked one. The single
 thing on this screen that somebody else is waiting on, so the
 portal puts it above everything else.

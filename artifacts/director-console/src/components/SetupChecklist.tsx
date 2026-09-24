@@ -3,13 +3,12 @@ import { Link } from "wouter";
 import {
   useGetBilling,
   useCompleteOnboardingStep,
-  useStartCheckout,
   getGetBillingQueryKey,
 } from "@workspace/api-client-react";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { ArrowRight, Loader2 } from "lucide-react";
-import { BASE_PATH } from "@/lib/base";
+import { useBillingHandoff } from "@/components/BillingSection";
 import { useSession } from "@/lib/session";
 
 /**
@@ -36,8 +35,8 @@ import { useSession } from "@/lib/session";
  * following this list wants to be sent.
  */
 const DESTINATIONS: Record<string, string> = {
-  // The case list, where both happen. These pointed at "/", which is the
-  // page this checklist sits on: pressing the words did nothing at all.
+  // Both happen on the case list — "/" is this checklist's own page, so
+  // pointing there went nowhere.
   case: "/cases",
   family: "/cases",
   branding: "/settings",
@@ -172,26 +171,13 @@ export function SetupChecklist() {
 export function TrialBanner() {
   const billing = useGetBilling();
   const { session } = useSession();
-
-  /*
-   * Through the generated client, so a refusal reaches the ordinary error
-   * toast. The hand-rolled fetch this replaced ignored a failed response
-   * entirely: the button did nothing, and said nothing, on the last day of a
-   * trial.
-   */
-  const checkout = useStartCheckout({
-    mutation: {
-      onSuccess: (payload) => {
-        window.location.href = payload.url;
-      },
-    },
-  });
+  const { busy, go } = useBillingHandoff();
 
   if (!billing.data) return null;
 
   const { subscriptionStatus, trialDaysLeft, billingConfigured } = billing.data;
-  // The server takes a subscription from an owner only; anybody else would
-  // press the button and be refused.
+  // The server lets only an owner start a subscription; anybody else is told
+  // who can, rather than handed a button that fails.
   const isOwner = session?.user.role === "owner";
 
   const ended = subscriptionStatus === "canceled";
@@ -223,22 +209,17 @@ export function TrialBanner() {
         )}
       </span>
 
-      {billingConfigured && isOwner && (
-        <Button
-          size="sm"
-          disabled={checkout.isPending}
-          onClick={() =>
-            checkout.mutate({
-              data: {
-                returnUrl: `${window.location.origin}${BASE_PATH}/settings`,
-              },
-            })
-          }
-        >
-          {checkout.isPending && <Loader2 className="size-4 animate-spin" />}
-          Start a subscription
-        </Button>
-      )}
+      {billingConfigured &&
+        (isOwner ? (
+          <Button size="sm" disabled={busy} onClick={() => void go("/api/billing/checkout")}>
+            {busy && <Loader2 className="size-4 animate-spin" />}
+            Start a subscription
+          </Button>
+        ) : (
+          <span className="text-sm text-muted-foreground">
+            Your home&rsquo;s owner can start one from Settings.
+          </span>
+        ))}
     </div>
   );
 }

@@ -15,11 +15,22 @@ router.get("/cases/:caseId/messages", async (req, res) => {
 
   const thread = await buildThread({ case: row, home });
 
-  // Opening the thread is what marks the family's messages read; a read
-  // receipt failing must not fail the request that produced it.
-  await markRead(row.id, "home").catch((err: unknown) => {
+  /*
+   * Opening the thread is what marks the family's messages read. Read, not
+   * answered: "waiting on a reply" is worked out from who wrote last, so a
+   * director glancing at a thread on their phone does not make the family
+   * vanish from the dashboard.
+   *
+   * Awaited, so that by the time the console refetches its badges they are
+   * already right — fire-and-forget raced the very refetch it was meant to
+   * update. A read receipt failing still must not fail the request that
+   * produced it.
+   */
+  try {
+    await markRead(row.id, "home");
+  } catch (err: unknown) {
     req.log?.warn({ err }, "Could not mark family messages read");
-  });
+  }
 
   res.json(thread);
 });
@@ -53,9 +64,14 @@ router.post("/cases/:caseId/messages", async (req, res) => {
     })
     .returning();
 
-  await markRead(row.id, "home", now).catch((err: unknown) => {
-    req.log?.warn({ err }, "Could not mark family messages read");
-  });
+  /*
+   * Answering is reading. A reply sent from the console's inbox never opened
+   * the thread, so the family's message stayed "unread" beneath the answer
+   * to it, and the home was told a family was waiting on a reply they had
+   * just been given. Awaited, unlike the read receipt on GET, because the
+   * counts the director sees next are read straight after this returns.
+   */
+  await markRead(row.id, "home", now);
 
   res.status(201).json({
     id: created!.id,

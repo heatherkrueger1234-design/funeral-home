@@ -55,11 +55,6 @@ export default function Local() {
   const quotes = useGetFamilyQuotes();
 
   const [zip, setZip] = useState("");
-  /*
-   * "Change" opens the box again. It used to send an empty ZIP, which the
-   * server rightly refuses — so the only visible result of pressing it was an
-   * error, and a family who had typed the wrong ZIP had no way to fix it.
-   */
   const [changingZip, setChangingZip] = useState(false);
   const [asking, setAsking] = useState<number | null>(null);
   const [request, setRequest] = useState("");
@@ -73,6 +68,7 @@ export default function Local() {
   const setPostalCode = useSetFamilyPostalCode({
     mutation: {
       onSuccess: (result) => {
+        setChangingZip(false);
         refresh();
         setChangingZip(false);
         if (!result.recognised) {
@@ -103,7 +99,7 @@ export default function Local() {
 
   if (session.isPending || vendors.isPending) return <Loading rows={4} />;
 
-  if (vendors.isError) {
+  if (vendors.isError && !vendors.data) {
     return <LoadFailed title="Local help" onRetry={() => void vendors.refetch()} />;
   }
 
@@ -118,46 +114,56 @@ export default function Local() {
         are under no obligation to use any of them.
       </PageHeader>
 
-      {/* Asked once, here, where it is obviously needed. */}
+      {/*
+        Asked once, here, where it is obviously needed.
+
+        "Change" opens the same question again with the ZIP already in it.
+        It used to send an empty ZIP to clear the old one, which the server
+        refuses -- so the one way to correct a ZIP was a button that only
+        ever produced an error.
+      */}
       {!postalCode || changingZip ? (
         <section className="rounded-xl border border-[var(--accent)]/25 bg-[var(--accent-soft)] p-5">
-          <Label htmlFor="zip" className="mb-1.5 block">
-            Whereabouts are you?
-          </Label>
-          <p className="mb-3.5 text-sm leading-relaxed text-muted-foreground">
-            A ZIP code is enough. It lets us show you what's actually nearby.
-          </p>
-          {/* A form, so the keyboard's own "Go" key sends it. */}
           <form
-            className="flex flex-wrap gap-2"
             onSubmit={(event) => {
               event.preventDefault();
               if (zip.trim().length < 5 || setPostalCode.isPending) return;
               setPostalCode.mutate({ data: { postalCode: zip.trim() } });
             }}
           >
-            <Input
-              id="zip"
-              value={zip}
-              placeholder="80202"
-              inputMode="numeric"
-              autoComplete="postal-code"
-              className="min-w-0 flex-1 bg-white"
-              onChange={(event) => setZip(event.target.value)}
-            />
-            <Button
-              type="submit"
-              disabled={zip.trim().length < 5 || setPostalCode.isPending}
-            >
-              Show what's nearby
-            </Button>
+            <Label htmlFor="zip" className="mb-1.5 block">
+              Whereabouts are you?
+            </Label>
+            <p id="zip-hint" className="mb-3.5 text-sm leading-relaxed text-muted-foreground">
+              A ZIP code is enough. It lets us show you what's actually nearby.
+            </p>
+            <div className="flex gap-2">
+              <Input
+                id="zip"
+                value={zip}
+                placeholder="80202"
+                inputMode="numeric"
+                autoComplete="postal-code"
+                maxLength={10}
+                aria-describedby="zip-hint"
+                className="bg-white"
+                onChange={(event) => setZip(event.target.value)}
+              />
+              <Button
+                type="submit"
+                disabled={zip.trim().length < 5 || setPostalCode.isPending}
+              >
+                Show what's near
+              </Button>
+            </div>
             {changingZip && (
               <Button
                 type="button"
                 variant="ghost"
+                className="mt-2 -ml-3"
                 onClick={() => setChangingZip(false)}
               >
-                Cancel
+                Keep {postalCode}
               </Button>
             )}
           </form>
@@ -165,10 +171,12 @@ export default function Local() {
       ) : (
         <p className="flex flex-wrap items-center gap-x-1.5 text-sm text-muted-foreground">
           <MapPin className="size-4 shrink-0" strokeWidth={1.75} />
-          Showing what's near <span className="tabular">{postalCode}</span>.
+          <span>
+            Showing what's near <span className="tabular">{postalCode}</span>.
+          </span>
           <button
             type="button"
-            className="inline-flex min-h-11 items-center font-semibold text-[var(--accent-deep)] underline decoration-[var(--accent)]/40 underline-offset-4 hover:decoration-[var(--accent)]"
+            className="min-h-11 px-1 font-semibold text-[var(--accent-deep)] underline decoration-[var(--accent)]/40 underline-offset-4 hover:decoration-[var(--accent)]"
             onClick={() => {
               setZip(postalCode);
               setChangingZip(true);
@@ -231,7 +239,12 @@ export default function Local() {
                         <Button
                           variant="ghost"
                           size="sm"
-                          onClick={() => setAsking(vendor.id)}
+                          onClick={() => {
+                            // Each vendor's question starts empty, not with
+                            // what was half-typed for the last one.
+                            setAsking(vendor.id);
+                            setRequest("");
+                          }}
                         >
                           Ask for a price
                         </Button>
@@ -279,12 +292,16 @@ export default function Local() {
         ))
       )}
 
-      {(quotes.data ?? []).some((quote) => quote.quotedAmountCents !== null) && (
+      {/* A vendor who wrote back without a figure ("call us, it depends on
+          the stone") has still answered, and the family should see it. */}
+      {(quotes.data ?? []).some(
+        (quote) => quote.quotedAmountCents !== null || quote.response,
+      ) && (
         <section className="space-y-3">
-          <Divider label="Prices you've been given" />
+          <Divider label="What they've told you" />
           <ul className="divide-y divide-border overflow-hidden rounded-xl border border-border bg-card shadow-[var(--elevation-1)]">
             {(quotes.data ?? [])
-              .filter((quote) => quote.quotedAmountCents !== null)
+              .filter((quote) => quote.quotedAmountCents !== null || quote.response)
               .map((quote) => (
                 <li
                   key={quote.id}
@@ -300,13 +317,15 @@ export default function Local() {
                       </span>
                     )}
                   </span>
-                  <span className="tabular shrink-0 font-semibold">
-                    $
-                    {(quote.quotedAmountCents! / 100).toLocaleString(undefined, {
-                      minimumFractionDigits: 2,
-                      maximumFractionDigits: 2,
-                    })}
-                  </span>
+                  {quote.quotedAmountCents !== null && (
+                    <span className="tabular shrink-0 font-semibold">
+                      $
+                      {(quote.quotedAmountCents / 100).toLocaleString(undefined, {
+                        minimumFractionDigits: 2,
+                        maximumFractionDigits: 2,
+                      })}
+                    </span>
+                  )}
                 </li>
               ))}
           </ul>

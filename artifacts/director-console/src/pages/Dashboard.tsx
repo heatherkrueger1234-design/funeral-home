@@ -1,27 +1,32 @@
 import { Link } from "wouter";
+import { useQueryClient } from "@tanstack/react-query";
 import {
   useGetBilling,
   useGetHomeDashboard,
+  useUpdateDeadline,
+  getGetCaseQueryKey,
+  getGetCasesQueryKey,
+  getGetDeadlinesQueryKey,
   getGetHomeDashboardQueryKey,
 } from "@workspace/api-client-react";
 import type {
   DashboardDeadline,
+  DashboardQuoteRequest,
   DashboardService,
 } from "@workspace/api-client-react";
 import { SetupChecklist, TrialBanner } from "@/components/SetupChecklist";
-import { Button } from "@/components/ui/button";
-import { Divider, Empty, Loading, PageHeader } from "@/components/page";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Divider, Empty, LoadFailed, Loading, PageHeader } from "@/components/page";
 import { cn, formatAtHome, homeDayNumber } from "@/lib/utils";
 import { useHomeZone } from "@/lib/session";
 import {
   CalendarClock,
   CheckCircle2,
   ChevronRight,
-  CloudOff,
   Inbox,
   MessageSquare,
-  RotateCcw,
   Store,
+
 } from "lucide-react";
 
 /**
@@ -124,22 +129,9 @@ export default function Dashboard() {
   const zone = useHomeZone();
 
   if (dashboard.isPending || billing.isPending) return <Loading rows={4} />;
-  // A blank page here reads as "nothing is waiting", which is the one thing
-  // this screen must never say by accident.
   if (!dashboard.data) {
     return (
-      <Empty
-        icon={CloudOff}
-        title="Today's list didn't load"
-        action={
-          <Button variant="outline" size="sm" onClick={() => void dashboard.refetch()}>
-            <RotateCcw className="size-4" />
-            Try again
-          </Button>
-        }
-      >
-        Nothing has been lost. This is usually the connection.
-      </Empty>
+      <LoadFailed what="Today's page" onRetry={() => void dashboard.refetch()} />
     );
   }
 
@@ -147,6 +139,7 @@ export default function Dashboard() {
   const nothingWaiting =
     data.casesWaitingOnReply === 0 &&
     data.pendingRequests === 0 &&
+    data.quoteRequestsWaiting === 0 &&
     data.overdue.length === 0 &&
     data.offersAwaitingChoice === 0;
 
@@ -212,14 +205,51 @@ export default function Dashboard() {
 
       {nothingWaiting && (
         <Empty icon={CheckCircle2} title="Nobody is waiting on you">
-          No unanswered families, no requests, and nothing past due.
+          No unanswered families, no requests, no prices to chase, and nothing
+          past due.
         </Empty>
+      )}
+
+      {/*
+        A family who pressed "ask the home for a price" was told somebody
+        would find out. This is the only place that promise is visible
+        across cases, so it sits with the other things people are waiting on
+        rather than among the home's own work further down.
+      */}
+      {data.quoteRequestsWaiting > 0 && (
+        <section className="space-y-3">
+          <Divider label="Prices families asked for" />
+          <p className="max-w-prose text-sm leading-snug text-muted-foreground">
+            {data.quoteRequestsWaiting === 1
+              ? "One family is waiting to hear what a vendor charges."
+              : `${data.quoteRequestsWaiting} requests are waiting on an answer.`}{" "}
+            Record it on the case's Service tab and they will see it on their
+            page.
+          </p>
+          <ul className="space-y-2">
+            {data.quoteRequests.map((row: DashboardQuoteRequest) => (
+              <li key={row.id}>
+                <Link href={`/cases/${row.caseId}?tab=service`} className={ROW}>
+                  <span className="min-w-0">
+                    <span className="block truncate">{row.vendorName}</span>
+                    <span className="block truncate text-sm text-muted-foreground">
+                      {row.decedentName}
+                    </span>
+                  </span>
+                  <span className="whitespace-nowrap text-xs text-muted-foreground">
+                    asked {relative(row.requestedAt, zone)}
+                  </span>
+                </Link>
+              </li>
+            ))}
+          </ul>
+        </section>
       )}
 
       {data.overdue.length > 0 && (
         <DeadlineSection
           label="Past due"
-          description="Nobody has ticked these off, and the date has gone."
+          description="Nobody has ticked these off, and the date has gone. Tick one here if it was done."
           rows={data.overdue}
           urgent
         />
@@ -279,7 +309,8 @@ export default function Dashboard() {
           <ul className="space-y-2">
             {data.awaitingServiceDate.map((row) => (
               <li key={row.caseId}>
-                {/* Straight to the tab that sets the date or offers times. */}
+                {/* Straight to where times are offered, which is what the
+                    sentence above tells them to do. */}
                 <Link href={`/cases/${row.caseId}?tab=details`} className={ROW}>
                   <span className="min-w-0">
                     <span className="block truncate font-semibold">
@@ -402,6 +433,28 @@ function DeadlineSection({
   urgent?: boolean;
 }) {
   const zone = useHomeZone();
+  const queryClient = useQueryClient();
+
+  /*
+   * Ticked off from here. "Past due" is usually something that was done and
+   * never marked — the family brought the clothes in on Tuesday — and the
+   * way to clear it used to be three screens deep, which is why these lists
+   * grew. The row itself still opens the case's timeline.
+   */
+  const complete = useUpdateDeadline({
+    mutation: {
+      onSuccess: (_row, { deadlineId }) => {
+        const caseId = rows.find((row) => row.id === deadlineId)?.caseId;
+        void queryClient.invalidateQueries({ queryKey: getGetHomeDashboardQueryKey() });
+        void queryClient.invalidateQueries({ queryKey: getGetCasesQueryKey() });
+        if (caseId !== undefined) {
+          void queryClient.invalidateQueries({ queryKey: getGetDeadlinesQueryKey(caseId) });
+          void queryClient.invalidateQueries({ queryKey: getGetCaseQueryKey(caseId) });
+        }
+      },
+    },
+  });
+
   return (
     <section className="space-y-3">
       <Divider label={label} />
@@ -412,10 +465,23 @@ function DeadlineSection({
       )}
       <ul className="space-y-2">
         {rows.map((row) => (
-          <li key={row.id}>
+          <li key={row.id} className="flex items-center gap-3">
+            {row.isEvent ? (
+              <span className="size-4 shrink-0" aria-hidden />
+            ) : (
+              <Checkbox
+                className="shrink-0"
+                aria-label={`Mark "${row.title}" done for ${row.decedentName}`}
+                disabled={complete.isPending && complete.variables?.deadlineId === row.id}
+                onCheckedChange={(checked) =>
+                  checked === true &&
+                  complete.mutate({ deadlineId: row.id, data: { completed: true } })
+                }
+              />
+            )}
             <Link
               href={`/cases/${row.caseId}?tab=timeline`}
-              className={cn(ROW, urgent && "border-[var(--notice)]")}
+              className={cn(ROW, "min-w-0 flex-1", urgent && "border-[var(--notice)]/60")}
             >
               <span className="min-w-0">
                 <span className="block truncate">{row.title}</span>

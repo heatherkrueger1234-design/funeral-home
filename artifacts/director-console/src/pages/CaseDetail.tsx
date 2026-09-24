@@ -1,5 +1,4 @@
-import { useState } from "react";
-import { Link, useRoute, useSearch } from "wouter";
+import { Link, useLocation, useRoute, useSearch } from "wouter";
 import { useQueryClient } from "@tanstack/react-query";
 import {
   useGetCase,
@@ -35,10 +34,11 @@ import { PrintPanel } from "@/components/case/PrintPanel";
 import { MemoryBookPanel } from "@/components/case/MemoryBookPanel";
 import { DetailsPanel } from "@/components/case/DetailsPanel";
 import { CaseData } from "@/components/CaseData";
-import { Empty, Loading } from "@/components/page";
-import { formatAtHome } from "@/lib/utils";
+import { CaseGlance } from "@/components/case/CaseGlance";
+import { Empty, LoadFailed, Loading } from "@/components/page";
+import { formatAtHome, lockWindow } from "@/lib/utils";
 import { useHomeZone, useSession } from "@/lib/session";
-import { ArrowLeft, CalendarX, FileQuestion } from "lucide-react";
+import { ArrowLeft, CalendarX, FileQuestion, Phone } from "lucide-react";
 
 /**
  * "Sat 26 Sep, 4:51 pm" — the day of the week is half of how a date is read
@@ -57,6 +57,14 @@ function serviceLabel(value: string | Date, zone: string | undefined): string {
   );
 }
 
+/**
+ * The tabs a link may open straight onto.
+ *
+ * The open tab lives in the address rather than in memory, so that "Past
+ * due" on the master page can land on the timeline, a reply in the inbox can
+ * land on the thread, a reload keeps the director where they were, and
+ * moving from one case to the next does not carry the last case's tab along.
+ */
 const TABS = [
   "family",
   "photos",
@@ -70,38 +78,28 @@ const TABS = [
   "messages",
   "details",
   "data",
-];
+] as const;
 
-/**
- * "…the thread locks two weeks after the service." The window is the home's
- * own setting, so the sentence reads it rather than assuming the default.
- */
-function lockWindow(days: number | undefined): string {
-  if (!days) return "after the service";
-  if (days % 7 === 0) {
-    const weeks = days / 7;
-    return `${weeks === 1 ? "a week" : `${weeks} weeks`} after the service`;
-  }
-  return `${days === 1 ? "a day" : `${days} days`} after the service`;
-}
+type Tab = (typeof TABS)[number];
+
+const isTab = (value: string | null): value is Tab =>
+  value !== null && (TABS as readonly string[]).includes(value);
 
 export default function CaseDetail() {
   const [, params] = useRoute("/cases/:caseId");
   const caseId = Number(params?.caseId);
   const { toast } = useToast();
   const queryClient = useQueryClient();
-  /*
-   * A link may say which tab it is for -- the inbox opens the thread, the
-   * master page's past-due rows open the timeline -- so a director lands on
-   * the thing they clicked rather than on the family list every time.
-   */
+  const [, navigate] = useLocation();
   const requested = new URLSearchParams(useSearch()).get("tab");
-  const [tab, setTab] = useState(
-    requested && TABS.includes(requested) ? requested : "family",
-  );
+  const tab: Tab = isTab(requested) ? requested : "family";
+  const setTab = (next: string) =>
+    navigate(
+      next === "family" ? `/cases/${caseId}` : `/cases/${caseId}?tab=${next}`,
+      { replace: true },
+    );
   const zone = useHomeZone();
   const { session } = useSession();
-  const locksAfter = lockWindow(session?.home.messageLockDays);
 
   const row = useGetCase(caseId, {
     query: {
@@ -115,30 +113,67 @@ export default function CaseDetail() {
       onSuccess: () => {
         void queryClient.invalidateQueries({ queryKey: getGetCaseQueryKey(caseId) });
         void queryClient.invalidateQueries({ queryKey: getGetCasesQueryKey() });
-        void queryClient.invalidateQueries({
-          queryKey: getGetHomeDashboardQueryKey(),
-        });
+        void queryClient.invalidateQueries({ queryKey: getGetHomeDashboardQueryKey() });
         void queryClient.invalidateQueries({ queryKey: getGetHomeInboxQueryKey() });
         toast({
           title: "Case closed",
-          description: `The family's thread locks ${locksAfter}, and their aftercare is waiting on their consent.`,
+          description:
+            `The family's thread locks ${lockWindow(session?.home.messageLockDays)} after the service, and their aftercare is waiting on their consent.`,
         });
       },
     },
   });
 
+  // Checked first: a disabled query never leaves "pending", so "/cases/abc"
+  // used to be a skeleton that loaded forever.
+  if (!Number.isInteger(caseId)) {
+    return (
+      <Empty icon={FileQuestion} title="That case isn't here">
+        The address may be wrong. Every case is on the Cases page.
+      </Empty>
+    );
+  }
+
   if (row.isPending) return <Loading rows={4} />;
 
   if (!row.data) {
-    return (
-      <Empty icon={FileQuestion} title="That case isn't here">
-        It may have been closed and removed, or the address may be wrong.
+    // A 404 is a case that is not here; anything else is the connection,
+    // and telling a director their case has gone when it has not is the
+    // wrong fright to give anybody.
+    const missing =
+      !Number.isInteger(caseId) ||
+      (row.error as { status?: number } | null)?.status === 404;
+    return missing ? (
+      <Empty
+        icon={FileQuestion}
+        title="That case isn't here"
+        action={
+          <Button asChild variant="outline" size="sm">
+            <Link href="/cases">All cases</Link>
+          </Button>
+        }
+      >
+        It may have been erased, or the address may be wrong.
       </Empty>
+    ) : (
+      <LoadFailed what="This case" onRetry={() => void row.refetch()} />
     );
   }
 
   const detail = row.data;
   const closed = detail.status === "closed";
+  const serviceAhead =
+    detail.serviceAt !== null && new Date(detail.serviceAt).getTime() > Date.now();
+
+  /*
+   * Who to ring. The question a director has with the case open is usually
+   * "what is the daughter's number?", and the answer was a tab away inside
+   * a list. The first next of kin who still has a working link and a number.
+   */
+  const nextOfKin = detail.contacts.find(
+    (contact) =>
+      contact.role === "next_of_kin" && contact.revokedAt === null && contact.phone,
+  );
 
   return (
     <div className="space-y-6">
@@ -229,6 +264,24 @@ export default function CaseDetail() {
                 No service date — the timeline is empty until there is one
               </p>
             ))}
+
+          {nextOfKin?.phone && (
+            <p className="mt-2 text-sm">
+              <span className="eyebrow mr-2">Next of kin</span>
+              <span className="font-semibold">{nextOfKin.name}</span>
+              {nextOfKin.relationship && (
+                <span className="text-muted-foreground"> · {nextOfKin.relationship}</span>
+              )}
+              {" · "}
+              <a
+                href={`tel:${nextOfKin.phone.replace(/[^\d+]/g, "")}`}
+                className="tabular inline-flex items-center gap-1 font-semibold text-[var(--accent-deep)] no-underline hover:underline"
+              >
+                <Phone className="size-3.5" strokeWidth={1.75} aria-hidden />
+                {nextOfKin.phone}
+              </a>
+            </p>
+          )}
         </div>
 
         {!closed && (
@@ -241,10 +294,24 @@ export default function CaseDetail() {
                 <AlertDialogTitle>Close this case?</AlertDialogTitle>
                 <AlertDialogDescription>
                   The family keeps access to everything they added. Their
-                  message thread locks {locksAfter}, and anyone who left an
-                  address is offered the grief check-ins in your name —
-                  nothing is sent until they say yes.
+                  message thread locks{" "}
+                  {lockWindow(session?.home.messageLockDays)} after the service, and
+                  anyone who left an address is offered the grief check-ins in
+                  your name — nothing is sent until they say yes.
                 </AlertDialogDescription>
+                {/*
+                  Closing cannot be undone, and closing before the funeral
+                  starts the aftercare clock on a family who has not buried
+                  anyone yet. Said in the dialog rather than refused, because
+                  a home may have a reason.
+                */}
+                {serviceAhead && detail.serviceAt && (
+                  <p className="rounded-lg border border-[var(--notice)]/30 bg-[var(--notice-soft)] px-3 py-2.5 text-sm font-medium text-[var(--notice)]">
+                    The service hasn't happened yet — it's{" "}
+                    {serviceLabel(detail.serviceAt, zone)}. A closed case
+                    can't be reopened.
+                  </p>
+                )}
               </AlertDialogHeader>
               <AlertDialogFooter>
                 <AlertDialogCancel>Not yet</AlertDialogCancel>
@@ -257,7 +324,17 @@ export default function CaseDetail() {
         )}
       </header>
 
-      <Tabs value={tab} onValueChange={setTab}>
+      <CaseGlance
+        caseId={caseId}
+        unreadFamilyMessages={detail.unreadFamilyMessages}
+        onOpen={setTab}
+      />
+
+      <Tabs
+        // A pre-need file has no memory book, so a link to one opens the family.
+        value={detail.kind === "pre_need" && tab === "book" ? "family" : tab}
+        onValueChange={setTab}
+      >
         <TabsList>
           <TabsTrigger value="family">Family</TabsTrigger>
           <TabsTrigger value="photos">Photos ({detail.photoCount})</TabsTrigger>
@@ -302,7 +379,17 @@ export default function CaseDetail() {
             />
           </TabsContent>
           <TabsContent value="vitals">
-            <VitalsPanel caseId={caseId} />
+            <VitalsPanel
+              caseId={caseId}
+              fromCase={{
+                legalFirstName: detail.decedentFirstName,
+                legalLastName: detail.decedentLastName,
+                // Stored as midnight UTC on the day; the certificate wants the day.
+                dateOfBirth: detail.dateOfBirth
+                  ? new Date(detail.dateOfBirth).toISOString().slice(0, 10)
+                  : null,
+              }}
+            />
           </TabsContent>
           <TabsContent value="belongings">
             <BelongingsPanel caseId={caseId} />

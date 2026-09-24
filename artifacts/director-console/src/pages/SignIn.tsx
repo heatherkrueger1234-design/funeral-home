@@ -91,8 +91,11 @@ export default function SignIn() {
     });
   };
 
-  const login = useLogin({ mutation: { onSuccess, onError } });
-  const register = useRegisterHome({ mutation: { onSuccess, onError } });
+  // This screen toasts its own failures in its own words, so the console's
+  // catch-all "That didn't save" is told to stay out of it.
+  const meta = { handlesOwnErrors: true };
+  const login = useLogin({ mutation: { meta, onSuccess, onError } });
+  const register = useRegisterHome({ mutation: { meta, onSuccess, onError } });
 
   /*
    * The way back in. The endpoint and the email have existed all along; there
@@ -113,6 +116,7 @@ export default function SignIn() {
             "is on its way. It lasts an hour.",
         }),
       onError,
+      meta,
     },
   });
 

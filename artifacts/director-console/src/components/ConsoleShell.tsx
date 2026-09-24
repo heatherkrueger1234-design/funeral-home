@@ -1,4 +1,5 @@
-import { type ReactNode } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
+import { useIsMutating, useMutationState } from "@tanstack/react-query";
 import { Link, useLocation } from "wouter";
 import { useLogout } from "@workspace/api-client-react";
 import { useSession } from "@/lib/session";
@@ -98,6 +99,52 @@ function NavLink({
 }
 
 /**
+ * "Saving…" and then "Saved", in the bar, for a moment.
+ *
+ * Almost every field in this console saves itself when the cursor leaves it,
+ * which is right for somebody typing between telephone calls — and was
+ * silent, so nobody could tell whether the date they had just corrected had
+ * gone anywhere. This is the one confirmation for all of them: quiet, in the
+ * same place every time, and gone after two seconds. A failure is not shown
+ * here; it gets a message of its own that says what to do.
+ */
+function SaveStatus() {
+  const saving = useIsMutating();
+  const lastStatus = useMutationState({
+    select: (mutation) => mutation.state.status,
+  }).at(-1);
+  const [shown, setShown] = useState<"saving" | "saved" | null>(null);
+  const wasSaving = useRef(false);
+
+  useEffect(() => {
+    if (saving > 0) {
+      wasSaving.current = true;
+      setShown("saving");
+      return;
+    }
+    if (!wasSaving.current) return;
+    wasSaving.current = false;
+    if (lastStatus !== "success") {
+      setShown(null);
+      return;
+    }
+    setShown("saved");
+    const timer = window.setTimeout(() => setShown(null), 2000);
+    return () => window.clearTimeout(timer);
+  }, [saving, lastStatus]);
+
+  return (
+    <span
+      role="status"
+      aria-live="polite"
+      className="hidden min-w-[4.5rem] text-right text-xs text-muted-foreground sm:block"
+    >
+      {shown === "saving" ? "Saving…" : shown === "saved" ? "Saved" : ""}
+    </span>
+  );
+}
+
+/**
  * One letter for the monogram: the first letter of the first word that is
  * not an article, so "The Willowbank Funeral Home" is W rather than T.
  */
@@ -142,9 +189,12 @@ export function ConsoleShell({ children }: { children: ReactNode }) {
    * either side, so an unread message behind one is not a badge anybody can
    * clear — and a number that never goes down is a number people stop
    * reading. The dashboard tile counts the same way.
+   *
+   * Waiting means the family spoke last, not that nobody has opened it:
+   * reading a message on the way out of the door is not answering it.
    */
   const unanswered = (inbox.data ?? []).filter(
-    (row) => row.unreadFromFamily > 0 && !row.locked,
+    (row) => row.waitingOnReply && !row.locked,
   ).length;
 
   const logout = useLogout({
@@ -193,7 +243,10 @@ export function ConsoleShell({ children }: { children: ReactNode }) {
           {/* A hairline between whose console this is and what is in it. */}
           <span className="hidden h-5 w-px shrink-0 bg-border sm:block" aria-hidden />
 
-          <nav aria-label="Sections" className="ml-auto flex items-center gap-1">
+          <span className="ml-auto" />
+          <SaveStatus />
+
+          <nav aria-label="Sections" className="flex items-center gap-1">
             {PLACES.map((place) => (
               <NavLink
                 key={place.href}

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, type FocusEvent } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import {
   useGetFamilyBelongings,
@@ -10,7 +10,6 @@ import {
   getGetFamilyBelongingsQueryKey,
   getGetFamilyPreparationQueryKey,
 } from "@workspace/api-client-react";
-import { Link } from "wouter";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
@@ -39,21 +38,6 @@ import { Divider, Empty, LoadFailed, Loading, PageHeader } from "@/components/pa
  * the item in.
  */
 
-/*
- * A note is sent only when this person changed it, not whenever a box loses
- * focus. Every save clears the home's "we have read this", so tapping down
- * through the four boxes to reach the foot of the page used to undo the
- * preparation room's sign-off without a word being changed — and put back
- * whatever a relative on another phone had written since this page opened.
- */
-function remember(event: { currentTarget: HTMLTextAreaElement }) {
-  event.currentTarget.dataset.before = event.currentTarget.value;
-}
-
-function changed(event: { target: HTMLTextAreaElement }): boolean {
-  return event.target.value !== event.target.dataset.before;
-}
-
 const DISPOSITIONS = [
   { value: "undecided", label: "Not decided yet" },
   { value: "with_deceased", label: "Stays with them" },
@@ -64,6 +48,7 @@ const KINDS = [
   { value: "clothing", label: "Clothing" },
   { value: "undergarments", label: "Undergarments" },
   { value: "shoes", label: "Shoes" },
+  // The stored value keeps the schema's spelling; the family reads US English.
   { value: "jewellery", label: "Jewelry" },
   { value: "glasses", label: "Glasses" },
   { value: "keepsake", label: "Something to go with them" },
@@ -87,12 +72,6 @@ export default function Belongings() {
       queryKey: getGetFamilyPreparationQueryKey(),
     });
 
-  const addItem = () => {
-    // Enter pressed twice on a slow connection used to add the locket twice.
-    if (add.isPending || !description.trim()) return;
-    add.mutate({ data: { kind: kind as "other", description: description.trim() } });
-  };
-
   const add = useCreateFamilyBelonging({
     mutation: {
       onSuccess: () => {
@@ -105,9 +84,37 @@ export default function Belongings() {
   const remove = useDeleteFamilyBelonging({ mutation: { onSuccess: refreshItems } });
   const savePrep = useUpdateFamilyPreparation({ mutation: { onSuccess: refreshPrep } });
 
+  // Enter and the button both come here, and neither sends a second copy
+  // while the first is still on its way.
+  const addItem = () => {
+    const text = description.trim();
+    if (!text || add.isPending) return;
+    add.mutate({ data: { kind: kind as "other", description: text } });
+  };
+
+  /*
+   * The four notes save when the box is left, and only if it was changed.
+   * Every blur used to send whatever the box held, so tapping through
+   * "Their hair" on the way to "Makeup" put back the text that was on file
+   * when the page opened -- over a sister's answer typed since on her own
+   * phone. The same rule the obituary follows.
+   */
+  const noteProps = (field: "hairNotes" | "cosmeticsNotes" | "jewelleryNotes" | "otherNotes") => ({
+    defaultValue: preparation.data?.[field] ?? "",
+    onFocus: (event: FocusEvent<HTMLTextAreaElement>) => {
+      event.currentTarget.dataset.before = event.currentTarget.value;
+    },
+    onBlur: (event: FocusEvent<HTMLTextAreaElement>) => {
+      if (event.target.value === event.target.dataset.before) return;
+      const next = event.target.value.trim() || null;
+      if (next === (preparation.data?.[field] ?? null)) return;
+      savePrep.mutate({ data: { [field]: next } });
+    },
+  });
+
   if (items.isPending || preparation.isPending) return <Loading rows={4} />;
 
-  if (items.isError || preparation.isError) {
+  if ((items.isError && !items.data) || (preparation.isError && !preparation.data)) {
     return (
       <LoadFailed
         title="Clothing and belongings"
@@ -150,18 +157,37 @@ export default function Belongings() {
                   held ? "border-[var(--accent)]/30 bg-[var(--sunken)]" : "border-border"
                 }`}
               >
-                <div className="flex items-start gap-2">
-                  <div className="min-w-0 flex-1">
+                {/*
+                  Once the home has the item it is set as plain text rather
+                  than as a greyed-out box. A disabled field cut "Navy dress
+                  with the enamel brooch" off at "Navy dress with the enamel"
+                  in a tint too faint to read, on exactly the rows the family
+                  most wants to check.
+                */}
+                {held ? (
+                  <div className="space-y-1.5">
+                    <p className="break-words font-medium">{item.description}</p>
+                    <p className="flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-muted-foreground">
+                      <span className="inline-flex items-center gap-1 rounded-full bg-[var(--accent-soft)] px-2.5 py-0.5 font-semibold text-[var(--accent-deep)]">
+                        <Lock className="size-3" />
+                        The funeral home has it
+                      </span>
+                      {DISPOSITIONS.find((entry) => entry.value === item.disposition)?.label}
+                    </p>
+                  </div>
+                ) : (
+                  /*
+                    The description takes the full width and the remove sits
+                    beside the choice below it. Sharing a line with "Remove"
+                    cut "Photograph of Donald for her hand" to "Photograph of
+                    Donald fo".
+                  */
+                  <>
                     <Input
                       aria-label="What this is"
                       defaultValue={item.description}
-                      disabled={held}
                       onBlur={(event) => {
                         const next = event.target.value.trim();
-                        // Emptied: an item has to be called something, so the
-                        // box shows what is still on file rather than a blank
-                        // that looks saved and is not.
-                        if (!next) event.target.value = item.description;
                         if (!next || next === item.description) return;
                         update.mutate({
                           belongingId: item.id,
@@ -169,49 +195,43 @@ export default function Belongings() {
                         });
                       }}
                     />
-                  </div>
-
-                  {held ? (
-                    /* "With them" read as "with the person who died" -- the
-                        very choice the menu below it offers. */
-                    <span className="mt-2 flex shrink-0 items-center gap-1 rounded-full bg-[var(--accent-soft)] px-2 py-0.5 text-xs font-semibold text-[var(--accent-deep)]">
-                      <Lock className="size-3" />
-                      The home has it
-                    </span>
-                  ) : (
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="shrink-0 text-muted-foreground"
-                      aria-label={`Remove ${item.description}`}
-                      onClick={() => remove.mutate({ belongingId: item.id })}
-                    >
-                      <X className="size-4" />
-                    </Button>
-                  )}
-                </div>
-
-                <Select
-                  value={item.disposition}
-                  disabled={held}
-                  onValueChange={(value) =>
-                    update.mutate({
-                      belongingId: item.id,
-                      data: { disposition: value as "undecided" },
-                    })
-                  }
-                >
-                  <SelectTrigger aria-label={`What should happen to ${item.description}`}>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {DISPOSITIONS.map((entry) => (
-                      <SelectItem key={entry.value} value={entry.value}>
-                        {entry.label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                    <div className="flex items-center gap-2">
+                      <div className="min-w-0 flex-1">
+                        <Select
+                          value={item.disposition}
+                          onValueChange={(value) =>
+                            update.mutate({
+                              belongingId: item.id,
+                              data: { disposition: value as "undecided" },
+                            })
+                          }
+                        >
+                          <SelectTrigger aria-label={`What should happen to ${item.description}`}>
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {DISPOSITIONS.map((entry) => (
+                              <SelectItem key={entry.value} value={entry.value}>
+                                {entry.label}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="shrink-0 text-muted-foreground"
+                        aria-label={`Remove ${item.description}`}
+                        disabled={remove.isPending}
+                        onClick={() => remove.mutate({ belongingId: item.id })}
+                      >
+                        <X className="size-4" />
+                        Remove
+                      </Button>
+                    </div>
+                  </>
+                )}
 
                 {held && item.returnedAt && (
                   <p className="text-sm text-muted-foreground">
@@ -225,8 +245,10 @@ export default function Belongings() {
 
         {/* Adding something: one line, kept visually apart from the list. */}
         <div className="flex flex-wrap gap-2 rounded-xl border border-dashed border-[var(--border-strong)] p-2.5">
+          {/* Its own row on a phone: at a fixed 11rem, "Something to go
+              with them" was cut to "Something to go with". */}
           <Select value={kind} onValueChange={setKind}>
-            <SelectTrigger aria-label="Kind of item" className="w-[11rem]">
+            <SelectTrigger aria-label="Kind of item" className="w-full sm:w-[15rem]">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
@@ -240,7 +262,7 @@ export default function Belongings() {
 
           <Input
             value={description}
-            placeholder="Her mother's locket"
+            placeholder="What is it?"
             aria-label="Add something else to bring"
             className="min-w-[10rem] flex-1"
             onChange={(event) => setDescription(event.target.value)}
@@ -253,6 +275,7 @@ export default function Belongings() {
 
           <Button
             variant="outline"
+            aria-label="Add this to the list"
             disabled={!description.trim() || add.isPending}
             onClick={addItem}
           >
@@ -283,14 +306,8 @@ export default function Belongings() {
             id="hair"
             rows={3}
             placeholder="How it was parted, whether it was set, who used to do it."
-            defaultValue={prep?.hairNotes ?? ""}
-            onFocus={remember}
-            onBlur={(event) =>
-              changed(event) &&
-              savePrep.mutate({
-                data: { hairNotes: event.target.value.trim() || null },
-              })
-            }
+            key={prep?.hairNotes ?? ""}
+            {...noteProps("hairNotes")}
           />
         </div>
 
@@ -300,14 +317,8 @@ export default function Belongings() {
             id="cosmetics"
             rows={3}
             placeholder="How much, and what they wore. Or that they never wore any."
-            defaultValue={prep?.cosmeticsNotes ?? ""}
-            onFocus={remember}
-            onBlur={(event) =>
-              changed(event) &&
-              savePrep.mutate({
-                data: { cosmeticsNotes: event.target.value.trim() || null },
-              })
-            }
+            key={prep?.cosmeticsNotes ?? ""}
+            {...noteProps("cosmeticsNotes")}
           />
         </div>
 
@@ -317,14 +328,8 @@ export default function Belongings() {
             id="jewellery"
             rows={2}
             placeholder="Her wedding ring, left hand."
-            defaultValue={prep?.jewelleryNotes ?? ""}
-            onFocus={remember}
-            onBlur={(event) =>
-              changed(event) &&
-              savePrep.mutate({
-                data: { jewelleryNotes: event.target.value.trim() || null },
-              })
-            }
+            key={prep?.jewelleryNotes ?? ""}
+            {...noteProps("jewelleryNotes")}
           />
         </div>
 
@@ -334,27 +339,14 @@ export default function Belongings() {
             id="other"
             rows={3}
             placeholder="A scarf she always wore. Glasses on or off. Anything at all."
-            defaultValue={prep?.otherNotes ?? ""}
-            onFocus={remember}
-            onBlur={(event) =>
-              changed(event) &&
-              savePrep.mutate({
-                data: { otherNotes: event.target.value.trim() || null },
-              })
-            }
+            key={prep?.otherNotes ?? ""}
+            {...noteProps("otherNotes")}
           />
         </div>
 
         <p className="border-l-2 border-[var(--accent)]/30 pl-4 text-sm leading-relaxed text-muted-foreground">
-          It also helps enormously to mark a recent photograph as “how they
-          looked” on the{" "}
-          <Link
-            href="/photos"
-            className="font-semibold text-[var(--accent-deep)] underline decoration-[var(--accent)]/40 underline-offset-4"
-          >
-            photographs page
-          </Link>
-          .
+          It also helps enormously to mark a recent photograph as “this is how
+          they looked” on the photographs page.
         </p>
       </section>
     </div>

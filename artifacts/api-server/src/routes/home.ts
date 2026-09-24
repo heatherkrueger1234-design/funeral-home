@@ -226,6 +226,61 @@ router.post("/home/staff", async (req, res) => {
   res.status(201).json({ ...toPublicUser(created!), inviteLink });
 });
 
+/**
+ * Send the invitation again.
+ *
+ * The link above lasts an hour, and before this the only way on for somebody
+ * who opened it the next morning was the "forgotten my password" page -- a
+ * true answer, and a strange thing to tell a new colleague on their first day.
+ * Refused once they have a password: past that point it would be a password
+ * reset the owner triggered on somebody else's account, which is a different
+ * thing with a different name.
+ */
+router.post("/home/staff/:userId/invitation", async (req, res) => {
+  const home = tenant(req);
+  const actor = currentUser(req);
+
+  if (actor.role !== "owner") {
+    throw new HttpError(403, "Only an owner can invite people to this home.");
+  }
+
+  const userId = parseId(req.params.userId);
+  const [member] = await db
+    .select()
+    .from(usersTable)
+    .where(
+      and(eq(usersTable.id, userId), eq(usersTable.funeralHomeId, home.id)),
+    )
+    .limit(1);
+
+  if (!member) {
+    throw new HttpError(404, "That person isn't at this home.");
+  }
+  if (member.deactivatedAt) {
+    throw badRequest("Restore their access first, then send the invitation.");
+  }
+  if (member.passwordHash !== null) {
+    throw badRequest(
+      "They've already chosen a password. If they've forgotten it, they can reset it from the sign-in page.",
+    );
+  }
+
+  // An invitation's week, like the first one; see INVITE_TTL_MS.
+  const token = await createPasswordReset(member.id, INVITE_TTL_MS);
+  const base = process.env["CONSOLE_URL"]?.replace(/\/+$/, "") ?? "";
+  const inviteLink = `${base}/reset-password?invited=1&token=${encodeURIComponent(token)}`;
+
+  await sendStaffInviteEmail({
+    to: member.email,
+    homeName: home.name,
+    invitedBy: actor.displayName ?? actor.email,
+    inviteLink,
+    expiresInDays: INVITE_TTL_DAYS,
+  });
+
+  res.json({ ...toPublicUser(member), inviteLink });
+});
+
 router.put("/home/staff/:userId", async (req, res) => {
   const home = tenant(req);
   const actor = currentUser(req);

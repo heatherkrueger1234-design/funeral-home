@@ -10,6 +10,7 @@ import { Button } from "@/components/ui/button";
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
   DialogHeader,
   DialogTitle,
   DialogTrigger,
@@ -138,16 +139,15 @@ export function ImportCases() {
       <DialogContent className="max-w-2xl">
         <DialogHeader>
           <DialogTitle>Import cases</DialogTitle>
+          <DialogDescription>
+            A CSV exported from whatever you already use. We'll work out the
+            columns and show you what would be created before anything is
+            written.
+          </DialogDescription>
         </DialogHeader>
 
         {!preview ? (
           <div className="space-y-4">
-            <p className="text-sm text-muted-foreground">
-              A CSV exported from whatever you already use. We'll work out the
-              columns and show you what would be created before anything is
-              written.
-            </p>
-
             <input
               ref={fileInput}
               type="file"

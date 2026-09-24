@@ -19,8 +19,8 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
-import { Empty, Loading, PageHeader, Panel } from "@/components/page";
-import { Plus, Store, Trash2, Eye, EyeOff } from "lucide-react";
+import { Confirm, LoadFailed, Loading, PageHeader, Panel } from "@/components/page";
+import { Plus, Trash2, Eye, EyeOff } from "lucide-react";
 
 /** Clipboard access can be refused; the address is on screen either way. */
 function copyFailed() {
@@ -63,12 +63,7 @@ export default function Storefront() {
   if (home.isPending || policies.isPending) return <Loading rows={4} />;
 
   if (!home.data) {
-    return (
-      <Empty icon={Store} title="Your page's settings didn't load">
-        Nothing has been lost, and the page itself is still up. This is
-        usually the connection — try again in a moment.
-      </Empty>
-    );
+    return <LoadFailed what="Your page" onRetry={() => void home.refetch()} />;
   }
 
   const row = home.data;
@@ -186,7 +181,7 @@ export default function Storefront() {
         price sheet — for your staff, at a kitchen table — is under{" "}
         <Link
           href="/prices"
-          className="font-medium text-foreground underline decoration-[var(--border-strong)] underline-offset-4 hover:decoration-[var(--accent)]"
+          className="font-medium text-[var(--accent-deep)] underline decoration-[var(--accent)]/40 underline-offset-4"
         >
           Prices
         </Link>
@@ -251,8 +246,8 @@ function Policies({
           >
             <div className="flex items-center gap-2">
               <Input
-                disabled={readOnly}
                 aria-label="Section heading"
+                disabled={readOnly}
                 defaultValue={policy.title}
                 className="font-medium"
                 onBlur={(event) => {
@@ -263,33 +258,34 @@ function Policies({
                 }}
               />
               {!readOnly && (
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  aria-label={`Remove "${policy.title}"`}
-                  disabled={remove.isPending}
-                  onClick={() => {
-                    if (
-                      window.confirm(
-                        `Remove "${policy.title}"? The wording goes for good` +
-                          (policy.published
-                            ? ", and it comes off your page and every family's portal."
-                            : "."),
-                      )
-                    ) {
-                      remove.mutate({ policyId: policy.id });
-                    }
-                  }}
-                >
-                  <Trash2 className="size-4" />
-                </Button>
+                <Confirm
+                  trigger={
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      aria-label={`Remove "${policy.title}"`}
+                      disabled={remove.isPending}
+                    >
+                      <Trash2 className="size-4" />
+                    </Button>
+                  }
+                  title={`Remove "${policy.title}"?`}
+                  description={
+                    policy.published
+                      ? "It comes off your page and out of every family's portal, and the wording is not kept. To take it down but keep it, switch it back to a draft instead."
+                      : "The draft and its wording are deleted."
+                  }
+                  confirmLabel="Remove it"
+                  destructive
+                  onConfirm={() => remove.mutate({ policyId: policy.id })}
+                />
               )}
             </div>
 
             <Textarea
               rows={4}
-              disabled={readOnly}
               aria-label={`What you say about ${policy.title}`}
+              disabled={readOnly}
               defaultValue={policy.body}
               onBlur={(event) => {
                 const value = event.target.value.trim();
@@ -329,8 +325,8 @@ function Policies({
       {!readOnly && (
         <div className="flex gap-2">
           <Input
-            value={title}
             aria-label="New section heading"
+            value={title}
             placeholder="Add a section — e.g. Cremation timings"
             onChange={(event) => setTitle(event.target.value)}
             onKeyDown={(event) => {
@@ -390,8 +386,10 @@ function PublicPageLink({ slug }: { slug: string }) {
           variant="outline"
           size="sm"
           onClick={() => {
+            // No clipboard at all outside a secure context: say so.
+            if (!navigator.clipboard) return copyFailed();
             void navigator.clipboard
-              ?.writeText(url)
+              .writeText(url)
               .then(() => {
                 setCopied(true);
                 setTimeout(() => setCopied(false), 2000);

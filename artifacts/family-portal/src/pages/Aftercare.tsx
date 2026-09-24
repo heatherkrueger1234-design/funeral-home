@@ -81,10 +81,13 @@ export default function Aftercare() {
 
   if (!aftercare) {
     return (
-      <Empty icon={Mail} title="There is nothing to decide here yet">
-        If the funeral home offers to keep in touch over the coming year, the
-        question will appear here.
-      </Empty>
+      <div className="space-y-6">
+        <PageHeader title="Checking in" />
+        <Empty icon={Mail} title="There is nothing to decide here yet">
+          If the funeral home offers to keep in touch over the coming year, the
+          question will appear here.
+        </Empty>
+      </div>
     );
   }
 
@@ -122,27 +125,21 @@ export default function Aftercare() {
         </ul>
 
         {/*
-          Asked once, because it is final: the server will not start them
-          again, and a stray tap on a phone should not cost somebody the note
-          on the anniversary of their mother's death.
+          Asked once more, because it is final: the server never re-asks a
+          family who has said no, so there is no "start them again" later.
         */}
         <AlertDialog>
           <AlertDialogTrigger asChild>
-            <Button
-              variant="outline"
-              className="w-full"
-              disabled={respond.isPending}
-            >
+            <Button variant="outline" className="w-full" disabled={respond.isPending}>
               Stop these
             </Button>
           </AlertDialogTrigger>
           <AlertDialogContent>
             <AlertDialogHeader>
-              <AlertDialogTitle>Stop the notes?</AlertDialogTitle>
+              <AlertDialogTitle>Stop the check-ins?</AlertDialogTitle>
               <AlertDialogDescription>
-                None of the rest will be sent, and they can't be started again
-                from here. {home?.name ?? "The funeral home"} is still there if
-                you need them.
+                No more notes will be sent, and you won't be asked again. If
+                you ever want to talk, the funeral home is still there.
               </AlertDialogDescription>
             </AlertDialogHeader>
             <AlertDialogFooter>
@@ -150,7 +147,7 @@ export default function Aftercare() {
               <AlertDialogAction
                 onClick={() => respond.mutate({ data: { consent: false } })}
               >
-                Stop them
+                Yes, stop them
               </AlertDialogAction>
             </AlertDialogFooter>
           </AlertDialogContent>
@@ -230,9 +227,13 @@ export default function Aftercare() {
           placeholder="Your email address"
           onChange={(event) => setEmail(event.target.value)}
         />
-        {address.length > 0 && !addressLooksRight && (
+        {/* Said whenever "Yes, please" cannot be pressed, so a greyed-out
+            button is never the only thing on the screen explaining itself. */}
+        {!addressLooksRight && (
           <p className="mt-1.5 text-sm text-muted-foreground">
-            That doesn't look quite like an email address yet.
+            {address.length === 0
+              ? "The notes come by email, so an address is needed to say yes."
+              : "That doesn't look quite like an email address yet."}
           </p>
         )}
       </div>

@@ -12,20 +12,16 @@ import { BASE_PATH } from "@/lib/base";
  * which already exist, already handle every currency and every failure, and
  * already produce the receipts a funeral home's accountant asks for.
  */
-export function BillingSection({ readOnly }: { readOnly: boolean }) {
+/**
+ * Hand the owner to Stripe, and say so if it could not be done.
+ *
+ * Shared with the trial banner, whose own copy of this sent the request and
+ * then did nothing at all when it failed — a button that silently stopped
+ * working on the one day somebody was trying to pay.
+ */
+export function useBillingHandoff() {
   const { toast } = useToast();
-  const billing = useGetBilling();
   const [busy, setBusy] = useState(false);
-
-  if (!billing.data) return null;
-
-  const {
-    subscriptionStatus,
-    trialDaysLeft,
-    currentPeriodEndsAt,
-    billingConfigured,
-    hasSubscription,
-  } = billing.data;
 
   const go = async (path: string) => {
     setBusy(true);
@@ -39,7 +35,10 @@ export function BillingSection({ readOnly }: { readOnly: boolean }) {
         }),
       });
 
-      const payload = (await response.json()) as { url?: string; error?: string };
+      const payload = (await response.json().catch(() => ({}))) as {
+        url?: string;
+        error?: string;
+      };
 
       if (!response.ok || !payload.url) {
         throw new Error(payload.error ?? "Could not open billing.");
@@ -55,6 +54,23 @@ export function BillingSection({ readOnly }: { readOnly: boolean }) {
       setBusy(false);
     }
   };
+
+  return { busy, go };
+}
+
+export function BillingSection({ readOnly }: { readOnly: boolean }) {
+  const billing = useGetBilling();
+  const { busy, go } = useBillingHandoff();
+
+  if (!billing.data) return null;
+
+  const {
+    subscriptionStatus,
+    trialDaysLeft,
+    currentPeriodEndsAt,
+    billingConfigured,
+    hasSubscription,
+  } = billing.data;
 
   const describe = () => {
     switch (subscriptionStatus) {

@@ -23,36 +23,43 @@ import { LoadFailed, Loading, PageHeader } from "@/components/page";
  * and the family is told why rather than shown a button that fails.
  */
 
+/*
+ * The placeholders say what to type rather than showing an example of it.
+ * They used to be real titles and real-looking names -- "The Lord's My
+ * Shepherd", "Anne Hale" -- set in grey under a list of real titles and real
+ * names, and on a phone in poor light that reads as one more entry already
+ * added, so the box looked full and nobody typed in it.
+ */
 const SECTIONS = [
   {
     kind: "hymn" as const,
     title: "Hymns",
-    placeholder: "The Lord's My Shepherd",
+    placeholder: "Add a hymn",
     attribution: null,
   },
   {
     kind: "reading" as const,
     title: "Readings",
-    placeholder: "Psalm 23",
-    attribution: "Read by",
+    placeholder: "Add a reading",
+    attribution: "Read by (if known)",
   },
   {
     kind: "music" as const,
     title: "Music",
-    placeholder: "Somewhere Over the Rainbow",
-    attribution: "Played when",
+    placeholder: "Add a piece of music",
+    attribution: "When it plays (if known)",
   },
   {
     kind: "pallbearer" as const,
     title: "Pallbearers",
-    placeholder: "Thomas Hale",
-    attribution: "Relationship",
+    placeholder: "Add a name",
+    attribution: "How they're related",
   },
   {
     kind: "eulogist" as const,
     title: "Speaking",
-    placeholder: "Anne Hale",
-    attribution: "Relationship",
+    placeholder: "Add a name",
+    attribution: "How they're related",
   },
 ];
 
@@ -73,19 +80,18 @@ export default function Selections() {
 
   if (selections.isPending) return <Loading rows={4} />;
 
-  // Not the empty sections, which would say nothing had been chosen yet.
-  if (selections.isError) {
-    return (
-      <LoadFailed title="The service" onRetry={() => void selections.refetch()} />
-    );
+  if (selections.isError && !selections.data) {
+    return <LoadFailed title="Hymns and readings" onRetry={() => void selections.refetch()} />;
   }
 
   const rows = selections.data ?? [];
 
   return (
     <div className="space-y-8">
-      <PageHeader title="The service">
-        Add what you know. The funeral home will fill in the rest with you.
+      {/* Named as the hub names it, so the page opened is the page tapped. */}
+      <PageHeader title="Hymns and readings">
+        The music, the readings, and who will carry and speak. Add what you
+        know — the funeral home will fill in the rest with you.
       </PageHeader>
 
       {SECTIONS.map((section) => {
@@ -151,11 +157,13 @@ export default function Selections() {
                     className="flex min-h-14 items-center gap-3 px-4 py-2"
                   >
                     <span className="min-w-0 flex-1">
-                      <span className="block truncate font-medium">
+                      {/* Wrapped, not cut off: "The Day Thou Gavest, Lord,
+                          Is Ended" is the whole of the hymn's name. */}
+                      <span className="block break-words font-medium">
                         {item.value}
                       </span>
                       {item.attribution && (
-                        <span className="block truncate text-sm text-muted-foreground">
+                        <span className="block break-words text-sm text-muted-foreground">
                           {item.attribution}
                         </span>
                       )}
@@ -163,7 +171,7 @@ export default function Selections() {
 
                     {item.confirmedAt ? (
                       <span
-                        className="flex shrink-0 items-center gap-1 rounded-full bg-[var(--accent-soft)] px-2 py-0.5 text-xs font-semibold text-[var(--accent-deep)]"
+                        className="flex shrink-0 items-center gap-1 rounded-full bg-[var(--accent-soft)] px-2.5 py-0.5 text-sm font-semibold text-[var(--accent-deep)]"
                         title="The funeral home has confirmed this one."
                       >
                         <Lock className="size-3" />
@@ -173,18 +181,16 @@ export default function Selections() {
                       <Button
                         type="button"
                         variant="ghost"
-                        size="icon"
-                        className="shrink-0 text-muted-foreground"
+                        size="sm"
+                        className="-mr-2 shrink-0 text-muted-foreground"
                         aria-label={`Remove ${item.value}`}
-                        disabled={
-                          remove.isPending &&
-                          remove.variables?.selectionId === item.id
-                        }
+                        disabled={remove.isPending}
                         onClick={() =>
                           remove.mutate({ selectionId: item.id })
                         }
                       >
                         <X className="size-4" />
+                        Remove
                       </Button>
                     )}
                   </li>
@@ -232,8 +238,8 @@ export default function Selections() {
                 <Input
                   value={draft.attribution}
                   placeholder={section.attribution}
-                  aria-label={`${section.attribution} (optional)`}
-                  className="min-w-0 flex-1 basis-0 sm:max-w-[9rem] sm:flex-none"
+                  aria-label={section.attribution}
+                  className="min-w-0 flex-1 basis-0 sm:max-w-[13rem] sm:flex-none"
                   onChange={(event) =>
                     setDrafts((current) => ({
                       ...current,

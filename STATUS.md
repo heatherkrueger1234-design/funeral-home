@@ -107,8 +107,21 @@ this documentation are all on main now.
 
 ## Problem 4 — Branch clean-up
 
-**Safe to delete — 0 commits main does not already have** (`git rev-list --count
-main..branch` is zero for every one, so nothing is lost):
+Do not trust the list below to be current — two more branches appeared while it
+was being written. Regenerate it:
+
+```sh
+pnpm --filter @workspace/scripts run dead-branches
+```
+
+That checks both things that matter: whether every commit is already on main,
+**and** whether the branch changes anything at all, which is the only way to
+spot a squash-merged branch (its work is on main, its commits are not, so it
+reads as "ahead" forever). It prints a copyable `git push origin --delete`
+command and deletes nothing itself.
+
+A snapshot, as of this writing — **safe to delete, 0 commits main does not
+already have**, so nothing is lost:
 
 ```
 claude/admin-home-client-e2e-audit-dqolc4

@@ -114,19 +114,20 @@ export function DetailsPanel({
             defaultValue={detail.serviceLocation ?? ""}
             onBlur={(event) => {
               const value = event.target.value.trim() || null;
-              if (value === (detail.serviceLocation ?? null)) return;
-              save({ serviceLocation: value });
+              if (value !== (detail.serviceLocation ?? null)) {
+                save({ serviceLocation: value });
+              }
             }}
           />
         </div>
 
         <div className="space-y-1.5">
-          <Label>Lead director</Label>
+          <Label htmlFor="leadDirector">Lead director</Label>
           <Select
             value={detail.leadDirectorId ? String(detail.leadDirectorId) : ""}
             onValueChange={(value) => save({ leadDirectorId: Number(value) })}
           >
-            <SelectTrigger aria-label="Lead director">
+            <SelectTrigger id="leadDirector">
               <SelectValue placeholder="Nobody yet" />
             </SelectTrigger>
             <SelectContent>
@@ -192,8 +193,9 @@ export function DetailsPanel({
             defaultValue={detail.decedentPreferredName ?? ""}
             onBlur={(event) => {
               const value = event.target.value.trim() || null;
-              if (value === (detail.decedentPreferredName ?? null)) return;
-              save({ decedentPreferredName: value });
+              if (value !== (detail.decedentPreferredName ?? null)) {
+                save({ decedentPreferredName: value });
+              }
             }}
           />
           <p className="text-sm leading-snug text-muted-foreground">

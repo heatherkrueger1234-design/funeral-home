@@ -1,4 +1,6 @@
 import type { ComponentType, ReactNode } from "react";
+import { RotateCw, WifiOff } from "lucide-react";
+import { Button } from "@/components/ui/button";
 
 /**
  * The parts every screen in the portal is built from.
@@ -95,42 +97,6 @@ export function Empty({
 }
 
 /**
- * A screen whose list did not arrive.
- *
- * Without this a failed load drew nothing at all, or — worse — drew the
- * empty state: "Nothing to check at the moment" over proofs that were
- * there, and a toast that had gone before anybody read it. A family who
- * believes the page is empty stops coming back to it, so it says plainly
- * that nothing is lost and offers the one thing to do.
- */
-export function LoadFailed({
-  title,
-  onRetry,
-}: {
-  title: string;
-  onRetry: () => void;
-}) {
-  return (
-    <div className="space-y-6">
-      <PageHeader title={title} />
-      <Empty title="This couldn't be opened just now">
-        Please check your connection and try again. Nothing anybody has added
-        has been lost.
-      </Empty>
-      <div className="text-center">
-        <button
-          type="button"
-          onClick={onRetry}
-          className="inline-flex min-h-11 items-center rounded-md border border-[var(--border-strong)] bg-card px-4 text-sm font-semibold shadow-[var(--elevation-1)] transition-gentle hover:border-[var(--accent)]"
-        >
-          Try again
-        </button>
-      </div>
-    </div>
-  );
-}
-
-/**
  * A hairline with a name on it. The same section marker the hub uses, so a
  * heading means the same thing on every screen.
  */
@@ -160,5 +126,41 @@ export function Panel({
     >
       {children}
     </section>
+  );
+}
+
+/**
+ * A screen whose information did not arrive.
+ *
+ * Before this, a page that failed to load drew itself as though it were
+ * empty — "Nothing to check at the moment", "Nothing is waiting on you" —
+ * which is worse than an error: it is a calm, confident, wrong answer. The
+ * toast that said otherwise was gone in five seconds. This says plainly that
+ * the page did not load, that nothing is lost, and offers the one action.
+ */
+export function LoadFailed({
+  title,
+  onRetry,
+}: {
+  title: string;
+  onRetry: () => void;
+}) {
+  return (
+    <div className="space-y-6">
+      <PageHeader title={title} />
+      <Empty
+        icon={WifiOff}
+        title="This page didn't load"
+        action={
+          <Button type="button" variant="outline" onClick={onRetry}>
+            <RotateCw className="size-4" />
+            Try again
+          </Button>
+        }
+      >
+        Nothing you have added is lost. It is usually the connection — please
+        try again in a moment.
+      </Empty>
+    </div>
   );
 }

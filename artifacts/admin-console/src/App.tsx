@@ -1,5 +1,5 @@
 import { useCallback, useState } from "react";
-import { Route, Router, Switch, useParams, Link } from "wouter";
+import { Route, Router, Switch, useParams } from "wouter";
 import {
   QueryClient,
   QueryClientProvider,
@@ -8,12 +8,14 @@ import {
 } from "@tanstack/react-query";
 import { api, isForbidden, isUnauthorized } from "@/lib/api";
 import { Shell } from "@/components/Shell";
-import { Button, Card } from "@/components/ui";
+import { Button, Card, ErrorState, Missing, usePageTitle } from "@/components/ui";
 import { SignIn } from "@/pages/SignIn";
 import { Overview } from "@/pages/Overview";
 import { Homes } from "@/pages/Homes";
 import { HomeDetail } from "@/pages/HomeDetail";
 import { Audit } from "@/pages/Audit";
+import { Groups } from "@/pages/Groups";
+import { GroupDetail } from "@/pages/GroupDetail";
 import { Admins } from "@/pages/Admins";
 import { BASE_PATH } from "@/lib/base";
 
@@ -24,7 +26,15 @@ const queryClient = new QueryClient({
       // makes the sign-in page take four seconds to appear.
       retry: (count, error) =>
         !isUnauthorized(error) && !isForbidden(error) && count < 1,
-      refetchOnWindowFocus: true,
+      /*
+       * Off, because nearly every read in this console is an audited read.
+       * Switching back to this tab used to re-open the home on screen, and
+       * each re-open was another "Opened a home" in the log a customer is
+       * shown -- a dozen lines for one look. The server now folds repeats
+       * together too, but the console should not be the thing making them.
+       * "Try again" and the saves that change a page still refetch it.
+       */
+      refetchOnWindowFocus: false,
       staleTime: 15_000,
     },
   },
@@ -76,7 +86,27 @@ function Gate() {
 
   if (session.isPending) return null;
 
-  if (!session.data || isUnauthorized(session.error)) {
+  /*
+   * Only a 401 means "signed out". Anything else -- the API restarting, a
+   * 500, the network dropping -- used to fall through to the sign-in form,
+   * which told a signed-in admin their session was gone and invited them to
+   * type their password into a page whose server was not answering.
+   */
+  if (session.error && !isUnauthorized(session.error)) {
+    return (
+      <main className="mx-auto grid min-h-dvh max-w-md place-items-center px-6 py-12">
+        <div className="w-full">
+          <h1 className="sr-only">Continuum Aftercare platform console</h1>
+          <ErrorState
+            error={session.error}
+            onRetry={() => void session.refetch()}
+          />
+        </div>
+      </main>
+    );
+  }
+
+  if (!session.data) {
     return <SignIn onSignedIn={refresh} />;
   }
 
@@ -101,6 +131,8 @@ function Gate() {
         <Route path="/" component={Overview} />
         <Route path="/homes" component={Homes} />
         <Route path="/homes/:homeId" component={HomeRoute} />
+        <Route path="/groups" component={Groups} />
+        <Route path="/groups/:groupId" component={GroupRoute} />
         <Route path="/audit" component={Audit} />
         <Route path="/admins" component={Admins} />
         <Route component={NotFound} />
@@ -178,20 +210,30 @@ function HomeRoute() {
 
   if (!Number.isInteger(parsed) || parsed <= 0) return <NotFound />;
 
-  return <HomeDetail homeId={parsed} />;
+  // Keyed on the home, so a half-typed suspension reason or an invitation's
+  // outcome on one home's page cannot follow somebody to the next home they
+  // open from the access log.
+  return <HomeDetail key={parsed} homeId={parsed} />;
+}
+
+function GroupRoute() {
+  const { groupId } = useParams<{ groupId: string }>();
+  const parsed = Number(groupId);
+
+  if (!Number.isInteger(parsed) || parsed <= 0) return <NotFound />;
+
+  return <GroupDetail key={parsed} groupId={parsed} />;
 }
 
 function NotFound() {
+  usePageTitle("Not found");
+
   return (
-    <Card>
-      <h1 className="font-display text-xl">That page isn't here</h1>
-      <p className="mt-2 max-w-prose text-[var(--muted-foreground)]">
-        The address may have changed, or the home may have been removed.
-      </p>
-      <Link href="/homes" className="mt-4 inline-block underline">
-        Back to the homes
-      </Link>
-    </Card>
+    <Missing
+      title="That page isn't here"
+      detail="The address may have been typed wrong, or it may have changed."
+      back={{ href: "/", label: "Back to the overview" }}
+    />
   );
 }
 

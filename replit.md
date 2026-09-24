@@ -132,7 +132,10 @@ export ENCRYPTION_KEY=$(pnpm --filter @workspace/scripts run generate-encryption
 
 pnpm --filter @workspace/db run push      # create the tables
 pnpm run typecheck
-pnpm run test                             # integration tests, real Postgres
+# Integration tests TRUNCATE every table, so they get their own database.
+# setup.ts refuses any database whose name does not end in _test.
+createdb funeral_home_test
+DATABASE_URL=postgresql://postgres:postgres@localhost:5432/funeral_home_test pnpm run test
 pnpm run build
 ```
 
@@ -156,12 +159,14 @@ each app is the authority on this — each sets `BASE_PATH` for both the build
 and the runtime, because Vite bakes it into the bundle and the two disagreeing
 is a white page.
 
-One loose end worth knowing before you deploy: the director console's
-`artifact.toml` still registers `paths = [ "/console" ]` while its `BASE_PATH`
-is `/`. The comments in that file say the root is the intended answer, so the
-`paths` line is probably the stale half — but which one Replit's path router
-honours has not been checked against a real deployment, so check it there
-rather than trusting this paragraph.
+This was broken until recently, and the shape of the bug is worth knowing
+because it will happen again. `1cc8d06` merged two coherent designs — one
+serving the console at `/console`, one at the root — and took the routing from
+the first and the build from the second, leaving a bundle built for `/` and
+routed at `/console`. Every script and stylesheet resolved to `/assets/…`,
+which nothing was listening on: a blank page, from a merge git called clean.
+The rule that catches it is simple, and every app here now satisfies it —
+**`paths` and `BASE_PATH` must be the same string.**
 
 The server builds its email and text links by appending to these variables, so
 on Replit they carry the path:
