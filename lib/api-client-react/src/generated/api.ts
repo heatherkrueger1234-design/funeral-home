@@ -123,6 +123,7 @@ import type {
   PriceItem,
   PriceItemInput,
   PriceItemUpdate,
+  PrintChangesInput,
   PrintItem,
   PrintItemInput,
   PrintItemUpdate,
@@ -14360,6 +14361,185 @@ export function useGetFamilyUpload<
 
   return { ...query, queryKey: queryOptions.queryKey };
 }
+
+/**
+ * Only a next of kin may approve, and only a proof the home has shared
+and not already approved. Posts a line into the message thread so the
+director hears about it where they already look.
+
+ * @summary Sign off a proof so it can be printed
+ */
+export const getApproveFamilyPrintItemUrl = (printItemId: number) => {
+  return `/api/family/print/${printItemId}/approve`;
+};
+
+export const approveFamilyPrintItem = async (
+  printItemId: number,
+  options?: RequestInit,
+): Promise<PrintItem> => {
+  return customFetch<PrintItem>(getApproveFamilyPrintItemUrl(printItemId), {
+    ...options,
+    method: "POST",
+  });
+};
+
+export const getApproveFamilyPrintItemMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof approveFamilyPrintItem>>,
+    TError,
+    { printItemId: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof approveFamilyPrintItem>>,
+  TError,
+  { printItemId: number },
+  TContext
+> => {
+  const mutationKey = ["approveFamilyPrintItem"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof approveFamilyPrintItem>>,
+    { printItemId: number }
+  > = (props) => {
+    const { printItemId } = props ?? {};
+
+    return approveFamilyPrintItem(printItemId, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type ApproveFamilyPrintItemMutationResult = NonNullable<
+  Awaited<ReturnType<typeof approveFamilyPrintItem>>
+>;
+
+export type ApproveFamilyPrintItemMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Sign off a proof so it can be printed
+ */
+export const useApproveFamilyPrintItem = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof approveFamilyPrintItem>>,
+    TError,
+    { printItemId: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof approveFamilyPrintItem>>,
+  TError,
+  { printItemId: number },
+  TContext
+> => {
+  return useMutation(getApproveFamilyPrintItemMutationOptions(options));
+};
+
+/**
+ * Any relative with a link may ask — the cousin who spots the misspelled
+grandchild is the reason the proof step exists. Sends the proof back
+to draft and posts the note into the message thread.
+
+ * @summary Say something on a proof needs changing
+ */
+export const getRequestFamilyPrintChangesUrl = (printItemId: number) => {
+  return `/api/family/print/${printItemId}/changes`;
+};
+
+export const requestFamilyPrintChanges = async (
+  printItemId: number,
+  printChangesInput: PrintChangesInput,
+  options?: RequestInit,
+): Promise<PrintItem> => {
+  return customFetch<PrintItem>(getRequestFamilyPrintChangesUrl(printItemId), {
+    ...options,
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(printChangesInput),
+  });
+};
+
+export const getRequestFamilyPrintChangesMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof requestFamilyPrintChanges>>,
+    TError,
+    { printItemId: number; data: BodyType<PrintChangesInput> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof requestFamilyPrintChanges>>,
+  TError,
+  { printItemId: number; data: BodyType<PrintChangesInput> },
+  TContext
+> => {
+  const mutationKey = ["requestFamilyPrintChanges"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof requestFamilyPrintChanges>>,
+    { printItemId: number; data: BodyType<PrintChangesInput> }
+  > = (props) => {
+    const { printItemId, data } = props ?? {};
+
+    return requestFamilyPrintChanges(printItemId, data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type RequestFamilyPrintChangesMutationResult = NonNullable<
+  Awaited<ReturnType<typeof requestFamilyPrintChanges>>
+>;
+export type RequestFamilyPrintChangesMutationBody = BodyType<PrintChangesInput>;
+export type RequestFamilyPrintChangesMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Say something on a proof needs changing
+ */
+export const useRequestFamilyPrintChanges = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof requestFamilyPrintChanges>>,
+    TError,
+    { printItemId: number; data: BodyType<PrintChangesInput> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof requestFamilyPrintChanges>>,
+  TError,
+  { printItemId: number; data: BodyType<PrintChangesInput> },
+  TContext
+> => {
+  return useMutation(getRequestFamilyPrintChangesMutationOptions(options));
+};
 
 /**
  * Same document as the staff `renderPrintItem`, scoped to this case and

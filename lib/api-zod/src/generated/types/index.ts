@@ -170,6 +170,7 @@ export * from "./preparationUpdate";
 export * from "./priceItem";
 export * from "./priceItemInput";
 export * from "./priceItemUpdate";
+export * from "./printChangesInput";
 export * from "./printItem";
 export * from "./printItemInput";
 export * from "./printItemResolved";

@@ -412,6 +412,156 @@ describe("proofs", () => {
   });
 });
 
+/**
+ * The family's answer. A proof used to go "with the family" and stay there,
+ * because nothing a family could do moved it; these are the two things they
+ * can now say, and the rules around who may say them.
+ */
+describe("the family answering a proof", () => {
+  async function sharedProof() {
+    const staff = await signUpHome();
+    const row = await createCase(staff, {
+      decedentFirstName: "Margaret",
+      decedentLastName: "Hale",
+    });
+    const nextOfKin = await inviteFamily(staff, row.id, { name: "Anne Hale" });
+    const cousin = await inviteFamily(staff, row.id, {
+      name: "Rob Hale",
+      role: "contributor",
+    });
+    const item = await staff.agent
+      .post(`/api/cases/${row.id}/print`)
+      .send({ templateKey: "prayer-card", title: "Prayer card" })
+      .expect(201);
+    await staff.agent
+      .put(`/api/print/${item.body.id}`)
+      .send({ status: "proof", sharedWithFamily: true })
+      .expect(200);
+    return { staff, row, nextOfKin, cousin, itemId: item.body.id as number };
+  }
+
+  it("tells the family in the thread when a proof is waiting on them", async () => {
+    const { nextOfKin } = await sharedProof();
+    const session = await asFamily(nextOfKin.token).get("/api/family/session").expect(200);
+    expect(session.body.proofsToCheck).toBe(1);
+
+    const thread = await asFamily(nextOfKin.token).get("/api/family/messages").expect(200);
+    const bodies = JSON.stringify(thread.body);
+    expect(bodies).toContain("ready for you to read");
+  });
+
+  it("lets the next of kin approve it, and says so to the director", async () => {
+    const { staff, row, nextOfKin, itemId } = await sharedProof();
+
+    const approved = await asFamily(nextOfKin.token)
+      .post(`/api/family/print/${itemId}/approve`)
+      .expect(200);
+    expect(approved.body.status).toBe("approved");
+    expect(approved.body.approvedByFamily).toBe(true);
+    expect(approved.body.approvedByName).toBe("Anne Hale");
+
+    const list = await staff.agent.get(`/api/cases/${row.id}/print`).expect(200);
+    expect(list.body[0].approvedByName).toBe("Anne Hale");
+
+    const thread = await staff.agent.get(`/api/cases/${row.id}/messages`).expect(200);
+    expect(JSON.stringify(thread.body)).toContain("Please go ahead and print it");
+
+    // Approving twice is a stale tab, not a second approval.
+    await asFamily(nextOfKin.token)
+      .post(`/api/family/print/${itemId}/approve`)
+      .expect(409);
+  });
+
+  it("does not let a contributor sign it off, but does let them flag a mistake", async () => {
+    const { staff, row, cousin, itemId } = await sharedProof();
+
+    await asFamily(cousin.token)
+      .post(`/api/family/print/${itemId}/approve`)
+      .expect(403);
+
+    const changed = await asFamily(cousin.token)
+      .post(`/api/family/print/${itemId}/changes`)
+      .send({ note: "Grandson is Jaxon, with an x." })
+      .expect(200);
+    expect(changed.body.status).toBe("draft");
+    expect(changed.body.changesRequestedNote).toBe("Grandson is Jaxon, with an x.");
+    expect(changed.body.changesRequestedBy).toBe("Rob Hale");
+
+    const thread = await staff.agent.get(`/api/cases/${row.id}/messages`).expect(200);
+    expect(JSON.stringify(thread.body)).toContain("Jaxon, with an x");
+  });
+
+  it("clears the family's note when the home sends the corrected proof", async () => {
+    const { staff, nextOfKin, itemId } = await sharedProof();
+
+    await asFamily(nextOfKin.token)
+      .post(`/api/family/print/${itemId}/changes`)
+      .send({ note: "Wrong year." })
+      .expect(200);
+
+    // Back with the home, so the family cannot approve the old version.
+    await asFamily(nextOfKin.token)
+      .post(`/api/family/print/${itemId}/approve`)
+      .expect(409);
+
+    const resent = await staff.agent
+      .put(`/api/print/${itemId}`)
+      .send({ status: "proof" })
+      .expect(200);
+    expect(resent.body.changesRequestedAt).toBeNull();
+    expect(resent.body.changesRequestedNote).toBeNull();
+
+    await asFamily(nextOfKin.token)
+      .post(`/api/family/print/${itemId}/approve`)
+      .expect(200);
+  });
+
+  it("refuses an empty note", async () => {
+    const { nextOfKin, itemId } = await sharedProof();
+    await asFamily(nextOfKin.token)
+      .post(`/api/family/print/${itemId}/changes`)
+      .send({ note: "   " })
+      .expect(400);
+  });
+
+  it("will not let one family answer another case's proof", async () => {
+    const { staff, itemId } = await sharedProof();
+    const other = await createCase(staff);
+    const stranger = await inviteFamily(staff, other.id);
+
+    await asFamily(stranger.token)
+      .post(`/api/family/print/${itemId}/approve`)
+      .expect(404);
+    await asFamily(stranger.token)
+      .post(`/api/family/print/${itemId}/changes`)
+      .send({ note: "x" })
+      .expect(404);
+  });
+
+  it("freezes an approved card's wording until it is reopened", async () => {
+    const { staff, nextOfKin, itemId } = await sharedProof();
+    await asFamily(nextOfKin.token)
+      .post(`/api/family/print/${itemId}/approve`)
+      .expect(200);
+
+    await staff.agent
+      .put(`/api/print/${itemId}`)
+      .send({ values: { verse: "Something nobody checked" } })
+      .expect(409);
+
+    // The run size is not proofread, so it can still change.
+    await staff.agent.put(`/api/print/${itemId}`).send({ quantity: 250 }).expect(200);
+
+    // Reopening in the same request is what the studio does.
+    const reopened = await staff.agent
+      .put(`/api/print/${itemId}`)
+      .send({ status: "draft", values: { verse: "Corrected" } })
+      .expect(200);
+    expect(reopened.body.approvedByName).toBeNull();
+    expect(reopened.body.approvedByFamily).toBe(false);
+  });
+});
+
 describe("the home's own snippets", () => {
   it("starts empty, because a home already has these", async () => {
     const staff = await signUpHome();

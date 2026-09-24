@@ -86,6 +86,24 @@ export const casePrintItemsTable = pgTable(
     approvedAt: timestamp("approved_at"),
     approvedByUserId: integer("approved_by_user_id"),
 
+    /**
+     * Set instead of `approvedByUserId` when the family signed it off from
+     * the portal. Only a next of kin can; a director can still approve on
+     * the family's behalf after a phone call, which is the other column.
+     */
+    approvedByContactId: integer("approved_by_contact_id"),
+
+    /**
+     * The family read the proof and something is wrong. Cleared when the
+     * home sends a new proof (status back to `proof`) or approves it. The
+     * note is also posted into the message thread, so the director hears
+     * about it where they already look; this copy is what the print list
+     * shows beside the card.
+     */
+    changesRequestedAt: timestamp("changes_requested_at"),
+    changesRequestedNote: text("changes_requested_note"),
+    changesRequestedByContactId: integer("changes_requested_by_contact_id"),
+
     /** Whether the family may see and comment on this one yet. */
     sharedWithFamily: boolean("shared_with_family").notNull().default(false),
 

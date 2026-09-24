@@ -24,9 +24,60 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { useToast } from "@/hooks/use-toast";
-import { Check, Printer, Trash2, Plus } from "lucide-react";
+import { Check, Loader2, MessageSquareWarning, Printer, Send, Trash2, Plus } from "lucide-react";
 import { Loading } from "@/components/page";
+
+/**
+ * Where a piece stands, in the words a director would use on the phone.
+ *
+ * The family's answer is the part that used to be missing: a proof went
+ * "with the family" and stayed there, because nothing they could do changed
+ * it. Now it comes back approved (by whom) or with a change asked for.
+ */
+function statusLine(item: PrintItem): string {
+  if (item.status === "approved") {
+    if (!item.approvedByName) return "approved";
+    return item.approvedByFamily
+      ? `approved by ${item.approvedByName} (family)`
+      : `approved by ${item.approvedByName}`;
+  }
+  if (item.changesRequestedAt) {
+    return `${item.changesRequestedBy ?? "the family"} asked for a change`;
+  }
+  if (item.status === "proof" && item.sharedWithFamily) {
+    return "with the family to check";
+  }
+  return "draft";
+}
+
+/** The family's note, set where the director will be making the change. */
+function ChangesAsked({ item }: { item: PrintItem }) {
+  if (!item.changesRequestedAt || !item.changesRequestedNote) return null;
+  return (
+    <div className="flex gap-3 rounded-lg border border-[var(--notice)]/30 bg-[var(--notice-soft)] p-3 text-sm">
+      <MessageSquareWarning className="mt-0.5 size-4 shrink-0 text-[var(--notice)]" />
+      <div className="min-w-0">
+        <p className="font-medium">
+          {item.changesRequestedBy ?? "The family"} asked for a change
+        </p>
+        <p className="mt-0.5 whitespace-pre-line text-muted-foreground">
+          {item.changesRequestedNote}
+        </p>
+      </div>
+    </div>
+  );
+}
 
 /**
  * The print studio.
@@ -72,15 +123,22 @@ function Studio({
 
   const update = useUpdatePrintItem({
     mutation: {
+      meta: { handlesOwnErrors: true },
       onSuccess: refresh,
       onError: (error) =>
         toast({
-          title: "That didn't fit",
+          title: "That didn't save",
           description: error instanceof Error ? error.message : undefined,
           variant: "destructive",
         }),
     },
   });
+
+  // Signed off means frozen: the server refuses edits to an approved card's
+  // wording or photograph, so the fields say so rather than failing on blur.
+  const locked = item.status === "approved";
+  const awaitingResend =
+    item.status === "draft" && item.sharedWithFamily && item.changesRequestedAt !== null;
 
   const save = (values: Record<string, string>) =>
     update.mutate({ printItemId: item.id, data: { values } });
@@ -122,12 +180,20 @@ function Studio({
       </div>
 
       <div className="space-y-4">
+        <ChangesAsked item={item} />
+        {locked && (
+          <p className="rounded-lg bg-muted p-3 text-sm text-muted-foreground">
+            Approved{item.approvedByName ? ` by ${item.approvedByName}` : ""}, so the
+            wording is set. Reopen it below to change anything.
+          </p>
+        )}
         {template.slots
           .filter((slot) => slot.kind === "photo")
           .map((slot) => (
             <div key={slot.key} className="space-y-1.5">
               <Label>{slot.label}</Label>
               <Select
+                disabled={locked}
                 value={item.photoId ? String(item.photoId) : "portrait"}
                 onValueChange={(value) =>
                   update.mutate({
@@ -165,6 +231,11 @@ function Studio({
               )}
               <Input
                 id={slot.key}
+                // Keyed on the saved value so a change from elsewhere (a
+                // snippet, another tab) replaces what is shown, instead of
+                // the stale text being saved back over it on the next blur.
+                key={`${slot.key}:${item.values[slot.key] ?? ""}`}
+                disabled={locked}
                 defaultValue={item.values[slot.key] ?? ""}
                 placeholder={item.resolved[slot.key] ?? ""}
                 onBlur={(event) => {
@@ -186,6 +257,8 @@ function Studio({
             {/* Pick from the home's own list rather than retyping it. */}
             {(snippets.data ?? []).length > 0 && (
               <Select
+                disabled={locked}
+                value=""
                 onValueChange={(value) => {
                   const snippet = (snippets.data ?? []).find(
                     (entry) => String(entry.id) === value,
@@ -208,6 +281,8 @@ function Studio({
 
             <Textarea
               id={slot.key}
+              key={`${slot.key}:${item.values[slot.key] ?? ""}`}
+              disabled={locked}
               rows={5}
               defaultValue={item.values[slot.key] ?? ""}
               placeholder={item.resolved[slot.key] ?? ""}
@@ -231,12 +306,15 @@ function Studio({
             id="quantity"
             type="number"
             min={1}
+            key={`quantity:${item.quantity ?? ""}`}
             defaultValue={item.quantity ?? ""}
             onBlur={(event) => {
               const value = Number(event.target.value);
+              const next = Number.isInteger(value) && value > 0 ? value : null;
+              if (next === item.quantity) return;
               update.mutate({
                 printItemId: item.id,
-                data: { quantity: Number.isInteger(value) && value > 0 ? value : null },
+                data: { quantity: next },
               });
             }}
           />
@@ -249,14 +327,20 @@ function Studio({
         <label className="flex items-start gap-3 rounded-lg border border-border p-3">
           <Switch
             checked={item.sharedWithFamily}
+            disabled={update.isPending}
             onCheckedChange={(checked) =>
               update.mutate({
                 printItemId: item.id,
                 data: {
                   sharedWithFamily: checked,
+                  // Sharing a draft sends it as a proof; taking it back
+                  // returns it to draft, so the list never says "with the
+                  // family" about something they can no longer see.
                   ...(checked && item.status === "draft"
                     ? { status: "proof" as const }
-                    : {}),
+                    : !checked && item.status === "proof"
+                      ? { status: "draft" as const }
+                      : {}),
                 },
               })
             }
@@ -269,9 +353,23 @@ function Studio({
           </span>
         </label>
 
+        {awaitingResend && (
+          <Button
+            className="w-full"
+            disabled={update.isPending}
+            onClick={() =>
+              update.mutate({ printItemId: item.id, data: { status: "proof" } })
+            }
+          >
+            <Send className="size-4" />
+            Send the corrected proof
+          </Button>
+        )}
+
         <Button
           className="w-full"
-          variant={item.status === "approved" ? "secondary" : "default"}
+          disabled={update.isPending}
+          variant={item.status === "approved" || awaitingResend ? "secondary" : "default"}
           onClick={() =>
             update.mutate({
               printItemId: item.id,
@@ -308,7 +406,10 @@ export function PrintPanel({ caseId }: { caseId: number }) {
       },
     },
   });
-  const remove = useDeletePrintItem({ mutation: { onSuccess: refresh } });
+  const remove = useDeletePrintItem({
+    mutation: { onSuccess: () => { refresh(); setDeleting(null); } },
+  });
+  const [deleting, setDeleting] = useState<PrintItem | null>(null);
 
   if (templates.isPending || items.isPending) {
     return (
@@ -348,11 +449,7 @@ export function PrintPanel({ caseId }: { caseId: number }) {
                 <span className="block text-sm text-muted-foreground">
                   {item.templateName}
                   {item.quantity ? ` · ${item.quantity} copies` : ""}
-                  {item.status === "approved"
-                    ? " · approved"
-                    : item.sharedWithFamily
-                      ? " · with the family"
-                      : " · draft"}
+                  {` · ${statusLine(item)}`}
                 </span>
               </span>
 
@@ -364,6 +461,7 @@ export function PrintPanel({ caseId }: { caseId: number }) {
                   href={`/api/print/${item.id}/render`}
                   target="_blank"
                   rel="noreferrer"
+                  aria-label={`Open ${item.title ?? item.templateName} to print`}
                 >
                   <Printer className="size-4" />
                 </a>
@@ -372,11 +470,16 @@ export function PrintPanel({ caseId }: { caseId: number }) {
                 variant="ghost"
                 size="icon"
                 className="text-muted-foreground"
-                aria-label={`Delete ${item.templateName}`}
-                onClick={() => remove.mutate({ printItemId: item.id })}
+                aria-label={`Delete ${item.title ?? item.templateName}`}
+                onClick={() => setDeleting(item)}
               >
                 <Trash2 className="size-4" />
               </Button>
+              {item.changesRequestedAt && (
+                <div className="basis-full">
+                  <ChangesAsked item={item} />
+                </div>
+              )}
             </li>
           ))}
         </ul>
@@ -389,7 +492,8 @@ export function PrintPanel({ caseId }: { caseId: number }) {
             <li key={template.key}>
               <button
                 type="button"
-                className="w-full lift rounded-xl border border-border bg-card p-5 text-left shadow-[var(--elevation-1)] transition-gentle hover:border-[color-mix(in_oklab,var(--accent)_45%,var(--border))]"
+                disabled={create.isPending}
+                className="w-full lift disabled:opacity-60 rounded-xl border border-border bg-card p-5 text-left shadow-[var(--elevation-1)] transition-gentle hover:border-[color-mix(in_oklab,var(--accent)_45%,var(--border))]"
                 onClick={() =>
                   create.mutate({ caseId, data: { templateKey: template.key } })
                 }
@@ -410,6 +514,38 @@ export function PrintPanel({ caseId }: { caseId: number }) {
           ))}
         </ul>
       </section>
+
+      <AlertDialog
+        open={deleting !== null}
+        onOpenChange={(open) => !open && !remove.isPending && setDeleting(null)}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>
+              Delete {deleting?.title ?? deleting?.templateName}?
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              {deleting?.status === "approved"
+                ? "This one has been approved. Deleting it removes the approval and the wording with it, and it can't be brought back."
+                : "The wording and choices on it go with it, and it can't be brought back."}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={remove.isPending}>Keep it</AlertDialogCancel>
+            <AlertDialogAction
+              disabled={remove.isPending}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              onClick={(event) => {
+                event.preventDefault();
+                if (deleting) remove.mutate({ printItemId: deleting.id });
+              }}
+            >
+              {remove.isPending && <Loader2 className="size-4 animate-spin" />}
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

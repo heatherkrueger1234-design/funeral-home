@@ -45,6 +45,8 @@ export interface FamilySession {
   outstandingDeadlines: number;
   unreadMessages: number;
   messagesLocked: boolean;
+  /** Proofs the home has shared that are waiting on the family. */
+  proofsToCheck: number;
   /** The home has offered times and nobody has picked one. The single
 thing on this screen that somebody else is waiting on, so the
 portal puts it above everything else.

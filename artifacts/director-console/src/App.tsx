@@ -66,8 +66,11 @@ const queryClient = new QueryClient({
     },
   }),
   mutationCache: new MutationCache({
-    onError: (error) => {
+    onError: (error, _variables, _context, mutation) => {
       if (isUnauthorized(error)) return;
+      // A screen that explains its own failures says so with this flag;
+      // otherwise the director gets two toasts for one mistake.
+      if (mutation.meta?.handlesOwnErrors) return;
       toast({
         title: "That didn't save",
         description: describeError(error),

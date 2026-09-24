@@ -4572,6 +4572,23 @@ export const GetPrintItemsResponseItem = zod.object({
   status: zod.enum(["draft", "proof", "approved"]),
   sharedWithFamily: zod.boolean(),
   approvedAt: zod.date().nullable(),
+  approvedByName: zod
+    .string()
+    .nullable()
+    .describe(
+      "Who signed it off — the director, or the family member who\napproved it from the portal.\n",
+    ),
+  approvedByFamily: zod
+    .boolean()
+    .describe("True when the family approved it from the portal."),
+  changesRequestedAt: zod
+    .date()
+    .nullable()
+    .describe(
+      "The family asked for a change. Cleared when the home sends a new\nproof or approves it.\n",
+    ),
+  changesRequestedNote: zod.string().nullable(),
+  changesRequestedBy: zod.string().nullable(),
   updatedAt: zod.date(),
 });
 export const GetPrintItemsResponse = zod.array(GetPrintItemsResponseItem);
@@ -4620,6 +4637,23 @@ export const UpdatePrintItemResponse = zod.object({
   status: zod.enum(["draft", "proof", "approved"]),
   sharedWithFamily: zod.boolean(),
   approvedAt: zod.date().nullable(),
+  approvedByName: zod
+    .string()
+    .nullable()
+    .describe(
+      "Who signed it off — the director, or the family member who\napproved it from the portal.\n",
+    ),
+  approvedByFamily: zod
+    .boolean()
+    .describe("True when the family approved it from the portal."),
+  changesRequestedAt: zod
+    .date()
+    .nullable()
+    .describe(
+      "The family asked for a change. Cleared when the home sends a new\nproof or approves it.\n",
+    ),
+  changesRequestedNote: zod.string().nullable(),
+  changesRequestedBy: zod.string().nullable(),
   updatedAt: zod.date(),
 });
 
@@ -4656,6 +4690,23 @@ export const GetFamilyPrintItemsResponseItem = zod.object({
   status: zod.enum(["draft", "proof", "approved"]),
   sharedWithFamily: zod.boolean(),
   approvedAt: zod.date().nullable(),
+  approvedByName: zod
+    .string()
+    .nullable()
+    .describe(
+      "Who signed it off — the director, or the family member who\napproved it from the portal.\n",
+    ),
+  approvedByFamily: zod
+    .boolean()
+    .describe("True when the family approved it from the portal."),
+  changesRequestedAt: zod
+    .date()
+    .nullable()
+    .describe(
+      "The family asked for a change. Cleared when the home sends a new\nproof or approves it.\n",
+    ),
+  changesRequestedNote: zod.string().nullable(),
+  changesRequestedBy: zod.string().nullable(),
   updatedAt: zod.date(),
 });
 export const GetFamilyPrintItemsResponse = zod.array(
@@ -4803,6 +4854,9 @@ export const GetFamilySessionResponse = zod
     outstandingDeadlines: zod.number(),
     unreadMessages: zod.number(),
     messagesLocked: zod.boolean(),
+    proofsToCheck: zod
+      .number()
+      .describe("Proofs the home has shared that are waiting on the family."),
     awaitingServiceChoice: zod
       .boolean()
       .describe(
@@ -5788,6 +5842,110 @@ export const DeleteFamilyLifeChapterParams = zod.object({
  */
 export const GetFamilyUploadParams = zod.object({
   uploadId: zod.coerce.number(),
+});
+
+/**
+ * Only a next of kin may approve, and only a proof the home has shared
+and not already approved. Posts a line into the message thread so the
+director hears about it where they already look.
+
+ * @summary Sign off a proof so it can be printed
+ */
+export const ApproveFamilyPrintItemParams = zod.object({
+  printItemId: zod.coerce.number(),
+});
+
+export const ApproveFamilyPrintItemResponse = zod.object({
+  id: zod.number(),
+  caseId: zod.number(),
+  templateKey: zod.string(),
+  templateName: zod.string(),
+  title: zod.string().nullable(),
+  photoId: zod.number().nullable(),
+  photoUploadId: zod.number().nullable(),
+  values: zod.record(zod.string(), zod.string()),
+  resolved: zod
+    .record(zod.string(), zod.string())
+    .describe("Slots with the case's own details filled in."),
+  quantity: zod.number().nullable(),
+  status: zod.enum(["draft", "proof", "approved"]),
+  sharedWithFamily: zod.boolean(),
+  approvedAt: zod.date().nullable(),
+  approvedByName: zod
+    .string()
+    .nullable()
+    .describe(
+      "Who signed it off — the director, or the family member who\napproved it from the portal.\n",
+    ),
+  approvedByFamily: zod
+    .boolean()
+    .describe("True when the family approved it from the portal."),
+  changesRequestedAt: zod
+    .date()
+    .nullable()
+    .describe(
+      "The family asked for a change. Cleared when the home sends a new\nproof or approves it.\n",
+    ),
+  changesRequestedNote: zod.string().nullable(),
+  changesRequestedBy: zod.string().nullable(),
+  updatedAt: zod.date(),
+});
+
+/**
+ * Any relative with a link may ask — the cousin who spots the misspelled
+grandchild is the reason the proof step exists. Sends the proof back
+to draft and posts the note into the message thread.
+
+ * @summary Say something on a proof needs changing
+ */
+export const RequestFamilyPrintChangesParams = zod.object({
+  printItemId: zod.coerce.number(),
+});
+
+export const requestFamilyPrintChangesBodyNoteMax = 2000;
+
+export const RequestFamilyPrintChangesBody = zod.object({
+  note: zod
+    .string()
+    .min(1)
+    .max(requestFamilyPrintChangesBodyNoteMax)
+    .describe("What needs changing, in the family's words."),
+});
+
+export const RequestFamilyPrintChangesResponse = zod.object({
+  id: zod.number(),
+  caseId: zod.number(),
+  templateKey: zod.string(),
+  templateName: zod.string(),
+  title: zod.string().nullable(),
+  photoId: zod.number().nullable(),
+  photoUploadId: zod.number().nullable(),
+  values: zod.record(zod.string(), zod.string()),
+  resolved: zod
+    .record(zod.string(), zod.string())
+    .describe("Slots with the case's own details filled in."),
+  quantity: zod.number().nullable(),
+  status: zod.enum(["draft", "proof", "approved"]),
+  sharedWithFamily: zod.boolean(),
+  approvedAt: zod.date().nullable(),
+  approvedByName: zod
+    .string()
+    .nullable()
+    .describe(
+      "Who signed it off — the director, or the family member who\napproved it from the portal.\n",
+    ),
+  approvedByFamily: zod
+    .boolean()
+    .describe("True when the family approved it from the portal."),
+  changesRequestedAt: zod
+    .date()
+    .nullable()
+    .describe(
+      "The family asked for a change. Cleared when the home sends a new\nproof or approves it.\n",
+    ),
+  changesRequestedNote: zod.string().nullable(),
+  changesRequestedBy: zod.string().nullable(),
+  updatedAt: zod.date(),
 });
 
 /**

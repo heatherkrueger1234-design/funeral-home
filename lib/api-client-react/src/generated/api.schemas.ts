@@ -1439,7 +1439,28 @@ export interface PrintItem {
   status: PrintItemStatus;
   sharedWithFamily: boolean;
   approvedAt: string | null;
+  /** Who signed it off — the director, or the family member who
+approved it from the portal.
+ */
+  approvedByName: string | null;
+  /** True when the family approved it from the portal. */
+  approvedByFamily: boolean;
+  /** The family asked for a change. Cleared when the home sends a new
+proof or approves it.
+ */
+  changesRequestedAt: string | null;
+  changesRequestedNote: string | null;
+  changesRequestedBy: string | null;
   updatedAt: string;
+}
+
+export interface PrintChangesInput {
+  /**
+   * What needs changing, in the family's words.
+   * @minLength 1
+   * @maxLength 2000
+   */
+  note: string;
 }
 
 export interface PrintItemInput {
@@ -2617,6 +2638,8 @@ export interface FamilySession {
   outstandingDeadlines: number;
   unreadMessages: number;
   messagesLocked: boolean;
+  /** Proofs the home has shared that are waiting on the family. */
+  proofsToCheck: number;
   /** The home has offered times and nobody has picked one. The single
 thing on this screen that somebody else is waiting on, so the
 portal puts it above everything else.

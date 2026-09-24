@@ -163,10 +163,12 @@ export default function Hub() {
     leadDirector,
     photoCount,
     photoLimit,
+    selectedPhotoCount,
     obituaryStatus,
     outstandingDeadlines,
     unreadMessages,
     messagesLocked,
+    proofsToCheck,
     awaitingServiceChoice,
     aftercare,
   } = session.data;
@@ -181,6 +183,9 @@ export default function Hub() {
     .sort(
       (a, b) => new Date(a.dueAt).getTime() - new Date(b.dueAt).getTime(),
     )[0];
+  const nextIsLate = nextDue
+    ? new Date(nextDue.dueAt).getTime() < Date.now()
+    : false;
 
   return (
     <div className="space-y-8">
@@ -295,7 +300,14 @@ export default function Hub() {
         beat later and pushing everything below it down the screen.
       */}
       {(nextDue || (deadlines.isPending && outstandingDeadlines > 0)) && (
-        <section className="relative overflow-hidden rounded-xl border border-border bg-card px-4 py-4 pl-5 shadow-[var(--elevation-1)]">
+        /*
+          The whole card opens the list. A card that names the next thing
+          and then offers no way to it is a notice, not a step.
+        */
+        <Link
+          href="/timeline"
+          className="group relative block overflow-hidden rounded-xl border border-border bg-card px-4 py-4 pl-5 no-underline shadow-[var(--elevation-1)] transition-gentle hover:bg-[var(--sunken)] focus-visible:bg-[var(--sunken)]"
+        >
           {/* A rule in the home's colour down the edge, rather than a full
               wash. It marks the card as the live one without shouting. */}
           <span
@@ -305,9 +317,24 @@ export default function Hub() {
           <p className="eyebrow mb-1">Next</p>
           {nextDue ? (
             <>
-              <p className="font-semibold">{nextDue.title}</p>
+              <p className="flex items-center gap-2 font-semibold">
+                <span className="min-w-0 flex-1">{nextDue.title}</span>
+                <ChevronRight
+                  aria-hidden
+                  className="size-[1.125rem] shrink-0 text-muted-foreground/50 transition-gentle group-hover:translate-x-0.5 group-hover:text-[var(--accent)]"
+                  strokeWidth={1.75}
+                />
+              </p>
               <p className="mt-0.5 text-sm text-muted-foreground">
+                {/* Said the way the list says it. A date in the past shown
+                    plainly under "Next" reads as a typo, not as late. */}
                 {formatWhen(nextDue.dueAt, home.timezone)}
+                {nextIsLate && (
+                  <span className="font-semibold text-foreground">
+                    {" "}
+                    · overdue
+                  </span>
+                )}
               </p>
             </>
           ) : (
@@ -320,7 +347,7 @@ export default function Hub() {
               </p>
             </div>
           )}
-        </section>
+        </Link>
       )}
 
       <div className="space-y-7">
@@ -332,7 +359,9 @@ export default function Hub() {
             detail={
               photoCount === 0
                 ? `Add up to ${photoLimit} for the service`
-                : `${photoCount} of ${photoLimit} added`
+                : selectedPhotoCount > 0
+                  ? `${photoCount} added · ${selectedPhotoCount} chosen for the service`
+                  : `${photoCount} added so far`
             }
           />
           <Card
@@ -395,7 +424,12 @@ export default function Hub() {
             href="/proofs"
             icon={FileCheck}
             title="Things to check"
-            detail="Read the spellings before anything is printed"
+            detail={
+              proofsToCheck > 0
+                ? `${proofsToCheck === 1 ? "One is" : `${proofsToCheck} are`} waiting for you to read`
+                : "Read the spellings before anything is printed"
+            }
+            badge={proofsToCheck}
           />
         </Group>
 
@@ -425,31 +459,34 @@ export default function Hub() {
           />
         </Group>
 
-        {(!messagesLocked || aftercare?.status === "active") && (
-          <Group label="Your funeral home">
-            {!messagesLocked && (
-              <Card
-                href="/messages"
-                icon={MessageCircle}
-                title="Ask a question"
-                detail={
-                  leadDirector?.displayName
-                    ? `${leadDirector.displayName} will answer`
-                    : `Message ${home.name}`
-                }
-                badge={unreadMessages}
-              />
-            )}
-            {aftercare?.status === "active" && (
-              <Card
-                href="/aftercare"
-                icon={HeartHandshake}
-                title="Checking in"
-                detail={`${home.name} will write a few times over the year`}
-              />
-            )}
-          </Group>
-        )}
+        {/*
+          Kept once the conversation is closed, read-only: the director's last
+          messages are often the ones with the practical details in them, and
+          a family should be able to find them again.
+        */}
+        <Group label="Your funeral home">
+          <Card
+            href="/messages"
+            icon={MessageCircle}
+            title={messagesLocked ? "Your messages" : "Ask a question"}
+            detail={
+              messagesLocked
+                ? "The conversation, to read back"
+                : leadDirector?.displayName
+                  ? `${leadDirector.displayName} will answer`
+                  : `Message ${home.name}`
+            }
+            badge={unreadMessages}
+          />
+          {aftercare?.status === "active" && (
+            <Card
+              href="/aftercare"
+              icon={HeartHandshake}
+              title="Checking in"
+              detail={`${home.name} will write a few times over the year`}
+            />
+          )}
+        </Group>
       </div>
 
       {/*

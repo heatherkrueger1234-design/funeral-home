@@ -1,4 +1,6 @@
 import type { ComponentType, ReactNode } from "react";
+import { WifiOff } from "lucide-react";
+import { Button } from "@/components/ui/button";
 
 /**
  * The parts every screen in the portal is built from.
@@ -124,5 +126,36 @@ export function Panel({
     >
       {children}
     </section>
+  );
+}
+
+/**
+ * A page whose data would not load. Never shown as the page's empty state:
+ * "nothing to check" and "we couldn't reach the funeral home" are opposite
+ * messages, and on a phone on mobile data the second is common. Says plainly
+ * that nothing was lost, because that is the first thing anyone fears.
+ */
+export function LoadError({
+  title,
+  onRetry,
+}: {
+  title: string;
+  onRetry: () => void;
+}) {
+  return (
+    <div className="space-y-6">
+      <PageHeader title={title} />
+      <Empty
+        icon={WifiOff}
+        title="This couldn't be opened just now"
+        action={
+          <Button type="button" variant="outline" onClick={onRetry}>
+            Try again
+          </Button>
+        }
+      >
+        Please check your connection. Nothing anybody has added has been lost.
+      </Empty>
+    </div>
   );
 }

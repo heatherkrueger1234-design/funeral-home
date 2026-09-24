@@ -3278,6 +3278,50 @@ paths:
                 type: string
                 format: binary
 
+  /family/print/{printItemId}/approve:
+    post:
+      operationId: approveFamilyPrintItem
+      tags: [family]
+      summary: Sign off a proof so it can be printed
+      description: |
+        Only a next of kin may approve, and only a proof the home has shared
+        and not already approved. Posts a line into the message thread so the
+        director hears about it where they already look.
+      parameters:
+        - $ref: "#/components/parameters/PrintItemId"
+      responses:
+        "200":
+          description: Approved
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PrintItem"
+
+  /family/print/{printItemId}/changes:
+    post:
+      operationId: requestFamilyPrintChanges
+      tags: [family]
+      summary: Say something on a proof needs changing
+      description: |
+        Any relative with a link may ask — the cousin who spots the misspelled
+        grandchild is the reason the proof step exists. Sends the proof back
+        to draft and posts the note into the message thread.
+      parameters:
+        - $ref: "#/components/parameters/PrintItemId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PrintChangesInput"
+      responses:
+        "200":
+          description: Recorded
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PrintItem"
+
   /family/print/{printItemId}/render:
     get:
       operationId: renderFamilyPrintItem
@@ -5502,6 +5546,28 @@ components:
           type: string
           format: date-time
           nullable: true
+        approvedByName:
+          type: string
+          nullable: true
+          description: |
+            Who signed it off — the director, or the family member who
+            approved it from the portal.
+        approvedByFamily:
+          type: boolean
+          description: True when the family approved it from the portal.
+        changesRequestedAt:
+          type: string
+          format: date-time
+          nullable: true
+          description: |
+            The family asked for a change. Cleared when the home sends a new
+            proof or approves it.
+        changesRequestedNote:
+          type: string
+          nullable: true
+        changesRequestedBy:
+          type: string
+          nullable: true
         updatedAt:
           type: string
           format: date-time
@@ -5520,8 +5586,22 @@ components:
           status,
           sharedWithFamily,
           approvedAt,
+          approvedByName,
+          approvedByFamily,
+          changesRequestedAt,
+          changesRequestedNote,
+          changesRequestedBy,
           updatedAt,
         ]
+    PrintChangesInput:
+      type: object
+      properties:
+        note:
+          type: string
+          minLength: 1
+          maxLength: 2000
+          description: What needs changing, in the family's words.
+      required: [note]
 
     PrintItemInput:
       type: object
@@ -7394,6 +7474,9 @@ components:
           type: integer
         messagesLocked:
           type: boolean
+        proofsToCheck:
+          type: integer
+          description: Proofs the home has shared that are waiting on the family.
         awaitingServiceChoice:
           type: boolean
           description: |
@@ -7418,6 +7501,7 @@ components:
           outstandingDeadlines,
           unreadMessages,
           messagesLocked,
+          proofsToCheck,
           awaitingServiceChoice,
           aftercare,
         ]
