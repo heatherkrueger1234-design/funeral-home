@@ -65,6 +65,7 @@ export * from "./csvUploadInput";
 export * from "./dashboardCase";
 export * from "./dashboardCaseKind";
 export * from "./dashboardDeadline";
+export * from "./dashboardQuoteRequest";
 export * from "./dashboardService";
 export * from "./dashboardServiceKind";
 export * from "./deadlineInput";

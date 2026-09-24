@@ -15,11 +15,22 @@ router.get("/cases/:caseId/messages", async (req, res) => {
 
   const thread = await buildThread({ case: row, home });
 
-  // Opening the thread is what marks the family's messages read; a read
-  // receipt failing must not fail the request that produced it.
-  void markRead(row.id, "home").catch((err: unknown) => {
+  /*
+   * Opening the thread is what marks the family's messages read. Read, not
+   * answered: "waiting on a reply" is worked out from who wrote last, so a
+   * director glancing at a thread on their phone does not make the family
+   * vanish from the dashboard.
+   *
+   * Awaited, so that by the time the console refetches its badges they are
+   * already right — fire-and-forget raced the very refetch it was meant to
+   * update. A read receipt failing still must not fail the request that
+   * produced it.
+   */
+  try {
+    await markRead(row.id, "home");
+  } catch (err: unknown) {
     req.log?.warn({ err }, "Could not mark family messages read");
-  });
+  }
 
   res.json(thread);
 });

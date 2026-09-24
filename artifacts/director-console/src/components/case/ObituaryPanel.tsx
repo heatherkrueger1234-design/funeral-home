@@ -5,13 +5,14 @@ import {
   useUpdateObituary,
   useComposeObituary,
   useApproveObituary,
+  useReopenObituary,
   getGetObituaryQueryKey,
   getGetCaseQueryKey,
 } from "@workspace/api-client-react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
-import { Check, RefreshCw } from "lucide-react";
+import { Check, RefreshCw, Undo2 } from "lucide-react";
 import { Confirm, LoadFailed, Loading } from "@/components/page";
 
 /**
@@ -58,6 +59,23 @@ export function ObituaryPanel({ caseId }: { caseId: number }) {
           title: "Approved for print",
           description:
             "The family can no longer change it from their portal. You still can, here.",
+        });
+      },
+    },
+  });
+
+  /*
+   * Back to the family. Approval stops them editing; a misspelt name they
+   * find afterwards is theirs to correct as much as the home's, and the only
+   * way back used to be asking the director to retype it.
+   */
+  const reopen = useReopenObituary({
+    mutation: {
+      onSuccess: () => {
+        refresh();
+        toast({
+          title: "Reopened",
+          description: "The family can change it again until you approve it.",
         });
       },
     },
@@ -180,10 +198,29 @@ export function ObituaryPanel({ caseId }: { caseId: number }) {
         />
 
         {approved ? (
-          <p className="flex items-center gap-1.5 text-sm text-[var(--accent-deep)]">
-            <Check className="size-4" />
-            Approved for print. The family can no longer change it; you can.
-          </p>
+          <div className="flex flex-wrap items-center gap-3">
+            <p className="flex items-center gap-1.5 text-sm text-[var(--accent-deep)]">
+              <Check className="size-4" />
+              Approved for print. The family can no longer change it; you can.
+            </p>
+            <Confirm
+              trigger={
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="ml-auto text-muted-foreground"
+                  disabled={reopen.isPending}
+                >
+                  <Undo2 className="size-4" />
+                  Reopen for the family
+                </Button>
+              }
+              title="Reopen the obituary?"
+              description="It goes back to waiting for your approval, and the family can edit it again from their link. Anything already sent to the printer is not recalled."
+              confirmLabel="Reopen it"
+              onConfirm={() => reopen.mutate({ caseId })}
+            />
+          </div>
         ) : (
           <Button
             className="w-full"

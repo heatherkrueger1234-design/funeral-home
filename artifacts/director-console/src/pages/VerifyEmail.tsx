@@ -34,6 +34,8 @@ export default function VerifyEmail() {
 
   const verify = useVerifyEmail({
     mutation: {
+      // The failure is shown on the page itself; a toast on top says it twice.
+      meta: { handlesOwnErrors: true },
       onSuccess: () => setState("done"),
       onError: (error: unknown) => {
         setState("failed");

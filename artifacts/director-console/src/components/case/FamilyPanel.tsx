@@ -255,21 +255,44 @@ export function FamilyPanel({ caseId, contacts }: Props) {
                 </span>
 
                 <span className="flex flex-wrap gap-1">
-                  {contact.phone && (
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      disabled={textingThis}
-                      onClick={() => sendLink.mutate({ contactId: contact.id })}
-                    >
-                      {textingThis ? (
-                        <Loader2 className="size-4 animate-spin" />
-                      ) : (
-                        <MessageSquare className="size-4" />
-                      )}
-                      {revoked ? "Text a new link" : "Text it"}
-                    </Button>
-                  )}
+                  {/*
+                    Texting sends a fresh link, which stops the one they have.
+                    Nothing to lose when it was already stopped; otherwise it
+                    asks, for the same reason "New link" does.
+                  */}
+                  {contact.phone &&
+                    (revoked ? (
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        disabled={textingThis}
+                        onClick={() => sendLink.mutate({ contactId: contact.id })}
+                      >
+                        {textingThis ? (
+                          <Loader2 className="size-4 animate-spin" />
+                        ) : (
+                          <MessageSquare className="size-4" />
+                        )}
+                        Text a new link
+                      </Button>
+                    ) : (
+                      <Confirm
+                        trigger={
+                          <Button variant="ghost" size="sm" disabled={textingThis}>
+                            {textingThis ? (
+                              <Loader2 className="size-4 animate-spin" />
+                            ) : (
+                              <MessageSquare className="size-4" />
+                            )}
+                            Text it
+                          </Button>
+                        }
+                        title={`Text ${who} a new link?`}
+                        description={`It goes to ${contact.phone}. The link ${who} already has stops working, so the one in this text is the one to use.`}
+                        confirmLabel="Text it"
+                        onConfirm={() => sendLink.mutate({ contactId: contact.id })}
+                      />
+                    ))}
                   {/*
                     "Copy a new one" read as "copy the link", and pressing it
                     quietly stopped the one the family already had. A new link

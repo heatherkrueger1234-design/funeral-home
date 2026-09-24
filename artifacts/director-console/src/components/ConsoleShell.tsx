@@ -189,9 +189,12 @@ export function ConsoleShell({ children }: { children: ReactNode }) {
    * either side, so an unread message behind one is not a badge anybody can
    * clear — and a number that never goes down is a number people stop
    * reading. The dashboard tile counts the same way.
+   *
+   * Waiting means the family spoke last, not that nobody has opened it:
+   * reading a message on the way out of the door is not answering it.
    */
   const unanswered = (inbox.data ?? []).filter(
-    (row) => row.unreadFromFamily > 0 && !row.locked,
+    (row) => row.waitingOnReply && !row.locked,
   ).length;
 
   const logout = useLogout({

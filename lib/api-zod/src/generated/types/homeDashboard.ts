@@ -19,6 +19,7 @@ Two audiences, two authentication schemes, and the split is load-bearing:
  */
 import type { DashboardCase } from "./dashboardCase";
 import type { DashboardDeadline } from "./dashboardDeadline";
+import type { DashboardQuoteRequest } from "./dashboardQuoteRequest";
 import type { DashboardService } from "./dashboardService";
 
 /**
@@ -43,10 +44,20 @@ one has an empty timeline and a family being told nothing.
   overdue: DashboardDeadline[];
   /** Due in the next three days. */
   dueSoon: DashboardDeadline[];
-  /** Messages from families nobody at the home has read. */
+  /** Family messages written since the home last wrote on that thread.
+Answering clears them; merely opening the thread does not.
+ */
   unansweredMessages: number;
-  /** How many separate families those are sitting in. */
+  /** How many separate families those are sitting in - threads whose
+latest message is from the family and which can still be answered.
+ */
   casesWaitingOnReply: number;
+  /** Prices families have asked for from their portal that nobody at
+the home has answered yet, across every open case.
+ */
+  quoteRequestsWaiting: number;
+  /** The oldest of those first, capped for the screen. */
+  quoteRequests: DashboardQuoteRequest[];
   /** Requests off the public page waiting for a director. */
   pendingRequests: number;
   /** Cases where the home has offered times and nobody has picked. */

@@ -74,7 +74,7 @@ export default function Inbox() {
   // Waiting means the home can still do something about it. A locked thread
   // drops to the lower group however much is unread behind it, because there
   // is no reply box on it to act with.
-  const waiting = rows.filter((row) => row.unreadFromFamily > 0 && !row.locked);
+  const waiting = rows.filter((row) => row.waitingOnReply && !row.locked);
   const rest = rows.filter((row) => !waiting.includes(row));
 
   return (
