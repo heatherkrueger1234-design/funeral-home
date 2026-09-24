@@ -12,7 +12,7 @@ import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { useToast } from "@/hooks/use-toast";
 import { Check, Lock, ShieldCheck } from "lucide-react";
-import { Loading, PageHeader } from "@/components/page";
+import { LoadFailed, Loading, PageHeader } from "@/components/page";
 
 /**
  * The death certificate questions.
@@ -157,6 +157,7 @@ export default function Vitals() {
         setSavedAt(Date.now());
         refresh();
       },
+      onError: () => setSavedAt(null),
     },
   });
 
@@ -174,7 +175,14 @@ export default function Vitals() {
 
   if (vitals.isPending) return <Loading rows={5} />;
 
-  if (!vitals.data) return null;
+  if (!vitals.data) {
+    return (
+      <LoadFailed
+        title="Details for the certificate"
+        onRetry={() => void vitals.refetch()}
+      />
+    );
+  }
 
   const record = vitals.data as unknown as Record<string, unknown>;
   const locked = vitals.data.status === "verified";
@@ -245,13 +253,26 @@ export default function Vitals() {
                     {field.hint}
                   </p>
                 )}
+                {/*
+                  Saved only when this person changed it, as on the obituary:
+                  a sister and a brother fill this in from two phones, and a
+                  box that still held what was on file when the page opened
+                  used to put her newer answer back the moment his cursor
+                  passed through it. `key` redraws it once the newer text
+                  arrives.
+                */}
                 <Input
+                  key={(record[field.name] as string) ?? ""}
                   className="mt-2"
                   id={field.name}
                   type={field.type ?? "text"}
                   disabled={locked}
                   defaultValue={(record[field.name] as string) ?? ""}
+                  onFocus={(event) => {
+                    event.currentTarget.dataset.before = event.currentTarget.value;
+                  }}
                   onBlur={(event) => {
+                    if (event.target.value === event.target.dataset.before) return;
                     const next = event.target.value.trim();
                     if (next === ((record[field.name] as string) ?? "")) return;
                     save.mutate({ data: { [field.name]: next || null } });
@@ -293,15 +314,20 @@ export default function Vitals() {
               inputMode="numeric"
               placeholder="000-00-0000"
               autoComplete="off"
+              aria-label="Social security number"
               onChange={(event) => setSsn(event.target.value)}
             />
             <Button
               variant="outline"
-              disabled={ssn.replace(/\D/g, "").length !== 9}
-              onClick={() => {
-                save.mutate({ data: { socialSecurityNumber: ssn } });
-                setSsn("");
-              }}
+              disabled={ssn.replace(/\D/g, "").length !== 9 || save.isPending}
+              onClick={() =>
+                // Cleared once it is stored, not before: a number that failed
+                // to send on a dropped signal should still be there to resend.
+                save.mutate(
+                  { data: { socialSecurityNumber: ssn } },
+                  { onSuccess: () => setSsn("") },
+                )
+              }
             >
               Save
             </Button>

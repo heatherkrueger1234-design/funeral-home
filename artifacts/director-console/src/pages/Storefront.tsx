@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { Link } from "wouter";
 import { useQueryClient } from "@tanstack/react-query";
 import {
   useGetHome,
@@ -13,12 +14,21 @@ import {
 import type { HomePolicy } from "@workspace/api-client-react";
 import { useSession } from "@/lib/session";
 import { Button } from "@/components/ui/button";
+import { toast } from "@/hooks/use-toast";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
-import { Loading, PageHeader, Panel } from "@/components/page";
-import { Plus, Trash2, Eye, EyeOff } from "lucide-react";
+import { Empty, Loading, PageHeader, Panel } from "@/components/page";
+import { Plus, Store, Trash2, Eye, EyeOff } from "lucide-react";
+
+/** Clipboard access can be refused; the address is on screen either way. */
+function copyFailed() {
+  toast({
+    title: "Couldn't copy that",
+    description: "Select the address and copy it by hand.",
+  });
+}
 
 /**
  * The home's own page, and the sentences it repeats at every kitchen table.
@@ -52,7 +62,14 @@ export default function Storefront() {
 
   if (home.isPending || policies.isPending) return <Loading rows={4} />;
 
-  if (!home.data) return null;
+  if (!home.data) {
+    return (
+      <Empty icon={Store} title="Your page's settings didn't load">
+        Nothing has been lost, and the page itself is still up. This is
+        usually the connection — try again in a moment.
+      </Empty>
+    );
+  }
 
   const row = home.data;
   const save = (data: Record<string, unknown>) =>
@@ -63,7 +80,7 @@ export default function Storefront() {
       <PageHeader title="Your page">
         {readOnly
           ? "Only an owner can change what the home publishes."
-          : "What a family reads before they ring you, and what you find yourself explaining every time."}
+          : "What a family reads before they call you, and what you find yourself explaining every time."}
       </PageHeader>
 
       <PublicPageLink slug={row.slug} />
@@ -167,7 +184,13 @@ export default function Storefront() {
         Funeral Rule governs how a funeral provider discloses prices, and it
         is not something a text box should be doing on your behalf. Your own
         price sheet — for your staff, at a kitchen table — is under{" "}
-        <span className="font-medium">Prices</span>.
+        <Link
+          href="/prices"
+          className="font-medium text-foreground underline decoration-[var(--border-strong)] underline-offset-4 hover:decoration-[var(--accent)]"
+        >
+          Prices
+        </Link>
+        .
       </p>
     </div>
   );
@@ -229,6 +252,7 @@ function Policies({
             <div className="flex items-center gap-2">
               <Input
                 disabled={readOnly}
+                aria-label="Section heading"
                 defaultValue={policy.title}
                 className="font-medium"
                 onBlur={(event) => {
@@ -242,8 +266,20 @@ function Policies({
                 <Button
                   variant="ghost"
                   size="sm"
-                  aria-label="Remove section"
-                  onClick={() => remove.mutate({ policyId: policy.id })}
+                  aria-label={`Remove "${policy.title}"`}
+                  disabled={remove.isPending}
+                  onClick={() => {
+                    if (
+                      window.confirm(
+                        `Remove "${policy.title}"? The wording goes for good` +
+                          (policy.published
+                            ? ", and it comes off your page and every family's portal."
+                            : "."),
+                      )
+                    ) {
+                      remove.mutate({ policyId: policy.id });
+                    }
+                  }}
                 >
                   <Trash2 className="size-4" />
                 </Button>
@@ -253,6 +289,7 @@ function Policies({
             <Textarea
               rows={4}
               disabled={readOnly}
+              aria-label={`What you say about ${policy.title}`}
               defaultValue={policy.body}
               onBlur={(event) => {
                 const value = event.target.value.trim();
@@ -293,10 +330,11 @@ function Policies({
         <div className="flex gap-2">
           <Input
             value={title}
+            aria-label="New section heading"
             placeholder="Add a section — e.g. Cremation timings"
             onChange={(event) => setTitle(event.target.value)}
             onKeyDown={(event) => {
-              if (event.key === "Enter" && heading) {
+              if (event.key === "Enter" && heading && !add.isPending) {
                 add.mutate({
                   data: { title: heading, body: "Write it the way you say it." },
                 });
@@ -352,10 +390,13 @@ function PublicPageLink({ slug }: { slug: string }) {
           variant="outline"
           size="sm"
           onClick={() => {
-            void navigator.clipboard?.writeText(url).then(() => {
-              setCopied(true);
-              setTimeout(() => setCopied(false), 2000);
-            });
+            void navigator.clipboard
+              ?.writeText(url)
+              .then(() => {
+                setCopied(true);
+                setTimeout(() => setCopied(false), 2000);
+              })
+              .catch(copyFailed);
           }}
         >
           {copied ? "Copied" : "Copy"}

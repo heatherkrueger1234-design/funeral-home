@@ -255,7 +255,10 @@ function BookCopy({ version }: { version: number }) {
     <div className="space-y-2.5">
       <div className="overflow-hidden rounded-xl border border-[var(--border-strong)] bg-white shadow-[var(--elevation-2)]">
         {src ? (
-          <iframe title="The memory book" src={src} className="h-[32rem] w-full" />
+          // Sandboxed for the reason the proofs are: an object URL is
+          // same-origin with the portal, and this page is built from what
+          // relatives typed. It is a book; it needs to run nothing.
+          <iframe title="The memory book" src={src} sandbox="" className="h-[32rem] w-full" />
         ) : (
           <div
             role="status"

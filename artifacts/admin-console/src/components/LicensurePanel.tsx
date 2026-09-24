@@ -33,12 +33,24 @@ function splitServices(value: string): string[] {
     .filter(Boolean);
 }
 
-export function LicensurePanel({ home }: { home: AdminHomeDetail }) {
+/**
+ * Everything a licensure change can make stale: this home, the overview's
+ * "Worth a look" list, and the access log the change was written to.
+ */
+function useRefreshAfterLicensure(homeId: number) {
   const queryClient = useQueryClient();
-  const [editing, setEditing] = useState(false);
 
-  const refresh = () =>
-    queryClient.invalidateQueries({ queryKey: ["home", home.id] });
+  return () =>
+    Promise.all([
+      queryClient.invalidateQueries({ queryKey: ["home", homeId] }),
+      queryClient.invalidateQueries({ queryKey: ["overview"] }),
+      queryClient.invalidateQueries({ queryKey: ["audit"] }),
+    ]);
+}
+
+export function LicensurePanel({ home }: { home: AdminHomeDetail }) {
+  const [editing, setEditing] = useState(false);
+  const refresh = useRefreshAfterLicensure(home.id);
 
   const save = useMutation({
     mutationFn: (values: Partial<HomeLicensure>) =>
@@ -66,9 +78,19 @@ export function LicensurePanel({ home }: { home: AdminHomeDetail }) {
       <Card>
         <CardTitle
           action={
-            <Button variant="plain" onClick={() => setEditing((was) => !was)}>
-              {editing ? "Cancel" : "Edit registration"}
-            </Button>
+            // With nothing recorded, the empty state's button is the one way
+            // in; an "Edit" beside it would be a second, for nothing to edit.
+            (editing || home.licensure) && (
+              <Button
+                variant="plain"
+                onClick={() => {
+                  setEditing((was) => !was);
+                  save.reset();
+                }}
+              >
+                {editing ? "Cancel" : "Edit registration"}
+              </Button>
+            )
           }
         >
           DORA registration
@@ -209,18 +231,21 @@ function RegistrationForm({
           label="DORA registration number"
           value={form.doraRegistrationNumber}
           onChange={(event) => set("doraRegistrationNumber")(event.target.value)}
+          maxLength={60}
           hint="Exactly as it appears on the certificate."
         />
         <Field
           label="Appointed designee"
           value={form.designeeName}
           onChange={(event) => set("designeeName")(event.target.value)}
+          maxLength={160}
           hint="The person named on the registration."
         />
         <Field
           label="Designee's title"
           value={form.designeeTitle}
           onChange={(event) => set("designeeTitle")(event.target.value)}
+          maxLength={160}
         />
         <Field
           label="Began business at this location"
@@ -265,13 +290,19 @@ function RegistrationForm({
         <textarea
           id="licensure-notes"
           rows={3}
+          maxLength={2000}
           value={form.notes}
           onChange={(event) => set("notes")(event.target.value)}
-          className="rounded-md border border-[var(--border)] bg-white p-3 text-base"
+          // The same well as `Field`, which it sat beside looking unfinished.
+          className="rounded-md border border-[var(--border-strong)] bg-white p-3 text-base focus-visible:border-[var(--accent)]"
         />
       </div>
 
-      {problem && <p className="text-sm text-[var(--notice)]">{problem}</p>}
+      {problem && (
+        <p role="alert" className="text-sm text-[var(--notice)]">
+          {problem}
+        </p>
+      )}
 
       <div>
         <Button type="submit" variant="primary" disabled={pending}>
@@ -285,11 +316,11 @@ function RegistrationForm({
 /* ----------------------------------------------------------- the people -- */
 
 function PractitionersCard({ home }: { home: AdminHomeDetail }) {
-  const queryClient = useQueryClient();
   const [adding, setAdding] = useState(false);
-
-  const refresh = () =>
-    queryClient.invalidateQueries({ queryKey: ["home", home.id] });
+  // Which row is asking "are you sure". Removing somebody is the one thing on
+  // this card that cannot be put back by choosing a different option.
+  const [removing, setRemoving] = useState<number | null>(null);
+  const refresh = useRefreshAfterLicensure(home.id);
 
   const add = useMutation({
     mutationFn: (values: Omit<Practitioner, "id">) =>
@@ -309,21 +340,37 @@ function PractitionersCard({ home }: { home: AdminHomeDetail }) {
   const remove = useMutation({
     mutationFn: (id: number) =>
       api.delete(`/admin/homes/${home.id}/practitioners/${id}`),
-    onSuccess: refresh,
+    onSuccess: () => {
+      setRemoving(null);
+      void refresh();
+    },
   });
+
+  const problem =
+    update.error instanceof Error
+      ? update.error.message
+      : remove.error instanceof Error
+        ? remove.error.message
+        : null;
 
   return (
     <Card>
       <CardTitle
         action={
           home.practitioners.length > 0 && (
-            <Button variant="plain" onClick={() => setAdding(true)}>
+            <Button
+              variant="plain"
+              onClick={() => {
+                setAdding(true);
+                add.reset();
+              }}
+            >
               Add someone
             </Button>
           )
         }
       >
-        Who needs a license by 1 January 2027
+        Who needs a license by January 1, 2027
       </CardTitle>
 
       {home.practitioners.length === 0 && !adding ? (
@@ -337,7 +384,7 @@ function PractitionersCard({ home }: { home: AdminHomeDetail }) {
           }
         />
       ) : (
-        <div className="overflow-x-auto">
+        <div className="relative overflow-x-auto">
           <table className="w-full min-w-[40rem] text-left">
             <thead className="text-sm text-[var(--muted-foreground)]">
               <tr>
@@ -388,18 +435,47 @@ function PractitionersCard({ home }: { home: AdminHomeDetail }) {
                     {formatDate(person.expiresOn)}
                   </td>
                   <td className="py-3">
-                    <Button
-                      variant="plain"
-                      disabled={remove.isPending}
-                      onClick={() => remove.mutate(person.id)}
-                    >
-                      Remove
-                    </Button>
+                    {removing === person.id ? (
+                      <div className="flex gap-2">
+                        <Button
+                          variant="destructive"
+                          disabled={remove.isPending}
+                          onClick={() => remove.mutate(person.id)}
+                        >
+                          {remove.isPending ? "Removing…" : `Remove ${person.personName}`}
+                        </Button>
+                        <Button
+                          variant="plain"
+                          onClick={() => {
+                            setRemoving(null);
+                            remove.reset();
+                          }}
+                        >
+                          Keep
+                        </Button>
+                      </div>
+                    ) : (
+                      <Button
+                        variant="plain"
+                        aria-label={`Remove ${person.personName}`}
+                        onClick={() => {
+                          setRemoving(person.id);
+                          remove.reset();
+                        }}
+                      >
+                        Remove
+                      </Button>
+                    )}
                   </td>
                 </tr>
               ))}
             </tbody>
           </table>
+          {problem && (
+            <p role="alert" className="mt-3 text-sm text-[var(--notice)]">
+              {problem}
+            </p>
+          )}
         </div>
       )}
 
@@ -407,7 +483,10 @@ function PractitionersCard({ home }: { home: AdminHomeDetail }) {
         <PractitionerForm
           pending={add.isPending}
           problem={add.error instanceof Error ? add.error.message : null}
-          onCancel={() => setAdding(false)}
+          onCancel={() => {
+            setAdding(false);
+            add.reset();
+          }}
           onAdd={(values) => add.mutate(values)}
         />
       )}
@@ -456,6 +535,7 @@ function PractitionerForm({
           onChange={(event) =>
             setForm((current) => ({ ...current, personName: event.target.value }))
           }
+          maxLength={160}
         />
         <Select
           label="Role"
@@ -499,6 +579,7 @@ function PractitionerForm({
             }))
           }
           hint="Once it has been issued."
+          maxLength={60}
         />
         <Field
           label="Expires"
@@ -511,7 +592,11 @@ function PractitionerForm({
         />
       </div>
 
-      {problem && <p className="text-sm text-[var(--notice)]">{problem}</p>}
+      {problem && (
+        <p role="alert" className="text-sm text-[var(--notice)]">
+          {problem}
+        </p>
+      )}
 
       <div className="flex gap-3">
         <Button

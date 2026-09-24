@@ -5,6 +5,7 @@ import {
   useUpdateHome,
   getGetHomeQueryKey,
   getGetCurrentUserQueryKey,
+  getGetHomeDashboardQueryKey,
 } from "@workspace/api-client-react";
 import { useSession } from "@/lib/session";
 import { Input } from "@/components/ui/input";
@@ -15,7 +16,8 @@ import { StandardSchedule } from "@/components/StandardSchedule";
 import { BillingSection } from "@/components/BillingSection";
 import { SnippetLibrary } from "@/components/SnippetLibrary";
 import { StaffSection } from "@/components/StaffSection";
-import { Loading, PageHeader } from "@/components/page";
+import { Empty, Loading, PageHeader } from "@/components/page";
+import { Settings as SettingsIcon } from "lucide-react";
 
 /** "08:00" for a time input, from minutes since midnight. */
 const toTimeInput = (minute: number) =>
@@ -46,13 +48,24 @@ export default function Settings() {
         void queryClient.invalidateQueries({
           queryKey: getGetCurrentUserQueryKey(),
         });
+        // The master page heads itself with the home's name.
+        void queryClient.invalidateQueries({
+          queryKey: getGetHomeDashboardQueryKey(),
+        });
       },
     },
   });
 
   if (home.isPending) return <Loading rows={4} />;
 
-  if (!home.data) return null;
+  if (!home.data) {
+    return (
+      <Empty icon={SettingsIcon} title="Settings didn't load">
+        Nothing has changed. This is usually the connection — try again in a
+        moment.
+      </Empty>
+    );
+  }
 
   const row = home.data;
   const readOnly = session?.user.role !== "owner";
@@ -83,7 +96,7 @@ export default function Settings() {
         </div>
 
         <div className="space-y-1.5">
-          <Label htmlFor="accentColor">Brand colour</Label>
+          <Label htmlFor="accentColor">Brand color</Label>
           <div className="flex items-center gap-3">
             {/* The swatch is the control. A hex field would be a worse
                 version of the thing every operating system already has. */}

@@ -372,7 +372,7 @@ The standard schedule should ship with Colorado's real clock in it:
 - Embalming or refrigeration — **required past 24 hours** from death
 - Disposition permit and cremation authorization — **before cremation**
 
-Stated calmly, once, in words. Re-read the craft standard in `TEAM-SPLIT.md`
+Stated calmly, once, in words. Re-read the craft standard in `CRAFT.md`
 before you render any of these: **no red, no countdowns, no urgency styling in
 the family portal.** A widow does not need a timer. The director does need to
 know where they stand, and that belongs in the console.

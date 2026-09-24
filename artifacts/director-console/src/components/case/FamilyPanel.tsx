@@ -6,6 +6,7 @@ import {
   useSendContactLink,
   useRevokeContact,
   getGetCaseQueryKey,
+  getGetCasesQueryKey,
   type FamilyContact,
 } from "@workspace/api-client-react";
 import { Button } from "@/components/ui/button";
@@ -42,7 +43,13 @@ function LinkOnce({ link, phone }: { link: string; phone?: string | null }) {
         Send this to them now — it won't be shown again.
       </p>
       <div className="flex gap-2">
-        <Input readOnly value={link} className="bg-white font-mono text-xs" />
+        <Input
+          readOnly
+          aria-label="Their link"
+          value={link}
+          className="bg-white font-mono text-xs"
+          onFocus={(event) => event.target.select()}
+        />
         <Button
           type="button"
           variant="outline"
@@ -96,8 +103,12 @@ export function FamilyPanel({ caseId, contacts }: Props) {
   const [email, setEmail] = useState("");
   const [role, setRole] = useState<"next_of_kin" | "contributor">("next_of_kin");
 
-  const refresh = () =>
+  const refresh = () => {
     void queryClient.invalidateQueries({ queryKey: getGetCaseQueryKey(caseId) });
+    // The first person added takes a case out of intake, and the list shows
+    // the next of kin on each row.
+    void queryClient.invalidateQueries({ queryKey: getGetCasesQueryKey() });
+  };
 
   const add = useCreateCaseContact({
     mutation: {
@@ -204,7 +215,8 @@ export function FamilyPanel({ caseId, contacts }: Props) {
                         sendLink.mutate({ contactId: contact.id })
                       }
                     >
-                      {sendLink.isPending ? (
+                      {sendLink.isPending &&
+                      sendLink.variables?.contactId === contact.id ? (
                         <Loader2 className="size-4 animate-spin" />
                       ) : (
                         <MessageSquare className="size-4" />
@@ -212,9 +224,12 @@ export function FamilyPanel({ caseId, contacts }: Props) {
                       Text it
                     </Button>
                   )}
+                  {/* Pending-guarded: a double press minted two links and
+                      the one on screen was already dead. */}
                   <Button
                     variant="ghost"
                     size="sm"
+                    disabled={reissue.isPending}
                     onClick={() => reissue.mutate({ contactId: contact.id })}
                   >
                     <Link2 className="size-4" />
@@ -225,7 +240,17 @@ export function FamilyPanel({ caseId, contacts }: Props) {
                       variant="ghost"
                       size="sm"
                       className="text-muted-foreground"
-                      onClick={() => revoke.mutate({ contactId: contact.id })}
+                      disabled={revoke.isPending}
+                      onClick={() => {
+                        if (
+                          window.confirm(
+                            `Revoke ${contact.name}'s link? It stops working at once. ` +
+                              "Everything they added stays, and you can make them a new one.",
+                          )
+                        ) {
+                          revoke.mutate({ contactId: contact.id });
+                        }
+                      }}
                     >
                       Revoke
                     </Button>

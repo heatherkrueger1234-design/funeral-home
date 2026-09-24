@@ -6,6 +6,8 @@ import {
   usePostCaseMessage,
   getGetHomeInboxQueryKey,
   getGetCaseMessagesQueryKey,
+  getGetCaseQueryKey,
+  getGetCasesQueryKey,
   getGetHomeDashboardQueryKey,
 } from "@workspace/api-client-react";
 import type { InboxEntry } from "@workspace/api-client-react";
@@ -14,7 +16,15 @@ import { Textarea } from "@/components/ui/textarea";
 import { Divider, Empty, Loading, PageHeader } from "@/components/page";
 import { cn, formatAtHome } from "@/lib/utils";
 import { useHomeZone } from "@/lib/session";
-import { Loader2, Moon, Lock, MessageSquare, Send } from "lucide-react";
+import {
+  CloudOff,
+  Loader2,
+  Moon,
+  Lock,
+  MessageSquare,
+  RotateCcw,
+  Send,
+} from "lucide-react";
 
 /**
  * Every family conversation in one list.
@@ -64,6 +74,25 @@ export default function Inbox() {
   });
 
   if (inbox.isPending) return <Loading rows={4} />;
+
+  // Not "No conversations yet": a failed load that said so would tell a
+  // director nobody had written, which is the opposite of what they need.
+  if (!inbox.data) {
+    return (
+      <Empty
+        icon={CloudOff}
+        title="The messages didn't load"
+        action={
+          <Button variant="outline" size="sm" onClick={() => void inbox.refetch()}>
+            <RotateCcw className="size-4" />
+            Try again
+          </Button>
+        }
+      >
+        Nothing has been lost. This is usually the connection.
+      </Empty>
+    );
+  }
 
   const rows = inbox.data ?? [];
   // Waiting means the home can still do something about it. A locked thread
@@ -119,8 +148,16 @@ function Conversation({ row }: { row: InboxEntry }) {
       onSuccess: () => {
         setReply("");
         setOpen(false);
+        // Replying marks the family's messages read on the server, so every
+        // count below comes back without them.
         void queryClient.invalidateQueries({
           queryKey: getGetHomeInboxQueryKey(),
+        });
+        void queryClient.invalidateQueries({
+          queryKey: getGetCaseQueryKey(row.caseId),
+        });
+        void queryClient.invalidateQueries({
+          queryKey: getGetCasesQueryKey(),
         });
         void queryClient.invalidateQueries({
           queryKey: getGetCaseMessagesQueryKey(row.caseId),
@@ -147,7 +184,7 @@ function Conversation({ row }: { row: InboxEntry }) {
       <div className="flex items-start justify-between gap-4">
         <div className="min-w-0">
           <Link
-            href={`/cases/${row.caseId}`}
+            href={`/cases/${row.caseId}?tab=messages`}
             className="font-semibold no-underline hover:underline"
           >
             {row.decedentName}
@@ -205,6 +242,7 @@ function Conversation({ row }: { row: InboxEntry }) {
               <Textarea
                 autoFocus
                 rows={3}
+                aria-label={`Reply about ${row.decedentName}`}
                 value={reply}
                 placeholder={`Reply to the ${row.decedentName.split(" ").slice(-1)[0]} family`}
                 onChange={(event) => setReply(event.target.value)}
@@ -235,7 +273,9 @@ function Conversation({ row }: { row: InboxEntry }) {
                   Cancel
                 </Button>
                 <Button asChild size="sm" variant="ghost" className="ml-auto">
-                  <Link href={`/cases/${row.caseId}`}>Open the case</Link>
+                  <Link href={`/cases/${row.caseId}?tab=messages`}>
+                    Open the thread
+                  </Link>
                 </Button>
               </div>
             </div>

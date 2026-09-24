@@ -145,6 +145,7 @@ export function VitalsPanel({ caseId }: { caseId: number }) {
           <Button
             variant={verified ? "ghost" : "outline"}
             size="sm"
+            disabled={save.isPending}
             onClick={() =>
               save.mutate({ caseId, data: { verified: !verified } })
             }

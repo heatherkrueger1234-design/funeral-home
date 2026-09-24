@@ -584,7 +584,7 @@ function IntakeForm({
       <p className="mb-7 mt-2 leading-relaxed text-muted-foreground">
         {preNeed
           ? "A few details so someone can get in touch. Nothing here is a commitment, and nothing is decided today."
-          : "Just enough for someone to ring you back. Everything else can wait until you have spoken to them."}
+          : "Just enough for someone to call you back. Everything else can wait until you have spoken to them."}
       </p>
 
       {!preNeed && <UrgentLine urgentPhone={urgentPhone} phone={phone} />}

@@ -51,7 +51,10 @@ export function Shell({
 }) {
   const signOut = useMutation({
     mutationFn: () => api.post("/auth/logout"),
-    onSuccess: onSignedOut,
+    // Settled, not success: a logout that failed on the network left the
+    // button dead and the console on screen. The sign-in form coming back is
+    // right either way -- `NotForYou` already treats it the same.
+    onSettled: onSignedOut,
   });
 
   return (
@@ -73,8 +76,15 @@ export function Shell({
               <NavLink key={place.href} {...place} />
             ))}
           </nav>
-          <div className="ml-auto flex items-center gap-3 text-sm">
-            <span className="text-[var(--muted-foreground)]">{signedInAs}</span>
+          <div className="ml-auto flex min-w-0 items-center gap-3 text-sm">
+            {/* A long address truncates on a phone rather than pushing
+                "Sign out" off the edge of the screen. */}
+            <span
+              className="min-w-0 truncate text-[var(--muted-foreground)]"
+              title={signedInAs}
+            >
+              {signedInAs}
+            </span>
             <Button
               variant="plain"
               onClick={() => signOut.mutate()}

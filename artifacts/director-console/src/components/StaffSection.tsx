@@ -34,7 +34,7 @@ import { Loading } from "@/components/page";
  * The invitation is the ordinary single-use password link, emailed, and also
  * shown here once, because for a funeral home on a shared mail host the email
  * lands in spam more often than not and an owner standing next to the new
- * hire should be able to hand it over. It lasts an hour; after that the
+ * hire should be able to hand it over. It lasts a week; after that the
  * colleague uses "I've forgotten my password" on the sign-in page with the
  * same address, which the list below says in as many words rather than
  * leaving the owner to discover the invitation cannot be sent twice.
@@ -186,7 +186,7 @@ export function StaffSection({
           <p className="text-sm">
             We've emailed <span className="font-medium">{lastInvite.email}</span>{" "}
             a link to choose a password. If it doesn't arrive, send them this
-            one — it works once, for an hour, and won't be shown again.
+            one — it works once, for a week, and won't be shown again.
           </p>
           <div className="flex gap-2">
             <Input

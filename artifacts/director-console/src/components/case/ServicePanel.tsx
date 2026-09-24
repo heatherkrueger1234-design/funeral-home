@@ -83,6 +83,7 @@ export function ServicePanel({ caseId }: { caseId: number }) {
                     <Button
                       variant={confirmed ? "secondary" : "outline"}
                       size="sm"
+                      disabled={update.isPending}
                       onClick={() =>
                         update.mutate({
                           selectionId: row.id,
@@ -99,7 +100,18 @@ export function ServicePanel({ caseId }: { caseId: number }) {
                       size="icon"
                       className="text-muted-foreground"
                       aria-label={`Remove ${row.value}`}
-                      onClick={() => remove.mutate({ selectionId: row.id })}
+                      disabled={remove.isPending}
+                      onClick={() => {
+                        // The family chose this; it should not vanish on a
+                        // stray tap next to Confirm.
+                        if (
+                          window.confirm(
+                            `Remove "${row.value}"? The family chose it, and it comes off their list too.`,
+                          )
+                        ) {
+                          remove.mutate({ selectionId: row.id });
+                        }
+                      }}
                     >
                       <X className="size-4" />
                     </Button>

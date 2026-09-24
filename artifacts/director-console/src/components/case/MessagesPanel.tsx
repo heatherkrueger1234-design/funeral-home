@@ -38,7 +38,14 @@ export function MessagesPanel({ caseId }: { caseId: number }) {
   useEffect(() => {
     if (thread.dataUpdatedAt === 0) return;
     void queryClient.invalidateQueries({ queryKey: getGetHomeInboxQueryKey() });
-  }, [thread.dataUpdatedAt, queryClient]);
+    // The same count is on this case's own Messages tab, on its row in the
+    // case list and on the master page's tile.
+    void queryClient.invalidateQueries({ queryKey: getGetCaseQueryKey(caseId) });
+    void queryClient.invalidateQueries({ queryKey: getGetCasesQueryKey() });
+    void queryClient.invalidateQueries({
+      queryKey: getGetHomeDashboardQueryKey(),
+    });
+  }, [thread.dataUpdatedAt, queryClient, caseId]);
 
   const send = usePostCaseMessage({
     mutation: {
@@ -125,8 +132,8 @@ export function MessagesPanel({ caseId }: { caseId: number }) {
 
       {locked ? (
         <p className="rounded-xl border border-border bg-[var(--sunken)] px-4 py-4 text-sm leading-relaxed text-muted-foreground">
-          This thread closed a fortnight after the service. Neither side can
-          post to it.
+          This thread closed when its window after the service ran out.
+          Neither side can post to it.
         </p>
       ) : (
         <div className="space-y-3">
@@ -141,6 +148,7 @@ export function MessagesPanel({ caseId }: { caseId: number }) {
           <Textarea
             rows={3}
             value={body}
+            aria-label="Reply to the family"
             placeholder="Reply to the family"
             onChange={(event) => setBody(event.target.value)}
           />

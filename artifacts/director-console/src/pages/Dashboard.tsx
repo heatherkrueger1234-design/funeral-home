@@ -9,6 +9,7 @@ import type {
   DashboardService,
 } from "@workspace/api-client-react";
 import { SetupChecklist, TrialBanner } from "@/components/SetupChecklist";
+import { Button } from "@/components/ui/button";
 import { Divider, Empty, Loading, PageHeader } from "@/components/page";
 import { cn, formatAtHome, homeDayNumber } from "@/lib/utils";
 import { useHomeZone } from "@/lib/session";
@@ -16,8 +17,10 @@ import {
   CalendarClock,
   CheckCircle2,
   ChevronRight,
+  CloudOff,
   Inbox,
   MessageSquare,
+  RotateCcw,
   Store,
 } from "lucide-react";
 
@@ -121,7 +124,24 @@ export default function Dashboard() {
   const zone = useHomeZone();
 
   if (dashboard.isPending || billing.isPending) return <Loading rows={4} />;
-  if (!dashboard.data) return null;
+  // A blank page here reads as "nothing is waiting", which is the one thing
+  // this screen must never say by accident.
+  if (!dashboard.data) {
+    return (
+      <Empty
+        icon={CloudOff}
+        title="Today's list didn't load"
+        action={
+          <Button variant="outline" size="sm" onClick={() => void dashboard.refetch()}>
+            <RotateCcw className="size-4" />
+            Try again
+          </Button>
+        }
+      >
+        Nothing has been lost. This is usually the connection.
+      </Empty>
+    );
+  }
 
   const data = dashboard.data;
   const nothingWaiting =
@@ -259,7 +279,8 @@ export default function Dashboard() {
           <ul className="space-y-2">
             {data.awaitingServiceDate.map((row) => (
               <li key={row.caseId}>
-                <Link href={`/cases/${row.caseId}`} className={ROW}>
+                {/* Straight to the tab that sets the date or offers times. */}
+                <Link href={`/cases/${row.caseId}?tab=details`} className={ROW}>
                   <span className="min-w-0">
                     <span className="block truncate font-semibold">
                       {row.decedentName}
@@ -306,7 +327,7 @@ export default function Dashboard() {
         <span className="min-w-0 flex-1">
           <span className="block font-semibold">Your own page</span>
           <span className="block text-sm leading-snug text-muted-foreground">
-            What families read before they ring you, and the policies you find
+            What families read before they call you, and the policies you find
             yourself repeating at every kitchen table.
           </span>
         </span>
@@ -393,7 +414,7 @@ function DeadlineSection({
         {rows.map((row) => (
           <li key={row.id}>
             <Link
-              href={`/cases/${row.caseId}`}
+              href={`/cases/${row.caseId}?tab=timeline`}
               className={cn(ROW, urgent && "border-[var(--notice)]")}
             >
               <span className="min-w-0">

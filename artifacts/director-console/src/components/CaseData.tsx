@@ -5,6 +5,8 @@ import {
   useDeleteCase,
   useConvertCaseToAtNeed,
   getGetCasesQueryKey,
+  getGetHomeDashboardQueryKey,
+  getGetHomeInboxQueryKey,
 } from "@workspace/api-client-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -193,13 +195,19 @@ function EraseCase({
     mutation: {
       onSuccess: () => {
         void queryClient.invalidateQueries({ queryKey: getGetCasesQueryKey() });
+        // Both list cases by name; a stale row would lead straight back to
+        // "That case isn't here".
+        void queryClient.invalidateQueries({
+          queryKey: getGetHomeDashboardQueryKey(),
+        });
+        void queryClient.invalidateQueries({ queryKey: getGetHomeInboxQueryKey() });
         setOpen(false);
         toast({
           title: "Erased",
           description:
             "Gone from this system. It stays in your backups until they age out.",
         });
-        navigate("/");
+        navigate("/cases");
       },
     },
   });

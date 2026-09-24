@@ -38,7 +38,10 @@ export function ObituaryPanel({ caseId }: { caseId: number }) {
   const compose = useComposeObituary({
     mutation: {
       onSuccess: refresh,
+      // Only the refusal means this. Any other failure keeps the ordinary
+      // error toast, rather than blaming edits that may not exist.
       onError: () => {
+        if (obituary.data?.draftEditedByStaff == null) return;
         toast({
           title: "That would replace your edits",
           description: "Use “Recompose anyway” if you want to start again from the family's answers.",
@@ -127,6 +130,7 @@ export function ObituaryPanel({ caseId }: { caseId: number }) {
                 variant="ghost"
                 size="sm"
                 className="text-muted-foreground"
+                disabled={compose.isPending}
                 onClick={() => compose.mutate({ caseId, data: { force: true } })}
               >
                 Recompose anyway
@@ -140,6 +144,7 @@ export function ObituaryPanel({ caseId }: { caseId: number }) {
           defaultValue={draft.draftText ?? ""}
           disabled={approved}
           key={draft.draftText ?? ""}
+          aria-label="The obituary draft"
           placeholder="Press Compose to draft this from the family's answers."
           onBlur={(event) => {
             const next = event.target.value;
@@ -156,7 +161,11 @@ export function ObituaryPanel({ caseId }: { caseId: number }) {
         ) : (
           <Button
             className="w-full"
-            disabled={!draft.draftText?.trim() || approve.isPending}
+            // Leaving the draft to press this saves the draft on the way;
+            // approving before that save lands would approve the old text.
+            disabled={
+              !draft.draftText?.trim() || approve.isPending || update.isPending
+            }
             onClick={() => approve.mutate({ caseId })}
           >
             Approve for print

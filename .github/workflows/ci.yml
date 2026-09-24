@@ -112,8 +112,12 @@ jobs:
         run: pnpm --filter @workspace/e2e-tests run test:e2e
         env:
           E2E_DATABASE_URL: postgresql://postgres:postgres@localhost:5432/funeral_home_e2e
-          # Fixed test key. This is not, and must never become, a deployed secret.
-          ENCRYPTION_KEY: BwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwc=
+          # No ENCRYPTION_KEY here, deliberately. Unlike the other jobs, this
+          # one starts the API with NODE_ENV=production, and `lib/db/crypto.ts`
+          # refuses the fixed public key in production — correctly, since it is
+          # in version control. playwright.config.ts generates a fresh key per
+          # run instead; the database is created fresh, so no ciphertext
+          # outlives it. Setting it here is what kept this job red.
 
       - name: Upload the Playwright report on failure
         if: failure()

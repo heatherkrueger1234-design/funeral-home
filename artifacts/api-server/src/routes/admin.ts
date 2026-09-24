@@ -44,7 +44,13 @@ import {
   requireRow,
 } from "../lib/http";
 import { currentUser } from "../middleware/require-auth";
-import { createPasswordReset, normaliseEmail, PASSWORD_RESET_TTL_MS } from "../lib/auth";
+import {
+  createPasswordReset,
+  INVITE_TTL_DAYS,
+  INVITE_TTL_MS,
+  normaliseEmail,
+  PASSWORD_RESET_TTL_MS,
+} from "../lib/auth";
 import {
   grantPlatformAdmin,
   isPlatformAdmin,
@@ -131,7 +137,7 @@ declare global {
  *    the password of a real staff account, so this is an additional condition
  *    and never an alternative one.
  *  - It is not a permission model. There is one capability and no hierarchy,
- *    because inventing a second role system is exactly what `TEAM-SPLIT.md`
+ *    because inventing a second role system is exactly what `CONTRIBUTING.md`
  *    says not to do.
  *
  * The 403 says nothing about why. A director who mistypes a URL learns that
@@ -690,7 +696,7 @@ router.post("/admin/homes", async (req, res) => {
   let inviteLink: string | null = null;
 
   if (ownerId !== null && ownerEmail !== null) {
-    const token = await createPasswordReset(ownerId);
+    const token = await createPasswordReset(ownerId, INVITE_TTL_MS);
     const base = process.env["CONSOLE_URL"]?.replace(/\/+$/, "") ?? "";
     inviteLink = `${base}/reset-password?invited=1&token=${encodeURIComponent(token)}`;
 
@@ -700,7 +706,7 @@ router.post("/admin/homes", async (req, res) => {
         homeName: home.name,
         invitedBy: who.email,
         inviteLink,
-        expiresInMinutes: Math.round(PASSWORD_RESET_TTL_MS / 60000),
+        expiresInDays: INVITE_TTL_DAYS,
       });
     } catch (err) {
       // The home exists and the link is about to be handed back on screen,
@@ -1108,7 +1114,11 @@ router.get("/admin/overview", async (req, res) => {
     .select({
       failed: count(),
       homes: sql<number>`count(distinct ${aftercareEnrollmentsTable.funeralHomeId})`.mapWith(Number),
-      latest: sql<string | null>`max(${aftercareDeliveriesTable.failedAt})`,
+      // mapWith, or the raw aggregate comes back as Postgres's own text --
+      // no "T", no zone -- and every browser reads it differently.
+      latest: sql<Date | null>`max(${aftercareDeliveriesTable.failedAt})`.mapWith(
+        aftercareDeliveriesTable.failedAt,
+      ),
     })
     .from(aftercareDeliveriesTable)
     .innerJoin(

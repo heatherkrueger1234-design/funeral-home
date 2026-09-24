@@ -17,7 +17,7 @@ router.get("/cases/:caseId/messages", async (req, res) => {
 
   // Opening the thread is what marks the family's messages read; a read
   // receipt failing must not fail the request that produced it.
-  void markRead(row.id, "home").catch((err: unknown) => {
+  await markRead(row.id, "home").catch((err: unknown) => {
     req.log?.warn({ err }, "Could not mark family messages read");
   });
 
@@ -52,6 +52,10 @@ router.post("/cases/:caseId/messages", async (req, res) => {
       sentOutsideOfficeHours: isWithinOfficeHours(home, now) ? null : now,
     })
     .returning();
+
+  await markRead(row.id, "home", now).catch((err: unknown) => {
+    req.log?.warn({ err }, "Could not mark family messages read");
+  });
 
   res.status(201).json({
     id: created!.id,

@@ -10,6 +10,7 @@ import {
   getGetFamilyBelongingsQueryKey,
   getGetFamilyPreparationQueryKey,
 } from "@workspace/api-client-react";
+import { Link } from "wouter";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
@@ -22,7 +23,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Check, Lock, Plus, Shirt, X } from "lucide-react";
-import { Divider, Empty, Loading, PageHeader } from "@/components/page";
+import { Divider, Empty, LoadFailed, Loading, PageHeader } from "@/components/page";
 
 /**
  * What to bring in, and how they should look.
@@ -38,6 +39,21 @@ import { Divider, Empty, Loading, PageHeader } from "@/components/page";
  * the item in.
  */
 
+/*
+ * A note is sent only when this person changed it, not whenever a box loses
+ * focus. Every save clears the home's "we have read this", so tapping down
+ * through the four boxes to reach the foot of the page used to undo the
+ * preparation room's sign-off without a word being changed — and put back
+ * whatever a relative on another phone had written since this page opened.
+ */
+function remember(event: { currentTarget: HTMLTextAreaElement }) {
+  event.currentTarget.dataset.before = event.currentTarget.value;
+}
+
+function changed(event: { target: HTMLTextAreaElement }): boolean {
+  return event.target.value !== event.target.dataset.before;
+}
+
 const DISPOSITIONS = [
   { value: "undecided", label: "Not decided yet" },
   { value: "with_deceased", label: "Stays with them" },
@@ -48,7 +64,7 @@ const KINDS = [
   { value: "clothing", label: "Clothing" },
   { value: "undergarments", label: "Undergarments" },
   { value: "shoes", label: "Shoes" },
-  { value: "jewellery", label: "Jewellery" },
+  { value: "jewellery", label: "Jewelry" },
   { value: "glasses", label: "Glasses" },
   { value: "keepsake", label: "Something to go with them" },
   { value: "other", label: "Something else" },
@@ -71,6 +87,12 @@ export default function Belongings() {
       queryKey: getGetFamilyPreparationQueryKey(),
     });
 
+  const addItem = () => {
+    // Enter pressed twice on a slow connection used to add the locket twice.
+    if (add.isPending || !description.trim()) return;
+    add.mutate({ data: { kind: kind as "other", description: description.trim() } });
+  };
+
   const add = useCreateFamilyBelonging({
     mutation: {
       onSuccess: () => {
@@ -84,6 +106,18 @@ export default function Belongings() {
   const savePrep = useUpdateFamilyPreparation({ mutation: { onSuccess: refreshPrep } });
 
   if (items.isPending || preparation.isPending) return <Loading rows={4} />;
+
+  if (items.isError || preparation.isError) {
+    return (
+      <LoadFailed
+        title="Clothing and belongings"
+        onRetry={() => {
+          void items.refetch();
+          void preparation.refetch();
+        }}
+      />
+    );
+  }
 
   const rows = items.data ?? [];
   const prep = preparation.data;
@@ -124,6 +158,10 @@ export default function Belongings() {
                       disabled={held}
                       onBlur={(event) => {
                         const next = event.target.value.trim();
+                        // Emptied: an item has to be called something, so the
+                        // box shows what is still on file rather than a blank
+                        // that looks saved and is not.
+                        if (!next) event.target.value = item.description;
                         if (!next || next === item.description) return;
                         update.mutate({
                           belongingId: item.id,
@@ -134,12 +172,11 @@ export default function Belongings() {
                   </div>
 
                   {held ? (
-                    <span
-                      className="mt-2 flex shrink-0 items-center gap-1 rounded-full bg-[var(--accent-soft)] px-2 py-0.5 text-xs font-semibold text-[var(--accent-deep)]"
-                      title="The funeral home has this."
-                    >
+                    /* "With them" read as "with the person who died" -- the
+                        very choice the menu below it offers. */
+                    <span className="mt-2 flex shrink-0 items-center gap-1 rounded-full bg-[var(--accent-soft)] px-2 py-0.5 text-xs font-semibold text-[var(--accent-deep)]">
                       <Lock className="size-3" />
-                      With them
+                      The home has it
                     </span>
                   ) : (
                     <Button
@@ -210,24 +247,17 @@ export default function Belongings() {
             onKeyDown={(event) => {
               if (event.key !== "Enter") return;
               event.preventDefault();
-              if (description.trim()) {
-                add.mutate({ data: { kind: kind as "other", description: description.trim() } });
-              }
+              addItem();
             }}
           />
 
           <Button
             variant="outline"
-            size="icon"
-            aria-label="Add item"
-            disabled={!description.trim()}
-            onClick={() =>
-              add.mutate({
-                data: { kind: kind as "other", description: description.trim() },
-              })
-            }
+            disabled={!description.trim() || add.isPending}
+            onClick={addItem}
           >
             <Plus className="size-4" />
+            Add
           </Button>
         </div>
       </section>
@@ -254,7 +284,9 @@ export default function Belongings() {
             rows={3}
             placeholder="How it was parted, whether it was set, who used to do it."
             defaultValue={prep?.hairNotes ?? ""}
+            onFocus={remember}
             onBlur={(event) =>
+              changed(event) &&
               savePrep.mutate({
                 data: { hairNotes: event.target.value.trim() || null },
               })
@@ -269,7 +301,9 @@ export default function Belongings() {
             rows={3}
             placeholder="How much, and what they wore. Or that they never wore any."
             defaultValue={prep?.cosmeticsNotes ?? ""}
+            onFocus={remember}
             onBlur={(event) =>
+              changed(event) &&
               savePrep.mutate({
                 data: { cosmeticsNotes: event.target.value.trim() || null },
               })
@@ -278,13 +312,15 @@ export default function Belongings() {
         </div>
 
         <div className="space-y-2">
-          <Label htmlFor="jewellery">Jewellery they should be wearing</Label>
+          <Label htmlFor="jewellery">Jewelry they should be wearing</Label>
           <Textarea
             id="jewellery"
             rows={2}
             placeholder="Her wedding ring, left hand."
             defaultValue={prep?.jewelleryNotes ?? ""}
+            onFocus={remember}
             onBlur={(event) =>
+              changed(event) &&
               savePrep.mutate({
                 data: { jewelleryNotes: event.target.value.trim() || null },
               })
@@ -299,7 +335,9 @@ export default function Belongings() {
             rows={3}
             placeholder="A scarf she always wore. Glasses on or off. Anything at all."
             defaultValue={prep?.otherNotes ?? ""}
+            onFocus={remember}
             onBlur={(event) =>
+              changed(event) &&
               savePrep.mutate({
                 data: { otherNotes: event.target.value.trim() || null },
               })
@@ -308,8 +346,15 @@ export default function Belongings() {
         </div>
 
         <p className="border-l-2 border-[var(--accent)]/30 pl-4 text-sm leading-relaxed text-muted-foreground">
-          It also helps enormously to mark a recent photograph as “this is how
-          they looked” on the photographs page.
+          It also helps enormously to mark a recent photograph as “how they
+          looked” on the{" "}
+          <Link
+            href="/photos"
+            className="font-semibold text-[var(--accent-deep)] underline decoration-[var(--accent)]/40 underline-offset-4"
+          >
+            photographs page
+          </Link>
+          .
         </p>
       </section>
     </div>

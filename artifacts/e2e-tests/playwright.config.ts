@@ -4,6 +4,8 @@ import {
   API_PORT,
   FAMILY_PORTAL_PORT,
   DIRECTOR_CONSOLE_PORT,
+  ADMIN_CONSOLE_PORT,
+  PLATFORM_ADMIN_EMAIL,
   apiBase,
 } from "./ports";
 
@@ -35,10 +37,19 @@ const databaseUrl =
  * Generating one is safe because the database is created fresh for the run: no
  * ciphertext outlives the key. Set ENCRYPTION_KEY to pin it if you need to
  * inspect the database afterwards.
+ *
+ * The public key is rejected here rather than merely not defaulted to. A plain
+ * `?? randomBytes(...)` fallback is not enough: every other CI job exports that
+ * value, and one line of it left in this job's `env:` silently defeated the fix
+ * and kept the suite red while it passed locally, where nothing sets it. An
+ * ambient value that cannot work should not be honoured.
  */
+const KNOWN_TEST_KEY = "BwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwc=";
+const providedKey = process.env.ENCRYPTION_KEY;
 const encryptionKey =
-  process.env.ENCRYPTION_KEY ??
-  randomBytes(32).toString("base64");
+  providedKey && providedKey !== KNOWN_TEST_KEY
+    ? providedKey
+    : randomBytes(32).toString("base64");
 
 export default defineConfig({
   testDir: "./tests",
@@ -77,6 +88,9 @@ export default defineConfig({
         PORT: String(API_PORT),
         NODE_ENV: "production",
         TASK_SECRET: "e2e-task-secret",
+        // Read once, into an empty table, at boot. admin-console.spec.ts
+        // registers the matching staff account itself.
+        PLATFORM_ADMIN_EMAILS: PLATFORM_ADMIN_EMAIL,
         FAMILY_PORTAL_URL: `http://localhost:${FAMILY_PORTAL_PORT}`,
         CONSOLE_URL: `http://localhost:${DIRECTOR_CONSOLE_PORT}`,
         /*
@@ -94,6 +108,7 @@ export default defineConfig({
         CORS_ORIGINS: [
           `http://localhost:${FAMILY_PORTAL_PORT}`,
           `http://localhost:${DIRECTOR_CONSOLE_PORT}`,
+          `http://localhost:${ADMIN_CONSOLE_PORT}`,
         ].join(","),
       },
     },
@@ -118,6 +133,18 @@ export default defineConfig({
       reuseExistingServer: false,
       env: {
         PORT: String(DIRECTOR_CONSOLE_PORT),
+        E2E_API_PROXY_TARGET: apiBase,
+      },
+    },
+    {
+      command:
+        "pnpm --filter @workspace/admin-console run build && pnpm --filter @workspace/admin-console run serve",
+      cwd: "../..",
+      url: `http://localhost:${ADMIN_CONSOLE_PORT}`,
+      timeout: 120_000,
+      reuseExistingServer: false,
+      env: {
+        PORT: String(ADMIN_CONSOLE_PORT),
         E2E_API_PROXY_TARGET: apiBase,
       },
     },

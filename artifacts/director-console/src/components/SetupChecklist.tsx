@@ -3,12 +3,14 @@ import { Link } from "wouter";
 import {
   useGetBilling,
   useCompleteOnboardingStep,
+  useStartCheckout,
   getGetBillingQueryKey,
 } from "@workspace/api-client-react";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
-import { ArrowRight } from "lucide-react";
+import { ArrowRight, Loader2 } from "lucide-react";
 import { BASE_PATH } from "@/lib/base";
+import { useSession } from "@/lib/session";
 
 /**
  * What a new home sees instead of an empty console.
@@ -34,8 +36,10 @@ import { BASE_PATH } from "@/lib/base";
  * following this list wants to be sent.
  */
 const DESTINATIONS: Record<string, string> = {
-  case: "/",
-  family: "/",
+  // The case list, where both happen. These pointed at "/", which is the
+  // page this checklist sits on: pressing the words did nothing at all.
+  case: "/cases",
+  family: "/cases",
   branding: "/settings",
   hours: "/settings",
   schedule: "/settings",
@@ -167,24 +171,28 @@ export function SetupChecklist() {
  */
 export function TrialBanner() {
   const billing = useGetBilling();
-  const queryClient = useQueryClient();
+  const { session } = useSession();
+
+  /*
+   * Through the generated client, so a refusal reaches the ordinary error
+   * toast. The hand-rolled fetch this replaced ignored a failed response
+   * entirely: the button did nothing, and said nothing, on the last day of a
+   * trial.
+   */
+  const checkout = useStartCheckout({
+    mutation: {
+      onSuccess: (payload) => {
+        window.location.href = payload.url;
+      },
+    },
+  });
 
   if (!billing.data) return null;
 
   const { subscriptionStatus, trialDaysLeft, billingConfigured } = billing.data;
-
-  const startCheckout = async () => {
-    const response = await fetch("/api/billing/checkout", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      credentials: "include",
-      body: JSON.stringify({ returnUrl: `${window.location.origin}${BASE_PATH}/settings` }),
-    });
-
-    const payload = (await response.json()) as { url?: string; error?: string };
-    if (payload.url) window.location.href = payload.url;
-    void queryClient;
-  };
+  // The server takes a subscription from an owner only; anybody else would
+  // press the button and be refused.
+  const isOwner = session?.user.role === "owner";
 
   const ended = subscriptionStatus === "canceled";
   const closing = subscriptionStatus === "trial" && (trialDaysLeft ?? 99) <= 7;
@@ -215,8 +223,19 @@ export function TrialBanner() {
         )}
       </span>
 
-      {billingConfigured && (
-        <Button size="sm" onClick={() => void startCheckout()}>
+      {billingConfigured && isOwner && (
+        <Button
+          size="sm"
+          disabled={checkout.isPending}
+          onClick={() =>
+            checkout.mutate({
+              data: {
+                returnUrl: `${window.location.origin}${BASE_PATH}/settings`,
+              },
+            })
+          }
+        >
+          {checkout.isPending && <Loader2 className="size-4 animate-spin" />}
           Start a subscription
         </Button>
       )}

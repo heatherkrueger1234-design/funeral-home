@@ -122,6 +122,7 @@ export function BelongingsPanel({ caseId }: { caseId: number }) {
               <div className="flex items-start gap-2">
                 <Input
                   defaultValue={item.description}
+                  aria-label={`Description of ${item.description}`}
                   onBlur={(event) => {
                     const next = event.target.value.trim();
                     if (!next || next === item.description) return;
@@ -213,12 +214,13 @@ export function BelongingsPanel({ caseId }: { caseId: number }) {
         <div className="flex gap-2">
           <Input
             value={description}
+            aria-label="Add an item"
             placeholder="Add an item"
             onChange={(event) => setDescription(event.target.value)}
             onKeyDown={(event) => {
               if (event.key !== "Enter") return;
               event.preventDefault();
-              if (description.trim()) {
+              if (description.trim() && !add.isPending) {
                 add.mutate({ caseId, data: { description: description.trim() } });
               }
             }}
@@ -227,7 +229,7 @@ export function BelongingsPanel({ caseId }: { caseId: number }) {
             variant="outline"
             size="icon"
             aria-label="Add item"
-            disabled={!description.trim()}
+            disabled={!description.trim() || add.isPending}
             onClick={() =>
               add.mutate({ caseId, data: { description: description.trim() } })
             }
@@ -274,7 +276,7 @@ export function BelongingsPanel({ caseId }: { caseId: number }) {
           [
             ["hairNotes", "Hair"],
             ["cosmeticsNotes", "Makeup"],
-            ["jewelleryNotes", "Jewellery to be worn"],
+            ["jewelleryNotes", "Jewelry to be worn"],
             ["otherNotes", "Anything else"],
           ] as const
         ).map(([field, label]) => (

@@ -169,6 +169,18 @@ describe("the preparation sheet", () => {
     expect(reviewed.body.reviewedAt).not.toBeNull();
     expect(reviewed.body.reviewedByName).toBe("Karen Voss");
 
+    // Sending back the same words -- a relative tabbing through the boxes --
+    // is not an edit, and must not undo the sign-off.
+    await asFamily(token)
+      .put("/api/family/preparation")
+      .send({ hairNotes: "Parted on the left. She set it herself every Friday." })
+      .expect(200);
+
+    const unchanged = await staff.agent
+      .get(`/api/cases/${row.id}/preparation`)
+      .expect(200);
+    expect(unchanged.body.reviewedAt).not.toBeNull();
+
     // A later family edit un-signs it: what the room read is no longer what
     // the family has said.
     await asFamily(token)

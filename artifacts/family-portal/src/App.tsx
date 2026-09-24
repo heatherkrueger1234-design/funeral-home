@@ -13,6 +13,7 @@ import { LinkProvider, isUnauthorized } from "@/lib/link";
 import { PortalShell } from "@/components/PortalShell";
 import { BASE_PATH } from "@/lib/base-path";
 import { Loading } from "@/components/page";
+import { describeError } from "@/lib/utils";
 import Hub from "@/pages/Hub";
 import Start from "@/pages/Start";
 import NotFound from "@/pages/NotFound";
@@ -40,11 +41,6 @@ const Family = lazy(() => import("@/pages/Family"));
 // Reached from the foot of a grief check-in, often long after the texted
 // link has expired, so it sits outside the shell like the front door.
 const Stop = lazy(() => import("@/pages/Stop"));
-
-function describeError(error: unknown): string {
-  const message = error instanceof Error ? error.message.trim() : "";
-  return message || "Please check your connection and try again.";
-}
 
 /**
  * A failed request must never be invisible: a failed photo upload that looks

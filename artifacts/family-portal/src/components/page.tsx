@@ -95,6 +95,42 @@ export function Empty({
 }
 
 /**
+ * A screen whose list did not arrive.
+ *
+ * Without this a failed load drew nothing at all, or — worse — drew the
+ * empty state: "Nothing to check at the moment" over proofs that were
+ * there, and a toast that had gone before anybody read it. A family who
+ * believes the page is empty stops coming back to it, so it says plainly
+ * that nothing is lost and offers the one thing to do.
+ */
+export function LoadFailed({
+  title,
+  onRetry,
+}: {
+  title: string;
+  onRetry: () => void;
+}) {
+  return (
+    <div className="space-y-6">
+      <PageHeader title={title} />
+      <Empty title="This couldn't be opened just now">
+        Please check your connection and try again. Nothing anybody has added
+        has been lost.
+      </Empty>
+      <div className="text-center">
+        <button
+          type="button"
+          onClick={onRetry}
+          className="inline-flex min-h-11 items-center rounded-md border border-[var(--border-strong)] bg-card px-4 text-sm font-semibold shadow-[var(--elevation-1)] transition-gentle hover:border-[var(--accent)]"
+        >
+          Try again
+        </button>
+      </div>
+    </div>
+  );
+}
+
+/**
  * A hairline with a name on it. The same section marker the hub uses, so a
  * heading means the same thing on every screen.
  */
