@@ -1,6 +1,11 @@
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "wouter";
-import { api, formatDateTime, type PlatformOverview } from "@/lib/api";
+import {
+  api,
+  formatDay,
+  formatDateTime,
+  type PlatformOverview,
+} from "@/lib/api";
 import {
   Card,
   CardTitle,
@@ -10,6 +15,7 @@ import {
   Skeleton,
   Stat,
   Swatch,
+  usePageTitle,
 } from "@/components/ui";
 import { Reminders } from "@/components/Reminders";
 
@@ -22,6 +28,8 @@ import { Reminders } from "@/components/Reminders";
  * 2026 the middle section is the one that earns the subscription.
  */
 export function Overview() {
+  usePageTitle("Overview");
+
   const query = useQuery({
     queryKey: ["overview"],
     queryFn: () => api.get<PlatformOverview>("/admin/overview"),
@@ -50,9 +58,17 @@ export function Overview() {
         <p className="mt-1 text-[var(--muted-foreground)]">
           {homes.homes === 0
             ? "No homes yet."
-            : `${homes.homes} ${homes.homes === 1 ? "home" : "homes"}, ${homes.paying} subscribed, ${homes.onTrial} on trial${homes.suspended > 0 ? `, ${homes.suspended} suspended` : ""}.`}
+            : `${homes.homes} ${homes.homes === 1 ? "home" : "homes"}, ${homes.paying} subscribed, ${homes.onTrial} on trial` +
+              (homes.pastDue > 0 ? `, ${homes.pastDue} with a payment outstanding` : "") +
+              (homes.canceled > 0
+                ? `, ${homes.canceled} whose subscription has ended`
+                : "") +
+              (homes.suspended > 0 ? `, ${homes.suspended} suspended` : "") +
+              "."}
         </p>
       </div>
+
+      <TrialsEndingSoon homes={query.data.trialsEndingSoon} />
 
       <Card>
         <CardTitle>Across every home</CardTitle>
@@ -76,6 +92,44 @@ export function Overview() {
 
       <Attention attention={attention} anyHomes={homes.homes > 0} />
     </div>
+  );
+}
+
+/**
+ * Trials that run out this week.
+ *
+ * The one billing fact with a deadline on it: when a trial ends the home
+ * cannot open a case, and the time to ring the owner is before a director
+ * finds that out with a family across the desk. Absent when there are none,
+ * like the delivery card below -- an empty box every visit teaches the eye
+ * to skip it.
+ */
+function TrialsEndingSoon({ homes }: { homes: PlatformOverview["trialsEndingSoon"] }) {
+  if (homes.length === 0) return null;
+
+  return (
+    <Card>
+      <CardTitle>Trials ending in the next seven days</CardTitle>
+      <ul className="flex flex-col divide-y divide-[var(--border)]">
+        {homes.map((home) => (
+          <li
+            key={home.id}
+            className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 py-2.5 first:pt-0 last:pb-0"
+          >
+            <Link
+              href={`/homes/${home.id}`}
+              className="inline-flex items-center gap-2 no-underline hover:underline"
+            >
+              <Swatch color={home.accentColor} name={home.name} />
+              <span className="break-words">{home.name}</span>
+            </Link>
+            <span className="tabular text-sm text-[var(--muted-foreground)]">
+              {formatDay(home.trialEndsAt)}
+            </span>
+          </li>
+        ))}
+      </ul>
+    </Card>
   );
 }
 

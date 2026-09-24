@@ -1,8 +1,57 @@
-import type { ReactNode } from "react";
-import { Link, useRoute } from "wouter";
+import { useEffect, useRef, type ReactNode, type RefObject } from "react";
+import { Link, useLocation, useRoute } from "wouter";
 import { useMutation } from "@tanstack/react-query";
-import { api, cn } from "@/lib/api";
+import { api, cn, isUnauthorized } from "@/lib/api";
 import { Button } from "./ui";
+
+/**
+ * Move focus to the new page's heading when the page changes.
+ *
+ * A client-side route change swaps the content and leaves focus on the link
+ * that was clicked, up in the navigation, so somebody using a screen reader
+ * or a keyboard hears nothing and has to find their way back down the page.
+ * Focusing the `h1` is what a full page load would have given them.
+ *
+ * Most pages draw their heading only once their data arrives, so this waits
+ * for one to appear -- briefly; a page that never draws one is left alone.
+ * Not on first load: the browser already puts focus at the top of the
+ * document then, and stealing it would be rude.
+ */
+function useFocusHeadingOnNavigate(mainRef: RefObject<HTMLElement | null>) {
+  const [location] = useLocation();
+  const first = useRef(true);
+
+  useEffect(() => {
+    if (first.current) {
+      first.current = false;
+      return;
+    }
+
+    const main = mainRef.current;
+    if (!main) return;
+
+    const focusHeading = (): boolean => {
+      const heading = main.querySelector("h1");
+      if (!heading) return false;
+      heading.setAttribute("tabindex", "-1");
+      heading.focus({ preventScroll: false });
+      return true;
+    };
+
+    if (focusHeading()) return;
+
+    const observer = new MutationObserver(() => {
+      if (focusHeading()) observer.disconnect();
+    });
+    observer.observe(main, { childList: true, subtree: true });
+    const giveUp = window.setTimeout(() => observer.disconnect(), 5000);
+
+    return () => {
+      observer.disconnect();
+      window.clearTimeout(giveUp);
+    };
+  }, [location, mainRef]);
+}
 
 /**
  * The frame. Four places to be, because there are four things this console
@@ -52,7 +101,19 @@ export function Shell({
   const signOut = useMutation({
     mutationFn: () => api.post("/auth/logout"),
     onSuccess: onSignedOut,
+    /*
+     * A 401 means the session was already gone -- which is what signing out
+     * was for -- so that goes to the front door too. Anything else is said
+     * out loud: a button that silently did nothing leaves somebody on a
+     * shared laptop believing they have signed out when they have not.
+     */
+    onError: (error) => {
+      if (isUnauthorized(error)) onSignedOut();
+    },
   });
+
+  const mainRef = useRef<HTMLElement>(null);
+  useFocusHeadingOnNavigate(mainRef);
 
   return (
     <div className="min-h-dvh">
@@ -80,13 +141,21 @@ export function Shell({
               onClick={() => signOut.mutate()}
               disabled={signOut.isPending}
             >
-              Sign out
+              {signOut.isPending ? "Signing out…" : "Sign out"}
             </Button>
           </div>
+          {signOut.error && !isUnauthorized(signOut.error) && (
+            <p role="alert" className="w-full text-right text-sm text-[var(--notice)]">
+              That didn't sign you out -- you are still signed in. Please try
+              again, or close the browser if this is a shared computer.
+            </p>
+          )}
         </div>
       </header>
 
-      <main className="mx-auto max-w-6xl px-6 py-8">{children}</main>
+      <main ref={mainRef} className="mx-auto max-w-6xl px-6 py-8">
+        {children}
+      </main>
 
     </div>
   );

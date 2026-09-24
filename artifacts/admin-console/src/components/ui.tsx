@@ -1,6 +1,20 @@
 import type { ButtonHTMLAttributes, InputHTMLAttributes, ReactNode } from "react";
-import { useId } from "react";
+import { useEffect, useId } from "react";
 import { cn } from "@/lib/api";
+
+/**
+ * Name the browser tab after the page.
+ *
+ * Every screen used to be called the same thing, so six tabs of this console
+ * were six identical tabs, and a screen reader arriving on a new page heard
+ * the same title it heard on the last one. Pass `null` while the name is
+ * still loading; the previous title stays until there is a real one.
+ */
+export function usePageTitle(title: string | null) {
+  useEffect(() => {
+    if (title) document.title = `${title} · Continuum Aftercare platform`;
+  }, [title]);
+}
 
 /**
  * The console's small vocabulary of parts.
@@ -120,17 +134,21 @@ export function Field({ label, hint, problem, className, ...props }: FieldProps)
           className,
         )}
       />
-      {(hint || problem) && (
-        <p
-          id={hintId}
-          className={cn(
-            "text-sm",
-            problem ? "text-[var(--notice)]" : "text-[var(--muted-foreground)]",
-          )}
-        >
-          {problem ?? hint}
+      {/*
+        Two elements with different keys rather than one whose text changes,
+        so that a problem arriving is a new `role="alert"` node -- which a
+        screen reader announces -- instead of a quiet edit to the hint that
+        somebody who cannot see the red text never hears about.
+      */}
+      {problem ? (
+        <p key="problem" id={hintId} role="alert" className="text-sm text-[var(--notice)]">
+          {problem}
         </p>
-      )}
+      ) : hint ? (
+        <p key="hint" id={hintId} className="text-sm text-[var(--muted-foreground)]">
+          {hint}
+        </p>
+      ) : null}
     </div>
   );
 }

@@ -271,7 +271,11 @@ function RegistrationForm({
         />
       </div>
 
-      {problem && <p className="text-sm text-[var(--notice)]">{problem}</p>}
+      {problem && (
+        <p role="alert" className="text-sm text-[var(--notice)]">
+          {problem}
+        </p>
+      )}
 
       <div>
         <Button type="submit" variant="primary" disabled={pending}>
@@ -298,18 +302,6 @@ function PractitionersCard({ home }: { home: AdminHomeDetail }) {
       setAdding(false);
       void refresh();
     },
-  });
-
-  const update = useMutation({
-    mutationFn: ({ id, ...values }: Practitioner) =>
-      api.put(`/admin/homes/${home.id}/practitioners/${id}`, values),
-    onSuccess: refresh,
-  });
-
-  const remove = useMutation({
-    mutationFn: (id: number) =>
-      api.delete(`/admin/homes/${home.id}/practitioners/${id}`),
-    onSuccess: refresh,
   });
 
   return (
@@ -347,56 +339,13 @@ function PractitionersCard({ home }: { home: AdminHomeDetail }) {
                 <th scope="col" className="pb-2 font-medium">License no.</th>
                 <th scope="col" className="pb-2 font-medium">Expires</th>
                 <th scope="col" className="pb-2 font-medium">
-                  <span className="sr-only">Remove</span>
+                  <span className="sr-only">Change</span>
                 </th>
               </tr>
             </thead>
             <tbody>
               {home.practitioners.map((person) => (
-                <tr key={person.id} className="border-t border-[var(--border)]">
-                  <td className="py-3 pr-4">{person.personName}</td>
-                  <td className="py-3 pr-4 text-[var(--muted-foreground)]">
-                    {PRACTITIONER_ROLE_LABELS[person.role]}
-                  </td>
-                  <td className="py-3 pr-4">
-                    <label className="sr-only" htmlFor={`standing-${person.id}`}>
-                      {person.personName}'s license standing
-                    </label>
-                    <select
-                      id={`standing-${person.id}`}
-                      value={person.standing}
-                      disabled={update.isPending}
-                      onChange={(event) =>
-                        update.mutate({
-                          ...person,
-                          standing: event.target.value as LicenceStanding,
-                        })
-                      }
-                      className="min-h-11 rounded-md border border-[var(--border)] bg-white px-2"
-                    >
-                      {LICENCE_STANDINGS.map((standing) => (
-                        <option key={standing} value={standing}>
-                          {LICENCE_STANDING_LABELS[standing]}
-                        </option>
-                      ))}
-                    </select>
-                  </td>
-                  <td className="tabular py-3 pr-4">
-                    {person.licenceNumber || "—"}
-                  </td>
-                  <td className="tabular py-3 pr-4">
-                    {formatDate(person.expiresOn)}
-                  </td>
-                  <td className="py-3">
-                    <Button
-                      variant="plain"
-                      disabled={remove.isPending}
-                      onClick={() => remove.mutate(person.id)}
-                    >
-                      Remove
-                    </Button>
-                  </td>
-                </tr>
+                <PractitionerRow key={person.id} homeId={home.id} person={person} />
               ))}
             </tbody>
           </table>
@@ -408,38 +357,206 @@ function PractitionersCard({ home }: { home: AdminHomeDetail }) {
           pending={add.isPending}
           problem={add.error instanceof Error ? add.error.message : null}
           onCancel={() => setAdding(false)}
-          onAdd={(values) => add.mutate(values)}
+          onSave={(values) => add.mutate(values)}
         />
       )}
     </Card>
   );
 }
 
+/**
+ * One person, and everything that can be done to their row.
+ *
+ * Each row owns its own saves, so a change to one person disables that row
+ * and not the whole table, and an error is shown against the person it
+ * happened to. Before this there was one shared "update" for the table: every
+ * standing dropdown greyed out while any one of them saved, and a refusal was
+ * not shown anywhere at all -- the dropdown simply snapped back.
+ *
+ * Removing asks first. It is one click from a list of people's names, it
+ * cannot be undone from here, and the licence number that goes with it was
+ * probably typed off a certificate somebody had to dig out.
+ */
+function PractitionerRow({
+  homeId,
+  person,
+}: {
+  homeId: number;
+  person: Practitioner;
+}) {
+  const queryClient = useQueryClient();
+  const [editing, setEditing] = useState(false);
+  const [confirming, setConfirming] = useState(false);
+
+  const refresh = () =>
+    queryClient.invalidateQueries({ queryKey: ["home", homeId] });
+
+  const update = useMutation({
+    mutationFn: ({ id, ...values }: Practitioner) =>
+      api.put(`/admin/homes/${homeId}/practitioners/${id}`, values),
+    onSuccess: () => {
+      setEditing(false);
+      void refresh();
+    },
+  });
+
+  const remove = useMutation({
+    mutationFn: () =>
+      api.delete(`/admin/homes/${homeId}/practitioners/${person.id}`),
+    onSuccess: refresh,
+  });
+
+  const busy = update.isPending || remove.isPending;
+
+  if (editing) {
+    return (
+      <tr className="border-t border-[var(--border)]">
+        <td colSpan={6} className="pb-4">
+          <PractitionerForm
+            initial={person}
+            pending={update.isPending}
+            problem={update.error instanceof Error ? update.error.message : null}
+            onCancel={() => {
+              update.reset();
+              setEditing(false);
+            }}
+            onSave={(values) => update.mutate({ id: person.id, ...values })}
+          />
+        </td>
+      </tr>
+    );
+  }
+
+  const problem =
+    (update.error instanceof Error && update.error.message) ||
+    (remove.error instanceof Error && remove.error.message) ||
+    null;
+
+  return (
+    <tr className="border-t border-[var(--border)] align-top">
+      <td className="py-3 pr-4">
+        {person.personName}
+        {problem && (
+          <p role="alert" className="mt-1 text-sm text-[var(--notice)]">
+            {problem}
+          </p>
+        )}
+      </td>
+      <td className="py-3 pr-4 text-[var(--muted-foreground)]">
+        {PRACTITIONER_ROLE_LABELS[person.role]}
+      </td>
+      <td className="py-3 pr-4">
+        <label className="sr-only" htmlFor={`standing-${person.id}`}>
+          {person.personName}'s license standing
+        </label>
+        <select
+          id={`standing-${person.id}`}
+          value={
+            update.isPending && update.variables
+              ? update.variables.standing
+              : person.standing
+          }
+          disabled={busy}
+          onChange={(event) =>
+            update.mutate({
+              ...person,
+              standing: event.target.value as LicenceStanding,
+            })
+          }
+          className="min-h-11 rounded-md border border-[var(--border)] bg-white px-2"
+        >
+          {LICENCE_STANDINGS.map((standing) => (
+            <option key={standing} value={standing}>
+              {LICENCE_STANDING_LABELS[standing]}
+            </option>
+          ))}
+        </select>
+      </td>
+      <td className="tabular py-3 pr-4">{person.licenceNumber || "—"}</td>
+      <td className="tabular py-3 pr-4">{formatDate(person.expiresOn)}</td>
+      <td className="py-3">
+        {confirming ? (
+          <div className="flex flex-wrap items-center gap-1">
+            <Button
+              variant="destructive"
+              disabled={busy}
+              onClick={() => remove.mutate()}
+            >
+              {remove.isPending ? "Removing…" : `Remove ${person.personName}`}
+            </Button>
+            <Button
+              variant="plain"
+              disabled={remove.isPending}
+              onClick={() => {
+                remove.reset();
+                setConfirming(false);
+              }}
+            >
+              Keep
+            </Button>
+          </div>
+        ) : (
+          <div className="flex flex-wrap items-center gap-1">
+            <Button
+              variant="plain"
+              disabled={busy}
+              aria-label={`Edit ${person.personName}`}
+              onClick={() => {
+                update.reset();
+                setEditing(true);
+              }}
+            >
+              Edit
+            </Button>
+            <Button
+              variant="plain"
+              disabled={busy}
+              aria-label={`Remove ${person.personName}`}
+              onClick={() => setConfirming(true)}
+            >
+              Remove
+            </Button>
+          </div>
+        )}
+      </td>
+    </tr>
+  );
+}
+
+/**
+ * Adding somebody, or changing what is recorded about them. One form for
+ * both, because a licence number typed wrong on the way in has to be
+ * correctable on the way out -- the API always accepted every field, and the
+ * page only ever let you change the standing.
+ */
 function PractitionerForm({
+  initial,
   pending,
   problem,
-  onAdd,
+  onSave,
   onCancel,
 }: {
+  initial?: Practitioner;
   pending: boolean;
   problem: string | null;
-  onAdd: (values: Omit<Practitioner, "id">) => void;
+  onSave: (values: Omit<Practitioner, "id">) => void;
   onCancel: () => void;
 }) {
   const [form, setForm] = useState({
-    personName: "",
-    role: "mortuary_science_practitioner" as PractitionerRole,
-    standing: "not_applied" as LicenceStanding,
-    licenceNumber: "",
-    expiresOn: "",
+    personName: initial?.personName ?? "",
+    role: initial?.role ?? ("mortuary_science_practitioner" as PractitionerRole),
+    standing: initial?.standing ?? ("not_applied" as LicenceStanding),
+    licenceNumber: initial?.licenceNumber ?? "",
+    expiresOn: initial?.expiresOn ?? "",
   });
 
   return (
     <form
       className="mt-6 flex flex-col gap-5 border-t border-[var(--border)] pt-6"
+      aria-label={initial ? `Change ${initial.personName}` : "Add someone"}
       onSubmit={(event) => {
         event.preventDefault();
-        onAdd({
+        onSave({
           personName: form.personName.trim(),
           role: form.role,
           standing: form.standing,
@@ -511,7 +628,11 @@ function PractitionerForm({
         />
       </div>
 
-      {problem && <p className="text-sm text-[var(--notice)]">{problem}</p>}
+      {problem && (
+        <p role="alert" className="text-sm text-[var(--notice)]">
+          {problem}
+        </p>
+      )}
 
       <div className="flex gap-3">
         <Button
@@ -519,7 +640,13 @@ function PractitionerForm({
           variant="primary"
           disabled={pending || !form.personName.trim()}
         >
-          {pending ? "Adding…" : "Add them"}
+          {initial
+            ? pending
+              ? "Saving…"
+              : "Save the changes"
+            : pending
+              ? "Adding…"
+              : "Add them"}
         </Button>
         <Button type="button" variant="plain" onClick={onCancel}>
           Cancel
