@@ -6,8 +6,13 @@ worse than none.
 
 ## The short version
 
-- **The code is healthy.** CI (typecheck, tests, codegen drift, build) is green
-  on the main branch and on the open pull request #25.
+- **The code is healthy.** CI's typecheck, tests, codegen-drift and build jobs
+  are green on main.
+- **The `e2e` job was red from the day it was added** and is now fixed. It was
+  never a test failure: CI exported the fixed public encryption key, which
+  `lib/db/crypto.ts` refuses in production, so the API could not boot and
+  Playwright never ran a test. Worth knowing because it passed locally the
+  whole time — nothing sets that variable there.
 - **The scheduled jobs fail every day**, because there is nowhere for them to
   send their request yet. This is a settings problem, not a code problem.
 - **There are two "main" branches.** Most of the recent confusion comes from
