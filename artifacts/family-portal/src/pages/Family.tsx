@@ -12,7 +12,7 @@ import { Check, Copy, Loader2, UserPlus, Users } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Divider, Empty, Loading, PageHeader, Panel } from "@/components/page";
+import { Divider, Empty, LoadFailed, Loading, PageHeader, Panel } from "@/components/page";
 import { useToast } from "@/hooks/use-toast";
 import { plainError } from "@/lib/memory-book";
 
@@ -56,7 +56,7 @@ function LinkOnce({ result }: { result: FamilyRelativeInvited }) {
           readOnly
           value={link}
           aria-label={`${result.relative.name}'s link`}
-          className="bg-white font-mono text-xs"
+          className="bg-white font-mono text-sm"
           onFocus={(event) => event.currentTarget.select()}
         />
         <Button
@@ -153,6 +153,10 @@ export default function Family() {
     );
   }
 
+  if (relatives.isError && !relatives.data) {
+    return <LoadFailed title="Family" onRetry={() => void relatives.refetch()} />;
+  }
+
   const data = relatives.data;
   const homeName = session.data?.home.name ?? "The funeral home";
 
@@ -167,7 +171,7 @@ export default function Family() {
         <div className="text-center">
           <Link
             href="/messages"
-            className="text-sm font-semibold text-[var(--accent-deep)] underline decoration-[var(--accent)]/40 underline-offset-4"
+            className="inline-flex min-h-11 items-center text-sm font-semibold text-[var(--accent-deep)] underline decoration-[var(--accent)]/40 underline-offset-4"
           >
             Send them a message
           </Link>
@@ -304,7 +308,7 @@ export default function Family() {
             </div>
 
             {problem && (
-              <p role="alert" className="text-sm text-[var(--destructive)]">
+              <p role="alert" className="text-sm font-medium text-[var(--accent-deep)]">
                 {problem}
               </p>
             )}

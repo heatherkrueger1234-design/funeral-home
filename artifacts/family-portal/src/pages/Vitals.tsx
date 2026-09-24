@@ -1,7 +1,8 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import {
   useGetFamilyVitals,
+  useGetFamilySession,
   useUpdateFamilyVitals,
   useSubmitFamilyVitals,
   getGetFamilyVitalsQueryKey,
@@ -12,7 +13,7 @@ import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { useToast } from "@/hooks/use-toast";
 import { Check, Lock, ShieldCheck } from "lucide-react";
-import { Loading, PageHeader } from "@/components/page";
+import { LoadFailed, Loading, PageHeader } from "@/components/page";
 
 /**
  * The death certificate questions.
@@ -132,7 +133,8 @@ const SECTIONS: Array<{ title: string; blurb?: string; fields: Field[] }> = [
   },
   {
     title: "About you",
-    blurb: "So the registrar knows who supplied these details.",
+    blurb:
+      "So the registrar knows who supplied these details. Filled in from what the funeral home has for you — change anything that isn't right.",
     fields: [
       { name: "informantName", label: "Your name" },
       { name: "informantRelationship", label: "Your relationship to them" },
@@ -147,6 +149,22 @@ export default function Vitals() {
   const vitals = useGetFamilyVitals();
   const [savedAt, setSavedAt] = useState<number | null>(null);
   const [ssn, setSsn] = useState("");
+  const contact = useGetFamilySession().data?.contact;
+
+  /*
+   * "About you" arrives filled from the family contact the home already
+   * holds — the person reading this is, nearly always, the informant — so
+   * nobody types their own name into a form that was sent to them by name.
+   * What is shown but was never typed over is written to the record when
+   * they say they have finished; a box they emptied on purpose is left
+   * empty (`touched`).
+   */
+  const suggested: Record<string, string | null | undefined> = {
+    informantName: contact?.name,
+    informantRelationship: contact?.relationship,
+    informantPhone: contact?.phone,
+  };
+  const touched = useRef(new Set<string>());
 
   const refresh = () =>
     void queryClient.invalidateQueries({ queryKey: getGetFamilyVitalsQueryKey() });
@@ -174,9 +192,22 @@ export default function Vitals() {
 
   if (vitals.isPending) return <Loading rows={5} />;
 
+  if (vitals.isError && !vitals.data) {
+    return <LoadFailed title="Details for the certificate" onRetry={() => void vitals.refetch()} />;
+  }
+
   if (!vitals.data) return null;
 
   const record = vitals.data as unknown as Record<string, unknown>;
+  const stored = (name: string) => (record[name] as string | null) ?? "";
+  const shown = (name: string) => stored(name) || (suggested[name] ?? "") || "";
+  const submitted = vitals.data.status === "submitted";
+  const unsavedSuggestions = Object.fromEntries(
+    Object.keys(suggested)
+      .filter((name) => !stored(name) && suggested[name] && !touched.current.has(name))
+      .map((name) => [name, suggested[name]]),
+  );
+  const hasUnsaved = Object.keys(unsavedSuggestions).length > 0;
   const locked = vitals.data.status === "verified";
 
   return (
@@ -245,15 +276,29 @@ export default function Vitals() {
                     {field.hint}
                   </p>
                 )}
+                {/*
+                  Saved only when this person changed it, and redrawn when a
+                  newer answer arrives -- the obituary's rule, for the same
+                  reason: two relatives fill this in on two phones, and
+                  tabbing through a box must not put back what was on file
+                  when the page first opened.
+                */}
                 <Input
+                  key={stored(field.name)}
                   className="mt-2"
                   id={field.name}
                   type={field.type ?? "text"}
+                  autoComplete="off"
                   disabled={locked}
-                  defaultValue={(record[field.name] as string) ?? ""}
+                  defaultValue={shown(field.name)}
+                  onFocus={(event) => {
+                    event.currentTarget.dataset.before = event.currentTarget.value;
+                  }}
                   onBlur={(event) => {
+                    if (event.target.value === event.target.dataset.before) return;
+                    touched.current.add(field.name);
                     const next = event.target.value.trim();
-                    if (next === ((record[field.name] as string) ?? "")) return;
+                    if (next === stored(field.name)) return;
                     save.mutate({ data: { [field.name]: next || null } });
                   }}
                 />
@@ -293,15 +338,21 @@ export default function Vitals() {
               inputMode="numeric"
               placeholder="000-00-0000"
               autoComplete="off"
+              aria-label="Social security number"
               onChange={(event) => setSsn(event.target.value)}
             />
             <Button
               variant="outline"
-              disabled={ssn.replace(/\D/g, "").length !== 9}
-              onClick={() => {
-                save.mutate({ data: { socialSecurityNumber: ssn } });
-                setSsn("");
-              }}
+              disabled={ssn.replace(/\D/g, "").length !== 9 || save.isPending}
+              // Cleared once it is safely stored, not before: a number that
+              // failed to save on a bad connection should still be there to
+              // send again, not have to be fetched from a drawer twice.
+              onClick={() =>
+                save.mutate(
+                  { data: { socialSecurityNumber: ssn } },
+                  { onSuccess: () => setSsn("") },
+                )
+              }
             >
               Save
             </Button>
@@ -315,14 +366,35 @@ export default function Vitals() {
             When you've put in what you can, let the funeral home know. Anything
             you find afterwards can still be added.
           </p>
+          {/*
+            Already sent, but with "About you" still showing only what was
+            suggested: the button stays pressable, and says it will keep
+            those, so nothing the family can see on the page is missing from
+            what the home receives.
+          */}
           <Button
             size="lg"
             className="w-full"
-            disabled={submit.isPending || vitals.data.status === "submitted"}
-            onClick={() => submit.mutate()}
+            disabled={
+              submit.isPending ||
+              save.isPending ||
+              (submitted && !hasUnsaved)
+            }
+            onClick={() => {
+              if (!hasUnsaved) {
+                submit.mutate();
+                return;
+              }
+              save.mutate(
+                { data: unsavedSuggestions },
+                { onSuccess: () => !submitted && submit.mutate() },
+              );
+            }}
           >
-            {vitals.data.status === "submitted"
-              ? "Sent to the funeral home"
+            {submitted
+              ? hasUnsaved
+                ? "Keep your details and send them"
+                : "Sent to the funeral home"
               : "I've finished for now"}
           </Button>
         </div>

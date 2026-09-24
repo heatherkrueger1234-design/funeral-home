@@ -255,7 +255,11 @@ function BookCopy({ version }: { version: number }) {
     <div className="space-y-2.5">
       <div className="overflow-hidden rounded-xl border border-[var(--border-strong)] bg-white shadow-[var(--elevation-2)]">
         {src ? (
-          <iframe title="The memory book" src={src} className="h-[32rem] w-full" />
+          // Sandboxed, as the proofs are: the book is built from what
+          // relatives typed, and an object URL is same-origin with the
+          // portal, so unsandboxed it would run with the family's link in
+          // reach. It is pages to read; it needs to run nothing.
+          <iframe title="The memory book" src={src} sandbox="" className="h-[32rem] w-full" />
         ) : (
           <div
             role="status"
@@ -389,14 +393,14 @@ function PhotoYears({ photos, open }: { photos: CasePhoto[]; open: boolean }) {
                 }}
               />
               {problem && (
-                <p id={`${inputId}-problem`} className="mt-1 text-sm text-[var(--destructive)]">
+                <p id={`${inputId}-problem`} className="mt-1 text-sm font-medium text-[var(--accent-deep)]">
                   {problem}
                 </p>
               )}
-              <label className="mt-2 flex items-center gap-2 text-sm text-muted-foreground">
+              <label className="mt-1 flex min-h-11 cursor-pointer items-center gap-2.5 text-sm text-muted-foreground">
                 <input
                   type="checkbox"
-                  className="size-4 accent-[var(--accent)]"
+                  className="size-5 accent-[var(--accent)]"
                   defaultChecked={photo.takenAtService}
                   disabled={!open}
                   onChange={(event) =>

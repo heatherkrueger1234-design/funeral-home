@@ -70,10 +70,13 @@ export default function Aftercare() {
 
   if (!aftercare) {
     return (
-      <Empty icon={Mail} title="There is nothing to decide here yet">
-        If the funeral home offers to keep in touch over the coming year, the
-        question will appear here.
-      </Empty>
+      <div className="space-y-6">
+        <PageHeader title="Checking in" />
+        <Empty icon={Mail} title="There is nothing to decide here yet">
+          If the funeral home offers to keep in touch over the coming year, the
+          question will appear here.
+        </Empty>
+      </div>
     );
   }
 
@@ -192,9 +195,13 @@ export default function Aftercare() {
           placeholder="Your email address"
           onChange={(event) => setEmail(event.target.value)}
         />
-        {address.length > 0 && !addressLooksRight && (
+        {/* Said whenever "Yes, please" cannot be pressed, so a greyed-out
+            button is never the only thing on the screen explaining itself. */}
+        {!addressLooksRight && (
           <p className="mt-1.5 text-sm text-muted-foreground">
-            That doesn't look quite like an email address yet.
+            {address.length === 0
+              ? "The notes come by email, so an address is needed to say yes."
+              : "That doesn't look quite like an email address yet."}
           </p>
         )}
       </div>

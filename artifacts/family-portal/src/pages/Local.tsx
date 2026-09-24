@@ -16,7 +16,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
 import { Check, MapPin, Phone } from "lucide-react";
-import { Divider, Empty, Loading, PageHeader } from "@/components/page";
+import { Divider, Empty, LoadFailed, Loading, PageHeader } from "@/components/page";
 
 /**
  * Local help: headstones, cemeteries, urns, someone to lead the service.
@@ -55,6 +55,7 @@ export default function Local() {
   const quotes = useGetFamilyQuotes();
 
   const [zip, setZip] = useState("");
+  const [changingZip, setChangingZip] = useState(false);
   const [asking, setAsking] = useState<number | null>(null);
   const [request, setRequest] = useState("");
 
@@ -67,11 +68,12 @@ export default function Local() {
   const setPostalCode = useSetFamilyPostalCode({
     mutation: {
       onSuccess: (result) => {
+        setChangingZip(false);
         refresh();
         if (!result.recognised) {
           // Said plainly rather than silently showing an unsorted list.
           toast({
-            title: "We don't recognise that ZIP",
+            title: "We don't recognize that ZIP",
             description:
               "We've saved it, but we can't work out distances from it. The funeral home can help.",
           });
@@ -96,6 +98,10 @@ export default function Local() {
 
   if (session.isPending || vendors.isPending) return <Loading rows={4} />;
 
+  if (vendors.isError && !vendors.data) {
+    return <LoadFailed title="Local help" onRetry={() => void vendors.refetch()} />;
+  }
+
   const postalCode = session.data?.case.postalCode ?? null;
   const rows = vendors.data ?? [];
   const asked = new Set((quotes.data ?? []).map((quote) => quote.vendorId));
@@ -107,44 +113,73 @@ export default function Local() {
         are under no obligation to use any of them.
       </PageHeader>
 
-      {/* Asked once, here, where it is obviously needed. */}
-      {!postalCode ? (
+      {/*
+        Asked once, here, where it is obviously needed.
+
+        "Change" opens the same question again with the ZIP already in it.
+        It used to send an empty ZIP to clear the old one, which the server
+        refuses -- so the one way to correct a ZIP was a button that only
+        ever produced an error.
+      */}
+      {!postalCode || changingZip ? (
         <section className="rounded-xl border border-[var(--accent)]/25 bg-[var(--accent-soft)] p-5">
-          <Label htmlFor="zip" className="mb-1.5 block">
-            Whereabouts are you?
-          </Label>
-          <p className="mb-3.5 text-sm leading-relaxed text-muted-foreground">
-            A ZIP code is enough. It lets us show you what's actually nearby.
-          </p>
-          <div className="flex gap-2">
-            <Input
-              id="zip"
-              value={zip}
-              placeholder="80202"
-              inputMode="numeric"
-              className="bg-white"
-              onChange={(event) => setZip(event.target.value)}
-            />
-            <Button
-              disabled={zip.trim().length < 5 || setPostalCode.isPending}
-              onClick={() =>
-                setPostalCode.mutate({ data: { postalCode: zip.trim() } })
-              }
-            >
-              Save
-            </Button>
-          </div>
+          <form
+            onSubmit={(event) => {
+              event.preventDefault();
+              if (zip.trim().length < 5 || setPostalCode.isPending) return;
+              setPostalCode.mutate({ data: { postalCode: zip.trim() } });
+            }}
+          >
+            <Label htmlFor="zip" className="mb-1.5 block">
+              Whereabouts are you?
+            </Label>
+            <p id="zip-hint" className="mb-3.5 text-sm leading-relaxed text-muted-foreground">
+              A ZIP code is enough. It lets us show you what's actually nearby.
+            </p>
+            <div className="flex gap-2">
+              <Input
+                id="zip"
+                value={zip}
+                placeholder="80202"
+                inputMode="numeric"
+                autoComplete="postal-code"
+                maxLength={10}
+                aria-describedby="zip-hint"
+                className="bg-white"
+                onChange={(event) => setZip(event.target.value)}
+              />
+              <Button
+                type="submit"
+                disabled={zip.trim().length < 5 || setPostalCode.isPending}
+              >
+                Show what's near
+              </Button>
+            </div>
+            {changingZip && (
+              <Button
+                type="button"
+                variant="ghost"
+                className="mt-2 -ml-3"
+                onClick={() => setChangingZip(false)}
+              >
+                Keep {postalCode}
+              </Button>
+            )}
+          </form>
         </section>
       ) : (
-        <p className="flex items-center gap-1.5 text-sm text-muted-foreground">
+        <p className="flex flex-wrap items-center gap-x-1.5 text-sm text-muted-foreground">
           <MapPin className="size-4 shrink-0" strokeWidth={1.75} />
-          Showing what's near <span className="tabular">{postalCode}</span>.
+          <span>
+            Showing what's near <span className="tabular">{postalCode}</span>.
+          </span>
           <button
             type="button"
-            className="font-semibold text-[var(--accent-deep)] underline decoration-[var(--accent)]/40 underline-offset-4 hover:decoration-[var(--accent)]"
-            onClick={() =>
-              setPostalCode.mutate({ data: { postalCode: "" } })
-            }
+            className="min-h-11 px-1 font-semibold text-[var(--accent-deep)] underline decoration-[var(--accent)]/40 underline-offset-4 hover:decoration-[var(--accent)]"
+            onClick={() => {
+              setZip(postalCode);
+              setChangingZip(true);
+            }}
           >
             Change
           </button>
@@ -203,7 +238,12 @@ export default function Local() {
                         <Button
                           variant="ghost"
                           size="sm"
-                          onClick={() => setAsking(vendor.id)}
+                          onClick={() => {
+                            // Each vendor's question starts empty, not with
+                            // what was half-typed for the last one.
+                            setAsking(vendor.id);
+                            setRequest("");
+                          }}
                         >
                           Ask for a price
                         </Button>
@@ -214,6 +254,7 @@ export default function Local() {
                       <div className="mt-3 space-y-2.5 rounded-lg border border-border bg-[var(--sunken)] p-3">
                         <Textarea
                           rows={3}
+                          aria-label={`What you'd like a price for from ${vendor.name}`}
                           value={request}
                           placeholder="What you're after — a double headstone, granite, room for my father later."
                           onChange={(event) => setRequest(event.target.value)}

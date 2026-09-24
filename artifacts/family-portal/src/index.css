@@ -62,6 +62,19 @@
   --color-popover: var(--card);
   --color-popover-foreground: var(--foreground);
 
+  /*
+   * The smallest body text on the portal is 16px, whatever the root size.
+   * Tailwind's `text-sm` is 0.875rem, which on the 17px phone root came to
+   * just under 15px and on the 16px desktop root to 14px — and it is the size
+   * every hint under a field, every date on the timeline and every label is
+   * set in. CRAFT.md sets the floor at 16px for people reading at arm's
+   * length, so the step is pinned there rather than chased through forty
+   * files. Hierarchy between it and body copy is carried by colour and
+   * weight, which is where it was mostly carried already.
+   */
+  --text-sm: 16px;
+  --text-sm--line-height: 1.5;
+
   --radius-lg: 1rem;
   --radius-md: 0.75rem;
   --radius-sm: 0.5rem;

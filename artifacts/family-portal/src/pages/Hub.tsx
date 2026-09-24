@@ -1,5 +1,6 @@
 import { voiceFor } from "@/lib/voice";
 import { formatAtHome } from "@/lib/utils";
+import { nextDue } from "@/lib/next-due";
 import { Link } from "wouter";
 import {
   useGetFamilySession,
@@ -21,6 +22,20 @@ import {
   ChevronRight,
 } from "lucide-react";
 import type { ReactNode } from "react";
+import { useLink } from "@/lib/link";
+import { useQueryClient } from "@tanstack/react-query";
+import { Button } from "@/components/ui/button";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 
 /**
  * The one screen a family lands on, and the only one that has to make sense
@@ -105,7 +120,7 @@ function Card({ href, icon: Icon, title, detail, badge }: CardProps) {
           <span className="flex items-center gap-2">
             <span className="font-semibold">{title}</span>
             {badge !== undefined && badge > 0 && (
-              <span className="tabular rounded-full bg-[var(--accent)] px-2 py-0.5 text-xs font-semibold text-white">
+              <span className="tabular rounded-full bg-[var(--accent)] px-2 py-0.5 text-sm font-semibold leading-tight text-white">
                 {badge}
               </span>
             )}
@@ -163,6 +178,7 @@ export default function Hub() {
     leadDirector,
     photoCount,
     photoLimit,
+    selectedPhotoCount,
     obituaryStatus,
     outstandingDeadlines,
     unreadMessages,
@@ -174,13 +190,16 @@ export default function Hub() {
   const serviceWhen = splitWhen(deceased.serviceAt, home.timezone);
   const voice = voiceFor(deceased.kind);
 
-  // The soonest thing that is actually due. One is useful; a list of five on
-  // the front page is a wall a grieving person bounces off.
-  const nextDue = (deadlines.data ?? [])
-    .filter((entry) => !entry.isEvent && entry.completedAt === null)
-    .sort(
-      (a, b) => new Date(a.dueAt).getTime() - new Date(b.dueAt).getTime(),
-    )[0];
+  // Soonest thing still ahead; what slipped by is counted, not headlined.
+  // See `nextDue` for why the two are no longer the same thing.
+  const now = Date.now();
+  const {
+    next: nextDueItem,
+    ahead: nextIsAhead,
+    slipped,
+  } = nextDue(deadlines.data ?? [], now);
+  const serviceIsPast =
+    deceased.serviceAt !== null && new Date(deceased.serviceAt).getTime() < now;
 
   return (
     <div className="space-y-8">
@@ -204,7 +223,9 @@ export default function Hub() {
           */
           <div className="engraved mt-6 rounded-xl border border-[var(--brass-soft)] bg-card px-6 py-6">
             <p className="eyebrow mb-2.5 text-[var(--accent-deep)]/80">
-              The service
+              {/* Weeks later, in the aftercare months, it is a day that
+                  happened rather than one to get ready for. */}
+              {serviceIsPast ? "The service was held on" : "The service"}
             </p>
             <p className="font-display text-[1.3rem] leading-snug text-[var(--accent-deep)]">
               {serviceWhen.date}
@@ -218,7 +239,7 @@ export default function Hub() {
                   aria-hidden
                   className="mx-auto my-3 block h-px w-8 bg-[var(--brass)]/50"
                 />
-                <p className="text-[0.9375rem] text-muted-foreground">
+                <p className="text-sm text-muted-foreground">
                   {deceased.serviceLocation}
                 </p>
               </>
@@ -259,7 +280,7 @@ export default function Hub() {
           </p>
           <Link
             href="/service-time"
-            className="mt-3 inline-block text-sm font-semibold text-[var(--accent-deep)] decoration-[var(--accent)]/40 underline-offset-4 hover:decoration-[var(--accent)]"
+            className="mt-1 inline-flex min-h-11 items-center text-sm font-semibold text-[var(--accent-deep)] decoration-[var(--accent)]/40 underline-offset-4 hover:decoration-[var(--accent)]"
           >
             See the times
           </Link>
@@ -281,7 +302,7 @@ export default function Hub() {
           </p>
           <Link
             href="/aftercare"
-            className="mt-3 inline-block text-sm font-semibold text-[var(--accent-deep)] decoration-[var(--accent)]/40 underline-offset-4 hover:decoration-[var(--accent)]"
+            className="mt-1 inline-flex min-h-11 items-center text-sm font-semibold text-[var(--accent-deep)] decoration-[var(--accent)]/40 underline-offset-4 hover:decoration-[var(--accent)]"
           >
             Have a look at what would arrive
           </Link>
@@ -294,8 +315,18 @@ export default function Hub() {
         words fill in when the list lands, rather than the card appearing a
         beat later and pushing everything below it down the screen.
       */}
-      {(nextDue || (deadlines.isPending && outstandingDeadlines > 0)) && (
-        <section className="relative overflow-hidden rounded-xl border border-border bg-card px-4 py-4 pl-5 shadow-[var(--elevation-1)]">
+      {(nextDueItem || (deadlines.isPending && outstandingDeadlines > 0)) && (
+        /*
+          The whole card is the way in to the list it summarises. It used to
+          be a card with nothing to press, which on a phone reads as a
+          button that does not work.
+        */
+        <Link
+          href="/timeline"
+          className="group relative block overflow-hidden rounded-xl border border-border bg-card px-4 py-4 pl-5
+                     text-foreground no-underline shadow-[var(--elevation-1)] transition-gentle
+                     hover:border-[var(--accent)]/40"
+        >
           {/* A rule in the home's colour down the edge, rather than a full
               wash. It marks the card as the live one without shouting. */}
           <span
@@ -303,12 +334,22 @@ export default function Hub() {
             className="absolute inset-y-0 left-0 w-[3px] bg-[var(--accent)]"
           />
           <p className="eyebrow mb-1">Next</p>
-          {nextDue ? (
+          {nextDueItem ? (
             <>
-              <p className="font-semibold">{nextDue.title}</p>
+              <p className="font-semibold">{nextDueItem.title}</p>
               <p className="mt-0.5 text-sm text-muted-foreground">
-                {formatWhen(nextDue.dueAt, home.timezone)}
+                {nextIsAhead
+                  ? formatWhen(nextDueItem.dueAt, home.timezone)
+                  : `Hoped for by ${formatWhen(nextDueItem.dueAt, home.timezone)}. If it can't be done, tell ${home.name} — it can move.`}
               </p>
+              {nextIsAhead && slipped.length > 0 && (
+                <p className="mt-2 text-sm text-muted-foreground">
+                  {slipped.length === 1
+                    ? "One thing from earlier in the week is still open."
+                    : `${slipped.length} things from earlier in the week are still open.`}{" "}
+                  The dates can move.
+                </p>
+              )}
             </>
           ) : (
             <div className="animate-pulse" role="status" aria-label="Loading">
@@ -320,19 +361,36 @@ export default function Hub() {
               </p>
             </div>
           )}
-        </section>
+          <span className="mt-3 inline-flex items-center gap-1 text-sm font-semibold text-[var(--accent-deep)]">
+            See everything that's due
+            <ChevronRight
+              aria-hidden
+              className="size-4 transition-gentle group-hover:translate-x-0.5"
+              strokeWidth={1.75}
+            />
+          </span>
+        </Link>
       )}
 
       <div className="space-y-7">
-        <Group label="About them">
+        <Group label={voice.preNeed ? "About you" : "About them"}>
           <Card
             href="/photos"
             icon={Images}
             title="Photographs"
+            /*
+              What is there and what has been chosen, never the ceiling. "9 of
+              1000" read as a quota the family had barely started on; the
+              limit is the server's business until they are near it.
+            */
             detail={
               photoCount === 0
-                ? `Add up to ${photoLimit} for the service`
-                : `${photoCount} of ${photoLimit} added`
+                ? "Add any you have, from any album"
+                : photoLimit - photoCount <= 50
+                  ? `${photoCount} added — room for ${Math.max(0, photoLimit - photoCount)} more`
+                  : selectedPhotoCount > 0
+                    ? `${photoCount} added, ${selectedPhotoCount} chosen for the slideshow`
+                    : `${photoCount} added`
             }
           />
           <Card
@@ -344,14 +402,20 @@ export default function Hub() {
                 ? "Approved by the funeral home"
                 : obituaryStatus === "submitted"
                   ? "With the funeral home"
-                  : "Tell us about them"
+                  : voice.preNeed
+                    ? "In your own words, if you like"
+                    : "Tell us about them"
             }
           />
           <Card
             href="/belongings"
             icon={Shirt}
             title="Clothing and belongings"
-            detail="What they'll wear, and how they looked"
+            detail={
+              voice.preNeed
+                ? "What you'd like to wear, and how you like to look"
+                : "What they'll wear, and how they looked"
+            }
           />
           {/*
             Not offered on a pre-need file: a book of memories is written
@@ -410,12 +474,14 @@ export default function Hub() {
             href="/timeline"
             icon={CalendarClock}
             title="What's due"
+            // No count badge beside the words: "3" in a filled circle and
+            // "3 still to do" under it was the same fact said twice, and the
+            // circle is the half that reads as a score.
             detail={
               outstandingDeadlines === 0
                 ? "Nothing outstanding"
                 : `${outstandingDeadlines} still to do`
             }
-            badge={outstandingDeadlines}
           />
           <Card
             href="/local"
@@ -461,6 +527,62 @@ export default function Hub() {
         Take these in any order, and leave them half-finished if you need to.
         Everything saves as you go.
       </p>
+
+      <ForgetThisPhone />
+    </div>
+  );
+}
+
+/**
+ * The way to take the link back off a phone that is not yours.
+ *
+ * The portal remembers the link so that nobody has to dig the text message
+ * out again tomorrow (lib/link.tsx), which is right for the family's own
+ * phone and wrong for a hospital tablet, a friend's phone borrowed in the
+ * car park, or a relative's laptop — where it would leave the next person
+ * one tap from the family's photographs. The means to forget it existed and
+ * nothing offered it.
+ */
+function ForgetThisPhone() {
+  const { forget } = useLink();
+  const queryClient = useQueryClient();
+
+  return (
+    <div className="text-center">
+      <AlertDialog>
+        <AlertDialogTrigger asChild>
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            className="font-normal text-muted-foreground underline decoration-border underline-offset-4"
+          >
+            Using someone else's phone or computer?
+          </Button>
+        </AlertDialogTrigger>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Forget the link on this device?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This page will stop opening here until the link is opened again
+              from your message. Nothing anyone has added is lost, and the
+              link keeps working on your own phone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Keep it</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => {
+                forget();
+                // What this tab has already loaded goes too, not just the key.
+                queryClient.clear();
+              }}
+            >
+              Forget it here
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

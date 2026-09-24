@@ -10,6 +10,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { PasteLink } from "@/components/PasteLink";
+import { useBrandColor } from "@/lib/brand-color";
 import { Loader2, Phone, ArrowLeft, ArrowRight, Check } from "lucide-react";
 
 /**
@@ -133,6 +134,12 @@ export default function Start() {
    * arrangements" — the portal's title — to somebody who has arranged
    * nothing and is trying to work out whether this is the right home.
    */
+  // The home's own colour, as on every screen behind a link. Without it the
+  // front door was drawn in the product's default green whatever the home's
+  // colour, and a family followed a link from a burgundy website into a
+  // green page that did not look like the same funeral home.
+  useBrandColor(home.data?.accentColor ?? undefined, { statusBar: false });
+
   const homeName = home.data?.name;
   useEffect(() => {
     document.title = homeName ?? "Funeral home";
@@ -218,7 +225,7 @@ export default function Start() {
       <Shell>
         <button
           onClick={() => setDoor(null)}
-          className="group mb-7 inline-flex items-center gap-1.5 rounded-md text-sm text-muted-foreground
+          className="group mb-5 -mt-2 inline-flex min-h-11 items-center gap-1.5 rounded-md text-sm text-muted-foreground
                      transition-colors duration-200 hover:text-foreground"
         >
           <ArrowLeft className="size-4 transition-transform duration-200 ease-[cubic-bezier(0.2,0.6,0.3,1)] group-hover:-translate-x-0.5" />
@@ -584,7 +591,7 @@ function IntakeForm({
       <p className="mb-7 mt-2 leading-relaxed text-muted-foreground">
         {preNeed
           ? "A few details so someone can get in touch. Nothing here is a commitment, and nothing is decided today."
-          : "Just enough for someone to ring you back. Everything else can wait until you have spoken to them."}
+          : "Just enough for someone to call you back. Everything else can wait until you have spoken to them."}
       </p>
 
       {!preNeed && <UrgentLine urgentPhone={urgentPhone} phone={phone} />}
