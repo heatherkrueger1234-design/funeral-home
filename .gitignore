@@ -75,3 +75,8 @@ Thumbs.db
 /playwright-report/
 /test-results/
 /blob-report/
+
+# Playwright output. The suite writes these on every run; the HTML report is
+# uploaded as a CI artifact instead of committed.
+playwright-report
+test-results
