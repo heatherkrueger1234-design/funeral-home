@@ -107,8 +107,37 @@ this documentation are all on main now.
 
 ## Problem 4 — Branch clean-up
 
-Do not trust the list below to be current — two more branches appeared while it
-was being written. Regenerate it:
+**These 18 branches are ready to delete and I could not do it.** This session's
+git credentials push commits fine but GitHub answers 403 on deleting a ref, one
+at a time or in a batch, so it needs to come from a machine whose credentials are
+not scoped that way. One paste:
+
+```sh
+git push origin --delete claude/admin-home-client-e2e-audit-dqolc4 \
+    claude/admin-login-continuumaftercare-lhykml \
+    claude/app-bug-hunt-launch-ffh45g \
+    claude/bug-hunt-ltpnxw \
+    claude/component-2-admin \
+    claude/continuum-aftercare-login-separation-jz9l3k \
+    claude/design-polish-refinement-pw0ush \
+    claude/e2e-test-audit-grading-q34s5o \
+    claude/funeral-home-master-dashboard-gdg8pn \
+    claude/funeral-pricing-strategy-pcb8ve \
+    claude/home-descendant-template-wbapxg \
+    claude/missing-login-link-7m9wqx \
+    claude/new-session-g63cjh \
+    claude/organize-code-issue-breakdown-4g89yg \
+    claude/polish-every-page-9jmstp \
+    claude/scores-launch-readiness-ku9cv8 \
+    claude/security-issues-5cpjhp \
+    claude/two-branches-heere-dxhyv8
+```
+
+If that 403s for you too, it is a repository ruleset rather than a token scope —
+look under Settings → Rules → Rulesets for a rule matching `claude/*` that
+denies deletion.
+
+Regenerate the list any time, rather than trusting this one:
 
 ```sh
 pnpm --filter @workspace/scripts run dead-branches
@@ -117,37 +146,41 @@ pnpm --filter @workspace/scripts run dead-branches
 That checks both things that matter: whether every commit is already on main,
 **and** whether the branch changes anything at all, which is the only way to
 spot a squash-merged branch (its work is on main, its commits are not, so it
-reads as "ahead" forever). It prints a copyable `git push origin --delete`
-command and deletes nothing itself.
+reads as "ahead" forever). It prints the delete command and deletes nothing.
 
-A snapshot, as of this writing — **safe to delete, 0 commits main does not
-already have**, so nothing is lost:
+### Why deleting these loses nothing
 
-```
-claude/admin-home-client-e2e-audit-dqolc4
-claude/admin-login-continuumaftercare-lhykml
-claude/app-bug-hunt-launch-ffh45g
-claude/bug-hunt-ltpnxw
-claude/component-2-admin
-claude/continuum-aftercare-login-separation-jz9l3k
-claude/design-polish-refinement-pw0ush
-claude/e2e-test-audit-grading-q34s5o
-claude/funeral-home-master-dashboard-gdg8pn
-claude/funeral-pricing-strategy-pcb8ve
-claude/home-descendant-template-wbapxg
-claude/missing-login-link-7m9wqx
-claude/new-session-g63cjh
-claude/organize-code-issue-breakdown-4g89yg
-claude/polish-every-page-9jmstp
-claude/scores-launch-readiness-ku9cv8
-claude/security-issues-5cpjhp
-claude/two-branches-heere-dxhyv8
-```
+Every commit on each one is already an ancestor of main —
+`git rev-list --count main..branch` is 0 for all 18, checked immediately before
+the attempt. And they are reversible even so: each tip is a commit that still
+exists in main's history, so any branch here comes back with
+`git branch <name> <sha> && git push origin <name>`.
 
-Two of those are worth noting because this file used to say otherwise:
-`claude/e2e-test-audit-grading-q34s5o`'s Playwright suite **has been ported** —
-it is on main and runnable — and the three branches that were waiting on PR #25
-are now clear because it merged.
+| Branch | Tip |
+| --- | --- |
+| `claude/admin-home-client-e2e-audit-dqolc4` | `fb61c668787e` |
+| `claude/admin-login-continuumaftercare-lhykml` | `84f00a08c874` |
+| `claude/app-bug-hunt-launch-ffh45g` | `3449fc547ad3` |
+| `claude/bug-hunt-ltpnxw` | `b3364dd1fd5a` |
+| `claude/component-2-admin` | `34dc412e1220` |
+| `claude/continuum-aftercare-login-separation-jz9l3k` | `e2c05eec542f` |
+| `claude/design-polish-refinement-pw0ush` | `9d8afcb33bd9` |
+| `claude/e2e-test-audit-grading-q34s5o` | `8a014234fd98` |
+| `claude/funeral-home-master-dashboard-gdg8pn` | `7de63282e191` |
+| `claude/funeral-pricing-strategy-pcb8ve` | `b06c1a7861e7` |
+| `claude/home-descendant-template-wbapxg` | `511f51365b57` |
+| `claude/missing-login-link-7m9wqx` | `18b78e056c92` |
+| `claude/new-session-g63cjh` | `b0f16e1d078b` |
+| `claude/organize-code-issue-breakdown-4g89yg` | `f80a9d281798` |
+| `claude/polish-every-page-9jmstp` | `8a1165c4595a` |
+| `claude/scores-launch-readiness-ku9cv8` | `f122da7b23d1` |
+| `claude/security-issues-5cpjhp` | `9c15ac080fd1` |
+| `claude/two-branches-heere-dxhyv8` | `4d116c641d42` |
+
+**Held back deliberately:** `claude/e2e-polish-qa-twqkoy` went from 7 commits
+ahead to 0 while this was being written, because main absorbed it. It is just as
+safe, but it belongs to a session that may still be running and there is no
+reason to delete a branch out from under a live agent. Take it on the next pass.
 
 **Has work main does not** — the number is commits ahead of main:
 
