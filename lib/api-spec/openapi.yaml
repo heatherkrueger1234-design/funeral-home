@@ -484,6 +484,31 @@ paths:
               schema:
                 $ref: "#/components/schemas/StaffMember"
 
+  /home/staff/{userId}/invitation:
+    post:
+      operationId: resendStaffInvite
+      tags: [home]
+      summary: Send a colleague a fresh link to choose a password
+      description: |
+        Owner only, and only for somebody who has not chosen a password yet.
+        Invitation links last an hour, and a colleague invited at five opens
+        the email the next morning. This emails a new one and returns it once,
+        exactly as the invitation did. Any earlier unused link keeps working
+        until it runs out; there is nothing to gain by killing it.
+      parameters:
+        - name: userId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Sent
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StaffMemberWithInvite"
+
   /home/timeline-template:
     get:
       operationId: getTimelineTemplate
@@ -3549,7 +3574,12 @@ components:
           type: string
           format: date-time
           nullable: true
-      required: [id, email, displayName, title, role, emailVerified, deactivatedAt]
+        hasPassword:
+          type: boolean
+          description: >
+            False until the person has chosen a password from their invitation.
+            The console offers to send a new invitation while it is false.
+      required: [id, email, displayName, title, role, emailVerified, deactivatedAt, hasPassword]
 
     TimelineTemplate:
       type: object

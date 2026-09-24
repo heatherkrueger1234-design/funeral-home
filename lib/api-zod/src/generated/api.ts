@@ -228,6 +228,11 @@ export const LoginResponse = zod.object({
         "Whether this address has been confirmed from the emailed link. The one thing it gates is the request form on the home's public page — see routes\/public.ts. The console reads it to ask, once, calmly.\n",
       ),
     deactivatedAt: zod.date().nullable(),
+    hasPassword: zod
+      .boolean()
+      .describe(
+        "False until the person has chosen a password from their invitation. The console offers to send a new invitation while it is false.\n",
+      ),
   }),
   home: zod.object({
     id: zod.number(),
@@ -304,6 +309,11 @@ export const GetCurrentUserResponse = zod.object({
         "Whether this address has been confirmed from the emailed link. The one thing it gates is the request form on the home's public page — see routes\/public.ts. The console reads it to ask, once, calmly.\n",
       ),
     deactivatedAt: zod.date().nullable(),
+    hasPassword: zod
+      .boolean()
+      .describe(
+        "False until the person has chosen a password from their invitation. The console offers to send a new invitation while it is false.\n",
+      ),
   }),
   home: zod.object({
     id: zod.number(),
@@ -650,6 +660,11 @@ export const GetStaffResponseItem = zod.object({
       "Whether this address has been confirmed from the emailed link. The one thing it gates is the request form on the home's public page — see routes\/public.ts. The console reads it to ask, once, calmly.\n",
     ),
   deactivatedAt: zod.date().nullable(),
+  hasPassword: zod
+    .boolean()
+    .describe(
+      "False until the person has chosen a password from their invitation. The console offers to send a new invitation while it is false.\n",
+    ),
 });
 export const GetStaffResponse = zod.array(GetStaffResponseItem);
 
@@ -696,7 +711,53 @@ export const UpdateStaffResponse = zod.object({
       "Whether this address has been confirmed from the emailed link. The one thing it gates is the request form on the home's public page — see routes\/public.ts. The console reads it to ask, once, calmly.\n",
     ),
   deactivatedAt: zod.date().nullable(),
+  hasPassword: zod
+    .boolean()
+    .describe(
+      "False until the person has chosen a password from their invitation. The console offers to send a new invitation while it is false.\n",
+    ),
 });
+
+/**
+ * Owner only, and only for somebody who has not chosen a password yet.
+Invitation links last an hour, and a colleague invited at five opens
+the email the next morning. This emails a new one and returns it once,
+exactly as the invitation did. Any earlier unused link keeps working
+until it runs out; there is nothing to gain by killing it.
+
+ * @summary Send a colleague a fresh link to choose a password
+ */
+export const ResendStaffInviteParams = zod.object({
+  userId: zod.coerce.number(),
+});
+
+export const ResendStaffInviteResponse = zod
+  .object({
+    id: zod.number(),
+    email: zod.string(),
+    displayName: zod.string().nullable(),
+    title: zod.string().nullable(),
+    role: zod.enum(["owner", "director", "staff"]),
+    emailVerified: zod
+      .boolean()
+      .describe(
+        "Whether this address has been confirmed from the emailed link. The one thing it gates is the request form on the home's public page — see routes\/public.ts. The console reads it to ask, once, calmly.\n",
+      ),
+    deactivatedAt: zod.date().nullable(),
+    hasPassword: zod
+      .boolean()
+      .describe(
+        "False until the person has chosen a password from their invitation. The console offers to send a new invitation while it is false.\n",
+      ),
+  })
+  .and(
+    zod.object({
+      inviteLink: zod.string(),
+    }),
+  )
+  .describe(
+    "Returned once, when a colleague is added. `inviteLink` is shown to the\nowner so they can pass it on if the email does not arrive; it is the\nordinary single-use password-reset link and is never retrievable again.\n",
+  );
 
 /**
  * @summary The home's standard schedule, as offsets from the service

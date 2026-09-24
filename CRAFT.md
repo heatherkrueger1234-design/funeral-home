@@ -30,7 +30,8 @@ Already chosen, already right, now locked:
 
 - **Lora** (serif) for headings and anything that should feel like a printed
   order of service. `--font-display`.
-- **Nunito** (sans) for interface and body. `--font-sans`.
+- **Source Sans 3** (sans) for interface and body. `--font-sans`. Self-hosted
+  through `@fontsource-variable`, in all four front ends.
 - Two families. Not three. Never a third.
 - Body text never below 16px on the family portal — it is read on a phone, at
   arm's length, by someone in their seventies, possibly crying.

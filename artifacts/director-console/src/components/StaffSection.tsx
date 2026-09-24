@@ -4,6 +4,7 @@ import {
   useGetStaff,
   useInviteStaff,
   useUpdateStaff,
+  useResendStaffInvite,
   getGetStaffQueryKey,
   getGetBillingQueryKey,
   type StaffMember,
@@ -34,10 +35,10 @@ import { Loading } from "@/components/page";
  * The invitation is the ordinary single-use password link, emailed, and also
  * shown here once, because for a funeral home on a shared mail host the email
  * lands in spam more often than not and an owner standing next to the new
- * hire should be able to hand it over. It lasts an hour; after that the
- * colleague uses "I've forgotten my password" on the sign-in page with the
- * same address, which the list below says in as many words rather than
- * leaving the owner to discover the invitation cannot be sent twice.
+ * hire should be able to hand it over. It lasts an hour, so anyone who has
+ * not yet chosen a password gets a "Send a new invitation" button in the list
+ * below: the colleague who opens the email the next morning should not have
+ * to be told to use "I've forgotten my password" on their first day.
  */
 
 const ROLE_LABEL: Record<StaffMember["role"], string> = {
@@ -84,6 +85,15 @@ export function StaffSection({
 
   const update = useUpdateStaff({ mutation: { onSuccess: refresh } });
 
+  const resend = useResendStaffInvite({
+    mutation: {
+      onSuccess: (sent) => {
+        setLastInvite({ email: sent.email, link: sent.inviteLink });
+        refresh();
+      },
+    },
+  });
+
   const copy = async (link: string) => {
     try {
       await navigator.clipboard.writeText(link);
@@ -117,9 +127,7 @@ export function StaffSection({
       ) : (
         <ul className="divide-y divide-border rounded-lg border border-border">
           {(staff.data ?? []).map((member) => {
-            // Returned by the server, and not yet in the generated type.
-            const hasPassword =
-              (member as StaffMember & { hasPassword?: boolean }).hasPassword !== false;
+            const hasPassword = member.hasPassword;
             const inactive = member.deactivatedAt !== null;
             const isMe = member.id === currentUserId;
 
@@ -142,15 +150,30 @@ export function StaffSection({
                   </p>
                   {!hasPassword && !inactive && (
                     <p className="text-xs text-muted-foreground">
-                      Hasn't chosen a password yet. If their link has run out,
-                      they can use "I've forgotten my password" on the sign-in
-                      page with this address.
+                      Hasn't chosen a password yet.
+                      {readOnly
+                        ? " The owner can send them a new invitation."
+                        : " Their invitation lasts an hour; send a new one if it has run out."}
                     </p>
                   )}
                 </div>
                 <span className="text-xs text-muted-foreground">
                   {inactive ? "No longer has access" : ROLE_LABEL[member.role]}
                 </span>
+                {!readOnly && !hasPassword && !inactive && (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    disabled={resend.isPending}
+                    aria-label={`Send ${member.displayName || member.email} a new invitation`}
+                    onClick={() => resend.mutate({ userId: member.id })}
+                  >
+                    {resend.isPending && resend.variables?.userId === member.id
+                      ? "Sending…"
+                      : "Send a new invitation"}
+                  </Button>
+                )}
                 {!readOnly && !isMe && (
                   <Button
                     type="button"

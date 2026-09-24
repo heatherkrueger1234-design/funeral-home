@@ -2036,6 +2036,96 @@ export const useUpdateStaff = <
 };
 
 /**
+ * Owner only, and only for somebody who has not chosen a password yet.
+Invitation links last an hour, and a colleague invited at five opens
+the email the next morning. This emails a new one and returns it once,
+exactly as the invitation did. Any earlier unused link keeps working
+until it runs out; there is nothing to gain by killing it.
+
+ * @summary Send a colleague a fresh link to choose a password
+ */
+export const getResendStaffInviteUrl = (userId: number) => {
+  return `/api/home/staff/${userId}/invitation`;
+};
+
+export const resendStaffInvite = async (
+  userId: number,
+  options?: RequestInit,
+): Promise<StaffMemberWithInvite> => {
+  return customFetch<StaffMemberWithInvite>(getResendStaffInviteUrl(userId), {
+    ...options,
+    method: "POST",
+  });
+};
+
+export const getResendStaffInviteMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof resendStaffInvite>>,
+    TError,
+    { userId: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof resendStaffInvite>>,
+  TError,
+  { userId: number },
+  TContext
+> => {
+  const mutationKey = ["resendStaffInvite"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof resendStaffInvite>>,
+    { userId: number }
+  > = (props) => {
+    const { userId } = props ?? {};
+
+    return resendStaffInvite(userId, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type ResendStaffInviteMutationResult = NonNullable<
+  Awaited<ReturnType<typeof resendStaffInvite>>
+>;
+
+export type ResendStaffInviteMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Send a colleague a fresh link to choose a password
+ */
+export const useResendStaffInvite = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof resendStaffInvite>>,
+    TError,
+    { userId: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof resendStaffInvite>>,
+  TError,
+  { userId: number },
+  TContext
+> => {
+  return useMutation(getResendStaffInviteMutationOptions(options));
+};
+
+/**
  * @summary The home's standard schedule, as offsets from the service
  */
 export const getGetTimelineTemplateUrl = () => {
