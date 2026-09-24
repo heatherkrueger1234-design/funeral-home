@@ -66,9 +66,21 @@ export function LicensurePanel({ home }: { home: AdminHomeDetail }) {
       <Card>
         <CardTitle
           action={
-            <Button variant="plain" onClick={() => setEditing((was) => !was)}>
-              {editing ? "Cancel" : "Edit registration"}
-            </Button>
+            // With nothing recorded, the empty state below carries the one
+            // action; a second "Edit" beside it would be two ways to do it.
+            (home.licensure || editing) && (
+              <Button
+                variant="plain"
+                onClick={() => {
+                  // A refusal from the last attempt is not news the next time
+                  // the form opens.
+                  save.reset();
+                  setEditing((was) => !was);
+                }}
+              >
+                {editing ? "Cancel" : "Edit registration"}
+              </Button>
+            )
           }
         >
           DORA registration
@@ -267,11 +279,21 @@ function RegistrationForm({
           rows={3}
           value={form.notes}
           onChange={(event) => set("notes")(event.target.value)}
-          className="rounded-md border border-[var(--border)] bg-white p-3 text-base"
+          maxLength={2000}
+          className={
+            "rounded-md border border-[var(--border-strong)] bg-white p-3 text-base " +
+            "shadow-[inset_0_1px_2px_rgb(40_34_24/0.04)] " +
+            "focus-visible:outline-none focus-visible:border-[var(--accent)] " +
+            "focus-visible:shadow-[0_0_0_3px_color-mix(in_oklab,var(--accent)_16%,transparent)]"
+          }
         />
       </div>
 
-      {problem && <p className="text-sm text-[var(--notice)]">{problem}</p>}
+      {problem && (
+        <p role="alert" className="text-sm text-[var(--notice)]">
+          {problem}
+        </p>
+      )}
 
       <div>
         <Button type="submit" variant="primary" disabled={pending}>
@@ -284,15 +306,30 @@ function RegistrationForm({
 
 /* ----------------------------------------------------------- the people -- */
 
+type PractitionerValues = Omit<Practitioner, "id">;
+
+/**
+ * The people, and the three things done to them: add, correct, remove.
+ *
+ * The standing stays a select in the row because it is the one field that
+ * changes on its own schedule -- "application in" becomes "provisional"
+ * becomes "licensed" -- and changing it should not mean opening a form.
+ * Everything else (a misspelt name, a licence number once it is issued) is
+ * corrected through the same form that added them. Removing someone asks
+ * once, by name, because a row gone by accident is a person whose deadline
+ * quietly stops being watched.
+ */
 function PractitionersCard({ home }: { home: AdminHomeDetail }) {
   const queryClient = useQueryClient();
   const [adding, setAdding] = useState(false);
+  const [editingId, setEditingId] = useState<number | null>(null);
+  const [removingId, setRemovingId] = useState<number | null>(null);
 
   const refresh = () =>
     queryClient.invalidateQueries({ queryKey: ["home", home.id] });
 
   const add = useMutation({
-    mutationFn: (values: Omit<Practitioner, "id">) =>
+    mutationFn: (values: PractitionerValues) =>
       api.post(`/admin/homes/${home.id}/practitioners`, values),
     onSuccess: () => {
       setAdding(false);
@@ -303,21 +340,37 @@ function PractitionersCard({ home }: { home: AdminHomeDetail }) {
   const update = useMutation({
     mutationFn: ({ id, ...values }: Practitioner) =>
       api.put(`/admin/homes/${home.id}/practitioners/${id}`, values),
-    onSuccess: refresh,
+    onSuccess: () => {
+      setEditingId(null);
+      void refresh();
+    },
   });
 
   const remove = useMutation({
     mutationFn: (id: number) =>
       api.delete(`/admin/homes/${home.id}/practitioners/${id}`),
-    onSuccess: refresh,
+    onSuccess: () => {
+      setRemovingId(null);
+      void refresh();
+    },
   });
+
+  const editing = home.practitioners.find((person) => person.id === editingId);
+
+  const startAdding = () => {
+    add.reset();
+    setEditingId(null);
+    setAdding(true);
+  };
 
   return (
     <Card>
       <CardTitle
         action={
-          home.practitioners.length > 0 && (
-            <Button variant="plain" onClick={() => setAdding(true)}>
+          home.practitioners.length > 0 &&
+          !adding &&
+          !editing && (
+            <Button variant="plain" onClick={startAdding}>
               Add someone
             </Button>
           )
@@ -331,14 +384,14 @@ function PractitionersCard({ home }: { home: AdminHomeDetail }) {
           title="Nobody listed yet"
           detail="Senate Bill 24-173 brought mortuary science practitioners, funeral directors, embalmers, cremationists and natural reductionists under licensure. List the people at this home it applies to — including the ones who don't have a sign-in here, like an embalmer who works across three homes."
           action={
-            <Button variant="primary" onClick={() => setAdding(true)}>
+            <Button variant="primary" onClick={startAdding}>
               Add the first person
             </Button>
           }
         />
-      ) : (
+      ) : home.practitioners.length > 0 ? (
         <div className="overflow-x-auto">
-          <table className="w-full min-w-[40rem] text-left">
+          <table className="w-full min-w-[44rem] text-left">
             <thead className="text-sm text-[var(--muted-foreground)]">
               <tr>
                 <th scope="col" className="pb-2 font-medium">Name</th>
@@ -347,14 +400,14 @@ function PractitionersCard({ home }: { home: AdminHomeDetail }) {
                 <th scope="col" className="pb-2 font-medium">License no.</th>
                 <th scope="col" className="pb-2 font-medium">Expires</th>
                 <th scope="col" className="pb-2 font-medium">
-                  <span className="sr-only">Remove</span>
+                  <span className="sr-only">Change or remove</span>
                 </th>
               </tr>
             </thead>
             <tbody>
               {home.practitioners.map((person) => (
                 <tr key={person.id} className="border-t border-[var(--border)]">
-                  <td className="py-3 pr-4">{person.personName}</td>
+                  <td className="py-3 pr-4 break-words">{person.personName}</td>
                   <td className="py-3 pr-4 text-[var(--muted-foreground)]">
                     {PRACTITIONER_ROLE_LABELS[person.role]}
                   </td>
@@ -372,7 +425,7 @@ function PractitionersCard({ home }: { home: AdminHomeDetail }) {
                           standing: event.target.value as LicenceStanding,
                         })
                       }
-                      className="min-h-11 rounded-md border border-[var(--border)] bg-white px-2"
+                      className="min-h-11 rounded-md border border-[var(--border-strong)] bg-white px-2"
                     >
                       {LICENCE_STANDINGS.map((standing) => (
                         <option key={standing} value={standing}>
@@ -384,31 +437,97 @@ function PractitionersCard({ home }: { home: AdminHomeDetail }) {
                   <td className="tabular py-3 pr-4">
                     {person.licenceNumber || "—"}
                   </td>
-                  <td className="tabular py-3 pr-4">
+                  <td className="tabular py-3 pr-4 whitespace-nowrap">
                     {formatDate(person.expiresOn)}
                   </td>
                   <td className="py-3">
-                    <Button
-                      variant="plain"
-                      disabled={remove.isPending}
-                      onClick={() => remove.mutate(person.id)}
-                    >
-                      Remove
-                    </Button>
+                    {removingId === person.id ? (
+                      <div className="flex flex-wrap justify-end gap-1">
+                        <Button
+                          variant="destructive"
+                          disabled={remove.isPending}
+                          onClick={() => remove.mutate(person.id)}
+                        >
+                          {remove.isPending ? "Removing…" : `Remove ${person.personName}`}
+                        </Button>
+                        <Button
+                          variant="plain"
+                          onClick={() => {
+                            setRemovingId(null);
+                            remove.reset();
+                          }}
+                        >
+                          Keep
+                        </Button>
+                      </div>
+                    ) : (
+                      <div className="flex justify-end gap-1">
+                        <Button
+                          variant="plain"
+                          onClick={() => {
+                            update.reset();
+                            setAdding(false);
+                            setEditingId(person.id);
+                          }}
+                        >
+                          Edit
+                        </Button>
+                        <Button
+                          variant="plain"
+                          onClick={() => {
+                            remove.reset();
+                            setRemovingId(person.id);
+                          }}
+                        >
+                          Remove
+                        </Button>
+                      </div>
+                    )}
                   </td>
                 </tr>
               ))}
             </tbody>
           </table>
         </div>
+      ) : null}
+
+      {/* A failed quick change of standing, or a failed removal, says so
+          here rather than leaving the select showing what did not save. */}
+      {!editing && update.error instanceof Error && (
+        <p role="alert" className="mt-3 text-sm text-[var(--notice)]">
+          {update.error.message}
+        </p>
+      )}
+      {remove.error instanceof Error && (
+        <p role="alert" className="mt-3 text-sm text-[var(--notice)]">
+          {remove.error.message}
+        </p>
       )}
 
       {adding && (
         <PractitionerForm
+          key="new"
+          heading="Add someone"
+          submitLabel="Add them"
+          pendingLabel="Adding…"
           pending={add.isPending}
           problem={add.error instanceof Error ? add.error.message : null}
           onCancel={() => setAdding(false)}
-          onAdd={(values) => add.mutate(values)}
+          onSave={(values) => add.mutate(values)}
+        />
+      )}
+
+      {editing && (
+        <PractitionerForm
+          key={editing.id}
+          heading={`Correcting ${editing.personName}`}
+          initial={editing}
+          submitLabel="Save the changes"
+          pendingLabel="Saving…"
+          pending={update.isPending}
+          problem={update.error instanceof Error ? update.error.message : null}
+          onCancel={() => setEditingId(null)}
+          onSave={(values) => update.mutate({ id: editing.id, ...values })}
         />
       )}
     </Card>
@@ -416,22 +535,30 @@ function PractitionersCard({ home }: { home: AdminHomeDetail }) {
 }
 
 function PractitionerForm({
+  heading,
+  initial,
+  submitLabel,
+  pendingLabel,
   pending,
   problem,
-  onAdd,
+  onSave,
   onCancel,
 }: {
+  heading: string;
+  initial?: PractitionerValues;
+  submitLabel: string;
+  pendingLabel: string;
   pending: boolean;
   problem: string | null;
-  onAdd: (values: Omit<Practitioner, "id">) => void;
+  onSave: (values: PractitionerValues) => void;
   onCancel: () => void;
 }) {
   const [form, setForm] = useState({
-    personName: "",
-    role: "mortuary_science_practitioner" as PractitionerRole,
-    standing: "not_applied" as LicenceStanding,
-    licenceNumber: "",
-    expiresOn: "",
+    personName: initial?.personName ?? "",
+    role: initial?.role ?? ("mortuary_science_practitioner" as PractitionerRole),
+    standing: initial?.standing ?? ("not_applied" as LicenceStanding),
+    licenceNumber: initial?.licenceNumber ?? "",
+    expiresOn: initial?.expiresOn ?? "",
   });
 
   return (
@@ -439,7 +566,7 @@ function PractitionerForm({
       className="mt-6 flex flex-col gap-5 border-t border-[var(--border)] pt-6"
       onSubmit={(event) => {
         event.preventDefault();
-        onAdd({
+        onSave({
           personName: form.personName.trim(),
           role: form.role,
           standing: form.standing,
@@ -448,10 +575,13 @@ function PractitionerForm({
         });
       }}
     >
+      <h3 className="font-display text-base">{heading}</h3>
       <div className="grid gap-5 sm:grid-cols-2">
         <Field
           label="Name"
           required
+          maxLength={160}
+          autoFocus
           value={form.personName}
           onChange={(event) =>
             setForm((current) => ({ ...current, personName: event.target.value }))
@@ -491,6 +621,7 @@ function PractitionerForm({
         </Select>
         <Field
           label="License number"
+          maxLength={60}
           value={form.licenceNumber}
           onChange={(event) =>
             setForm((current) => ({
@@ -511,7 +642,11 @@ function PractitionerForm({
         />
       </div>
 
-      {problem && <p className="text-sm text-[var(--notice)]">{problem}</p>}
+      {problem && (
+        <p role="alert" className="text-sm text-[var(--notice)]">
+          {problem}
+        </p>
+      )}
 
       <div className="flex gap-3">
         <Button
@@ -519,7 +654,7 @@ function PractitionerForm({
           variant="primary"
           disabled={pending || !form.personName.trim()}
         >
-          {pending ? "Adding…" : "Add them"}
+          {pending ? pendingLabel : submitLabel}
         </Button>
         <Button type="button" variant="plain" onClick={onCancel}>
           Cancel

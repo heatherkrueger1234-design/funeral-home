@@ -1,5 +1,11 @@
-import type { ButtonHTMLAttributes, InputHTMLAttributes, ReactNode } from "react";
+import type {
+  ButtonHTMLAttributes,
+  InputHTMLAttributes,
+  ReactNode,
+  SelectHTMLAttributes,
+} from "react";
 import { useId } from "react";
+import { Link } from "wouter";
 import { cn } from "@/lib/api";
 
 /**
@@ -137,10 +143,16 @@ export function Field({ label, hint, problem, className, ...props }: FieldProps)
 
 export function Select({
   label,
+  hint,
   children,
   ...props
-}: InputHTMLAttributes<HTMLSelectElement> & { label: string; children: ReactNode }) {
+}: SelectHTMLAttributes<HTMLSelectElement> & {
+  label: string;
+  hint?: string;
+  children: ReactNode;
+}) {
   const id = useId();
+  const hintId = `${id}-hint`;
 
   return (
     <div className="flex flex-col gap-1.5">
@@ -148,8 +160,9 @@ export function Select({
         {label}
       </label>
       <select
-        {...(props as object)}
+        {...props}
         id={id}
+        aria-describedby={hint ? hintId : undefined}
         className={cn(
           "min-h-11 rounded-md border border-[var(--border-strong)] bg-white px-3 text-base",
           "shadow-[inset_0_1px_2px_rgb(40_34_24/0.04)]",
@@ -161,6 +174,11 @@ export function Select({
       >
         {children}
       </select>
+      {hint && (
+        <p id={hintId} className="text-sm text-[var(--muted-foreground)]">
+          {hint}
+        </p>
+      )}
     </div>
   );
 }
@@ -307,15 +325,26 @@ export function Stat({
 }
 
 /**
- * A hairline with a name on it — the same section marker the other two
- * applications use, so a heading means the same thing at the staff door as it
- * does in a family's portal.
+ * The page is not there -- an address typed wrong, or a home or group that
+ * does not exist. Never a "Try again": trying again will not make it exist,
+ * so the one way out is back to the list it would have been in.
  */
-export function Divider({ label }: { label: string }) {
+export function Missing({
+  title,
+  detail,
+  back,
+}: {
+  title: string;
+  detail: string;
+  back: { href: string; label: string };
+}) {
   return (
-    <div className="flex items-center gap-3">
-      <h2 className="eyebrow">{label}</h2>
-      <span className="h-px flex-1 bg-[var(--border)]" aria-hidden />
-    </div>
+    <Card>
+      <h1 className="font-display text-xl">{title}</h1>
+      <p className="mt-2 max-w-prose text-[var(--muted-foreground)]">{detail}</p>
+      <Link href={back.href} className="mt-4 inline-block underline">
+        {back.label}
+      </Link>
+    </Card>
   );
 }

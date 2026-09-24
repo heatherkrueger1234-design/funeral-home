@@ -1,6 +1,13 @@
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "wouter";
-import { api, formatDateTime, type PlatformOverview } from "@/lib/api";
+import {
+  api,
+  formatDate,
+  formatDateTime,
+  plural,
+  type AdminHome,
+  type PlatformOverview,
+} from "@/lib/api";
 import {
   Card,
   CardTitle,
@@ -14,12 +21,10 @@ import {
 import { Reminders } from "@/components/Reminders";
 
 /**
- * The first screen, and it answers the three questions in the order they are
- * actually asked: how many customers are there, which of them is about to
- * have a problem with DORA, and how much of the product is being used.
- *
- * Licensure comes second and engagement third on purpose. In Colorado in
- * 2026 the middle section is the one that earns the subscription.
+ * The first screen, and it answers the questions in the order they are
+ * actually asked: how many customers are there and how much are they using
+ * it, is the mail getting out, who should I ring this week, and which homes
+ * are about to have a problem with DORA.
  */
 export function Overview() {
   const query = useQuery({
@@ -50,7 +55,7 @@ export function Overview() {
         <p className="mt-1 text-[var(--muted-foreground)]">
           {homes.homes === 0
             ? "No homes yet."
-            : `${homes.homes} ${homes.homes === 1 ? "home" : "homes"}, ${homes.paying} subscribed, ${homes.onTrial} on trial${homes.suspended > 0 ? `, ${homes.suspended} suspended` : ""}.`}
+            : `${plural(homes.homes, "home")}, ${homes.paying} subscribed, ${homes.onTrial} on trial${homes.suspended > 0 ? `, ${homes.suspended} suspended` : ""}.`}
         </p>
       </div>
 
@@ -73,6 +78,10 @@ export function Overview() {
       </Card>
 
       <Delivery delivery={query.data.delivery} />
+
+      {homes.homes > 0 && (
+        <WorthACall trials={query.data.trials} quiet={query.data.quiet} />
+      )}
 
       <Attention attention={attention} anyHomes={homes.homes > 0} />
     </div>
@@ -130,6 +139,102 @@ function Delivery({ delivery }: { delivery: PlatformOverview["delivery"] }) {
 }
 
 /**
+ * Who to ring this week.
+ *
+ * Two short lists, each a home and one sentence, because both are the same
+ * job: a conversation to have before it becomes a cancellation. Trials come
+ * first, since those have a date on them. No scores, no red, no "at risk":
+ * a home that has not opened a case in a month may simply have had a quiet
+ * month, and the sentence says only what is true.
+ *
+ * When there is nobody to ring it is one line, like the delivery check above
+ * -- a card that is always there and usually empty trains the eye to skip it.
+ */
+function WorthACall({
+  trials,
+  quiet,
+}: {
+  trials: PlatformOverview["trials"];
+  quiet: PlatformOverview["quiet"];
+}) {
+  if (trials.length === 0 && quiet.length === 0) {
+    return (
+      <p className="text-sm text-[var(--muted-foreground)]">
+        No trial ends in the next fortnight, and every home has been busy
+        this month.
+      </p>
+    );
+  }
+
+  const now = Date.now();
+
+  return (
+    <Card>
+      <CardTitle>Worth a call</CardTitle>
+      <div className="grid gap-8 md:grid-cols-2">
+        <CallList
+          heading="Trials ending"
+          empty="No trial ends in the next fortnight."
+          rows={trials.map(({ home, trialEndsAt }) => ({
+            home,
+            sentence:
+              new Date(trialEndsAt).getTime() <= now
+                ? `Trial ended ${formatDate(trialEndsAt)}, not subscribed.`
+                : `Trial ends ${formatDate(trialEndsAt)}.`,
+          }))}
+        />
+        <CallList
+          heading="Gone quiet"
+          empty="Every home has opened a case in the last thirty days."
+          rows={quiet.map(({ home, reason, lastCaseAt }) => ({
+            home,
+            sentence: lastCaseAt
+              ? `${reason} The last was ${formatDate(lastCaseAt)}.`
+              : reason,
+          }))}
+        />
+      </div>
+    </Card>
+  );
+}
+
+function CallList({
+  heading,
+  empty,
+  rows,
+}: {
+  heading: string;
+  empty: string;
+  rows: Array<{ home: AdminHome; sentence: string }>;
+}) {
+  return (
+    <div>
+      <h3 className="eyebrow mb-3">{heading}</h3>
+      {rows.length === 0 ? (
+        <p className="text-sm text-[var(--muted-foreground)]">{empty}</p>
+      ) : (
+        <ul className="flex flex-col gap-3">
+          {rows.map(({ home, sentence }) => (
+            <li key={home.id}>
+              <Link
+                href={`/homes/${home.id}`}
+                className="inline-flex items-center gap-2 font-semibold no-underline hover:underline"
+              >
+                <Swatch color={home.accentColor} name={home.name} />
+                <span className="break-words">{home.name}</span>
+              </Link>
+              <p className="text-sm text-[var(--muted-foreground)]">
+                {sentence}
+              </p>
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+}
+
+/**
  * "Worth a look", and the reason it is two lists rather than one.
  *
  * Every home that has recorded no licensure at all produces the same
@@ -158,7 +263,7 @@ function Attention({
 
   return (
     <section>
-      <h2 className="font-display text-lg">Worth a look</h2>
+      <h2 className="font-display text-lg">Colorado licensure</h2>
       <p className="mb-5 mt-1 max-w-prose text-sm leading-relaxed text-[var(--muted-foreground)]">
         Colorado licensure is due 1 January 2027, and an establishment that
         changes its services has thirty days to file an amended registration.
