@@ -8,7 +8,7 @@ import {
 } from "@workspace/api-client-react";
 import { Checkbox } from "@/components/ui/checkbox";
 import { CalendarClock, Church } from "lucide-react";
-import { Empty, Loading, PageHeader } from "@/components/page";
+import { Empty, LoadError, Loading, PageHeader } from "@/components/page";
 import { formatAtHome } from "@/lib/utils";
 
 /**
@@ -67,6 +67,10 @@ export default function Timeline() {
         <Loading rows={4} />
       </div>
     );
+  }
+
+  if (deadlines.isError) {
+    return <LoadError title="What's due" onRetry={() => void deadlines.refetch()} />;
   }
 
   const rows = deadlines.data ?? [];
@@ -128,6 +132,7 @@ export default function Timeline() {
                     <Checkbox
                       className="mt-0.5 size-6"
                       checked={done}
+                      disabled={complete.isPending && complete.variables?.deadlineId === row.id}
                       aria-label={`Mark "${row.title}" done`}
                       onCheckedChange={(checked) =>
                         complete.mutate({

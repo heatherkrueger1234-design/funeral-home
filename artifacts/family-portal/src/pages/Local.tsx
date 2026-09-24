@@ -64,10 +64,15 @@ export default function Local() {
     void queryClient.invalidateQueries({ queryKey: getGetFamilyQuotesQueryKey() });
   };
 
+  // "Change" reopens the question with the old answer in it. It used to send
+  // an empty ZIP, which the server rightly refuses, so the link only ever
+  // produced an error.
+  const [changing, setChanging] = useState(false);
   const setPostalCode = useSetFamilyPostalCode({
     mutation: {
       onSuccess: (result) => {
         refresh();
+        setChanging(false);
         if (!result.recognised) {
           // Said plainly rather than silently showing an unsorted list.
           toast({
@@ -108,7 +113,7 @@ export default function Local() {
       </PageHeader>
 
       {/* Asked once, here, where it is obviously needed. */}
-      {!postalCode ? (
+      {!postalCode || changing ? (
         <section className="rounded-xl border border-[var(--accent)]/25 bg-[var(--accent-soft)] p-5">
           <Label htmlFor="zip" className="mb-1.5 block">
             Whereabouts are you?
@@ -133,6 +138,11 @@ export default function Local() {
             >
               Save
             </Button>
+            {changing && (
+              <Button variant="ghost" onClick={() => setChanging(false)}>
+                Cancel
+              </Button>
+            )}
           </div>
         </section>
       ) : (
@@ -142,9 +152,10 @@ export default function Local() {
           <button
             type="button"
             className="font-semibold text-[var(--accent-deep)] underline decoration-[var(--accent)]/40 underline-offset-4 hover:decoration-[var(--accent)]"
-            onClick={() =>
-              setPostalCode.mutate({ data: { postalCode: "" } })
-            }
+            onClick={() => {
+              setZip(postalCode);
+              setChanging(true);
+            }}
           >
             Change
           </button>
@@ -213,6 +224,7 @@ export default function Local() {
                     {asking === vendor.id && (
                       <div className="mt-3 space-y-2.5 rounded-lg border border-border bg-[var(--sunken)] p-3">
                         <Textarea
+                          aria-label={`What you'd like a price for from ${vendor.name}`}
                           rows={3}
                           value={request}
                           placeholder="What you're after — a double headstone, granite, room for my father later."
@@ -250,12 +262,16 @@ export default function Local() {
         ))
       )}
 
-      {(quotes.data ?? []).some((quote) => quote.quotedAmountCents !== null) && (
+      {/* A vendor who wrote back without a figure ("call us, it depends on
+          the stone") has still answered, and the family should see it. */}
+      {(quotes.data ?? []).some(
+        (quote) => quote.quotedAmountCents !== null || quote.response,
+      ) && (
         <section className="space-y-3">
-          <Divider label="Prices you've been given" />
+          <Divider label="What they've told you" />
           <ul className="divide-y divide-border overflow-hidden rounded-xl border border-border bg-card shadow-[var(--elevation-1)]">
             {(quotes.data ?? [])
-              .filter((quote) => quote.quotedAmountCents !== null)
+              .filter((quote) => quote.quotedAmountCents !== null || quote.response)
               .map((quote) => (
                 <li
                   key={quote.id}
@@ -271,13 +287,15 @@ export default function Local() {
                       </span>
                     )}
                   </span>
-                  <span className="tabular shrink-0 font-semibold">
-                    $
-                    {(quote.quotedAmountCents! / 100).toLocaleString(undefined, {
-                      minimumFractionDigits: 2,
-                      maximumFractionDigits: 2,
-                    })}
-                  </span>
+                  {quote.quotedAmountCents !== null && (
+                    <span className="tabular shrink-0 font-semibold">
+                      $
+                      {(quote.quotedAmountCents / 100).toLocaleString(undefined, {
+                        minimumFractionDigits: 2,
+                        maximumFractionDigits: 2,
+                      })}
+                    </span>
+                  )}
                 </li>
               ))}
           </ul>

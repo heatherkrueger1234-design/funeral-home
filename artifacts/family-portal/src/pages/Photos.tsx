@@ -2,6 +2,7 @@ import { useRef, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import {
   useGetFamilyPhotos,
+  getFamilyPhotos,
   useGetFamilySession,
   useDeleteFamilyPhoto,
   useUpdateFamilyPhoto,
@@ -156,13 +157,38 @@ export default function Photos() {
    * Selection is expressed as the whole list, so a tap has to rebuild it.
    * Toggling on appends, which puts a newly chosen photograph at the end of
    * the running order — where somebody adding one more expects it to land.
+   *
+   * Rebuilt from the server's list as it is now, not from this screen's copy.
+   * Brothers and sisters choose from their own phones at the same time; a
+   * page opened before a sister picked twenty would otherwise send its
+   * older list with the brother's one tap and quietly undo all twenty.
    */
-  const toggle = (photoId: number) => {
-    const current = chosen.map((photo) => photo.id);
-    const next = current.includes(photoId)
-      ? current.filter((id) => id !== photoId)
-      : [...current, photoId];
-    setSelection.mutate({ data: { photoIds: next } });
+  const [reading, setReading] = useState(false);
+  const toggle = async (photoId: number) => {
+    setReading(true);
+    try {
+      const fresh = await queryClient.fetchQuery({
+        queryKey: getGetFamilyPhotosQueryKey(),
+        queryFn: () => getFamilyPhotos(),
+        staleTime: 0,
+      });
+      const current = fresh
+        .filter((photo) => photo.selected)
+        .sort((a, b) => a.position - b.position)
+        .map((photo) => photo.id);
+      const next = current.includes(photoId)
+        ? current.filter((id) => id !== photoId)
+        : [...current, photoId];
+      setSelection.mutate({ data: { photoIds: next } });
+    } catch {
+      toast({
+        title: "That didn't save",
+        description: "Please check your connection and try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setReading(false);
+    }
   };
 
   async function onFilesChosen(files: FileList | null) {
@@ -484,8 +510,8 @@ export default function Photos() {
                   // round-trips would build its payload from the same
                   // stale list and silently overwrite this choice, so the
                   // button is disabled until the refetch it triggers lands.
-                  disabled={setSelection.isPending}
-                  onClick={() => toggle(photo.id)}
+                  disabled={setSelection.isPending || reading}
+                  onClick={() => void toggle(photo.id)}
                 />
                 <PhotoToggle
                   icon={Star}

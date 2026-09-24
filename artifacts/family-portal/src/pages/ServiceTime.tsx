@@ -20,7 +20,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { Empty, Loading, PageHeader } from "@/components/page";
+import { Empty, LoadError, Loading, PageHeader } from "@/components/page";
 import { formatAtHome } from "@/lib/utils";
 import { CalendarCheck, CalendarClock, Loader2, Phone } from "lucide-react";
 
@@ -96,7 +96,9 @@ export default function ServiceTime() {
 
   if (offers.isPending) return <Loading rows={3} />;
 
-  if (!offers.data) return null;
+  if (!offers.data) {
+    return <LoadError title="The service" onRetry={() => void offers.refetch()} />;
+  }
 
   const data = offers.data;
   const homeName = session.data?.home.name ?? "The funeral home";

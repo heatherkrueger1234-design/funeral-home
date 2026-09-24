@@ -9,6 +9,17 @@ import {
   getGetFamilySessionQueryKey,
 } from "@workspace/api-client-react";
 import { Button } from "@/components/ui/button";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 import { Check, Loader2, Mail } from "lucide-react";
 import { Empty, Loading, PageHeader } from "@/components/page";
 
@@ -109,14 +120,34 @@ export default function Aftercare() {
           ))}
         </ul>
 
-        <Button
-          variant="outline"
-          className="w-full"
-          disabled={respond.isPending}
-          onClick={() => respond.mutate({ data: { consent: false } })}
-        >
-          Stop these
-        </Button>
+        {/*
+          Asked once more, because it is final: the server never re-asks a
+          family who has said no, so there is no "start them again" later.
+        */}
+        <AlertDialog>
+          <AlertDialogTrigger asChild>
+            <Button variant="outline" className="w-full" disabled={respond.isPending}>
+              Stop these
+            </Button>
+          </AlertDialogTrigger>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Stop the check-ins?</AlertDialogTitle>
+              <AlertDialogDescription>
+                No more notes will be sent, and you won't be asked again. If
+                you ever want to talk, the funeral home is still there.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>Keep them</AlertDialogCancel>
+              <AlertDialogAction
+                onClick={() => respond.mutate({ data: { consent: false } })}
+              >
+                Yes, stop them
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
       </div>
     );
   }

@@ -9,7 +9,7 @@ import {
 import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
 import { Loader2, MessageCircle, Moon, Phone, Send } from "lucide-react";
-import { Empty, Loading, PageHeader } from "@/components/page";
+import { Empty, LoadError, Loading, PageHeader } from "@/components/page";
 
 /**
  * One thread, with the funeral home.
@@ -93,7 +93,19 @@ function formatSent(value: string | Date): string {
 
 export default function Messages() {
   const queryClient = useQueryClient();
-  const thread = useGetFamilyMessages();
+  /*
+   * Polled while the screen is open. Somebody who has just asked "do we need
+   * to send the reading in advance?" sits and waits on this page for the
+   * answer; without it the director's reply never appeared until they left
+   * and came back.
+   */
+  const thread = useGetFamilyMessages({
+    query: {
+      queryKey: getGetFamilyMessagesQueryKey(),
+      refetchInterval: 30_000,
+      refetchOnWindowFocus: true,
+    },
+  });
   const [body, setBody] = useState("");
   const endRef = useRef<HTMLDivElement>(null);
   const sending = useRef(false);
@@ -118,9 +130,18 @@ export default function Messages() {
     endRef.current?.scrollIntoView({ block: "end" });
   }, [messages?.length]);
 
+  // Reading the thread marks it read on the server; tell the hub, so its
+  // badge does not go on counting messages this person has just read.
+  useEffect(() => {
+    if (!thread.dataUpdatedAt) return;
+    void queryClient.invalidateQueries({ queryKey: getGetFamilySessionQueryKey() });
+  }, [thread.dataUpdatedAt, queryClient]);
+
   if (thread.isPending) return <Loading rows={3} />;
 
-  if (!thread.data) return null;
+  if (!thread.data) {
+    return <LoadError title="Messages" onRetry={() => void thread.refetch()} />;
+  }
 
   const {
     locked,

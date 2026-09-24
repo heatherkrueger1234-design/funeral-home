@@ -769,13 +769,19 @@ router.put("/preparation", async (req, res) => {
   );
 
   // Editing after staff have signed the sheet off resets that: what the
-  // preparation room read is no longer what the family has said.
+  // preparation room read is no longer what the family has said. Only a real
+  // change does — a save that repeats what is on file (a stale tab, a
+  // double tap) leaves the sign-off standing.
+  const changed = Object.entries(values).some(
+    ([key, value]) =>
+      (sheet as Record<string, unknown>)[key] !== (value ?? null),
+  );
+
   const [updated] = await db
     .update(casePreparationTable)
     .set({
       ...values,
-      reviewedAt: null,
-      reviewedByUserId: null,
+      ...(changed ? { reviewedAt: null, reviewedByUserId: null } : {}),
       updatedAt: new Date(),
     })
     .where(eq(casePreparationTable.id, sheet.id))
@@ -1363,6 +1369,15 @@ router.post("/deadlines/:deadlineId", async (req, res) => {
     throw badRequest("That's when something happens, not something to do.");
   }
 
+  // The home ticked this off — the plot confirmed, the permit filed. A tap
+  // on a family's phone must not quietly put it back on the director's list.
+  if (!completed && found.completedByUserId !== null) {
+    throw new HttpError(
+      409,
+      "The funeral home marked this one done. If it isn't, send them a message.",
+    );
+  }
+
   await db
     .update(caseDeadlinesTable)
     .set(
@@ -1728,7 +1743,16 @@ router.post("/relatives", async (req, res) => {
       });
       sentBySms = true;
     } catch (error) {
-      if (!(error instanceof SmsNotSentError)) throw error;
+      /*
+       * Any failure, not just "not configured". The relative's row is
+       * already committed, so throwing here would lose the only copy of their
+       * link: the retry is refused as "already has a link", and nobody can
+       * see the token again. Logged, and the link is shown to the inviter
+       * instead, below.
+       */
+      if (!(error instanceof SmsNotSentError)) {
+        req.log?.error({ err: error }, "Relative's link text failed to send");
+      }
     }
   }
 
@@ -1743,7 +1767,9 @@ router.post("/relatives", async (req, res) => {
       });
       sentByEmail = true;
     } catch (error) {
-      if (!(error instanceof MailNotSentError)) throw error;
+      if (!(error instanceof MailNotSentError)) {
+        req.log?.error({ err: error }, "Relative's link email failed to send");
+      }
     }
   }
 
@@ -1974,12 +2000,22 @@ router.put("/memory-book/entries/:entryId", async (req, res) => {
 router.delete("/memory-book/entries/:entryId", async (req, res) => {
   const row = familyCase(req);
   const contact = familyContact(req);
+  const book = await loadOrCreateBook(row.id, row.funeralHomeId);
 
   const entry = await loadOwnEntry(
     parseId(req.params.entryId),
     row.id,
     contact.id,
   );
+
+  // Closed for printing means closed: a stale tab's "remove" must not take
+  // a page out of a book that has gone to the printer.
+  if (!bookIsOpen(book)) {
+    throw new HttpError(
+      409,
+      "This book has been closed for printing, so it can no longer be changed here.",
+    );
+  }
 
   await db.delete(memoryEntriesTable).where(eq(memoryEntriesTable.id, entry.id));
 
@@ -2119,12 +2155,22 @@ router.put("/memory-book/chapters/:chapterId", async (req, res) => {
 router.delete("/memory-book/chapters/:chapterId", async (req, res) => {
   const row = familyCase(req);
   const contact = familyContact(req);
+  const book = await loadOrCreateBook(row.id, row.funeralHomeId);
 
   const chapter = await loadOwnChapter(
     parseId(req.params.chapterId),
     row.id,
     contact.id,
   );
+
+  // Closed for printing means closed: a stale tab's "remove" must not take
+  // a page out of a book that has gone to the printer.
+  if (!bookIsOpen(book)) {
+    throw new HttpError(
+      409,
+      "This book has been closed for printing, so it can no longer be changed here.",
+    );
+  }
 
   await db.delete(lifeChaptersTable).where(eq(lifeChaptersTable.id, chapter.id));
 

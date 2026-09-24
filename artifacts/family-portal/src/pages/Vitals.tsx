@@ -12,7 +12,7 @@ import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { useToast } from "@/hooks/use-toast";
 import { Check, Lock, ShieldCheck } from "lucide-react";
-import { Loading, PageHeader } from "@/components/page";
+import { LoadError, Loading, PageHeader } from "@/components/page";
 
 /**
  * The death certificate questions.
@@ -42,6 +42,7 @@ const SECTIONS: Array<{ title: string; blurb?: string; fields: Field[] }> = [
       { name: "legalFirstName", label: "First name" },
       { name: "legalMiddleName", label: "Middle name" },
       { name: "legalLastName", label: "Last name" },
+      { name: "suffix", label: "Suffix", hint: "Jr., Sr., III — only if they used one." },
       {
         name: "nameAtBirth",
         label: "Name at birth",
@@ -113,6 +114,11 @@ const SECTIONS: Array<{ title: string; blurb?: string; fields: Field[] }> = [
       { name: "residenceCounty", label: "County" },
       { name: "residenceState", label: "State" },
       { name: "residencePostalCode", label: "ZIP" },
+      {
+        name: "residenceInsideCityLimits",
+        label: "The address is inside the city or town limits",
+        type: "checkbox",
+      },
     ],
   },
   {
@@ -157,6 +163,9 @@ export default function Vitals() {
         setSavedAt(Date.now());
         refresh();
       },
+      // "Saved" left on screen after a failure is the one message here that
+      // would be worse than none.
+      onError: () => setSavedAt(null),
     },
   });
 
@@ -174,7 +183,14 @@ export default function Vitals() {
 
   if (vitals.isPending) return <Loading rows={5} />;
 
-  if (!vitals.data) return null;
+  if (!vitals.data) {
+    return (
+      <LoadError
+        title="Details for the certificate"
+        onRetry={() => void vitals.refetch()}
+      />
+    );
+  }
 
   const record = vitals.data as unknown as Record<string, unknown>;
   const locked = vitals.data.status === "verified";
@@ -229,6 +245,7 @@ export default function Vitals() {
               >
                 <Checkbox
                   className="mt-0.5"
+                  aria-label={field.label}
                   disabled={locked}
                   checked={record[field.name] === true}
                   onCheckedChange={(checked) =>
@@ -245,13 +262,28 @@ export default function Vitals() {
                     {field.hint}
                   </p>
                 )}
+                {/*
+                  Saved only when this person changed it, exactly as the
+                  obituary's fields are (see Obituary.tsx). Several relatives
+                  fill this in at once, one knowing the father's birthplace
+                  and another the mother's maiden name; comparing with the
+                  server's copy instead of what the box held on focus put a
+                  stale blank back over a cousin's answer whenever somebody
+                  merely tabbed past it. `key` redraws the box when a newer
+                  answer arrives.
+                */}
                 <Input
+                  key={(record[field.name] as string) ?? ""}
                   className="mt-2"
                   id={field.name}
                   type={field.type ?? "text"}
                   disabled={locked}
                   defaultValue={(record[field.name] as string) ?? ""}
+                  onFocus={(event) => {
+                    event.currentTarget.dataset.before = event.currentTarget.value;
+                  }}
                   onBlur={(event) => {
+                    if (event.target.value === event.target.dataset.before) return;
                     const next = event.target.value.trim();
                     if (next === ((record[field.name] as string) ?? "")) return;
                     save.mutate({ data: { [field.name]: next || null } });
@@ -289,6 +321,7 @@ export default function Vitals() {
         {!locked && (
           <div className="flex gap-2">
             <Input
+              aria-label="Social security number"
               value={ssn}
               inputMode="numeric"
               placeholder="000-00-0000"
@@ -315,16 +348,21 @@ export default function Vitals() {
             When you've put in what you can, let the funeral home know. Anything
             you find afterwards can still be added.
           </p>
-          <Button
-            size="lg"
-            className="w-full"
-            disabled={submit.isPending || vitals.data.status === "submitted"}
-            onClick={() => submit.mutate()}
-          >
-            {vitals.data.status === "submitted"
-              ? "Sent to the funeral home"
-              : "I've finished for now"}
-          </Button>
+          {vitals.data.status === "submitted" ? (
+            <p className="flex items-center justify-center gap-2 rounded-lg bg-[var(--accent-soft)] px-4 py-3 text-sm font-semibold text-[var(--accent-deep)]">
+              <Check className="size-4" />
+              Sent to the funeral home. Anything you add now, they'll see.
+            </p>
+          ) : (
+            <Button
+              size="lg"
+              className="w-full"
+              disabled={submit.isPending}
+              onClick={() => submit.mutate()}
+            >
+              I've finished for now
+            </Button>
+          )}
         </div>
       )}
     </div>

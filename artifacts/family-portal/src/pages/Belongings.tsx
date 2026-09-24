@@ -54,6 +54,52 @@ const KINDS = [
   { value: "other", label: "Something else" },
 ];
 
+/**
+ * One of the preparation notes. Saved only when this person changed it,
+ * never merely because they tabbed through — see the obituary's `Field`.
+ * Here it matters twice over: the notes are written by several relatives,
+ * and any save clears the preparation room's "we have read this", so a
+ * cursor passing through "Their hair" used to undo the home's sign-off and
+ * put back whatever the box held when the page opened.
+ */
+function PrepField({
+  id,
+  label,
+  rows,
+  placeholder,
+  value,
+  onSave,
+}: {
+  id: string;
+  label: string;
+  rows: number;
+  placeholder: string;
+  value: string | null;
+  onSave: (value: string | null) => void;
+}) {
+  return (
+    <div className="space-y-2">
+      <Label htmlFor={id}>{label}</Label>
+      <Textarea
+        key={value ?? ""}
+        id={id}
+        rows={rows}
+        placeholder={placeholder}
+        defaultValue={value ?? ""}
+        onFocus={(event) => {
+          event.currentTarget.dataset.before = event.currentTarget.value;
+        }}
+        onBlur={(event) => {
+          if (event.target.value === event.target.dataset.before) return;
+          const next = event.target.value.trim() || null;
+          if (next === value) return;
+          onSave(next);
+        }}
+      />
+    </div>
+  );
+}
+
 export default function Belongings() {
   const queryClient = useQueryClient();
   const items = useGetFamilyBelongings();
@@ -210,7 +256,7 @@ export default function Belongings() {
             onKeyDown={(event) => {
               if (event.key !== "Enter") return;
               event.preventDefault();
-              if (description.trim()) {
+              if (description.trim() && !add.isPending) {
                 add.mutate({ data: { kind: kind as "other", description: description.trim() } });
               }
             }}
@@ -220,7 +266,7 @@ export default function Belongings() {
             variant="outline"
             size="icon"
             aria-label="Add item"
-            disabled={!description.trim()}
+            disabled={!description.trim() || add.isPending}
             onClick={() =>
               add.mutate({
                 data: { kind: kind as "other", description: description.trim() },
@@ -247,65 +293,41 @@ export default function Belongings() {
           </p>
         )}
 
-        <div className="space-y-2">
-          <Label htmlFor="hair">Their hair</Label>
-          <Textarea
-            id="hair"
-            rows={3}
-            placeholder="How it was parted, whether it was set, who used to do it."
-            defaultValue={prep?.hairNotes ?? ""}
-            onBlur={(event) =>
-              savePrep.mutate({
-                data: { hairNotes: event.target.value.trim() || null },
-              })
-            }
-          />
-        </div>
+        <PrepField
+          id="hair"
+          label="Their hair"
+          rows={3}
+          placeholder="How it was parted, whether it was set, who used to do it."
+          value={prep?.hairNotes ?? null}
+          onSave={(value) => savePrep.mutate({ data: { hairNotes: value } })}
+        />
 
-        <div className="space-y-2">
-          <Label htmlFor="cosmetics">Makeup</Label>
-          <Textarea
-            id="cosmetics"
-            rows={3}
-            placeholder="How much, and what they wore. Or that they never wore any."
-            defaultValue={prep?.cosmeticsNotes ?? ""}
-            onBlur={(event) =>
-              savePrep.mutate({
-                data: { cosmeticsNotes: event.target.value.trim() || null },
-              })
-            }
-          />
-        </div>
+        <PrepField
+          id="cosmetics"
+          label="Makeup"
+          rows={3}
+          placeholder="How much, and what they wore. Or that they never wore any."
+          value={prep?.cosmeticsNotes ?? null}
+          onSave={(value) => savePrep.mutate({ data: { cosmeticsNotes: value } })}
+        />
 
-        <div className="space-y-2">
-          <Label htmlFor="jewellery">Jewellery they should be wearing</Label>
-          <Textarea
-            id="jewellery"
-            rows={2}
-            placeholder="Her wedding ring, left hand."
-            defaultValue={prep?.jewelleryNotes ?? ""}
-            onBlur={(event) =>
-              savePrep.mutate({
-                data: { jewelleryNotes: event.target.value.trim() || null },
-              })
-            }
-          />
-        </div>
+        <PrepField
+          id="jewellery"
+          label="Jewellery they should be wearing"
+          rows={2}
+          placeholder="Her wedding ring, left hand."
+          value={prep?.jewelleryNotes ?? null}
+          onSave={(value) => savePrep.mutate({ data: { jewelleryNotes: value } })}
+        />
 
-        <div className="space-y-2">
-          <Label htmlFor="other">Anything else</Label>
-          <Textarea
-            id="other"
-            rows={3}
-            placeholder="A scarf she always wore. Glasses on or off. Anything at all."
-            defaultValue={prep?.otherNotes ?? ""}
-            onBlur={(event) =>
-              savePrep.mutate({
-                data: { otherNotes: event.target.value.trim() || null },
-              })
-            }
-          />
-        </div>
+        <PrepField
+          id="other"
+          label="Anything else"
+          rows={3}
+          placeholder="A scarf she always wore. Glasses on or off. Anything at all."
+          value={prep?.otherNotes ?? null}
+          onSave={(value) => savePrep.mutate({ data: { otherNotes: value } })}
+        />
 
         <p className="border-l-2 border-[var(--accent)]/30 pl-4 text-sm leading-relaxed text-muted-foreground">
           It also helps enormously to mark a recent photograph as “this is how

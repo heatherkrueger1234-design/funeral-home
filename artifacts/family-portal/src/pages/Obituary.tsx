@@ -13,7 +13,7 @@ import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
 import { Check, Lock } from "lucide-react";
-import { Divider, Loading, PageHeader } from "@/components/page";
+import { Divider, LoadError, Loading, PageHeader } from "@/components/page";
 
 /**
  * The obituary, as a form rather than a blank page.
@@ -99,6 +99,7 @@ export default function Obituary() {
         setSavedAt(Date.now());
         refresh();
       },
+      onError: () => setSavedAt(null),
     },
   });
 
@@ -116,7 +117,9 @@ export default function Obituary() {
 
   if (obituary.isPending) return <Loading rows={5} />;
 
-  if (!obituary.data) return null;
+  if (!obituary.data) {
+    return <LoadError title="The obituary" onRetry={() => void obituary.refetch()} />;
+  }
 
   const draft = obituary.data;
   const locked = draft.status === "approved";

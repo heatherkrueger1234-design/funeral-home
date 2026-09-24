@@ -1,4 +1,16 @@
 import { type ReactNode, useEffect, useRef } from "react";
+import { Button } from "@/components/ui/button";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 import { Link, useLocation } from "wouter";
 import { useQueryClient } from "@tanstack/react-query";
 import {
@@ -196,7 +208,8 @@ function StaffSignIn() {
 }
 
 export function PortalShell({ children }: { children: ReactNode }) {
-  const { token } = useLink();
+  const { token, forget } = useLink();
+  const queryClient = useQueryClient();
   const [location] = useLocation();
 
   // Not fired at all until there is a link to fire it with: a visitor who
@@ -278,8 +291,16 @@ export function PortalShell({ children }: { children: ReactNode }) {
     return <Waiting />;
   }
 
-  if (session.isError) {
-    const gone = (session.error as { status?: number } | null)?.status === 401;
+  const gone = (session.error as { status?: number } | null)?.status === 401;
+
+  /*
+   * Only when there is nothing to show, or the link really is dead. A failed
+   * background poll on a phone that walked out of signal is not a reason to
+   * swap the page out from under somebody halfway through a sentence of the
+   * obituary: react-query keeps the last good session, so keep showing it
+   * and let the next poll put things right.
+   */
+  if (session.isError && (gone || !session.data)) {
 
     return (
       <FullScreen>
@@ -295,15 +316,26 @@ export function PortalShell({ children }: { children: ReactNode }) {
               ? "Please ask the funeral home to send you a new one. Nothing you have already added has been lost."
               : "Please check your connection and try again."}
           </p>
-          {gone && (
+          {gone ? (
             <div className="mt-6 text-left">
               <PasteLink />
             </div>
+          ) : (
+            <Button
+              type="button"
+              variant="outline"
+              className="mt-6"
+              onClick={() => void session.refetch()}
+            >
+              Try again
+            </Button>
           )}
         </div>
       </FullScreen>
     );
   }
+
+  if (!session.data) return <Waiting />;
 
   const { home, case: subject } = session.data;
   const atHub = location === "/" || location.startsWith("/f/");
@@ -438,6 +470,43 @@ export function PortalShell({ children }: { children: ReactNode }) {
           <p className="mt-3 font-display text-sm text-muted-foreground">
             {home.name}
           </p>
+          {/*
+            For the phone that was borrowed at the kitchen table. The link
+            stays on a device until it is told to forget it; without this,
+            the neighbour's phone kept the family's key for good. Quiet,
+            because nearly everybody is on their own phone.
+          */}
+          <AlertDialog>
+            <AlertDialogTrigger asChild>
+              <button
+                type="button"
+                className="mt-4 text-xs text-muted-foreground underline decoration-border underline-offset-4 hover:text-foreground"
+              >
+                Not your phone? Forget this link here
+              </button>
+            </AlertDialogTrigger>
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle>Forget the link on this device?</AlertDialogTitle>
+                <AlertDialogDescription>
+                  Nothing anyone has added is lost. This phone will just need
+                  the link again to open it — the one in your text or email
+                  still works.
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel>Keep it</AlertDialogCancel>
+                <AlertDialogAction
+                  onClick={() => {
+                    forget();
+                    queryClient.clear();
+                  }}
+                >
+                  Forget it here
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
         </div>
       </footer>
     </div>
