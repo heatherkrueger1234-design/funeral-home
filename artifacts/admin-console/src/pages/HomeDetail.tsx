@@ -3,22 +3,27 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link } from "wouter";
 import {
   api,
+  AUDIT_ACTION_LABELS,
+  cn,
   describeAccount,
   formatDate,
+  formatDay,
   formatDateTime,
+  STAFF_ROLE_LABELS,
   type AdminHomeDetail,
+  type AuditEntry,
 } from "@/lib/api";
 import {
   Button,
   Card,
   CardTitle,
-  EmptyState,
   ErrorState,
   Field,
   LoadingRows,
   Skeleton,
   Stat,
   Swatch,
+  usePageTitle,
 } from "@/components/ui";
 import { LicensurePanel } from "@/components/LicensurePanel";
 
@@ -37,6 +42,11 @@ export function HomeDetail({ homeId }: { homeId: number }) {
     queryFn: () => api.get<AdminHomeDetail>(`/admin/homes/${homeId}`),
     retry: false,
   });
+
+  usePageTitle(query.data?.name ?? (query.error ? "Home" : null));
+  const [ownerInvite, setOwnerInvite] = useState<{ mailSent: boolean } | null>(
+    null,
+  );
 
   if (query.isPending) {
     return (
@@ -73,6 +83,11 @@ export function HomeDetail({ homeId }: { homeId: number }) {
         <h1 className="mt-2 flex flex-wrap items-center gap-3 font-display text-2xl">
           <Swatch color={home.accentColor} name={home.name} />
           <span className="break-words">{home.name}</span>
+          {home.internalAccount && (
+            <span className="rounded-sm bg-[var(--accent-soft)] px-1.5 py-0.5 font-sans text-xs font-semibold text-[var(--accent-deep)]">
+              Ours
+            </span>
+          )}
         </h1>
         <p className="mt-1 text-[var(--muted-foreground)]">
           {[
@@ -98,6 +113,8 @@ export function HomeDetail({ homeId }: { homeId: number }) {
           </p>
         </Card>
       )}
+
+      <AccountCard home={home} />
 
       <Card>
         <CardTitle>How much they are using it</CardTitle>
@@ -133,12 +150,20 @@ export function HomeDetail({ homeId }: { homeId: number }) {
 
       <Card>
         <CardTitle>Who works here</CardTitle>
-        {home.staff.length === 0 ? (
-          <EmptyState
-            title="Nobody can sign in yet"
-            detail="This home has no staff accounts, so nobody can reach it. An owner has to be invited before it is any use to them."
-          />
+        {/*
+          The outcome is held out here rather than in the form, because a
+          successful invitation refetches the home, the home then has an
+          owner, and the form -- with the only sentence saying whether the
+          email went -- would vanish the moment it appeared.
+        */}
+        {ownerInvite !== null ? (
+          <InviteOutcome mailSent={ownerInvite.mailSent} />
         ) : (
+          !home.staff.some((person) => person.role === "owner") && (
+            <InviteOwner home={home} onInvited={setOwnerInvite} />
+          )
+        )}
+        {home.staff.length === 0 ? null : (
           <ul className="flex flex-col divide-y divide-[var(--border)]">
             {home.staff.map((person) => (
               <StaffRow key={person.id} homeId={home.id} person={person} />
@@ -155,7 +180,275 @@ export function HomeDetail({ homeId }: { homeId: number }) {
       <SuspensionCard home={home} />
 
       <OursCard home={home} />
+
+      <AccessHistory home={home} />
     </div>
+  );
+}
+
+/**
+ * The account, with the dates behind the one-line status.
+ *
+ * "On trial, 3 days left" answers the question on the day. The follow-up
+ * email needs the date, "subscribed" needs to say until when, and a home
+ * whose bill is paid by a group needs to say which group -- because nothing
+ * about its billing can be changed from here, and the person on the phone
+ * should know that before they promise anything.
+ */
+function AccountCard({ home }: { home: AdminHomeDetail }) {
+  const rows: Array<[string, string]> = [
+    ["Account", describeAccount(home)],
+    [
+      "Can open new cases",
+      home.canOpenCases
+        ? "Yes"
+        : home.suspendedAt
+          ? "No — suspended"
+          : "No — the trial or subscription has ended",
+    ],
+  ];
+
+  if (home.subscriptionStatus === "trial") {
+    rows.push(["Trial ends", formatDay(home.trialEndsAt)]);
+  }
+  if (home.currentPeriodEndsAt) {
+    rows.push([
+      home.subscriptionStatus === "canceled" ? "Paid until" : "Renews",
+      formatDay(home.currentPeriodEndsAt),
+    ]);
+  }
+  rows.push([
+    "Billed through",
+    home.groupId
+      ? (home.groupName ?? `Group #${home.groupId}`)
+      : "Its own subscription",
+  ]);
+
+  return (
+    <Card>
+      <CardTitle>Account</CardTitle>
+      <dl className="grid gap-x-8 gap-y-4 sm:grid-cols-2">
+        {rows.map(([label, value]) => (
+          <div key={label}>
+            <dt className="text-sm text-[var(--muted-foreground)]">{label}</dt>
+            <dd className="tabular">{value}</dd>
+          </div>
+        ))}
+      </dl>
+      {home.subscriptionStatus === "trial" && home.groupId === null && (
+        <ExtendTrial home={home} />
+      )}
+    </Card>
+  );
+}
+
+/**
+ * More trial time, in days, up to sixty.
+ *
+ * A number and a button rather than a date picker: "give them another two
+ * weeks" is how the request arrives, and the server counts from whichever is
+ * later, today or the current end, so the answer is never less time than
+ * they already had.
+ */
+function ExtendTrial({ home }: { home: AdminHomeDetail }) {
+  const queryClient = useQueryClient();
+  const [days, setDays] = useState("14");
+  const parsed = Number(days);
+  const valid = Number.isInteger(parsed) && parsed >= 1 && parsed <= 60;
+
+  const extend = useMutation({
+    mutationFn: () =>
+      api.post(`/admin/homes/${home.id}/extend-trial`, { days: parsed }),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ["home", home.id] });
+      void queryClient.invalidateQueries({ queryKey: ["homes"] });
+      void queryClient.invalidateQueries({ queryKey: ["overview"] });
+      void queryClient.invalidateQueries({ queryKey: ["audit"] });
+    },
+  });
+
+  return (
+    <form
+      className="mt-6 flex flex-wrap items-end gap-3 border-t border-[var(--border)] pt-5"
+      onSubmit={(event) => {
+        event.preventDefault();
+        if (valid) extend.mutate();
+      }}
+    >
+      <div className="w-40">
+        <Field
+          label="Extend the trial by"
+          type="number"
+          inputMode="numeric"
+          min={1}
+          max={60}
+          value={days}
+          onChange={(event) => setDays(event.target.value)}
+          hint="Days, 1 to 60."
+          problem={
+            extend.error instanceof Error ? extend.error.message : undefined
+          }
+        />
+      </div>
+      <Button type="submit" disabled={!valid || extend.isPending}>
+        {extend.isPending ? "Extending…" : "Extend the trial"}
+      </Button>
+      {extend.isSuccess && (
+        <p role="status" className="w-full text-sm">
+          Done. The owner will be reminded a week before the new end date.
+        </p>
+      )}
+    </form>
+  );
+}
+
+/**
+ * An owner for a home that has none.
+ *
+ * A home created without an owner's address used to say "an owner has to be
+ * invited" and offer no way to do it. The invitation goes to the address
+ * typed here and the link in it is never shown on this page -- whoever holds
+ * it chooses the owner's password.
+ */
+function InviteOutcome({ mailSent }: { mailSent: boolean }) {
+  return (
+    <p
+      role={mailSent ? "status" : "alert"}
+      className={cn(
+        "mb-5 max-w-prose rounded-md p-3 text-sm",
+        mailSent ? "bg-[var(--accent-soft)]" : "bg-[var(--notice-soft)]",
+      )}
+    >
+      {mailSent
+        ? "The invitation is on its way. They choose their own password from it."
+        : "The owner's account exists, but no invitation was sent: mail is not set up on this deployment, or the mail server would not take it. Once mail is working, use “Resend the invitation” next to their name below."}
+    </p>
+  );
+}
+
+function InviteOwner({
+  home,
+  onInvited,
+}: {
+  home: AdminHomeDetail;
+  onInvited: (outcome: { mailSent: boolean }) => void;
+}) {
+  const queryClient = useQueryClient();
+  const [email, setEmail] = useState("");
+  const [name, setName] = useState("");
+
+  const invite = useMutation({
+    mutationFn: () =>
+      api.post<{ mailSent: boolean }>(`/admin/homes/${home.id}/invite-owner`, {
+        email: email.trim(),
+        ...(name.trim() ? { name: name.trim() } : {}),
+      }),
+    onSuccess: (outcome) => {
+      onInvited(outcome);
+      void queryClient.invalidateQueries({ queryKey: ["home", home.id] });
+      void queryClient.invalidateQueries({ queryKey: ["audit"] });
+    },
+  });
+
+  return (
+    <div className="mb-6 rounded-xl border border-[var(--border)] bg-[var(--sunken)] p-5">
+      <h3 className="font-display text-base">Nobody owns this home yet</h3>
+      <p className="mt-1 max-w-prose text-sm text-[var(--muted-foreground)]">
+        Until somebody is invited as its owner, nobody at the home can sign in
+        or add their colleagues. They get an email and choose their own
+        password; nobody here ever sees it.
+      </p>
+      <form
+        className="mt-4 grid gap-4 sm:grid-cols-[1fr_1fr_auto] sm:items-end"
+        onSubmit={(event) => {
+          event.preventDefault();
+          invite.mutate();
+        }}
+      >
+        <Field
+          label="Owner's email address"
+          type="email"
+          required
+          value={email}
+          onChange={(event) => setEmail(event.target.value)}
+          problem={
+            invite.error instanceof Error ? invite.error.message : undefined
+          }
+        />
+        <Field
+          label="Their name"
+          value={name}
+          onChange={(event) => setName(event.target.value)}
+          hint="Optional."
+        />
+        <Button
+          type="submit"
+          variant="primary"
+          disabled={invite.isPending || !email.trim()}
+        >
+          {invite.isPending ? "Inviting…" : "Invite the owner"}
+        </Button>
+      </form>
+    </div>
+  );
+}
+
+/**
+ * Who at the platform has looked at this home, most recent first.
+ *
+ * The same log as the Access log page, narrowed to one home -- the answer to
+ * "who at the vendor has seen our account", which is the question this home
+ * is most likely to ask about us. Reading it writes nothing.
+ */
+function AccessHistory({ home }: { home: AdminHomeDetail }) {
+  const query = useQuery({
+    queryKey: ["audit", { homeId: home.id, preview: true }],
+    queryFn: () =>
+      api.get<AuditEntry[]>(`/admin/audit?homeId=${home.id}&limit=10`),
+  });
+
+  return (
+    <Card>
+      <CardTitle
+        action={
+          <Link
+            href={`/audit?homeId=${home.id}`}
+            className="text-sm underline underline-offset-4"
+          >
+            The whole history
+          </Link>
+        }
+      >
+        Access history
+      </CardTitle>
+      {query.isPending ? (
+        <LoadingRows rows={3} />
+      ) : query.error ? (
+        <ErrorState error={query.error} onRetry={() => void query.refetch()} />
+      ) : query.data.length === 0 ? (
+        <p className="text-sm text-[var(--muted-foreground)]">
+          Nothing yet.
+        </p>
+      ) : (
+        <ul className="flex flex-col divide-y divide-[var(--border)]">
+          {query.data.map((entry) => (
+            <li key={entry.id} className="py-2.5 text-sm first:pt-0 last:pb-0">
+              <span className="tabular text-[var(--muted-foreground)]">
+                {formatDateTime(entry.createdAt)}
+              </span>{" "}
+              <span className="break-all">{entry.actorEmail}</span>{" "}
+              {AUDIT_ACTION_LABELS[entry.action]?.toLowerCase() ?? entry.action}
+              {entry.detail && (
+                <span className="text-[var(--muted-foreground)]">
+                  {" "}
+                  — {entry.detail}
+                </span>
+              )}
+            </li>
+          ))}
+        </ul>
+      )}
+    </Card>
   );
 }
 
@@ -187,6 +480,11 @@ function StaffRow({
     },
   });
 
+  // Somebody who never chose a password gets their invitation again rather
+  // than a "reset your password" email for a password they never had -- the
+  // server decides, and the button says which it will be.
+  const invitation = !person.hasPassword;
+
   const state = person.deactivatedAt
     ? "No longer here"
     : !person.hasPassword
@@ -200,7 +498,9 @@ function StaffRow({
       <div className="min-w-0">
         <span>{person.displayName ?? "Not named yet"}</span>
         <span className="ml-3 text-sm text-[var(--muted-foreground)]">
-          {[person.title, person.role].filter(Boolean).join(" · ")}
+          {[person.title, STAFF_ROLE_LABELS[person.role] ?? person.role]
+            .filter(Boolean)
+            .join(" · ")}
         </span>
         {state && (
           <p className="text-sm text-[var(--muted-foreground)]">{state}</p>
@@ -208,8 +508,10 @@ function StaffRow({
         {reset.isSuccess && (
           <p role="status" className="text-sm">
             {reset.data.mailConfigured
-              ? "A reset link is on its way to the address on their account. It works once, for an hour."
-              : "Mail is not set up on this deployment, so nothing was sent. (The server log records that a reset was asked for, never the link itself.)"}
+              ? invitation
+                ? "A fresh invitation is on its way to the address on their account. It works once, for an hour."
+                : "A reset link is on its way to the address on their account. It works once, for an hour."
+              : "Mail is not set up on this deployment, so nothing was sent. (The server log records that it was asked for, never the link itself.)"}
           </p>
         )}
         {reset.error instanceof Error && (
@@ -226,8 +528,12 @@ function StaffRow({
           {reset.isPending
             ? "Sending…"
             : reset.isSuccess
-              ? "Sent"
-              : "Email a reset link"}
+              ? reset.data.mailConfigured
+                ? "Sent"
+                : "Not sent"
+              : invitation
+                ? "Resend the invitation"
+                : "Email a reset link"}
         </Button>
       )}
     </li>
@@ -327,6 +633,11 @@ function SuspensionCard({ home }: { home: AdminHomeDetail }) {
           Lifting this lets the home open cases again straight away. Nothing
           else changes, because nothing else was taken away.
         </p>
+        {change.error instanceof Error && (
+          <p role="alert" className="mb-3 text-sm text-[var(--notice)]">
+            {change.error.message}
+          </p>
+        )}
         <Button
           variant="primary"
           disabled={change.isPending}

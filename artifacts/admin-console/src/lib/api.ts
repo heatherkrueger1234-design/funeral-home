@@ -91,7 +91,8 @@ export type Engagement = {
   aftercareUnsubscribed: number;
 };
 
-export type AdminHome = {
+/** A home without its engagement counts: `toAdminHome` on its own. */
+export type AdminHomeSummary = {
   id: number;
   name: string;
   slug: string;
@@ -102,13 +103,47 @@ export type AdminHome = {
   accentColor: string;
   subscriptionStatus: string;
   trialDaysLeft: number | null;
+  trialEndsAt: string | null;
+  currentPeriodEndsAt: string | null;
+  /** Set when a group's contract pays for this home. */
+  groupId: number | null;
   canOpenCases: boolean;
   suspendedAt: string | null;
   suspendedReason: string | null;
   internalAccount: boolean;
   onboardingDone: string[];
   createdAt: string;
-  engagement: Engagement;
+};
+
+export type AdminHome = AdminHomeSummary & { engagement: Engagement };
+
+/**
+ * The account states the homes list can be filtered by, in the words the
+ * list itself uses -- see `describeAccount`. "Suspended" wins over the
+ * subscription, on the server as here.
+ */
+export const HOME_STATUSES = [
+  "trial",
+  "active",
+  "past_due",
+  "canceled",
+  "suspended",
+] as const;
+export type HomeStatus = (typeof HOME_STATUSES)[number];
+
+export const HOME_STATUS_LABELS: Record<HomeStatus, string> = {
+  trial: "On trial",
+  active: "Subscribed",
+  past_due: "Payment outstanding",
+  canceled: "Subscription ended",
+  suspended: "Suspended",
+};
+
+/** Staff roles, as a person would say them. The keys are the database's. */
+export const STAFF_ROLE_LABELS: Record<string, string> = {
+  owner: "Owner",
+  director: "Funeral director",
+  staff: "Staff",
 };
 
 export type ReminderStanding = "settled" | "ahead" | "soon" | "passed";
@@ -186,6 +221,7 @@ export type HomeStaff = {
 };
 
 export type AdminHomeDetail = AdminHome & {
+  groupName: string | null;
   licensure: HomeLicensure | null;
   practitioners: Practitioner[];
   reminders: LicensureReminder[];
@@ -193,7 +229,14 @@ export type AdminHomeDetail = AdminHome & {
 };
 
 export type PlatformOverview = {
-  homes: { homes: number; suspended: number; paying: number; onTrial: number };
+  homes: {
+    homes: number;
+    suspended: number;
+    paying: number;
+    onTrial: number;
+    pastDue: number;
+    canceled: number;
+  };
   engagement: {
     casesOpened: number;
     familyLinksCreated: number;
@@ -202,7 +245,9 @@ export type PlatformOverview = {
     aftercareEnrolled: number;
     aftercareConsented: number;
   };
-  attention: Array<{ home: AdminHome; reminders: LicensureReminder[] }>;
+  attention: Array<{ home: AdminHomeSummary; reminders: LicensureReminder[] }>;
+  /** On trial, not suspended, ending within seven days; soonest first. */
+  trialsEndingSoon: AdminHomeSummary[];
   delivery: {
     mailConfigured: boolean;
     smsConfigured: boolean;
@@ -257,6 +302,26 @@ export function formatDate(value: string | null | undefined): string {
   });
 }
 
+/**
+ * The day an *instant* falls on, where the reader is.
+ *
+ * Not `formatDate`: a trial end is a moment (`2026-10-01T03:00:00Z`), not a
+ * calendar date, and cutting the first ten characters off it gives the day
+ * in Greenwich -- which for a trial ending in the Denver evening is the day
+ * after the one the owner will actually be refused a case on.
+ */
+export function formatDay(value: string | null | undefined): string {
+  if (!value) return "—";
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) return value;
+
+  return parsed.toLocaleDateString("en-US", {
+    day: "numeric",
+    month: "long",
+    year: "numeric",
+  });
+}
+
 export function formatDateTime(value: string | null | undefined): string {
   if (!value) return "—";
   const parsed = new Date(value);
@@ -272,7 +337,7 @@ export function formatDateTime(value: string | null | undefined): string {
 }
 
 /** How the account is doing, in a phrase rather than a status chip. */
-export function describeAccount(home: AdminHome): string {
+export function describeAccount(home: AdminHomeSummary): string {
   if (home.suspendedAt) return "Suspended";
   if (home.subscriptionStatus === "trial") {
     return home.trialDaysLeft === null
@@ -301,6 +366,8 @@ export const AUDIT_ACTION_LABELS: Record<string, string> = {
   "home.internal.update": "Changed whether a home is ours",
   "home.group.update": "Moved a home between groups",
   "home.staff.reset": "Emailed a director a password reset",
+  "home.owner.invite": "Invited an owner",
+  "home.trial.extend": "Extended a trial",
   "group.list": "Listed the groups",
   "group.create": "Created a group",
   "group.open": "Opened a group",

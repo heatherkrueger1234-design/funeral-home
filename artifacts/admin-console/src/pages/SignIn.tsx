@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useMutation } from "@tanstack/react-query";
 import { api } from "@/lib/api";
-import { Button, Card, Field } from "@/components/ui";
+import { Button, Card, Field, usePageTitle } from "@/components/ui";
 
 /**
  * The front door.
@@ -13,6 +13,7 @@ import { Button, Card, Field } from "@/components/ui";
  * detail, that there is nothing here for them.
  */
 export function SignIn({ onSignedIn }: { onSignedIn: () => void }) {
+  usePageTitle("Sign in");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
 
