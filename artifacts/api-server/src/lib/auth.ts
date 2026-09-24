@@ -34,6 +34,18 @@ const SALT_LENGTH = 16;
 export const PASSWORD_RESET_TTL_MS = 60 * 60 * 1000; // 1 hour
 
 /**
+ * An invitation is the same token as a reset, but not the same situation.
+ *
+ * A reset is asked for by the person who will click it, a minute later. An
+ * invitation is sent by somebody else to a new hire, or by us to a home's
+ * owner, and read whenever they next look at their email -- after a removal,
+ * after a service, on Monday. An hour meant most of them had expired before
+ * anyone opened them, and the first thing a new customer saw was an error.
+ */
+export const INVITE_TTL_MS = 7 * 24 * 60 * 60 * 1000; // 7 days
+export const INVITE_TTL_DAYS = 7;
+
+/**
  * Much longer than a password reset, and for a different reason.
  *
  * A reset is short because someone may be trying to take an account. This one
@@ -144,13 +156,16 @@ export async function destroyAllSessions(userId: number): Promise<void> {
  * Issues a single-use reset token. Only the digest is stored, so the working
  * value exists in exactly one place: the email that was just sent.
  */
-export async function createPasswordReset(userId: number): Promise<string> {
+export async function createPasswordReset(
+  userId: number,
+  ttlMs: number = PASSWORD_RESET_TTL_MS,
+): Promise<string> {
   const token = randomBytes(32).toString("base64url");
 
   await db.insert(passwordResetsTable).values({
     tokenHash: digest(token),
     userId,
-    expiresAt: new Date(Date.now() + PASSWORD_RESET_TTL_MS),
+    expiresAt: new Date(Date.now() + ttlMs),
   });
 
   return token;

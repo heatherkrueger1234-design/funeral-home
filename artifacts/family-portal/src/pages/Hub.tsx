@@ -259,7 +259,7 @@ export default function Hub() {
           </p>
           <Link
             href="/service-time"
-            className="mt-3 inline-block text-sm font-semibold text-[var(--accent-deep)] decoration-[var(--accent)]/40 underline-offset-4 hover:decoration-[var(--accent)]"
+            className="mt-1 inline-flex min-h-11 items-center text-sm font-semibold text-[var(--accent-deep)] decoration-[var(--accent)]/40 underline-offset-4 hover:decoration-[var(--accent)]"
           >
             See the times
           </Link>
@@ -281,7 +281,7 @@ export default function Hub() {
           </p>
           <Link
             href="/aftercare"
-            className="mt-3 inline-block text-sm font-semibold text-[var(--accent-deep)] decoration-[var(--accent)]/40 underline-offset-4 hover:decoration-[var(--accent)]"
+            className="mt-1 inline-flex min-h-11 items-center text-sm font-semibold text-[var(--accent-deep)] decoration-[var(--accent)]/40 underline-offset-4 hover:decoration-[var(--accent)]"
           >
             Have a look at what would arrive
           </Link>
@@ -309,6 +309,16 @@ export default function Hub() {
               <p className="mt-0.5 text-sm text-muted-foreground">
                 {formatWhen(nextDue.dueAt, home.timezone)}
               </p>
+              {/* The card used to be a statement with nowhere to go: the
+                  place to tick it off was two groups further down. */}
+              <Link
+                href="/timeline"
+                className="mt-1 inline-flex min-h-11 items-center text-sm font-semibold text-[var(--accent-deep)] decoration-[var(--accent)]/40 underline-offset-4 hover:decoration-[var(--accent)]"
+              >
+                {outstandingDeadlines > 1
+                  ? `See all ${outstandingDeadlines} still to do`
+                  : "See what's due"}
+              </Link>
             </>
           ) : (
             <div className="animate-pulse" role="status" aria-label="Loading">
@@ -330,9 +340,13 @@ export default function Hub() {
             icon={Images}
             title="Photographs"
             detail={
+              // The limit is a ceiling nobody reaches, so it is only named
+              // once it is close. "9 of 1000" read as a quota to fill.
               photoCount === 0
-                ? `Add up to ${photoLimit} for the service`
-                : `${photoCount} of ${photoLimit} added`
+                ? "Add them for the service"
+                : photoCount >= photoLimit * 0.8
+                  ? `${photoCount} of ${photoLimit} added`
+                  : `${photoCount} added`
             }
           />
           <Card

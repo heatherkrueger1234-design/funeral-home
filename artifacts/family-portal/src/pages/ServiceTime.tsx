@@ -20,7 +20,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { Empty, Loading, PageHeader } from "@/components/page";
+import { Empty, LoadFailed, Loading, PageHeader } from "@/components/page";
 import { formatAtHome } from "@/lib/utils";
 import { CalendarCheck, CalendarClock, Loader2, Phone } from "lucide-react";
 
@@ -96,7 +96,9 @@ export default function ServiceTime() {
 
   if (offers.isPending) return <Loading rows={3} />;
 
-  if (!offers.data) return null;
+  if (!offers.data) {
+    return <LoadFailed title="The service" onRetry={() => void offers.refetch()} />;
+  }
 
   const data = offers.data;
   const homeName = session.data?.home.name ?? "The funeral home";
@@ -202,7 +204,7 @@ export default function ServiceTime() {
       </ul>
 
       <p className="text-sm leading-snug text-muted-foreground">
-        If none of these work, please ring {homeName}
+        If none of these work, please call {homeName}
         {data.homePhone ? ` on ${data.homePhone}` : ""} — they would far rather
         hear that than have you pick the least bad one.
       </p>
@@ -224,7 +226,7 @@ export default function ServiceTime() {
             </AlertDialogTitle>
             <AlertDialogDescription>
               {homeName} will take this as settled and begin arranging around
-              it. To change it afterwards you will need to ring them.
+              it. To change it afterwards you will need to call them.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>

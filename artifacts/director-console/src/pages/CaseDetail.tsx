@@ -1,11 +1,13 @@
 import { useState } from "react";
-import { Link, useRoute } from "wouter";
+import { Link, useRoute, useSearch } from "wouter";
 import { useQueryClient } from "@tanstack/react-query";
 import {
   useGetCase,
   useCloseCase,
   getGetCaseQueryKey,
   getGetCasesQueryKey,
+  getGetHomeDashboardQueryKey,
+  getGetHomeInboxQueryKey,
 } from "@workspace/api-client-react";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -35,7 +37,7 @@ import { DetailsPanel } from "@/components/case/DetailsPanel";
 import { CaseData } from "@/components/CaseData";
 import { Empty, Loading } from "@/components/page";
 import { formatAtHome } from "@/lib/utils";
-import { useHomeZone } from "@/lib/session";
+import { useHomeZone, useSession } from "@/lib/session";
 import { ArrowLeft, CalendarX, FileQuestion } from "lucide-react";
 
 /**
@@ -55,13 +57,51 @@ function serviceLabel(value: string | Date, zone: string | undefined): string {
   );
 }
 
+const TABS = [
+  "family",
+  "photos",
+  "vitals",
+  "belongings",
+  "obituary",
+  "service",
+  "print",
+  "book",
+  "timeline",
+  "messages",
+  "details",
+  "data",
+];
+
+/**
+ * "…the thread locks two weeks after the service." The window is the home's
+ * own setting, so the sentence reads it rather than assuming the default.
+ */
+function lockWindow(days: number | undefined): string {
+  if (!days) return "after the service";
+  if (days % 7 === 0) {
+    const weeks = days / 7;
+    return `${weeks === 1 ? "a week" : `${weeks} weeks`} after the service`;
+  }
+  return `${days === 1 ? "a day" : `${days} days`} after the service`;
+}
+
 export default function CaseDetail() {
   const [, params] = useRoute("/cases/:caseId");
   const caseId = Number(params?.caseId);
   const { toast } = useToast();
   const queryClient = useQueryClient();
-  const [tab, setTab] = useState("family");
+  /*
+   * A link may say which tab it is for -- the inbox opens the thread, the
+   * master page's past-due rows open the timeline -- so a director lands on
+   * the thing they clicked rather than on the family list every time.
+   */
+  const requested = new URLSearchParams(useSearch()).get("tab");
+  const [tab, setTab] = useState(
+    requested && TABS.includes(requested) ? requested : "family",
+  );
   const zone = useHomeZone();
+  const { session } = useSession();
+  const locksAfter = lockWindow(session?.home.messageLockDays);
 
   const row = useGetCase(caseId, {
     query: {
@@ -75,10 +115,13 @@ export default function CaseDetail() {
       onSuccess: () => {
         void queryClient.invalidateQueries({ queryKey: getGetCaseQueryKey(caseId) });
         void queryClient.invalidateQueries({ queryKey: getGetCasesQueryKey() });
+        void queryClient.invalidateQueries({
+          queryKey: getGetHomeDashboardQueryKey(),
+        });
+        void queryClient.invalidateQueries({ queryKey: getGetHomeInboxQueryKey() });
         toast({
           title: "Case closed",
-          description:
-            "The family's thread locks a fortnight after the service, and their aftercare is waiting on their consent.",
+          description: `The family's thread locks ${locksAfter}, and their aftercare is waiting on their consent.`,
         });
       },
     },
@@ -198,9 +241,9 @@ export default function CaseDetail() {
                 <AlertDialogTitle>Close this case?</AlertDialogTitle>
                 <AlertDialogDescription>
                   The family keeps access to everything they added. Their
-                  message thread locks a fortnight after the service, and
-                  anyone who left an address is offered the grief check-ins in
-                  your name — nothing is sent until they say yes.
+                  message thread locks {locksAfter}, and anyone who left an
+                  address is offered the grief check-ins in your name —
+                  nothing is sent until they say yes.
                 </AlertDialogDescription>
               </AlertDialogHeader>
               <AlertDialogFooter>
@@ -217,7 +260,7 @@ export default function CaseDetail() {
       <Tabs value={tab} onValueChange={setTab}>
         <TabsList>
           <TabsTrigger value="family">Family</TabsTrigger>
-          <TabsTrigger value="photos">Photographs ({detail.photoCount})</TabsTrigger>
+          <TabsTrigger value="photos">Photos ({detail.photoCount})</TabsTrigger>
           <TabsTrigger value="vitals">Certificate</TabsTrigger>
           <TabsTrigger value="belongings">Belongings</TabsTrigger>
           <TabsTrigger value="obituary">Obituary</TabsTrigger>

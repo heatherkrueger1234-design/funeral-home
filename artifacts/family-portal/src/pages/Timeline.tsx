@@ -8,7 +8,7 @@ import {
 } from "@workspace/api-client-react";
 import { Checkbox } from "@/components/ui/checkbox";
 import { CalendarClock, Church } from "lucide-react";
-import { Empty, Loading, PageHeader } from "@/components/page";
+import { Empty, LoadFailed, Loading, PageHeader } from "@/components/page";
 import { formatAtHome } from "@/lib/utils";
 
 /**
@@ -69,6 +69,13 @@ export default function Timeline() {
     );
   }
 
+  // Not "Nothing is waiting on you", which would be untrue.
+  if (deadlines.isError) {
+    return (
+      <LoadFailed title="What's due" onRetry={() => void deadlines.refetch()} />
+    );
+  }
+
   const rows = deadlines.data ?? [];
 
   return (
@@ -126,9 +133,14 @@ export default function Timeline() {
                     </span>
                   ) : (
                     <Checkbox
+                      id={`due-${row.id}`}
                       className="mt-0.5 size-6"
                       checked={done}
                       aria-label={`Mark "${row.title}" done`}
+                      disabled={
+                        complete.isPending &&
+                        complete.variables?.deadlineId === row.id
+                      }
                       onCheckedChange={(checked) =>
                         complete.mutate({
                           deadlineId: row.id,
@@ -139,17 +151,24 @@ export default function Timeline() {
                   )}
 
                   <div className="min-w-0 flex-1">
-                    <p
-                      className={
-                        done
-                          ? "text-muted-foreground line-through decoration-muted-foreground/50"
-                          : row.isEvent
-                            ? "font-display text-lg leading-snug text-[var(--accent-deep)]"
+                    {/* The title is the checkbox's label too, so the whole line
+                        can be tapped rather than a 24px square beside it. */}
+                    {row.isEvent ? (
+                      <p className="font-display text-lg leading-snug text-[var(--accent-deep)]">
+                        {row.title}
+                      </p>
+                    ) : (
+                      <label
+                        htmlFor={`due-${row.id}`}
+                        className={`block cursor-pointer ${
+                          done
+                            ? "text-muted-foreground line-through decoration-muted-foreground/50"
                             : "font-semibold"
-                      }
-                    >
-                      {row.title}
-                    </p>
+                        }`}
+                      >
+                        {row.title}
+                      </label>
+                    )}
                     <p className="mt-0.5 text-sm text-muted-foreground">
                       {formatDue(row.dueAt, timeZone)}
                       {late && (

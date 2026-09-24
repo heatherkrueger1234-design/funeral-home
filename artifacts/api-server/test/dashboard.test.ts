@@ -129,8 +129,8 @@ describe("the inbox", () => {
       .post("/api/family/messages")
       .send({ body: "Asked something" })
       .expect(201);
-    // Opening the thread is what marks it read.
-    await staff.agent.get(`/api/cases/${answered.id}/messages`).expect(200);
+    // Replying is reading: no GET of the thread first. A reply sent from the
+    // inbox without opening the thread used to leave this family "waiting".
     await staff.agent
       .post(`/api/cases/${answered.id}/messages`)
       .send({ body: "Answered it" })

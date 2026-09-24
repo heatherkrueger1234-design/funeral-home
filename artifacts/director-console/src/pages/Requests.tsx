@@ -7,8 +7,10 @@ import {
   useDeclineIntakeRequest,
   getGetIntakeRequestsQueryKey,
   getGetCasesQueryKey,
+  getGetHomeDashboardQueryKey,
 } from "@workspace/api-client-react";
 import { Button } from "@/components/ui/button";
+import { toast } from "@/hooks/use-toast";
 import {
   Dialog,
   DialogContent,
@@ -47,10 +49,22 @@ function ago(value: string | Date): string {
   return `${days} day${days === 1 ? "" : "s"} ago`;
 }
 
+/** Clipboard access can be refused; the link is on screen either way. */
+function copyFailed() {
+  toast({
+    title: "Couldn't copy that",
+    description: "Select the link and copy it by hand.",
+  });
+}
+
 export default function Requests() {
   const queryClient = useQueryClient();
   const [, navigate] = useLocation();
-  const [link, setLink] = useState<{ url: string; name: string } | null>(null);
+  const [link, setLink] = useState<{
+    url: string;
+    name: string;
+    caseId: number;
+  } | null>(null);
   const [copied, setCopied] = useState(false);
 
   const queue = useGetIntakeRequests({ status: "pending" });
@@ -60,6 +74,9 @@ export default function Requests() {
       queryKey: getGetIntakeRequestsQueryKey({ status: "pending" }),
     });
     void queryClient.invalidateQueries({ queryKey: getGetCasesQueryKey() });
+    void queryClient.invalidateQueries({
+      queryKey: getGetHomeDashboardQueryKey(),
+    });
   };
 
   const accept = useAcceptIntakeRequest({
@@ -71,6 +88,7 @@ export default function Requests() {
         setLink({
           url: created.familyLink,
           name: created.displayName ?? "the family",
+          caseId: created.id,
         });
       },
       // A second director accepting the same request gets a 409 here. The
@@ -85,6 +103,15 @@ export default function Requests() {
   const decline = useDeclineIntakeRequest({ mutation: { onSuccess: refresh } });
 
   if (queue.isPending) return <Loading rows={3} />;
+
+  if (!queue.data) {
+    return (
+      <Empty icon={Inbox} title="The requests didn't load">
+        Nothing has been lost. This is usually the connection — try again in a
+        moment.
+      </Empty>
+    );
+  }
 
   const rows = queue.data ?? [];
 
@@ -130,7 +157,7 @@ export default function Requests() {
                         </span>
                       ) : (
                         <span className="text-[var(--notice)]">
-                          A death — ring them
+                          A death — call them
                         </span>
                       )}
                     </p>
@@ -196,12 +223,23 @@ export default function Requests() {
                     size="sm"
                     variant="ghost"
                     disabled={accept.isPending || decline.isPending}
-                    onClick={() => decline.mutate({ intakeId: row.id })}
+                    onClick={() => {
+                      // One tap took a bereaved family off the only list
+                      // anybody reads, with nothing sent to them and no undo.
+                      if (
+                        window.confirm(
+                          `Dismiss the request from ${row.requesterName}? ` +
+                            "It leaves this list and they are sent nothing.",
+                        )
+                      ) {
+                        decline.mutate({ intakeId: row.id });
+                      }
+                    }}
                   >
                     Dismiss
                   </Button>
                 </div>
-                <p className="mt-2.5 text-sm leading-snug leading-relaxed text-muted-foreground">
+                <p className="mt-2.5 text-sm leading-relaxed text-muted-foreground">
                   Dismissing sends them nothing. If they need telling, tell them
                   yourself.
                 </p>
@@ -232,10 +270,13 @@ export default function Requests() {
               aria-label="Copy the link"
               onClick={() => {
                 if (!link) return;
-                void navigator.clipboard?.writeText(link.url).then(() => {
-                  setCopied(true);
-                  setTimeout(() => setCopied(false), 2000);
-                });
+                void navigator.clipboard
+                  ?.writeText(link.url)
+                  .then(() => {
+                    setCopied(true);
+                    setTimeout(() => setCopied(false), 2000);
+                  })
+                  .catch(copyFailed);
               }}
             >
               {copied ? <Check className="size-4" /> : <Copy className="size-4" />}
@@ -244,6 +285,14 @@ export default function Requests() {
           <DialogFooter>
             <Button variant="ghost" onClick={() => setLink(null)}>
               Close
+            </Button>
+            {/* The next thing is the case itself, and it was not linked. */}
+            <Button
+              onClick={() => {
+                if (link) navigate(`/cases/${link.caseId}`);
+              }}
+            >
+              Open the case
             </Button>
           </DialogFooter>
         </DialogContent>

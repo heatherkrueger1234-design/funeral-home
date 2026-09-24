@@ -227,6 +227,7 @@ function PriceRow({ row, onChanged }: { row: PriceItem; onChanged: () => void })
       <div className="grid gap-2 sm:grid-cols-[1fr_auto_auto] sm:items-center">
         <Input
           defaultValue={row.label}
+          aria-label={`What "${row.label}" is called`}
           onBlur={(event) => {
             const value = event.target.value.trim();
             if (value && value !== row.label) {
@@ -261,7 +262,18 @@ function PriceRow({ row, onChanged }: { row: PriceItem; onChanged: () => void })
           variant="ghost"
           size="sm"
           aria-label={`Remove ${row.label}`}
-          onClick={() => remove.mutate({ itemId: row.id })}
+          disabled={remove.isPending}
+          onClick={() => {
+            // Retiring keeps the record of what was charged; this does not.
+            if (
+              window.confirm(
+                `Remove "${row.label}" for good? To stop offering it but keep ` +
+                  "the record, switch it to Retired instead.",
+              )
+            ) {
+              remove.mutate({ itemId: row.id });
+            }
+          }}
         >
           <Trash2 className="size-4" />
         </Button>
@@ -271,6 +283,7 @@ function PriceRow({ row, onChanged }: { row: PriceItem; onChanged: () => void })
         <Input
           className="flex-1 min-w-48 h-8 text-sm"
           defaultValue={row.note ?? ""}
+          aria-label={`Note on ${row.label}`}
           placeholder="Note — “plus cemetery charges”, “per day”, “from”"
           onBlur={(event) => {
             const value = event.target.value.trim() || null;

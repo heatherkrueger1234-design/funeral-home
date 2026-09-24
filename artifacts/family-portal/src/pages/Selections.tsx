@@ -9,7 +9,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Lock, Plus, X } from "lucide-react";
-import { Loading, PageHeader } from "@/components/page";
+import { LoadFailed, Loading, PageHeader } from "@/components/page";
 
 /**
  * Hymns, readings, music, and the names of whoever will carry.
@@ -72,6 +72,13 @@ export default function Selections() {
   const remove = useDeleteFamilySelection({ mutation: { onSuccess: refresh } });
 
   if (selections.isPending) return <Loading rows={4} />;
+
+  // Not the empty sections, which would say nothing had been chosen yet.
+  if (selections.isError) {
+    return (
+      <LoadFailed title="The service" onRetry={() => void selections.refetch()} />
+    );
+  }
 
   const rows = selections.data ?? [];
 
@@ -169,6 +176,10 @@ export default function Selections() {
                         size="icon"
                         className="shrink-0 text-muted-foreground"
                         aria-label={`Remove ${item.value}`}
+                        disabled={
+                          remove.isPending &&
+                          remove.variables?.selectionId === item.id
+                        }
                         onClick={() =>
                           remove.mutate({ selectionId: item.id })
                         }
@@ -240,16 +251,18 @@ export default function Selections() {
                   }}
                 />
               )}
+              {/* Worded, not a bare "+": nobody should have to guess that the
+                  cross in the corner is what sends it. */}
               <Button
                 type="button"
                 variant="outline"
-                size="icon"
                 className="shrink-0"
-                aria-label={`Add to ${section.title}`}
+                aria-label={`Add to ${section.title.toLowerCase()}`}
                 disabled={!draft.value.trim()}
                 onClick={submit}
               >
                 <Plus className="size-4" />
+                Add
               </Button>
             </div>
           </section>

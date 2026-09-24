@@ -1,5 +1,5 @@
 import type { ButtonHTMLAttributes, InputHTMLAttributes, ReactNode } from "react";
-import { useId } from "react";
+import { useId, useState } from "react";
 import { cn } from "@/lib/api";
 
 /**
@@ -263,6 +263,46 @@ export function Swatch({ color, name }: { color: string; name: string }) {
       aria-hidden
       title={name}
     />
+  );
+}
+
+/**
+ * Copy a piece of text, and say so in words.
+ *
+ * For the things that get read out or pasted into an email on a call -- an
+ * invitation link, an address. Selecting a 200-character link by dragging
+ * across it is how the last character gets left behind.
+ */
+export function CopyButton({
+  text,
+  label = "Copy",
+}: {
+  text: string;
+  label?: string;
+}) {
+  const [copied, setCopied] = useState<"yes" | "no" | null>(null);
+
+  return (
+    <Button
+      type="button"
+      variant="quiet"
+      onClick={() => {
+        void navigator.clipboard
+          .writeText(text)
+          .then(() => setCopied("yes"))
+          // Refused outside a secure context or without permission. Saying
+          // so beats a button that silently did nothing.
+          .catch(() => setCopied("no"));
+      }}
+    >
+      <span aria-live="polite">
+        {copied === "yes"
+          ? "Copied"
+          : copied === "no"
+            ? "Could not copy; select it instead"
+            : label}
+      </span>
+    </Button>
   );
 }
 

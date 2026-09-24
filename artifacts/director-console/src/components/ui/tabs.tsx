@@ -26,7 +26,7 @@ const TabsList = React.forwardRef<
   <TabsPrimitive.List
     ref={ref}
     className={cn(
-      "relative flex items-stretch gap-1 overflow-x-auto border-b border-border",
+      "relative flex items-stretch gap-0.5 overflow-x-auto border-b border-border",
       // The rule runs the full width of the bar, under the tabs and past the
       // last one, the way a printed table rules its header.
       "[scrollbar-width:none] [&::-webkit-scrollbar]:hidden",
@@ -49,7 +49,7 @@ const TabsTrigger = React.forwardRef<
     ref={ref}
     className={cn(
       "relative inline-flex shrink-0 items-center justify-center gap-1.5 whitespace-nowrap",
-      "px-3 pb-2.5 pt-2 text-sm font-semibold",
+      "px-2.5 pb-2.5 pt-2 text-sm font-semibold",
       "text-muted-foreground transition-colors duration-200 ease-[cubic-bezier(0.2,0.6,0.3,1)]",
       "hover:text-foreground",
       "focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-[var(--accent)]",

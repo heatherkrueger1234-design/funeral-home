@@ -6,13 +6,14 @@ import {
   useGetFamilySession,
   useInviteFamilyRelative,
   getGetFamilyRelativesQueryKey,
+  getGetFamilyMessagesQueryKey,
   type FamilyRelativeInvited,
 } from "@workspace/api-client-react";
 import { Check, Copy, Loader2, UserPlus, Users } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Divider, Empty, Loading, PageHeader, Panel } from "@/components/page";
+import { Divider, Empty, LoadFailed, Loading, PageHeader, Panel } from "@/components/page";
 import { useToast } from "@/hooks/use-toast";
 import { plainError } from "@/lib/memory-book";
 
@@ -136,6 +137,10 @@ export default function Family() {
         void queryClient.invalidateQueries({
           queryKey: getGetFamilyRelativesQueryKey(),
         });
+        // The server notes the addition in the thread with the home.
+        void queryClient.invalidateQueries({
+          queryKey: getGetFamilyMessagesQueryKey(),
+        });
         if (created.link === null) {
           toast({ title: "Sent", description: sentLine(created) });
         }
@@ -151,6 +156,12 @@ export default function Family() {
         <Loading rows={2} />
       </div>
     );
+  }
+
+  // Without this a failed load fell through to "Ask the funeral home to add
+  // someone" — telling the one person allowed to add family that they cannot.
+  if (relatives.isError) {
+    return <LoadFailed title="Family" onRetry={() => void relatives.refetch()} />;
   }
 
   const data = relatives.data;

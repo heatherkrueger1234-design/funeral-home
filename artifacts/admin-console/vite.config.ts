@@ -118,5 +118,16 @@ export default defineConfig({
     port,
     host: "0.0.0.0",
     allowedHosts: true,
+    // Mirrors nginx's `proxy_pass` to the API server, for the Playwright e2e
+    // suite in artifacts/e2e-tests only -- the same escape hatch the other two
+    // consoles have. Unset in every other context, including production.
+    proxy: process.env.E2E_API_PROXY_TARGET
+      ? {
+          "/api": {
+            target: process.env.E2E_API_PROXY_TARGET,
+            changeOrigin: true,
+          },
+        }
+      : undefined,
   },
 });

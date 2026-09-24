@@ -26,8 +26,9 @@ import {
 import { currentUser, tenant } from "../middleware/require-auth";
 import {
   createPasswordReset,
+  INVITE_TTL_DAYS,
+  INVITE_TTL_MS,
   normaliseEmail,
-  PASSWORD_RESET_TTL_MS,
 } from "../lib/auth";
 import { sendStaffInviteEmail } from "@workspace/mailer";
 import { templateFor, toTemplateJson } from "../lib/timeline";
@@ -205,7 +206,7 @@ router.post("/home/staff", async (req, res) => {
     })
     .returning();
 
-  const token = await createPasswordReset(created!.id);
+  const token = await createPasswordReset(created!.id, INVITE_TTL_MS);
   const base = process.env["CONSOLE_URL"]?.replace(/\/+$/, "") ?? "";
   const inviteLink = `${base}/reset-password?invited=1&token=${encodeURIComponent(token)}`;
 
@@ -214,7 +215,7 @@ router.post("/home/staff", async (req, res) => {
     homeName: home.name,
     invitedBy: user.displayName ?? user.email,
     inviteLink,
-    expiresInMinutes: Math.round(PASSWORD_RESET_TTL_MS / 60000),
+    expiresInDays: INVITE_TTL_DAYS,
   });
 
   // Returned once, so the owner can hand it over directly when the email is

@@ -261,6 +261,22 @@ export function describeWhen(isoDate: string, now = new Date()): string {
   return `in about ${months} month${months === 1 ? "" : "s"}`;
 }
 
+/** "2026-08-01" -> "August 1, 2026". A date in a sentence, not in a database. */
+function formatCalendarDate(isoDate: string): string {
+  const parsed = new Date(`${isoDate}T00:00:00Z`);
+  if (Number.isNaN(parsed.getTime())) return isoDate;
+  return parsed.toLocaleDateString("en-US", {
+    day: "numeric",
+    month: "long",
+    year: "numeric",
+    timeZone: "UTC",
+  });
+}
+
+function peopleCount(n: number): string {
+  return n === 1 ? "1 person here is" : `${n} people here are`;
+}
+
 function standingFor(days: number): ReminderStanding {
   if (days < 0) return "passed";
   if (days <= HORIZON_DAYS) return "soon";
@@ -316,7 +332,7 @@ export function licensureReminders(
       detail:
         "Senate Bill 24-173 requires every practitioner, director, embalmer, " +
         "cremationist and natural reductionist to hold a license by " +
-        "1 January 2027. Adding the people this applies to is how the rest of " +
+        "January 1, 2027. Adding the people this applies to is how the rest of " +
         "this page becomes useful.",
       standing: deadlineStanding(deadlineDays),
     });
@@ -324,7 +340,8 @@ export function licensureReminders(
     reminders.push({
       key: "deadline-outstanding",
       summary:
-        `${unlicensed.length} of ${practitioners.length} people here do not ` +
+        `${unlicensed.length} of ${practitioners.length} ` +
+        `${practitioners.length === 1 ? "person here does" : "people here do"} not ` +
         `have a license yet. The deadline is ${describeWhen(
           PRACTITIONER_LICENSURE_DEADLINE,
           now,
@@ -338,9 +355,9 @@ export function licensureReminders(
   } else if (deadlineDays < 0 && unlicensed.length > 0) {
     reminders.push({
       key: "deadline-passed",
-      summary: `${unlicensed.length} people here are working without a license on record.`,
+      summary: `${peopleCount(unlicensed.length)} working without a license on record.`,
       detail:
-        "The 1 January 2027 deadline has passed. This is the home's own " +
+        "The January 1, 2027 deadline has passed. This is the home's own " +
         "record to correct with DORA; what we can do is make sure it is not " +
         "a surprise.",
       standing: "passed",
@@ -370,7 +387,7 @@ export function licensureReminders(
           : `An amended registration is due ${describeWhen(dueOn, now)}.`,
       detail:
         "The services at this location changed on " +
-        `${licensure.servicesChangedOn}. C.R.S. 12-135-110 gives an ` +
+        `${formatCalendarDate(licensure.servicesChangedOn)}. C.R.S. 12-135-110 gives an ` +
         "establishment thirty days to file the amendment with DORA. Record " +
         "the date it was filed and this goes away.",
       standing: standingFor(days),
@@ -413,7 +430,7 @@ export function licensureReminders(
       key: `expiry-${person.id}`,
       summary:
         days < 0
-          ? `${person.personName}'s license expired on ${person.expiresOn}.`
+          ? `${person.personName}'s license expired on ${formatCalendarDate(person.expiresOn)}.`
           : `${person.personName}'s license expires ${describeWhen(
               person.expiresOn,
               now,

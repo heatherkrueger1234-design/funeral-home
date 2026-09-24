@@ -1,6 +1,10 @@
-import { useGetFamilyPrintItems } from "@workspace/api-client-react";
-import { Check, FileCheck, Printer } from "lucide-react";
-import { Empty, Loading, PageHeader } from "@/components/page";
+import { Link } from "wouter";
+import {
+  useGetFamilyPrintItems,
+  useGetFamilySession,
+} from "@workspace/api-client-react";
+import { Check, FileCheck, MessageCircle, Printer } from "lucide-react";
+import { Empty, LoadFailed, Loading, PageHeader } from "@/components/page";
 import { useAuthedPrintUrl } from "@/hooks/use-authed-print-url";
 
 /**
@@ -72,6 +76,7 @@ function ProofItem({ item }: { item: { id: number; title: string | null; templat
 
 export default function Proofs() {
   const items = useGetFamilyPrintItems();
+  const messagesLocked = useGetFamilySession().data?.messagesLocked ?? true;
 
   if (items.isPending) {
     return (
@@ -79,6 +84,14 @@ export default function Proofs() {
         <PageHeader title="Things to check" />
         <Loading rows={2} />
       </div>
+    );
+  }
+
+  // Not "Nothing to check", which would send them away from proofs that
+  // are there.
+  if (items.isError) {
+    return (
+      <LoadFailed title="Things to check" onRetry={() => void items.refetch()} />
     );
   }
 
@@ -102,6 +115,21 @@ export default function Proofs() {
             <ProofItem key={item.id} item={item} />
           ))}
         </ul>
+      )}
+
+      {/*
+        "Tell your director" used to be the end of the page, with the way to
+        do it three screens away on the hub. A spelling found here is sent
+        from here.
+      */}
+      {rows.length > 0 && !messagesLocked && (
+        <Link
+          href="/messages"
+          className="lift flex min-h-11 items-center justify-center gap-2 rounded-xl border border-border bg-card px-4 py-3 text-sm font-semibold text-[var(--accent-deep)] no-underline shadow-[var(--elevation-1)] transition-gentle hover:border-[var(--accent)]"
+        >
+          <MessageCircle className="size-4" />
+          Tell them about a correction
+        </Link>
       )}
     </div>
   );

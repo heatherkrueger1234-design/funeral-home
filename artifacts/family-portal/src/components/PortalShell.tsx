@@ -295,10 +295,21 @@ export function PortalShell({ children }: { children: ReactNode }) {
               ? "Please ask the funeral home to send you a new one. Nothing you have already added has been lost."
               : "Please check your connection and try again."}
           </p>
-          {gone && (
+          {gone ? (
             <div className="mt-6 text-left">
               <PasteLink />
             </div>
+          ) : (
+            // A dropped signal is the usual reason, and reloading by hand is
+            // not something everybody holding this phone knows how to do.
+            <button
+              type="button"
+              onClick={() => void session.refetch()}
+              disabled={session.isFetching}
+              className="mt-6 inline-flex min-h-11 items-center rounded-md border border-[var(--border-strong)] bg-card px-5 text-sm font-semibold shadow-[var(--elevation-1)] transition-gentle hover:border-[var(--accent)] disabled:opacity-45"
+            >
+              {session.isFetching ? "Trying again…" : "Try again"}
+            </button>
           )}
         </div>
       </FullScreen>
@@ -376,7 +387,7 @@ export function PortalShell({ children }: { children: ReactNode }) {
         <div className="mx-auto w-full max-w-2xl px-5 pt-5">
           <Link
             href="/"
-            className="group inline-flex items-center gap-1.5 rounded-md text-sm text-muted-foreground no-underline transition-colors duration-200 hover:text-foreground"
+            className="group -my-2 inline-flex min-h-11 items-center gap-1.5 rounded-md text-sm text-muted-foreground no-underline transition-colors duration-200 hover:text-foreground"
           >
             <ArrowLeft className="size-4 transition-transform duration-200 ease-[cubic-bezier(0.2,0.6,0.3,1)] group-hover:-translate-x-0.5" />
             Everything else

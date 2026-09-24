@@ -1,6 +1,11 @@
-import { useState } from "react";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Link } from "wouter";
+import { useEffect, useState } from "react";
+import {
+  keepPreviousData,
+  useMutation,
+  useQuery,
+  useQueryClient,
+} from "@tanstack/react-query";
+import { Link, useLocation, useSearch } from "wouter";
 import {
   api,
   describeAccount,
@@ -10,6 +15,7 @@ import {
 import {
   Button,
   Card,
+  CopyButton,
   EmptyState,
   ErrorState,
   Field,
@@ -30,18 +36,50 @@ type HomesPage = { total: number; homes: AdminHome[] };
  * "too much data" is a page and a search box, not a longer page.
  */
 export function Homes() {
-  const [search, setSearch] = useState("");
+  const [, navigate] = useLocation();
+  const initial = new URLSearchParams(useSearch()).get("q") ?? "";
+  const [search, setSearch] = useState(initial);
+  const [asked, setAsked] = useState(initial.trim());
   const [page, setPage] = useState(0);
   const [creating, setCreating] = useState(false);
 
+  /*
+   * Asked a moment after the typing stops, not on every key. Every list
+   * request writes a line to the access log -- the log a home's insurer is
+   * shown -- and searching "Riverside" one letter at a time wrote nine of
+   * them. The search also goes in the address, so coming back from a home
+   * lands on the same list rather than the top of all of them.
+   */
+  useEffect(() => {
+    const timer = window.setTimeout(() => {
+      const next = search.trim();
+      setAsked(next);
+      navigate(next ? `/homes?q=${encodeURIComponent(next)}` : "/homes", {
+        replace: true,
+      });
+    }, 350);
+    return () => window.clearTimeout(timer);
+  }, [search, navigate]);
+
   const query = useQuery({
-    queryKey: ["homes", search, page],
+    queryKey: ["homes", asked, page],
     queryFn: () =>
       api.get<HomesPage>(
         `/admin/homes?limit=${PAGE_SIZE}&offset=${page * PAGE_SIZE}` +
-          (search.trim() ? `&search=${encodeURIComponent(search.trim())}` : ""),
+          (asked ? `&search=${encodeURIComponent(asked)}` : ""),
       ),
+    // The table stays while the next page or search loads, instead of
+    // collapsing to skeletons and back on every keystroke.
+    placeholderData: keepPreviousData,
   });
+
+  // A page that emptied under us -- the last home on it was marked ours, say
+  // -- goes back to the first page rather than claiming there are no homes.
+  const emptiedPage =
+    page > 0 && query.data !== undefined && query.data.homes.length === 0;
+  useEffect(() => {
+    if (emptiedPage) setPage(0);
+  }, [emptiedPage]);
 
   return (
     <div className="flex flex-col gap-6">
@@ -69,12 +107,14 @@ export function Homes() {
         />
       )}
 
-      <div className="max-w-sm">
+      <div className="max-w-sm" role="search">
         <Field
           label="Find a home"
           type="search"
           value={search}
           placeholder="Name, web address or a staff email"
+          hint="A staff email finds their home only when it is typed in full."
+          maxLength={120}
           onChange={(event) => {
             setSearch(event.target.value);
             setPage(0);
@@ -88,15 +128,22 @@ export function Homes() {
         <ErrorState error={query.error} onRetry={() => void query.refetch()} />
       ) : query.data.homes.length === 0 ? (
         <EmptyState
-          title={search.trim() ? "No home matches that" : "No homes yet"}
+          title={asked ? "No home matches that" : "No homes yet"}
           detail={
-            search.trim()
+            asked
               ? "Nothing here matches what you typed. Clearing the search brings the whole list back."
               : "Adding a home creates it with the standard schedule and the default office hours already in place, so whoever signs in first is not starting from an empty screen."
           }
           action={
-            search.trim() ? (
-              <Button onClick={() => setSearch("")}>Clear the search</Button>
+            asked ? (
+              <Button
+                onClick={() => {
+                  setSearch("");
+                  setPage(0);
+                }}
+              >
+                Clear the search
+              </Button>
             ) : (
               <Button variant="primary" onClick={() => setCreating(true)}>
                 Add the first home
@@ -121,7 +168,7 @@ export function Homes() {
 
 function HomesTable({ homes }: { homes: AdminHome[] }) {
   return (
-    <div className="overflow-x-auto rounded-xl border border-[var(--border)] bg-[var(--card)] shadow-[var(--elevation-1)]">
+    <div className="relative overflow-x-auto rounded-xl border border-[var(--border)] bg-[var(--card)] shadow-[var(--elevation-1)]">
       <table className="w-full min-w-[52rem] text-left">
         {/*
           The header is a rule and a set of small caps, the way a printed
@@ -287,7 +334,12 @@ function CreateHome({
         <p className="mt-3 rounded-md bg-[var(--muted)] p-3 text-sm break-all">
           {invite.link}
         </p>
-        <div className="mt-4">
+        <p className="mt-2 max-w-prose text-sm text-[var(--muted-foreground)]">
+          It works once, for a week. After that, "Email a reset link" on the
+          home's page sends them a fresh one.
+        </p>
+        <div className="mt-4 flex flex-wrap gap-3">
+          <CopyButton text={invite.link} label="Copy the link" />
           <Button
             variant="primary"
             onClick={() => {
@@ -321,6 +373,7 @@ function CreateHome({
               setForm((current) => ({ ...current, name: event.target.value }))
             }
             hint="As it appears on their sign."
+            maxLength={160}
           />
           <Field
             label="Owner's email address"
@@ -333,12 +386,11 @@ function CreateHome({
               }))
             }
             hint="Optional. They get an invitation and set their own password."
-            problem={
-              create.error instanceof Error ? create.error.message : undefined
-            }
+            maxLength={254}
           />
           <Field
             label="Town"
+            maxLength={120}
             value={form.city}
             onChange={(event) =>
               setForm((current) => ({ ...current, city: event.target.value }))
@@ -346,12 +398,22 @@ function CreateHome({
           />
           <Field
             label="State"
+            maxLength={120}
             value={form.region}
             onChange={(event) =>
               setForm((current) => ({ ...current, region: event.target.value }))
             }
           />
         </div>
+
+        {/* Under the form rather than under the email box: most of what can
+            go wrong here -- a dropped connection, a name that is too long --
+            is nothing to do with the email address. */}
+        {create.error instanceof Error && (
+          <p role="alert" className="max-w-prose text-sm text-[var(--notice)]">
+            {create.error.message}
+          </p>
+        )}
 
         <div className="flex gap-3">
           <Button

@@ -314,6 +314,9 @@ export function PhotosPanel({
                 variant={photo.selected ? "default" : "outline"}
                 size="sm"
                 aria-pressed={photo.selected}
+                // Each press sends the whole selection as it stood; two quick
+                // presses on different cards would each drop the other.
+                disabled={setSelection.isPending}
                 onClick={() => toggle(photo.id)}
               >
                 <Check className="size-4" />

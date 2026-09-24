@@ -245,7 +245,7 @@ export async function chooseOffer(
   if (!claimed) {
     throw new HttpError(
       409,
-      "A time has already been chosen for this service. Please ring the funeral home if it needs to change.",
+      "A time has already been chosen for this service. Please call the funeral home if it needs to change.",
     );
   }
 

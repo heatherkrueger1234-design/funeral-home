@@ -6,6 +6,7 @@ import {
   describeAccount,
   formatDate,
   formatDateTime,
+  STAFF_ROLE_LABELS,
   type AdminHomeDetail,
 } from "@/lib/api";
 import {
@@ -83,6 +84,21 @@ export function HomeDetail({ homeId }: { homeId: number }) {
             .filter(Boolean)
             .join(" · ")}
         </p>
+        {/* The two things wanted on a call: their number, and what time it
+            is where they are before dialling it. */}
+        <p className="mt-1 flex flex-wrap gap-x-4 gap-y-1 text-sm text-[var(--muted-foreground)]">
+          {home.phone ? (
+            <a href={`tel:${home.phone}`} className="text-[var(--foreground)] underline">
+              {home.phone}
+            </a>
+          ) : (
+            <span>No phone number on file</span>
+          )}
+          <span>{home.timezone.replace(/_/g, " ")}</span>
+          <Link href={`/audit?home=${home.id}`} className="underline">
+            The access log for this home
+          </Link>
+        </p>
       </div>
 
       {home.suspendedAt && (
@@ -121,9 +137,14 @@ export function HomeDetail({ homeId }: { homeId: number }) {
         </div>
         {home.engagement.aftercareEnrolled > 0 && (
           <p className="mt-4 max-w-prose text-sm text-[var(--muted-foreground)]">
-            {home.engagement.aftercareDeclined} families were enrolled in
-            aftercare and have not answered either way, and{" "}
-            {home.engagement.aftercareUnsubscribed} asked to stop. Neither is a
+            {home.engagement.aftercareDeclined}{" "}
+            {home.engagement.aftercareDeclined === 1
+              ? "family was"
+              : "families were"}{" "}
+            enrolled in aftercare and{" "}
+            {home.engagement.aftercareDeclined === 1 ? "has" : "have"} not
+            answered either way, and {home.engagement.aftercareUnsubscribed}{" "}
+            asked to stop. Neither is a
             failure; most people never reply to anything in that first year.
           </p>
         )}
@@ -200,7 +221,9 @@ function StaffRow({
       <div className="min-w-0">
         <span>{person.displayName ?? "Not named yet"}</span>
         <span className="ml-3 text-sm text-[var(--muted-foreground)]">
-          {[person.title, person.role].filter(Boolean).join(" · ")}
+          {[person.title, STAFF_ROLE_LABELS[person.role] ?? person.role]
+            .filter(Boolean)
+            .join(" · ")}
         </span>
         {state && (
           <p className="text-sm text-[var(--muted-foreground)]">{state}</p>
@@ -252,6 +275,7 @@ function OursCard({ home }: { home: AdminHomeDetail }) {
       void queryClient.invalidateQueries({ queryKey: ["home", home.id] });
       void queryClient.invalidateQueries({ queryKey: ["homes"] });
       void queryClient.invalidateQueries({ queryKey: ["overview"] });
+      void queryClient.invalidateQueries({ queryKey: ["audit"] });
     },
   });
 
@@ -316,6 +340,7 @@ function SuspensionCard({ home }: { home: AdminHomeDetail }) {
       void queryClient.invalidateQueries({ queryKey: ["home", home.id] });
       void queryClient.invalidateQueries({ queryKey: ["homes"] });
       void queryClient.invalidateQueries({ queryKey: ["overview"] });
+      void queryClient.invalidateQueries({ queryKey: ["audit"] });
     },
   });
 
@@ -327,6 +352,11 @@ function SuspensionCard({ home }: { home: AdminHomeDetail }) {
           Lifting this lets the home open cases again straight away. Nothing
           else changes, because nothing else was taken away.
         </p>
+        {change.error instanceof Error && (
+          <p role="alert" className="mb-3 text-sm text-[var(--notice)]">
+            {change.error.message}
+          </p>
+        )}
         <Button
           variant="primary"
           disabled={change.isPending}
@@ -354,6 +384,7 @@ function SuspensionCard({ home }: { home: AdminHomeDetail }) {
             label="Why is this home being suspended?"
             value={reason}
             onChange={(event) => setReason(event.target.value)}
+            maxLength={400}
             hint="This goes in the access log, and it is what you will read in six months when somebody asks."
             problem={
               change.error instanceof Error ? change.error.message : undefined
@@ -367,7 +398,13 @@ function SuspensionCard({ home }: { home: AdminHomeDetail }) {
             >
               {change.isPending ? "Suspending…" : `Suspend ${home.name}`}
             </Button>
-            <Button variant="plain" onClick={() => setConfirming(false)}>
+            <Button
+              variant="plain"
+              onClick={() => {
+                setConfirming(false);
+                change.reset();
+              }}
+            >
               Cancel
             </Button>
           </div>

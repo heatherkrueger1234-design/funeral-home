@@ -15,7 +15,7 @@ export default function NotFound() {
           Nothing is wrong. The address may have changed, or been mistyped.
         </p>
         <Link
-          href="/"
+          href="/cases"
           className="mt-6 inline-block text-sm font-semibold text-[var(--accent-deep)] decoration-[var(--accent)]/40 underline-offset-4 hover:decoration-[var(--accent)]"
         >
           Back to the cases
