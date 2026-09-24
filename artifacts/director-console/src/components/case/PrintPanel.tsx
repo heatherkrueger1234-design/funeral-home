@@ -26,7 +26,7 @@ import {
 } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
 import { Check, Printer, Trash2, Plus } from "lucide-react";
-import { Loading } from "@/components/page";
+import { Confirm, LoadFailed, Loading } from "@/components/page";
 
 /**
  * The print studio.
@@ -164,6 +164,7 @@ function Studio({
                 <p className="text-sm leading-snug text-muted-foreground">{slot.hint}</p>
               )}
               <Input
+                key={`${slot.key}:${item.values[slot.key] ?? ""}`}
                 id={slot.key}
                 defaultValue={item.values[slot.key] ?? ""}
                 placeholder={item.resolved[slot.key] ?? ""}
@@ -206,7 +207,14 @@ function Studio({
               </Select>
             )}
 
+            {/*
+              Keyed by the stored wording so that choosing one of the home's
+              saved paragraphs above shows up here. Without it the box kept
+              the old words, and leaving it saved them straight back over the
+              paragraph that had just been chosen.
+            */}
             <Textarea
+              key={`${slot.key}:${item.values[slot.key] ?? ""}`}
               id={slot.key}
               rows={5}
               defaultValue={item.values[slot.key] ?? ""}
@@ -234,9 +242,11 @@ function Studio({
             defaultValue={item.quantity ?? ""}
             onBlur={(event) => {
               const value = Number(event.target.value);
+              const next = Number.isInteger(value) && value > 0 ? value : null;
+              if (next === (item.quantity ?? null)) return;
               update.mutate({
                 printItemId: item.id,
-                data: { quantity: Number.isInteger(value) && value > 0 ? value : null },
+                data: { quantity: next },
               });
             }}
           />
@@ -316,6 +326,18 @@ export function PrintPanel({ caseId }: { caseId: number }) {
     );
   }
 
+  if (templates.isError || items.isError) {
+    return (
+      <LoadFailed
+        what="The print studio"
+        onRetry={() => {
+          void templates.refetch();
+          void items.refetch();
+        }}
+      />
+    );
+  }
+
   const open = (items.data ?? []).find((item) => item.id === editing);
   const openTemplate = (templates.data ?? []).find(
     (template) => template.key === open?.templateKey,
@@ -341,7 +363,7 @@ export function PrintPanel({ caseId }: { caseId: number }) {
               key={item.id}
               className="flex flex-wrap items-center gap-3 rounded-xl border border-border bg-card px-4 py-3.5 shadow-[var(--elevation-1)]"
             >
-              <span className="min-w-0 flex-1">
+              <span className="min-w-[12rem] flex-1">
                 <span className="block truncate font-medium">
                   {item.title ?? item.templateName}
                 </span>
@@ -365,18 +387,27 @@ export function PrintPanel({ caseId }: { caseId: number }) {
                   target="_blank"
                   rel="noreferrer"
                 >
-                  <Printer className="size-4" />
+                  <Printer className="size-4" aria-hidden />
+                  Print
                 </a>
               </Button>
-              <Button
-                variant="ghost"
-                size="icon"
-                className="text-muted-foreground"
-                aria-label={`Delete ${item.templateName}`}
-                onClick={() => remove.mutate({ printItemId: item.id })}
-              >
-                <Trash2 className="size-4" />
-              </Button>
+              <Confirm
+                trigger={
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="text-muted-foreground"
+                    aria-label={`Delete ${item.title ?? item.templateName}`}
+                  >
+                    <Trash2 className="size-4" />
+                  </Button>
+                }
+                title={`Delete ${item.title ?? item.templateName}?`}
+                description="Everything typed into it goes, and any proof the family was shown disappears from their page. Starting it again is one click, but the wording is not kept."
+                confirmLabel="Delete it"
+                destructive
+                onConfirm={() => remove.mutate({ printItemId: item.id })}
+              />
             </li>
           ))}
         </ul>
@@ -385,11 +416,12 @@ export function PrintPanel({ caseId }: { caseId: number }) {
       <section className="space-y-3">
         <h3 className="font-display text-base">Start something</h3>
         <ul className="grid gap-3 sm:grid-cols-2">
-          {templates.data!.map((template) => (
+          {(templates.data ?? []).map((template) => (
             <li key={template.key}>
               <button
                 type="button"
-                className="w-full lift rounded-xl border border-border bg-card p-5 text-left shadow-[var(--elevation-1)] transition-gentle hover:border-[color-mix(in_oklab,var(--accent)_45%,var(--border))]"
+                disabled={create.isPending}
+                className="w-full lift rounded-xl disabled:opacity-60 border border-border bg-card p-5 text-left shadow-[var(--elevation-1)] transition-gentle hover:border-[color-mix(in_oklab,var(--accent)_45%,var(--border))]"
                 onClick={() =>
                   create.mutate({ caseId, data: { templateKey: template.key } })
                 }

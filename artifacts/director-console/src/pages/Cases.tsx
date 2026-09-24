@@ -12,6 +12,7 @@ import { Label } from "@/components/ui/label";
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
   DialogFooter,
   DialogHeader,
   DialogTitle,
@@ -29,8 +30,8 @@ import {
 } from "lucide-react";
 import { ImportCases } from "@/components/ImportCases";
 import { TrialBanner } from "@/components/SetupChecklist";
-import { Empty, Loading, PageHeader } from "@/components/page";
-import { formatAtHome } from "@/lib/utils";
+import { Empty, LoadFailed, Loading, PageHeader } from "@/components/page";
+import { formatAtHome, fromHomeInput, zoneHint } from "@/lib/utils";
 import { useHomeZone } from "@/lib/session";
 
 /**
@@ -60,6 +61,7 @@ function formatService(
 
 function NewCaseDialog() {
   const [, navigate] = useLocation();
+  const zone = useHomeZone();
   const queryClient = useQueryClient();
   const [open, setOpen] = useState(false);
   const [first, setFirst] = useState("");
@@ -97,6 +99,11 @@ function NewCaseDialog() {
       <DialogContent>
         <DialogHeader>
           <DialogTitle>Open a case</DialogTitle>
+          <DialogDescription>
+            Only the name is needed. Add the dates you know and the family's
+            timeline builds itself from your standard schedule; anything left
+            empty can be filled in later, from either side.
+          </DialogDescription>
         </DialogHeader>
 
         <form
@@ -111,19 +118,15 @@ function NewCaseDialog() {
                 // midnight UTC, which is how every other screen reads them.
                 ...(born ? { dateOfBirth: new Date(born).toISOString() } : {}),
                 ...(died ? { dateOfDeath: new Date(died).toISOString() } : {}),
-                ...(serviceAt
-                  ? { serviceAt: new Date(serviceAt).toISOString() }
+                // A moment at the chapel, typed on the home's clock, not this
+                // laptop's (`fromHomeInput`) -- as on every other time picker.
+                ...(serviceAt && fromHomeInput(serviceAt, zone)
+                  ? { serviceAt: fromHomeInput(serviceAt, zone)! }
                   : {}),
               },
             });
           }}
         >
-          <p className="text-sm text-muted-foreground">
-            Only the name is needed. Add the dates you know and the family's
-            timeline builds itself from your standard schedule; anything left
-            empty can be filled in later, from either side.
-          </p>
-
           <div className="grid gap-4 sm:grid-cols-2">
             <div className="space-y-1.5">
               <Label htmlFor="first">First name</Label>
@@ -169,6 +172,9 @@ function NewCaseDialog() {
                 value={serviceAt}
                 onChange={(event) => setServiceAt(event.target.value)}
               />
+              {zoneHint(zone) && (
+                <p className="text-xs text-muted-foreground">{zoneHint(zone)}</p>
+              )}
             </div>
           </div>
 
@@ -228,6 +234,8 @@ export default function Cases() {
           strokeWidth={1.75}
         />
         <Input
+          type="search"
+          aria-label="Search cases by name"
           value={search}
           placeholder="Search by name"
           className="pl-10"
@@ -237,11 +245,30 @@ export default function Cases() {
 
       {cases.isPending ? (
         <Loading />
+      ) : cases.isError ? (
+        <LoadFailed what="The cases" onRetry={() => void cases.refetch()} />
       ) : rows.length === 0 ? (
         search.trim() ? (
-          <Empty icon={Search} title={`Nothing matching "${search.trim()}"`}>
-            Search covers the name on the case. Closed cases are hidden unless
-            you ask for them.
+          <Empty
+            icon={Search}
+            title={`Nothing matching "${search.trim()}"`}
+            action={
+              <div className="flex flex-wrap justify-center gap-2">
+                {!showClosed && (
+                  <Button variant="outline" size="sm" onClick={() => setShowClosed(true)}>
+                    Look in closed cases
+                  </Button>
+                )}
+                <Button variant="ghost" size="sm" onClick={() => setSearch("")}>
+                  Clear the search
+                </Button>
+              </div>
+            }
+          >
+            Search covers the name on the case.{" "}
+            {showClosed
+              ? "Only closed cases are being searched."
+              : "Closed cases are hidden unless you ask for them."}
           </Empty>
         ) : showClosed ? (
           <Empty icon={ClipboardCheck} title="Nothing closed yet">

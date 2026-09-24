@@ -89,7 +89,10 @@ export function DetailsPanel({
             key={`${detail.serviceAt ?? "none"}-${zone ?? ""}`}
             defaultValue={toHomeInput(detail.serviceAt, zone)}
             onBlur={(event) => {
+              // Only when it changed: saving the same time again re-ran the
+              // schedule and sent every panel back to the server for nothing.
               const value = event.target.value;
+              if (value === toHomeInput(detail.serviceAt, zone)) return;
               save({ serviceAt: value ? fromHomeInput(value, zone) : null });
             }}
           />
@@ -107,19 +110,22 @@ export function DetailsPanel({
           <Input
             id="serviceLocation"
             defaultValue={detail.serviceLocation ?? ""}
-            onBlur={(event) =>
-              save({ serviceLocation: event.target.value.trim() || null })
-            }
+            onBlur={(event) => {
+              const value = event.target.value.trim() || null;
+              if (value !== (detail.serviceLocation ?? null)) {
+                save({ serviceLocation: value });
+              }
+            }}
           />
         </div>
 
         <div className="space-y-1.5">
-          <Label>Lead director</Label>
+          <Label htmlFor="leadDirector">Lead director</Label>
           <Select
             value={detail.leadDirectorId ? String(detail.leadDirectorId) : ""}
             onValueChange={(value) => save({ leadDirectorId: Number(value) })}
           >
-            <SelectTrigger aria-label="Lead director">
+            <SelectTrigger id="leadDirector">
               <SelectValue placeholder="Nobody yet" />
             </SelectTrigger>
             <SelectContent>
@@ -183,9 +189,12 @@ export function DetailsPanel({
             id="preferred"
             placeholder="Peggy"
             defaultValue={detail.decedentPreferredName ?? ""}
-            onBlur={(event) =>
-              save({ decedentPreferredName: event.target.value.trim() || null })
-            }
+            onBlur={(event) => {
+              const value = event.target.value.trim() || null;
+              if (value !== (detail.decedentPreferredName ?? null)) {
+                save({ decedentPreferredName: value });
+              }
+            }}
           />
           <p className="text-sm leading-snug text-muted-foreground">
             Used everywhere the family sees their name.

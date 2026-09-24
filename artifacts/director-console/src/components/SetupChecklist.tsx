@@ -7,8 +7,9 @@ import {
 } from "@workspace/api-client-react";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
-import { ArrowRight } from "lucide-react";
-import { BASE_PATH } from "@/lib/base";
+import { ArrowRight, Loader2 } from "lucide-react";
+import { useBillingHandoff } from "@/components/BillingSection";
+import { useSession } from "@/lib/session";
 
 /**
  * What a new home sees instead of an empty console.
@@ -34,8 +35,10 @@ import { BASE_PATH } from "@/lib/base";
  * following this list wants to be sent.
  */
 const DESTINATIONS: Record<string, string> = {
-  case: "/",
-  family: "/",
+  // Both happen on the case list — "/" is this checklist's own page, so
+  // pointing there went nowhere.
+  case: "/cases",
+  family: "/cases",
   branding: "/settings",
   hours: "/settings",
   schedule: "/settings",
@@ -167,24 +170,15 @@ export function SetupChecklist() {
  */
 export function TrialBanner() {
   const billing = useGetBilling();
-  const queryClient = useQueryClient();
+  const { session } = useSession();
+  const { busy, go } = useBillingHandoff();
 
   if (!billing.data) return null;
 
   const { subscriptionStatus, trialDaysLeft, billingConfigured } = billing.data;
-
-  const startCheckout = async () => {
-    const response = await fetch("/api/billing/checkout", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      credentials: "include",
-      body: JSON.stringify({ returnUrl: `${window.location.origin}${BASE_PATH}/settings` }),
-    });
-
-    const payload = (await response.json()) as { url?: string; error?: string };
-    if (payload.url) window.location.href = payload.url;
-    void queryClient;
-  };
+  // The server lets only an owner start a subscription; anybody else is told
+  // who can, rather than handed a button that fails.
+  const isOwner = session?.user.role === "owner";
 
   const ended = subscriptionStatus === "canceled";
   const closing = subscriptionStatus === "trial" && (trialDaysLeft ?? 99) <= 7;
@@ -215,11 +209,17 @@ export function TrialBanner() {
         )}
       </span>
 
-      {billingConfigured && (
-        <Button size="sm" onClick={() => void startCheckout()}>
-          Start a subscription
-        </Button>
-      )}
+      {billingConfigured &&
+        (isOwner ? (
+          <Button size="sm" disabled={busy} onClick={() => void go("/api/billing/checkout")}>
+            {busy && <Loader2 className="size-4 animate-spin" />}
+            Start a subscription
+          </Button>
+        ) : (
+          <span className="text-sm text-muted-foreground">
+            Your home&rsquo;s owner can start one from Settings.
+          </span>
+        ))}
     </div>
   );
 }

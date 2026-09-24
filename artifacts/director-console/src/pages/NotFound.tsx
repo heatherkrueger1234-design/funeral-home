@@ -18,7 +18,7 @@ export default function NotFound() {
           href="/"
           className="mt-6 inline-block text-sm font-semibold text-[var(--accent-deep)] decoration-[var(--accent)]/40 underline-offset-4 hover:decoration-[var(--accent)]"
         >
-          Back to the cases
+          Back to today
         </Link>
       </div>
     </div>

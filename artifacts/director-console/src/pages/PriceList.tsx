@@ -12,7 +12,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
-import { Empty, Loading, PageHeader, Panel, Divider } from "@/components/page";
+import { Confirm, Empty, LoadFailed, Loading, PageHeader, Panel, Divider } from "@/components/page";
 import { Lock, Plus, Tag, Trash2 } from "lucide-react";
 
 /**
@@ -89,6 +89,9 @@ export default function PriceList() {
   });
 
   if (list.isPending) return <Loading rows={4} />;
+  if (list.isError) {
+    return <LoadFailed what="Your prices" onRetry={() => void list.refetch()} />;
+  }
 
   const rows = list.data ?? [];
 
@@ -144,53 +147,11 @@ export default function PriceList() {
       )}
 
       <Panel className="space-y-3">
-        <h2 className="font-display text-lg">Add a line</h2>
-        <div className="grid gap-3 sm:grid-cols-[1fr_1.5fr_auto]">
-          <div className="space-y-1.5">
-            <Label htmlFor="category">Heading</Label>
-            <Input
-              id="category"
-              list="price-categories"
-              value={category}
-              placeholder={categories[0] ?? "Services"}
-              onChange={(event) => setCategory(event.target.value)}
-            />
-            <datalist id="price-categories">
-              {categories.map((name) => (
-                <option key={name} value={name} />
-              ))}
-            </datalist>
-          </div>
-          <div className="space-y-1.5">
-            <Label htmlFor="label">What it is</Label>
-            <Input
-              id="label"
-              value={label}
-              placeholder="Graveside service"
-              onChange={(event) => setLabel(event.target.value)}
-            />
-          </div>
-          <div className="space-y-1.5">
-            <Label htmlFor="amount">Price</Label>
-            <Input
-              id="amount"
-              inputMode="decimal"
-              className="sm:w-28"
-              value={amount}
-              placeholder="2495"
-              onChange={(event) => setAmount(event.target.value)}
-            />
-          </div>
-        </div>
-        <p className="text-sm leading-snug text-muted-foreground">
-          Leave the price blank for anything that genuinely has no number —
-          flowers at market, a cemetery&rsquo;s own fee — and say so in the
-          note on the line.
-        </p>
-        <Button
-          variant="outline"
-          disabled={!newLabel || add.isPending}
-          onClick={() =>
+        <form
+          className="space-y-3"
+          onSubmit={(event) => {
+            event.preventDefault();
+            if (!newLabel || add.isPending) return;
             add.mutate({
               data: {
                 category: newCategory,
@@ -198,15 +159,59 @@ export default function PriceList() {
                 // An unreadable figure adds the line without one rather than
                 // refusing the whole thing; the label is the part that took
                 // thought, and the price is editable in place next to it.
-                amountCents:
-                  typed.kind === "cents" ? typed.cents : null,
+                amountCents: typed.kind === "cents" ? typed.cents : null,
               },
-            })
-          }
+            });
+          }}
         >
-          <Plus className="size-4" />
-          Add
-        </Button>
+          <h2 className="font-display text-lg">Add a line</h2>
+          <div className="grid gap-3 sm:grid-cols-[1fr_1.5fr_auto]">
+            <div className="space-y-1.5">
+              <Label htmlFor="category">Heading</Label>
+              <Input
+                id="category"
+                list="price-categories"
+                value={category}
+                placeholder={categories[0] ?? "Services"}
+                onChange={(event) => setCategory(event.target.value)}
+              />
+              <datalist id="price-categories">
+                {categories.map((name) => (
+                  <option key={name} value={name} />
+                ))}
+              </datalist>
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="label">What it is</Label>
+              <Input
+                id="label"
+                value={label}
+                placeholder="Graveside service"
+                onChange={(event) => setLabel(event.target.value)}
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="amount">Price</Label>
+              <Input
+                id="amount"
+                inputMode="decimal"
+                className="sm:w-28"
+                value={amount}
+                placeholder="2495"
+                onChange={(event) => setAmount(event.target.value)}
+              />
+            </div>
+          </div>
+          <p className="text-sm leading-snug text-muted-foreground">
+            Leave the price blank for anything that genuinely has no number —
+            flowers at market, a cemetery&rsquo;s own fee — and say so in the
+            note on the line.
+          </p>
+          <Button type="submit" variant="outline" disabled={!newLabel || add.isPending}>
+            <Plus className="size-4" />
+            Add
+          </Button>
+        </form>
       </Panel>
     </div>
   );
@@ -224,8 +229,10 @@ function PriceRow({ row, onChanged }: { row: PriceItem; onChanged: () => void })
           : "border-dashed border-border bg-[var(--sunken)] opacity-70"
       }`}
     >
-      <div className="grid gap-2 sm:grid-cols-[1fr_auto_auto] sm:items-center">
+      <div className="grid grid-cols-[1fr_auto] items-center gap-2 sm:grid-cols-[1fr_auto_auto]">
         <Input
+          aria-label="What it is"
+          className="col-span-2 sm:col-span-1"
           defaultValue={row.label}
           onBlur={(event) => {
             const value = event.target.value.trim();
@@ -257,18 +264,24 @@ function PriceRow({ row, onChanged }: { row: PriceItem; onChanged: () => void })
             }
           }}
         />
-        <Button
-          variant="ghost"
-          size="sm"
-          aria-label={`Remove ${row.label}`}
-          onClick={() => remove.mutate({ itemId: row.id })}
-        >
-          <Trash2 className="size-4" />
-        </Button>
+        <Confirm
+          trigger={
+            <Button variant="ghost" size="sm" aria-label={`Remove ${row.label}`}>
+              <Trash2 className="size-4" />
+            </Button>
+          }
+          title={`Remove ${row.label}?`}
+          description="The line and its price are deleted. If you have simply stopped offering it, switch it to Retired instead and the record of what you charged stays."
+          confirmLabel="Remove it"
+          cancelLabel="Keep it"
+          destructive
+          onConfirm={() => remove.mutate({ itemId: row.id })}
+        />
       </div>
 
       <div className="mt-2 flex flex-wrap items-center gap-3">
         <Input
+          aria-label={`Note on ${row.label}`}
           className="flex-1 min-w-48 h-8 text-sm"
           defaultValue={row.note ?? ""}
           placeholder="Note — “plus cemetery charges”, “per day”, “from”"

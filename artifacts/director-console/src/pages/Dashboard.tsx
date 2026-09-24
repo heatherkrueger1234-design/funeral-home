@@ -1,7 +1,12 @@
 import { Link } from "wouter";
+import { useQueryClient } from "@tanstack/react-query";
 import {
   useGetBilling,
   useGetHomeDashboard,
+  useUpdateDeadline,
+  getGetCaseQueryKey,
+  getGetCasesQueryKey,
+  getGetDeadlinesQueryKey,
   getGetHomeDashboardQueryKey,
 } from "@workspace/api-client-react";
 import type {
@@ -9,7 +14,8 @@ import type {
   DashboardService,
 } from "@workspace/api-client-react";
 import { SetupChecklist, TrialBanner } from "@/components/SetupChecklist";
-import { Divider, Empty, Loading, PageHeader } from "@/components/page";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Divider, Empty, LoadFailed, Loading, PageHeader } from "@/components/page";
 import { cn, formatAtHome, homeDayNumber } from "@/lib/utils";
 import { useHomeZone } from "@/lib/session";
 import {
@@ -121,7 +127,11 @@ export default function Dashboard() {
   const zone = useHomeZone();
 
   if (dashboard.isPending || billing.isPending) return <Loading rows={4} />;
-  if (!dashboard.data) return null;
+  if (!dashboard.data) {
+    return (
+      <LoadFailed what="Today's page" onRetry={() => void dashboard.refetch()} />
+    );
+  }
 
   const data = dashboard.data;
   const nothingWaiting =
@@ -199,7 +209,7 @@ export default function Dashboard() {
       {data.overdue.length > 0 && (
         <DeadlineSection
           label="Past due"
-          description="Nobody has ticked these off, and the date has gone."
+          description="Nobody has ticked these off, and the date has gone. Tick one here if it was done."
           rows={data.overdue}
           urgent
         />
@@ -381,6 +391,28 @@ function DeadlineSection({
   urgent?: boolean;
 }) {
   const zone = useHomeZone();
+  const queryClient = useQueryClient();
+
+  /*
+   * Ticked off from here. "Past due" is usually something that was done and
+   * never marked — the family brought the clothes in on Tuesday — and the
+   * way to clear it used to be three screens deep, which is why these lists
+   * grew. The row itself still opens the case's timeline.
+   */
+  const complete = useUpdateDeadline({
+    mutation: {
+      onSuccess: (_row, { deadlineId }) => {
+        const caseId = rows.find((row) => row.id === deadlineId)?.caseId;
+        void queryClient.invalidateQueries({ queryKey: getGetHomeDashboardQueryKey() });
+        void queryClient.invalidateQueries({ queryKey: getGetCasesQueryKey() });
+        if (caseId !== undefined) {
+          void queryClient.invalidateQueries({ queryKey: getGetDeadlinesQueryKey(caseId) });
+          void queryClient.invalidateQueries({ queryKey: getGetCaseQueryKey(caseId) });
+        }
+      },
+    },
+  });
+
   return (
     <section className="space-y-3">
       <Divider label={label} />
@@ -391,10 +423,23 @@ function DeadlineSection({
       )}
       <ul className="space-y-2">
         {rows.map((row) => (
-          <li key={row.id}>
+          <li key={row.id} className="flex items-center gap-3">
+            {row.isEvent ? (
+              <span className="size-4 shrink-0" aria-hidden />
+            ) : (
+              <Checkbox
+                className="shrink-0"
+                aria-label={`Mark "${row.title}" done for ${row.decedentName}`}
+                disabled={complete.isPending && complete.variables?.deadlineId === row.id}
+                onCheckedChange={(checked) =>
+                  checked === true &&
+                  complete.mutate({ deadlineId: row.id, data: { completed: true } })
+                }
+              />
+            )}
             <Link
-              href={`/cases/${row.caseId}`}
-              className={cn(ROW, urgent && "border-[var(--notice)]")}
+              href={`/cases/${row.caseId}?tab=timeline`}
+              className={cn(ROW, "min-w-0 flex-1", urgent && "border-[var(--notice)]/60")}
             >
               <span className="min-w-0">
                 <span className="block truncate">{row.title}</span>
