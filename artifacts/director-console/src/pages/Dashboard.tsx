@@ -9,6 +9,7 @@ import type {
   DashboardService,
 } from "@workspace/api-client-react";
 import { SetupChecklist, TrialBanner } from "@/components/SetupChecklist";
+import { Button } from "@/components/ui/button";
 import { Divider, Empty, Loading, PageHeader } from "@/components/page";
 import { cn, formatAtHome, homeDayNumber } from "@/lib/utils";
 import { useHomeZone } from "@/lib/session";
@@ -19,6 +20,7 @@ import {
   Inbox,
   MessageSquare,
   Store,
+  WifiOff,
 } from "lucide-react";
 
 /**
@@ -121,7 +123,23 @@ export default function Dashboard() {
   const zone = useHomeZone();
 
   if (dashboard.isPending || billing.isPending) return <Loading rows={4} />;
-  if (!dashboard.data) return null;
+  // Blank was the old answer to a failed load, on the one page a director
+  // leaves open all day. A blank master page reads as "nothing to do".
+  if (!dashboard.data) {
+    return (
+      <Empty
+        icon={WifiOff}
+        title="Today's page couldn't be loaded"
+        action={
+          <Button variant="outline" onClick={() => void dashboard.refetch()}>
+            Try again
+          </Button>
+        }
+      >
+        Nothing has been lost. Check the connection and try again.
+      </Empty>
+    );
+  }
 
   const data = dashboard.data;
   const nothingWaiting =
@@ -259,7 +277,9 @@ export default function Dashboard() {
           <ul className="space-y-2">
             {data.awaitingServiceDate.map((row) => (
               <li key={row.caseId}>
-                <Link href={`/cases/${row.caseId}`} className={ROW}>
+                {/* Straight to where times are offered, which is what the
+                    sentence above tells them to do. */}
+                <Link href={`/cases/${row.caseId}?tab=details`} className={ROW}>
                   <span className="min-w-0">
                     <span className="block truncate font-semibold">
                       {row.decedentName}
@@ -393,7 +413,7 @@ function DeadlineSection({
         {rows.map((row) => (
           <li key={row.id}>
             <Link
-              href={`/cases/${row.caseId}`}
+              href={`/cases/${row.caseId}?tab=timeline`}
               className={cn(ROW, urgent && "border-[var(--notice)]")}
             >
               <span className="min-w-0">

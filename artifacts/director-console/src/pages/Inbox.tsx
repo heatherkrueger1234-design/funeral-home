@@ -147,7 +147,7 @@ function Conversation({ row }: { row: InboxEntry }) {
       <div className="flex items-start justify-between gap-4">
         <div className="min-w-0">
           <Link
-            href={`/cases/${row.caseId}`}
+            href={`/cases/${row.caseId}?tab=messages`}
             className="font-semibold no-underline hover:underline"
           >
             {row.decedentName}
@@ -235,7 +235,7 @@ function Conversation({ row }: { row: InboxEntry }) {
                   Cancel
                 </Button>
                 <Button asChild size="sm" variant="ghost" className="ml-auto">
-                  <Link href={`/cases/${row.caseId}`}>Open the case</Link>
+                  <Link href={`/cases/${row.caseId}?tab=messages`}>Open the case</Link>
                 </Button>
               </div>
             </div>

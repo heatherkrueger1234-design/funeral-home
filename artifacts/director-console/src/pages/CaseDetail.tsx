@@ -1,11 +1,11 @@
-import { useState } from "react";
-import { Link, useRoute } from "wouter";
+import { Link, useLocation, useRoute, useSearch } from "wouter";
 import { useQueryClient } from "@tanstack/react-query";
 import {
   useGetCase,
   useCloseCase,
   getGetCaseQueryKey,
   getGetCasesQueryKey,
+  getGetHomeDashboardQueryKey,
 } from "@workspace/api-client-react";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -33,10 +33,11 @@ import { PrintPanel } from "@/components/case/PrintPanel";
 import { MemoryBookPanel } from "@/components/case/MemoryBookPanel";
 import { DetailsPanel } from "@/components/case/DetailsPanel";
 import { CaseData } from "@/components/CaseData";
+import { CaseGlance } from "@/components/case/CaseGlance";
 import { Empty, Loading } from "@/components/page";
 import { formatAtHome } from "@/lib/utils";
 import { useHomeZone } from "@/lib/session";
-import { ArrowLeft, CalendarX, FileQuestion } from "lucide-react";
+import { ArrowLeft, CalendarX, FileQuestion, WifiOff } from "lucide-react";
 
 /**
  * "Sat 26 Sep, 4:51 pm" — the day of the week is half of how a date is read
@@ -60,8 +61,22 @@ export default function CaseDetail() {
   const caseId = Number(params?.caseId);
   const { toast } = useToast();
   const queryClient = useQueryClient();
-  const [tab, setTab] = useState("family");
   const zone = useHomeZone();
+
+  /*
+   * The tab lives in the address, not in memory. "Open the case" from the
+   * inbox should land on the messages, and a past-due row on the master
+   * page on the timeline; with the tab held in state every link into a case
+   * dropped the director on Family and left them to find the rest. It also
+   * means the back button and a pasted link both come back to the same tab.
+   */
+  const search = useSearch();
+  const [, navigate] = useLocation();
+  const tab = new URLSearchParams(search).get("tab") ?? "family";
+  const setTab = (next: string) =>
+    navigate(`/cases/${caseId}${next === "family" ? "" : `?tab=${next}`}`, {
+      replace: true,
+    });
 
   const row = useGetCase(caseId, {
     query: {
@@ -75,6 +90,7 @@ export default function CaseDetail() {
       onSuccess: () => {
         void queryClient.invalidateQueries({ queryKey: getGetCaseQueryKey(caseId) });
         void queryClient.invalidateQueries({ queryKey: getGetCasesQueryKey() });
+        void queryClient.invalidateQueries({ queryKey: getGetHomeDashboardQueryKey() });
         toast({
           title: "Case closed",
           description:
@@ -84,7 +100,36 @@ export default function CaseDetail() {
     },
   });
 
+  // Checked first: a disabled query never leaves "pending", so "/cases/abc"
+  // used to be a skeleton that loaded forever.
+  if (!Number.isInteger(caseId)) {
+    return (
+      <Empty icon={FileQuestion} title="That case isn't here">
+        The address may be wrong. Every case is on the Cases page.
+      </Empty>
+    );
+  }
+
   if (row.isPending) return <Loading rows={4} />;
+
+  // A dropped connection is not a missing case, and saying "it may have been
+  // removed" about one that is fine is how a director panics.
+  const missing = (row.error as { status?: number } | null)?.status === 404;
+  if (row.isError && !missing && !row.data) {
+    return (
+      <Empty
+        icon={WifiOff}
+        title="This case couldn't be opened just now"
+        action={
+          <Button variant="outline" onClick={() => void row.refetch()}>
+            Try again
+          </Button>
+        }
+      >
+        Nothing has been lost. Check the connection and try again.
+      </Empty>
+    );
+  }
 
   if (!row.data) {
     return (
@@ -96,6 +141,8 @@ export default function CaseDetail() {
 
   const detail = row.data;
   const closed = detail.status === "closed";
+  const serviceAhead =
+    detail.serviceAt !== null && new Date(detail.serviceAt).getTime() > Date.now();
 
   return (
     <div className="space-y-6">
@@ -202,6 +249,19 @@ export default function CaseDetail() {
                   anyone who left an address is offered the grief check-ins in
                   your name — nothing is sent until they say yes.
                 </AlertDialogDescription>
+                {/*
+                  Closing cannot be undone, and closing before the funeral
+                  starts the aftercare clock on a family who has not buried
+                  anyone yet. Said in the dialog rather than refused, because
+                  a home may have a reason.
+                */}
+                {serviceAhead && detail.serviceAt && (
+                  <p className="rounded-lg border border-[var(--notice)]/30 bg-[var(--notice-soft)] px-3 py-2.5 text-sm font-medium text-[var(--notice)]">
+                    The service hasn't happened yet — it's{" "}
+                    {serviceLabel(detail.serviceAt, zone)}. A closed case
+                    can't be reopened.
+                  </p>
+                )}
               </AlertDialogHeader>
               <AlertDialogFooter>
                 <AlertDialogCancel>Not yet</AlertDialogCancel>
@@ -213,6 +273,12 @@ export default function CaseDetail() {
           </AlertDialog>
         )}
       </header>
+
+      <CaseGlance
+        caseId={caseId}
+        unreadFamilyMessages={detail.unreadFamilyMessages}
+        onOpen={setTab}
+      />
 
       <Tabs value={tab} onValueChange={setTab}>
         <TabsList>
