@@ -37,6 +37,8 @@ export default function ChoosePassword() {
 
   const reset = useResetPassword({
     mutation: {
+      // The failure is shown on the page itself; a toast on top says it twice.
+      meta: { handlesOwnErrors: true },
       onSuccess: () => setDone(true),
       onError: (error: unknown) =>
         setProblem(

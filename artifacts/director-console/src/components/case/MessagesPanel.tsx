@@ -19,9 +19,9 @@ import { useHomeZone } from "@/lib/session";
 /**
  * The thread, from the home's side.
  *
- * Opening this tab marks the family's messages read, which is what clears the
- * badge on the worklist — the director's "which family is waiting on me"
- * signal is maintained by the act of actually looking.
+ * Opening this tab marks the family's messages read, which clears the "new"
+ * badges. It does not stop the family counting as waiting on a reply — that
+ * is worked out from who wrote last, so only an answer clears it.
  */
 export function MessagesPanel({ caseId }: { caseId: number }) {
   const zone = useHomeZone();
@@ -30,15 +30,22 @@ export function MessagesPanel({ caseId }: { caseId: number }) {
   const [body, setBody] = useState("");
 
   /*
-   * Reading the thread marks it read on the server, and the header's
-   * Messages badge is counted from the inbox -- which nothing refreshed, so
-   * the badge kept saying a family was waiting for up to a minute after the
-   * director had read and answered them.
+   * Reading the thread marks it read on the server (and the server now
+   * finishes doing so before it answers), but the badges that count unread
+   * messages live on other queries: the header's Messages badge on the
+   * inbox, the tab's badge on the case, the worklist on the cases list.
+   * Nothing refreshed them, so they kept saying there was something new for
+   * up to a minute after the director had read it.
    */
   useEffect(() => {
     if (thread.dataUpdatedAt === 0) return;
     void queryClient.invalidateQueries({ queryKey: getGetHomeInboxQueryKey() });
-  }, [thread.dataUpdatedAt, queryClient]);
+    void queryClient.invalidateQueries({ queryKey: getGetCaseQueryKey(caseId) });
+    void queryClient.invalidateQueries({ queryKey: getGetCasesQueryKey() });
+    void queryClient.invalidateQueries({
+      queryKey: getGetHomeDashboardQueryKey(),
+    });
+  }, [thread.dataUpdatedAt, queryClient, caseId]);
 
   const send = usePostCaseMessage({
     mutation: {
@@ -142,6 +149,7 @@ export function MessagesPanel({ caseId }: { caseId: number }) {
             rows={3}
             value={body}
             placeholder="Reply to the family"
+            aria-label="Reply to the family"
             onChange={(event) => setBody(event.target.value)}
           />
           <Button

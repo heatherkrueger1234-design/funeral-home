@@ -4,13 +4,26 @@ import {
   useUpdateObituary,
   useComposeObituary,
   useApproveObituary,
+  useReopenObituary,
   getGetObituaryQueryKey,
   getGetCaseQueryKey,
+  ApiError,
 } from "@workspace/api-client-react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 import { useToast } from "@/hooks/use-toast";
-import { Check, RefreshCw } from "lucide-react";
+import { Check, RefreshCw, Undo2 } from "lucide-react";
 import { Loading } from "@/components/page";
 
 /**
@@ -37,11 +50,42 @@ export function ObituaryPanel({ caseId }: { caseId: number }) {
   const update = useUpdateObituary({ mutation: { onSuccess: refresh } });
   const compose = useComposeObituary({
     mutation: {
+      // This panel explains its own failures; without the flag the console's
+      // catch-all toast would say "That didn't save" on top of it.
+      meta: { handlesOwnErrors: true },
       onSuccess: refresh,
-      onError: () => {
+      onError: (error) => {
+        // Only the server's hand-edited refusal is a question about the
+        // director's edits. Anything else — a dropped connection, a case
+        // closed in another tab — telling them "that would replace your
+        // edits" would send them looking for a problem that is not there.
+        if (error instanceof ApiError && error.status === 409) {
+          toast({
+            title: "That would replace your edits",
+            description:
+              "Use “Recompose anyway” if you want to start again from the family's answers.",
+          });
+          return;
+        }
         toast({
-          title: "That would replace your edits",
-          description: "Use “Recompose anyway” if you want to start again from the family's answers.",
+          title: "Couldn't compose that",
+          description:
+            error instanceof Error && error.message
+              ? error.message
+              : "Please check your connection and try again.",
+          variant: "destructive",
+        });
+      },
+    },
+  });
+  const reopen = useReopenObituary({
+    mutation: {
+      onSuccess: () => {
+        refresh();
+        toast({
+          title: "Reopened",
+          description:
+            "It's back with you to edit, and the family can change it from their portal again until you approve it.",
         });
       },
     },
@@ -149,10 +193,46 @@ export function ObituaryPanel({ caseId }: { caseId: number }) {
         />
 
         {approved ? (
-          <p className="flex items-center gap-1.5 text-sm text-[var(--accent-deep)]">
-            <Check className="size-4" />
-            Approved for print
-          </p>
+          <div className="flex flex-wrap items-center gap-3">
+            <p className="flex items-center gap-1.5 text-sm text-[var(--accent-deep)]">
+              <Check className="size-4" />
+              Approved for print
+            </p>
+            {/*
+              The way back for the misspelt name found after sign-off. Asked
+              first, because approval is what the printer is working from.
+            */}
+            <AlertDialog>
+              <AlertDialogTrigger asChild>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="ml-auto text-muted-foreground"
+                  disabled={reopen.isPending}
+                >
+                  <Undo2 className="size-4" />
+                  Reopen
+                </Button>
+              </AlertDialogTrigger>
+              <AlertDialogContent>
+                <AlertDialogHeader>
+                  <AlertDialogTitle>Reopen the obituary?</AlertDialogTitle>
+                  <AlertDialogDescription>
+                    It will no longer be approved for print, and the family
+                    will be able to change it from their portal again until
+                    you approve it once more. If anything has already gone to
+                    the printer, let them know it is changing.
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                  <AlertDialogCancel>Leave it approved</AlertDialogCancel>
+                  <AlertDialogAction onClick={() => reopen.mutate({ caseId })}>
+                    Reopen it
+                  </AlertDialogAction>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
+          </div>
         ) : (
           <Button
             className="w-full"

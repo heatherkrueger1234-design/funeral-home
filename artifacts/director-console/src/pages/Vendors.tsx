@@ -84,6 +84,8 @@ export default function Vendors() {
 
   const create = useCreateVendor({
     mutation: {
+      // Toasts its own failure below; the catch-all would say it twice.
+      meta: { handlesOwnErrors: true },
       onSuccess: () => {
         setName("");
         setPhone("");

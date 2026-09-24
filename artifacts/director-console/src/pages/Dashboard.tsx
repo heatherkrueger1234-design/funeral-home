@@ -6,6 +6,7 @@ import {
 } from "@workspace/api-client-react";
 import type {
   DashboardDeadline,
+  DashboardQuoteRequest,
   DashboardService,
 } from "@workspace/api-client-react";
 import { SetupChecklist, TrialBanner } from "@/components/SetupChecklist";
@@ -127,6 +128,7 @@ export default function Dashboard() {
   const nothingWaiting =
     data.casesWaitingOnReply === 0 &&
     data.pendingRequests === 0 &&
+    data.quoteRequestsWaiting === 0 &&
     data.overdue.length === 0 &&
     data.offersAwaitingChoice === 0;
 
@@ -192,8 +194,45 @@ export default function Dashboard() {
 
       {nothingWaiting && (
         <Empty icon={CheckCircle2} title="Nobody is waiting on you">
-          No unanswered families, no requests, and nothing past due.
+          No unanswered families, no requests, no prices to chase, and nothing
+          past due.
         </Empty>
+      )}
+
+      {/*
+        A family who pressed "ask the home for a price" was told somebody
+        would find out. This is the only place that promise is visible
+        across cases, so it sits with the other things people are waiting on
+        rather than among the home's own work further down.
+      */}
+      {data.quoteRequestsWaiting > 0 && (
+        <section className="space-y-3">
+          <Divider label="Prices families asked for" />
+          <p className="max-w-prose text-sm leading-snug text-muted-foreground">
+            {data.quoteRequestsWaiting === 1
+              ? "One family is waiting to hear what a vendor charges."
+              : `${data.quoteRequestsWaiting} requests are waiting on an answer.`}{" "}
+            Record it on the case's Service tab and they will see it on their
+            page.
+          </p>
+          <ul className="space-y-2">
+            {data.quoteRequests.map((row: DashboardQuoteRequest) => (
+              <li key={row.id}>
+                <Link href={`/cases/${row.caseId}`} className={ROW}>
+                  <span className="min-w-0">
+                    <span className="block truncate">{row.vendorName}</span>
+                    <span className="block truncate text-sm text-muted-foreground">
+                      {row.decedentName}
+                    </span>
+                  </span>
+                  <span className="whitespace-nowrap text-xs text-muted-foreground">
+                    asked {relative(row.requestedAt, zone)}
+                  </span>
+                </Link>
+              </li>
+            ))}
+          </ul>
+        </section>
       )}
 
       {data.overdue.length > 0 && (
