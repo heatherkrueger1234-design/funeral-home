@@ -37,11 +37,18 @@ type HomesPage = { total: number; homes: AdminHome[] };
  */
 export function Homes() {
   const [, navigate] = useLocation();
-  const initial = new URLSearchParams(useSearch()).get("q") ?? "";
-  const [search, setSearch] = useState(initial);
-  const [asked, setAsked] = useState(initial.trim());
+  const urlQuery = new URLSearchParams(useSearch()).get("q") ?? "";
+  const [search, setSearch] = useState(urlQuery);
+  const [asked, setAsked] = useState(urlQuery.trim());
   const [page, setPage] = useState(0);
   const [creating, setCreating] = useState(false);
+
+  // The address changed from outside the box -- the "Homes" link in the
+  // header, or Back -- so the box follows it rather than the other way round.
+  useEffect(() => {
+    setSearch((current) => (current.trim() === urlQuery ? current : urlQuery));
+    setAsked(urlQuery.trim());
+  }, [urlQuery]);
 
   /*
    * Asked a moment after the typing stops, not on every key. Every list

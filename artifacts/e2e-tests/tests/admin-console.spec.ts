@@ -7,7 +7,8 @@ import { adminConsoleBase, apiBase, PLATFORM_ADMIN_EMAIL } from "../ports";
  * The platform console, which until this file no browser had ever opened.
  *
  * The api-server is started with PLATFORM_ADMIN_EMAILS naming one address
- * (see playwright.config.ts). Being on that list is not an account, though --
+ * (see playwright.config.ts), and the row is also granted below. Being on
+ * that list is not an account, though --
  * a platform admin is an ordinary staff sign-in that is also on the list --
  * so the account is registered here, once. A second run against the same
  * database finds it already there, which is fine: the password is the same.
@@ -36,8 +37,15 @@ async function ensurePlatformAdminAccount() {
     [
       process.env.E2E_DATABASE_URL ??
         "postgresql://postgres:postgres@localhost:5432/funeral_home_e2e",
-      "-qc",
+      "-q",
+      "-c",
       `UPDATE users SET email_verified = true WHERE email = '${PLATFORM_ADMIN_EMAIL}'`,
+      // PLATFORM_ADMIN_EMAILS is only read at boot, into an existing table,
+      // and on a fresh database the api-server can boot before global-setup
+      // has pushed the schema. So the row is granted here as well; the
+      // bootstrap has its own tests in api-server.
+      "-c",
+      `INSERT INTO platform_admins (email, added_by_email) VALUES ('${PLATFORM_ADMIN_EMAIL}', 'e2e') ON CONFLICT (email) DO NOTHING`,
     ],
     { stdio: "inherit" },
   );

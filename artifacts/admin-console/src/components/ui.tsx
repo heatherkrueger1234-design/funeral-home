@@ -287,6 +287,12 @@ export function CopyButton({
       type="button"
       variant="quiet"
       onClick={() => {
+        // Outside a secure context there is no clipboard at all, so the
+        // .catch below never gets the chance to say so.
+        if (!navigator.clipboard) {
+          setCopied("no");
+          return;
+        }
         void navigator.clipboard
           .writeText(text)
           .then(() => setCopied("yes"))

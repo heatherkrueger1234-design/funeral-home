@@ -81,9 +81,6 @@ export default function Vendors() {
 
   const refresh = () => {
     void queryClient.invalidateQueries({ queryKey: getGetVendorsQueryKey() });
-    // The lookup marks what is already saved; without this a result stayed
-    // "Save" after saving, and a second press saved it twice.
-    void queryClient.invalidateQueries({ queryKey: getLookupPlacesQueryKey() });
   };
 
   const create = useCreateVendor({
@@ -93,6 +90,11 @@ export default function Vendors() {
         setPhone("");
         setPostalCode("");
         refresh();
+        // The lookup marks what is already saved; without this a result
+        // stayed "Save" after saving, and a second press saved it twice. Only
+        // here: a lookup is a paid call, and starring or hiding a vendor does
+        // not change what it would say.
+        void queryClient.invalidateQueries({ queryKey: getLookupPlacesQueryKey() });
       },
       onError: (error) =>
         toast({
