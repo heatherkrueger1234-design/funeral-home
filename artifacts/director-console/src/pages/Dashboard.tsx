@@ -21,6 +21,7 @@ import { cn, formatAtHome, homeDayNumber } from "@/lib/utils";
 import { useHomeZone } from "@/lib/session";
 import {
   CalendarClock,
+  CalendarDays,
   CheckCircle2,
   ChevronRight,
   Inbox,
@@ -258,7 +259,7 @@ export default function Dashboard() {
       <section className="space-y-3">
         <Divider label="This week" />
         {data.servicesThisWeek.length === 0 ? (
-          <Empty title="No services in the next seven days" />
+          <Empty icon={CalendarDays} title="No services in the next seven days" />
         ) : (
           <ul className="space-y-2">
             {data.servicesThisWeek.map((row: DashboardService) => (
