@@ -112,15 +112,15 @@
   --brass: #a4845a;
   --brass-soft: #ece3d3;
 
-  --elevation-1: 0 1px 1px rgb(40 34 24 / 0.03), 0 1px 2px rgb(40 34 24 / 0.04);
+  --elevation-1: 0 1px 2px rgb(40 34 24 / 0.06), 0 2px 5px rgb(40 34 24 / 0.07);
   --elevation-2:
-    0 1px 1px rgb(40 34 24 / 0.03),
-    0 2px 4px rgb(40 34 24 / 0.04),
-    0 12px 24px -16px rgb(40 34 24 / 0.16);
+    0 1px 2px rgb(40 34 24 / 0.06),
+    0 4px 8px rgb(40 34 24 / 0.08),
+    0 14px 28px -14px rgb(40 34 24 / 0.28);
   --elevation-3:
-    0 1px 2px rgb(40 34 24 / 0.05),
-    0 8px 16px -8px rgb(40 34 24 / 0.10),
-    0 24px 48px -24px rgb(40 34 24 / 0.22);
+    0 2px 4px rgb(40 34 24 / 0.08),
+    0 10px 20px -6px rgb(40 34 24 / 0.16),
+    0 28px 56px -24px rgb(40 34 24 / 0.32);
 
   --radius: 0.75rem;
 }

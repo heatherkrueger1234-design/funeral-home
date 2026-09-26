@@ -72,10 +72,13 @@ function NavLink({
       href={href}
       aria-current={active ? "page" : undefined}
       className={cn(
-        "inline-flex min-h-9 items-center gap-1.5 rounded-md px-2.5 text-sm font-semibold no-underline",
+        "relative inline-flex min-h-9 items-center gap-1.5 rounded-md px-2.5 text-sm font-semibold no-underline",
         "transition-colors duration-200 ease-[cubic-bezier(0.2,0.6,0.3,1)]",
+        // The same rule the case tabs use for their live tab: a line in the
+        // home's colour, not a wash so faint it reads the same as "off" on a
+        // near-white header.
         active
-          ? "bg-[var(--accent-soft)] text-[var(--accent-deep)]"
+          ? "bg-[var(--accent-soft)] text-[var(--accent-deep)] shadow-[inset_0_-2px_0_0_var(--accent)]"
           : "text-muted-foreground hover:bg-[var(--muted)] hover:text-foreground",
       )}
     >
