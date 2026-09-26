@@ -46,7 +46,9 @@ interface Tile {
 function toneClasses(tone: Tone): string {
   return tone === "yours"
     ? "border-[var(--notice)]/35 bg-[var(--notice-soft)]"
-    : "border-border bg-card";
+    : tone === "done"
+      ? "border-[var(--accent)]/25 bg-[var(--accent-soft)]"
+      : "border-border bg-card";
 }
 
 export function CaseGlance({

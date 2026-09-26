@@ -268,7 +268,7 @@ export function PhotosPanel({
         return (
           <li
             key={photo.id}
-            className={`rounded-xl border bg-card p-3 ${
+            className={`lift rounded-xl border bg-card p-3 shadow-[var(--elevation-1)] transition-gentle ${
               photo.selected ? "border-[var(--accent)]" : "border-border"
             }`}
           >

@@ -20,6 +20,13 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
   AlertDialog,
   AlertDialogAction,
   AlertDialogCancel,
@@ -263,20 +270,28 @@ function PhotoSelect({
   return (
     <div className="space-y-1.5">
       <Label htmlFor={id}>Photograph (optional)</Label>
-      <select
-        id={id}
-        className="h-10 w-full rounded-md border border-[var(--border-strong)] bg-card px-3 text-sm"
-        value={value ?? ""}
-        onChange={(event) => onChange(event.target.value ? Number(event.target.value) : null)}
+      {/* The one native <select> in the app — every other choice field uses
+          this component; the plain browser control stood out as the one
+          dropdown with no shadow, no matching focus ring and a different
+          arrow. "" is reserved by Radix Select for "nothing chosen", hence
+          the "none" sentinel rather than an empty string. */}
+      <Select
+        value={value === null ? "none" : String(value)}
+        onValueChange={(next) => onChange(next === "none" ? null : Number(next))}
       >
-        <option value="">None</option>
-        {photos.map((photo, index) => (
-          <option key={photo.id} value={photo.id}>
-            {photo.caption ? photo.caption : `Photograph ${index + 1}`}
-            {photo.uploadedByName ? ` — from ${photo.uploadedByName}` : ""}
-          </option>
-        ))}
-      </select>
+        <SelectTrigger id={id}>
+          <SelectValue />
+        </SelectTrigger>
+        <SelectContent>
+          <SelectItem value="none">None</SelectItem>
+          {photos.map((photo, index) => (
+            <SelectItem key={photo.id} value={String(photo.id)}>
+              {photo.caption ? photo.caption : `Photograph ${index + 1}`}
+              {photo.uploadedByName ? ` — from ${photo.uploadedByName}` : ""}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
     </div>
   );
 }
