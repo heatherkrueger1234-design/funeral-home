@@ -63,6 +63,7 @@ import {
   DEFAULT_TIMELINE_TEMPLATE,
 } from "@workspace/db";
 import { encryptBuffer, encrypt } from "@workspace/db/crypto";
+import { wallClock } from "./lib/wall-clock";
 
 const scrypt = promisify(scryptCallback) as (
   password: string,
@@ -77,10 +78,19 @@ const say = (message = "") => {
 };
 
 const DAY = 24 * 60 * 60 * 1000;
-const HOUR = 60 * 60 * 1000;
 const now = Date.now();
-const at = (offsetDays: number, hour = 10) =>
-  new Date(now + offsetDays * DAY - (now % HOUR) + hour * HOUR - 10 * HOUR);
+/**
+ * `hour` o'clock in Denver, `offsetDays` from today. A moment today that has
+ * not happened yet is pulled back to just before now, in the same order, so a
+ * demo run at 7am does not show a message the family "sent" at 9.
+ */
+const at = (offsetDays: number, hour = 10, minute = 0): Date => {
+  const moment = wallClock(new Date(now), offsetDays, hour, minute, HOME_TIMEZONE);
+  if (offsetDays <= 0 && moment.getTime() > now) {
+    return new Date(now - (24 - hour) * 60_000);
+  }
+  return moment;
+};
 
 /* ------------------------------------------------------------ the logins -- */
 
@@ -113,6 +123,7 @@ const LOGINS = {
 } as const;
 
 const HOME_SLUG = "cedar-and-stone";
+const HOME_TIMEZONE = "America/Denver";
 const PLATFORM_SLUG = "continuum-aftercare-platform";
 
 /* ------------------------------------------------------------- the guard -- */
@@ -384,7 +395,7 @@ async function seedPlatform(): Promise<void> {
       subscriptionStatus: "active",
       city: "Denver",
       region: "CO",
-      timezone: "America/Denver",
+      timezone: HOME_TIMEZONE,
       intakeEnabled: false,
     })
     .returning();
@@ -423,7 +434,7 @@ async function seedHome(): Promise<{ homeId: number; ownerId: number }> {
       city: "Denver",
       region: "CO",
       postalCode: "80204",
-      timezone: "America/Denver",
+      timezone: HOME_TIMEZONE,
       officeOpensMinute: 8 * 60 + 30,
       officeClosesMinute: 17 * 60,
       aftercareEnabled: true,

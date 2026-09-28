@@ -1,6 +1,7 @@
 import { Link, useLocation, useRoute, useSearch } from "wouter";
 import { useQueryClient } from "@tanstack/react-query";
 import {
+  useGetBilling,
   useGetCase,
   useCloseCase,
   getGetCaseQueryKey,
@@ -100,6 +101,20 @@ export default function CaseDetail() {
     );
   const zone = useHomeZone();
   const { session } = useSession();
+  const billing = useGetBilling();
+  /*
+   * Why closing this case will not offer the family check-ins, if it will
+   * not. Said before the director closes it, because the alternative was a
+   * home that had paid for aftercare and enrolled nobody, silently.
+   */
+  const aftercareIncluded =
+    billing.data?.addOns.find((addOn) => addOn.key === "aftercare")?.included ?? true;
+  const aftercareBlocker =
+    session?.home.aftercareEnabled === false
+      ? "Aftercare is switched off in Settings, so this family won't be offered check-ins."
+      : !aftercareIncluded
+        ? "Aftercare isn't on your plan at the moment, so this family won't be offered check-ins. Settings → Subscription has the details."
+        : null;
 
   const row = useGetCase(caseId, {
     query: {
@@ -117,8 +132,9 @@ export default function CaseDetail() {
         void queryClient.invalidateQueries({ queryKey: getGetHomeInboxQueryKey() });
         toast({
           title: "Case closed",
-          description:
-            `The family's thread locks ${lockWindow(session?.home.messageLockDays)} after the service, and their aftercare is waiting on their consent.`,
+          description: aftercareBlocker
+            ? `The family's thread locks ${lockWindow(session?.home.messageLockDays)} after the service. ${aftercareBlocker}`
+            : `The family's thread locks ${lockWindow(session?.home.messageLockDays)} after the service, and their aftercare is waiting on their consent.`,
         });
       },
     },
@@ -305,6 +321,11 @@ export default function CaseDetail() {
                   anyone yet. Said in the dialog rather than refused, because
                   a home may have a reason.
                 */}
+                {aftercareBlocker && detail.kind !== "pre_need" && (
+                  <p className="rounded-lg border border-[var(--notice)]/30 bg-[var(--notice-soft)] px-3 py-2.5 text-sm font-medium text-[var(--notice)]">
+                    {aftercareBlocker}
+                  </p>
+                )}
                 {serviceAhead && detail.serviceAt && (
                   <p className="rounded-lg border border-[var(--notice)]/30 bg-[var(--notice-soft)] px-3 py-2.5 text-sm font-medium text-[var(--notice)]">
                     The service hasn't happened yet — it's{" "}

@@ -137,7 +137,21 @@ export function hasAddOn(
     return true;
   }
 
-  return parseEntitlements(home.entitlements).has(key);
+  if (parseEntitlements(home.entitlements).has(key)) return true;
+
+  // Not sold as its own line on this deployment, so it is part of the base
+  // plan. A paying home must never lose it because a price id was left unset.
+  const paying =
+    home.subscriptionStatus === "active" || home.subscriptionStatus === "past_due";
+  return paying && !isSoldSeparately(key);
+}
+
+/**
+ * Whether an add-on has its own Stripe price here. Unset means it is included
+ * in the base subscription, which is how it is priced today (PRICING.md).
+ */
+export function isSoldSeparately(key: AddOnKey): boolean {
+  return Boolean(process.env[`STRIPE_PRICE_ID_${key.toUpperCase()}`]?.trim());
 }
 
 /* ------------------------------------------------------ the case meter -- */

@@ -67,6 +67,14 @@ app.use(express.json({ limit: BODY_LIMIT }));
 app.use(express.urlencoded({ extended: true, limit: BODY_LIMIT }));
 app.use(cookieParser());
 
+// Nothing the API answers belongs in a shared or back-button cache: a family's
+// case, a director's worklist, a session. Routes that serve immutable bytes
+// (photographs) set their own header over this one.
+app.use("/api", (_req, res, next) => {
+  res.setHeader("Cache-Control", "no-store");
+  next();
+});
+
 app.use("/api", router);
 
 app.use(notFoundHandler);

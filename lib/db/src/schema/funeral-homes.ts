@@ -343,8 +343,26 @@ export const funeralHomesTable = pgTable(
   (table) => [uniqueIndex("funeral_homes_slug_unique").on(table.slug)],
 );
 
-/** How long a home gets to try it with real families. */
+/** How long a home gets to try it with real families, by default. */
 export const TRIAL_DAYS = 30;
+
+/**
+ * The free trial, in days: `FREE_TRIAL_DAYS`, 30 when unset, 0 to switch it
+ * off. Every subscribe button starts one while it is on, with no card and no
+ * Stripe account needed, so nothing a home does depends on billing being live.
+ */
+export function freeTrialDays(): number {
+  const raw = process.env["FREE_TRIAL_DAYS"]?.trim();
+  if (raw === undefined || raw === "") return TRIAL_DAYS;
+  const days = Number(raw);
+  if (!Number.isFinite(days) || days < 0) return TRIAL_DAYS;
+  return Math.min(365, Math.floor(days));
+}
+
+/** When a trial started now would end. */
+export function freeTrialEndsAt(now = new Date()): Date {
+  return new Date(now.getTime() + freeTrialDays() * 24 * 60 * 60 * 1000);
+}
 
 /**
  * When a home hears from us about its trial, and what each message is called

@@ -129,11 +129,24 @@ describe("trials and subscriptions", () => {
     const billing = await staff.agent.get("/api/billing").expect(200);
     expect(billing.body.billingConfigured).toBe(false);
 
-    // And refuses rather than producing a broken checkout URL.
-    await staff.agent
+    // Never a broken checkout URL: the button starts the no-card trial here
+    // instead, and refuses only when the trial is switched off.
+    const started = await staff.agent
       .post("/api/billing/checkout")
       .send({ returnUrl: "https://example.com/settings" })
-      .expect(400);
+      .expect(200);
+    expect(started.body.url).toBeNull();
+    expect(started.body.trialStarted).toBe(true);
+
+    process.env["FREE_TRIAL_DAYS"] = "0";
+    try {
+      await staff.agent
+        .post("/api/billing/checkout")
+        .send({ returnUrl: "https://example.com/settings" })
+        .expect(400);
+    } finally {
+      delete process.env["FREE_TRIAL_DAYS"];
+    }
   });
 });
 

@@ -3,6 +3,7 @@ import {
   db,
   funeralHomesTable,
   homeGroupsTable,
+  freeTrialDays,
   serialiseEntitlements,
   type AddOnKey,
   type FuneralHome,
@@ -138,6 +139,16 @@ export async function createCheckoutSession(options: {
     "metadata[funeralHomeId]": String(options.home.id),
   };
 
+  // The free trial, with no card asked for. If nobody adds one by the end,
+  // Stripe cancels rather than raising an invoice nobody can pay.
+  const trialDays = freeTrialDays();
+  if (trialDays > 0) {
+    body["subscription_data[trial_period_days]"] = String(trialDays);
+    body["payment_method_collection"] = "if_required";
+    body["subscription_data[trial_settings][end_behavior][missing_payment_method]"] =
+      "cancel";
+  }
+
   // The base subscription, and then whatever else is on the contract. Index
   // is tracked rather than hard-coded because the lines below are optional
   // and a gap in `line_items[n]` is a request Stripe rejects.
@@ -189,6 +200,44 @@ export async function createPortalSession(options: {
   });
 
   return session.url;
+}
+
+/**
+ * Start (or extend) the no-card free trial from a subscribe button.
+ *
+ * Never shortens a trial already running and never touches a home that is
+ * paying. A suspended home stays suspended: `canOpenCases` asks that first.
+ */
+export async function startFreeTrial(
+  home: FuneralHome,
+  now = new Date(),
+): Promise<FuneralHome> {
+  if (home.subscriptionStatus === "active" || home.subscriptionStatus === "past_due") {
+    return home;
+  }
+
+  const days = freeTrialDays();
+  const fresh = new Date(now.getTime() + days * 24 * 60 * 60 * 1000);
+  const current =
+    home.subscriptionStatus === "trial" && home.trialEndsAt !== null
+      ? home.trialEndsAt
+      : null;
+  const trialEndsAt = current && current > fresh ? current : fresh;
+
+  const [updated] = await db
+    .update(funeralHomesTable)
+    .set({
+      subscriptionStatus: "trial",
+      trialEndsAt,
+      // A new trial earns its own reminders.
+      trialRemindersSent: "",
+      updatedAt: now,
+    })
+    .where(eq(funeralHomesTable.id, home.id))
+    .returning();
+
+  logger.info({ funeralHomeId: home.id, trialEndsAt }, "Free trial started");
+  return updated!;
 }
 
 /* ------------------------------------------------------------- webhooks -- */

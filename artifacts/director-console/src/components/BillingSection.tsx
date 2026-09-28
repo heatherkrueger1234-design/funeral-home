@@ -1,5 +1,6 @@
 import { useState } from "react";
-import { useGetBilling } from "@workspace/api-client-react";
+import { useQueryClient } from "@tanstack/react-query";
+import { getGetBillingQueryKey, useGetBilling } from "@workspace/api-client-react";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
 import { Loader2 } from "lucide-react";
@@ -21,6 +22,7 @@ import { BASE_PATH } from "@/lib/base";
  */
 export function useBillingHandoff() {
   const { toast } = useToast();
+  const queryClient = useQueryClient();
   const [busy, setBusy] = useState(false);
 
   const go = async (path: string) => {
@@ -36,9 +38,22 @@ export function useBillingHandoff() {
       });
 
       const payload = (await response.json().catch(() => ({}))) as {
-        url?: string;
+        url?: string | null;
         error?: string;
+        trialStarted?: boolean;
+        trialDaysLeft?: number | null;
       };
+
+      // No Stripe here yet: the button started the free trial in place.
+      if (response.ok && payload.trialStarted) {
+        await queryClient.invalidateQueries({ queryKey: getGetBillingQueryKey() });
+        toast({
+          title: "Your free trial is on",
+          description: `${payload.trialDaysLeft ?? 30} days with everything included, aftercare too. No card needed.`,
+        });
+        setBusy(false);
+        return;
+      }
 
       if (!response.ok || !payload.url) {
         throw new Error(payload.error ?? "Could not open billing.");
@@ -70,7 +85,10 @@ export function BillingSection({ readOnly }: { readOnly: boolean }) {
     currentPeriodEndsAt,
     billingConfigured,
     hasSubscription,
+    freeTrialDays,
+    trialEnded,
   } = billing.data;
+  const canStartTrial = !billingConfigured && freeTrialDays > 0;
 
   const describe = () => {
     switch (subscriptionStatus) {
@@ -83,9 +101,12 @@ export function BillingSection({ readOnly }: { readOnly: boolean }) {
       case "canceled":
         return "Ended. Existing cases stay available; a subscription reopens new ones.";
       default:
+        if (trialEnded) {
+          return "Your free trial has ended. Everything already here stays available; new cases are paused until you start again.";
+        }
         return trialDaysLeft === null
-          ? "On trial."
-          : `On trial — ${trialDaysLeft} day${trialDaysLeft === 1 ? "" : "s"} left. Nothing disappears when it ends.`;
+          ? "On a free trial."
+          : `On a free trial — ${trialDaysLeft} day${trialDaysLeft === 1 ? "" : "s"} left, everything included. Nothing disappears when it ends.`;
     }
   };
 
@@ -94,9 +115,14 @@ export function BillingSection({ readOnly }: { readOnly: boolean }) {
       <h2 className="font-display text-lg">Subscription</h2>
       <p className="text-sm text-muted-foreground">{describe()}</p>
 
-      {!billingConfigured ? (
+      {canStartTrial && !readOnly && (subscriptionStatus === "canceled" || trialEnded) ? (
+        <Button disabled={busy} onClick={() => void go("/api/billing/checkout")}>
+          {busy && <Loader2 className="size-4 animate-spin" />}
+          Start a {freeTrialDays}-day free trial
+        </Button>
+      ) : !billingConfigured ? (
         <p className="text-sm text-muted-foreground">
-          Billing isn't set up on this deployment, so nothing is being charged.
+          Card billing isn't switched on yet, so nothing is being charged.
         </p>
       ) : readOnly ? (
         <p className="text-sm text-muted-foreground">
@@ -116,7 +142,9 @@ export function BillingSection({ readOnly }: { readOnly: boolean }) {
           ) : (
             <Button disabled={busy} onClick={() => void go("/api/billing/checkout")}>
               {busy && <Loader2 className="size-4 animate-spin" />}
-              Start a subscription
+              {freeTrialDays > 0
+                ? `Subscribe — first ${freeTrialDays} days free, no card`
+                : "Start a subscription"}
             </Button>
           )}
         </div>

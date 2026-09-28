@@ -14,7 +14,7 @@ import type {
   DashboardQuoteRequest,
   DashboardService,
 } from "@workspace/api-client-react";
-import { SetupChecklist, TrialBanner } from "@/components/SetupChecklist";
+import { SetupChecklist } from "@/components/SetupChecklist";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Divider, Empty, LoadFailed, Loading, PageHeader } from "@/components/page";
 import { cn, formatAtHome, homeDayNumber } from "@/lib/utils";
@@ -157,7 +157,6 @@ export default function Dashboard() {
         the trial banner in particular is deliberately silent until the last
         week — a director working their first case does not need a clock on it.
       */}
-      <TrialBanner />
       <SetupChecklist />
 
       {/*
