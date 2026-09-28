@@ -1292,6 +1292,1740 @@ export const DeleteHomePolicyParams = zod.object({
 });
 
 /**
+ * @summary The price list's effective date, its disclosures, and how the home is paid
+ */
+export const GetStorefrontSettingsResponse = zod.object({
+  gplEffectiveOn: zod
+    .date()
+    .nullable()
+    .describe(
+      "The date printed on the price lists, and the switch that turns the\nstorefront on. Until it is set the home has no General Price List,\nand no family is shown a casket.\n",
+    ),
+  hasGeneralPriceList: zod.boolean(),
+  disclosures: zod
+    .record(zod.string(), zod.string())
+    .describe(
+      "The home's own wording, by slot key. Blank slots are not printed.",
+    ),
+  priceListFootnote: zod.string().nullable(),
+  paymentPageUrl: zod
+    .string()
+    .nullable()
+    .describe(
+      "The home's own payment page, at the home's own processor. A link,\nnot an integration. Nothing in this product takes money from a\nfamily.\n",
+    ),
+  paymentInstructions: zod
+    .string()
+    .nullable()
+    .describe("The other ways the home takes money, in the home's own words."),
+  disclosureSlots: zod.array(
+    zod
+      .object({
+        key: zod.string(),
+        title: zod.string(),
+        note: zod
+          .string()
+          .describe("What the Rule requires this to convey, in plain English."),
+      })
+      .describe(
+        "A disclosure the Funeral Rule requires on a General Price List. The\nslot is ours; the words are the home's. The Rule prescribes what each\nmust convey and a home's counsel signs off on how it is said.\n",
+      ),
+  ),
+});
+
+/**
+ * Disclosures are merged by key rather than replaced, because the console
+edits one slot at a time and a PUT that dropped the others would strip
+a home's price list of paragraphs their attorney wrote.
+
+ * @summary Change them
+ */
+export const updateStorefrontSettingsBodyPaymentPageUrlMax = 500;
+
+export const updateStorefrontSettingsBodyPaymentPageUrlRegExp = new RegExp(
+  "^https:\/\/\\S+$",
+);
+
+export const UpdateStorefrontSettingsBody = zod.object({
+  gplEffectiveOn: zod.coerce.date().nullish(),
+  disclosures: zod.record(zod.string(), zod.string()).optional(),
+  priceListFootnote: zod.string().nullish(),
+  paymentPageUrl: zod
+    .string()
+    .max(updateStorefrontSettingsBodyPaymentPageUrlMax)
+    .regex(updateStorefrontSettingsBodyPaymentPageUrlRegExp)
+    .nullish()
+    .describe(
+      "Send null to clear it. A payment link under a funeral home's name\nthat is not even encrypted has no business existing, so the scheme\nis part of the contract rather than a check one client remembers.\n",
+    ),
+  paymentInstructions: zod.string().nullish(),
+});
+
+export const UpdateStorefrontSettingsResponse = zod.object({
+  gplEffectiveOn: zod
+    .date()
+    .nullable()
+    .describe(
+      "The date printed on the price lists, and the switch that turns the\nstorefront on. Until it is set the home has no General Price List,\nand no family is shown a casket.\n",
+    ),
+  hasGeneralPriceList: zod.boolean(),
+  disclosures: zod
+    .record(zod.string(), zod.string())
+    .describe(
+      "The home's own wording, by slot key. Blank slots are not printed.",
+    ),
+  priceListFootnote: zod.string().nullable(),
+  paymentPageUrl: zod
+    .string()
+    .nullable()
+    .describe(
+      "The home's own payment page, at the home's own processor. A link,\nnot an integration. Nothing in this product takes money from a\nfamily.\n",
+    ),
+  paymentInstructions: zod
+    .string()
+    .nullable()
+    .describe("The other ways the home takes money, in the home's own words."),
+  disclosureSlots: zod.array(
+    zod
+      .object({
+        key: zod.string(),
+        title: zod.string(),
+        note: zod
+          .string()
+          .describe("What the Rule requires this to convey, in plain English."),
+      })
+      .describe(
+        "A disclosure the Funeral Rule requires on a General Price List. The\nslot is ours; the words are the home's. The Rule prescribes what each\nmust convey and a home's counsel signs off on how it is said.\n",
+      ),
+  ),
+});
+
+/**
+ * @summary Everything this home sells, by category
+ */
+export const GetCatalogueResponse = zod.object({
+  hasGeneralPriceList: zod.boolean(),
+  gplEffectiveOn: zod.date().nullable(),
+  categories: zod.array(
+    zod.object({
+      id: zod.number(),
+      name: zod.string(),
+      description: zod.string().nullable(),
+      section: zod
+        .enum([
+          "services",
+          "caskets",
+          "outer_burial_containers",
+          "merchandise",
+          "cash_advance",
+        ])
+        .describe(
+          "Which statutory price list a category's items print on. Fixed rather\nthan named by the home, because these are the Rule's own divisions and\na home that invents a fourth one has a price list that does not comply.\nWhat the home names is the category.\n",
+        ),
+      position: zod.number(),
+      archivedAt: zod.date().nullable(),
+      items: zod.array(
+        zod.object({
+          id: zod.number(),
+          categoryId: zod.number(),
+          name: zod.string(),
+          description: zod.string().nullable(),
+          itemCode: zod
+            .string()
+            .nullable()
+            .describe(
+              "The home's own reference, so a re-import updates rather than duplicates.",
+            ),
+          priceCents: zod.number(),
+          priceUnit: zod
+            .string()
+            .nullable()
+            .describe(
+              '\"each\", \"per day\", \"per mile\". Printed beside the price, never parsed.',
+            ),
+          photoUploadId: zod.number().nullable(),
+          availability: zod
+            .enum(["available", "by_request"])
+            .describe(
+              '`by_request` is the honest answer for the casket a home will order in\nbut does not keep. Deliberately not \"out of stock\": a family reading\nthat about their mother\'s casket hears a shop.\n',
+            ),
+          position: zod.number(),
+          archivedAt: zod.date().nullable(),
+        }),
+      ),
+    }),
+  ),
+  packages: zod.array(
+    zod.object({
+      id: zod.number(),
+      name: zod.string(),
+      description: zod.string().nullable(),
+      priceCents: zod.number(),
+      itemisedTotalCents: zod
+        .number()
+        .describe(
+          "What the same items come to bought one at a time. Always sent\nalongside the package price, never instead of it — a package that\nis the only price on offer is the thing the Rule forbids.\n",
+        ),
+      items: zod.array(
+        zod.object({
+          id: zod.number(),
+          categoryId: zod.number(),
+          name: zod.string(),
+          description: zod.string().nullable(),
+          itemCode: zod
+            .string()
+            .nullable()
+            .describe(
+              "The home's own reference, so a re-import updates rather than duplicates.",
+            ),
+          priceCents: zod.number(),
+          priceUnit: zod
+            .string()
+            .nullable()
+            .describe(
+              '\"each\", \"per day\", \"per mile\". Printed beside the price, never parsed.',
+            ),
+          photoUploadId: zod.number().nullable(),
+          availability: zod
+            .enum(["available", "by_request"])
+            .describe(
+              '`by_request` is the honest answer for the casket a home will order in\nbut does not keep. Deliberately not \"out of stock\": a family reading\nthat about their mother\'s casket hears a shop.\n',
+            ),
+          position: zod.number(),
+          archivedAt: zod.date().nullable(),
+        }),
+      ),
+    }),
+  ),
+});
+
+/**
+ * @summary Add a category, named by the home
+ */
+export const createCatalogueCategoryBodyNameMax = 120;
+
+export const createCatalogueCategoryBodyDescriptionMax = 400;
+
+export const CreateCatalogueCategoryBody = zod.object({
+  name: zod.string().min(1).max(createCatalogueCategoryBodyNameMax),
+  description: zod
+    .string()
+    .max(createCatalogueCategoryBodyDescriptionMax)
+    .nullish(),
+  section: zod
+    .enum([
+      "services",
+      "caskets",
+      "outer_burial_containers",
+      "merchandise",
+      "cash_advance",
+    ])
+    .describe(
+      "Which statutory price list a category's items print on. Fixed rather\nthan named by the home, because these are the Rule's own divisions and\na home that invents a fourth one has a price list that does not comply.\nWhat the home names is the category.\n",
+    ),
+});
+
+export const UpdateCatalogueCategoryParams = zod.object({
+  categoryId: zod.coerce.number(),
+});
+
+export const updateCatalogueCategoryBodyNameMax = 120;
+
+export const updateCatalogueCategoryBodyDescriptionMax = 400;
+
+export const updateCatalogueCategoryBodyPositionMin = 0;
+
+export const UpdateCatalogueCategoryBody = zod.object({
+  name: zod.string().min(1).max(updateCatalogueCategoryBodyNameMax).optional(),
+  description: zod
+    .string()
+    .max(updateCatalogueCategoryBodyDescriptionMax)
+    .nullish(),
+  section: zod
+    .enum([
+      "services",
+      "caskets",
+      "outer_burial_containers",
+      "merchandise",
+      "cash_advance",
+    ])
+    .optional()
+    .describe(
+      "Which statutory price list a category's items print on. Fixed rather\nthan named by the home, because these are the Rule's own divisions and\na home that invents a fourth one has a price list that does not comply.\nWhat the home names is the category.\n",
+    ),
+  position: zod.number().min(updateCatalogueCategoryBodyPositionMin).optional(),
+  archived: zod.boolean().optional(),
+});
+
+export const UpdateCatalogueCategoryResponse = zod.object({
+  id: zod.number(),
+  name: zod.string(),
+  description: zod.string().nullable(),
+  section: zod
+    .enum([
+      "services",
+      "caskets",
+      "outer_burial_containers",
+      "merchandise",
+      "cash_advance",
+    ])
+    .describe(
+      "Which statutory price list a category's items print on. Fixed rather\nthan named by the home, because these are the Rule's own divisions and\na home that invents a fourth one has a price list that does not comply.\nWhat the home names is the category.\n",
+    ),
+  position: zod.number(),
+  archivedAt: zod.date().nullable(),
+  items: zod.array(
+    zod.object({
+      id: zod.number(),
+      categoryId: zod.number(),
+      name: zod.string(),
+      description: zod.string().nullable(),
+      itemCode: zod
+        .string()
+        .nullable()
+        .describe(
+          "The home's own reference, so a re-import updates rather than duplicates.",
+        ),
+      priceCents: zod.number(),
+      priceUnit: zod
+        .string()
+        .nullable()
+        .describe(
+          '\"each\", \"per day\", \"per mile\". Printed beside the price, never parsed.',
+        ),
+      photoUploadId: zod.number().nullable(),
+      availability: zod
+        .enum(["available", "by_request"])
+        .describe(
+          '`by_request` is the honest answer for the casket a home will order in\nbut does not keep. Deliberately not \"out of stock\": a family reading\nthat about their mother\'s casket hears a shop.\n',
+        ),
+      position: zod.number(),
+      archivedAt: zod.date().nullable(),
+    }),
+  ),
+});
+
+/**
+ * A category a family has chosen from is part of a statement, and a
+statement is a document the home handed across a desk. So once one of
+its items appears on any selection this archives instead of deleting,
+and says which it did.
+
+ * @summary Remove it, or retire it if a family has already chosen from it
+ */
+export const DeleteCatalogueCategoryParams = zod.object({
+  categoryId: zod.coerce.number(),
+});
+
+export const DeleteCatalogueCategoryResponse = zod
+  .object({
+    archived: zod.boolean(),
+  })
+  .describe(
+    "Returned in place of a 204 when the row could not be deleted because a\nfamily has already chosen from it. A statement is a document the home\nhanded across a desk, and it does not get to change.\n",
+  );
+
+/**
+ * @summary Add one item, at the home's own price
+ */
+export const createCatalogueItemBodyNameMax = 200;
+
+export const createCatalogueItemBodyDescriptionMax = 2000;
+
+export const createCatalogueItemBodyItemCodeMax = 100;
+
+export const createCatalogueItemBodyPriceCentsMin = 0;
+export const createCatalogueItemBodyPriceCentsMax = 1000000000;
+
+export const createCatalogueItemBodyPriceUnitMax = 40;
+
+export const CreateCatalogueItemBody = zod.object({
+  categoryId: zod.number(),
+  name: zod.string().min(1).max(createCatalogueItemBodyNameMax),
+  description: zod
+    .string()
+    .max(createCatalogueItemBodyDescriptionMax)
+    .nullish(),
+  itemCode: zod.string().max(createCatalogueItemBodyItemCodeMax).nullish(),
+  priceCents: zod
+    .number()
+    .min(createCatalogueItemBodyPriceCentsMin)
+    .max(createCatalogueItemBodyPriceCentsMax),
+  priceUnit: zod.string().max(createCatalogueItemBodyPriceUnitMax).nullish(),
+  photoUploadId: zod.number().nullish(),
+  availability: zod
+    .enum(["available", "by_request"])
+    .optional()
+    .describe(
+      '`by_request` is the honest answer for the casket a home will order in\nbut does not keep. Deliberately not \"out of stock\": a family reading\nthat about their mother\'s casket hears a shop.\n',
+    ),
+});
+
+export const UpdateCatalogueItemParams = zod.object({
+  itemId: zod.coerce.number(),
+});
+
+export const updateCatalogueItemBodyNameMax = 200;
+
+export const updateCatalogueItemBodyDescriptionMax = 2000;
+
+export const updateCatalogueItemBodyItemCodeMax = 100;
+
+export const updateCatalogueItemBodyPriceCentsMin = 0;
+export const updateCatalogueItemBodyPriceCentsMax = 1000000000;
+
+export const updateCatalogueItemBodyPriceUnitMax = 40;
+
+export const updateCatalogueItemBodyPositionMin = 0;
+
+export const UpdateCatalogueItemBody = zod.object({
+  categoryId: zod.number().optional(),
+  name: zod.string().min(1).max(updateCatalogueItemBodyNameMax).optional(),
+  description: zod
+    .string()
+    .max(updateCatalogueItemBodyDescriptionMax)
+    .nullish(),
+  itemCode: zod.string().max(updateCatalogueItemBodyItemCodeMax).nullish(),
+  priceCents: zod
+    .number()
+    .min(updateCatalogueItemBodyPriceCentsMin)
+    .max(updateCatalogueItemBodyPriceCentsMax)
+    .optional(),
+  priceUnit: zod.string().max(updateCatalogueItemBodyPriceUnitMax).nullish(),
+  photoUploadId: zod.number().nullish(),
+  availability: zod
+    .enum(["available", "by_request"])
+    .optional()
+    .describe(
+      '`by_request` is the honest answer for the casket a home will order in\nbut does not keep. Deliberately not \"out of stock\": a family reading\nthat about their mother\'s casket hears a shop.\n',
+    ),
+  position: zod.number().min(updateCatalogueItemBodyPositionMin).optional(),
+  archived: zod.boolean().optional(),
+});
+
+export const UpdateCatalogueItemResponse = zod.object({
+  id: zod.number(),
+  categoryId: zod.number(),
+  name: zod.string(),
+  description: zod.string().nullable(),
+  itemCode: zod
+    .string()
+    .nullable()
+    .describe(
+      "The home's own reference, so a re-import updates rather than duplicates.",
+    ),
+  priceCents: zod.number(),
+  priceUnit: zod
+    .string()
+    .nullable()
+    .describe(
+      '\"each\", \"per day\", \"per mile\". Printed beside the price, never parsed.',
+    ),
+  photoUploadId: zod.number().nullable(),
+  availability: zod
+    .enum(["available", "by_request"])
+    .describe(
+      '`by_request` is the honest answer for the casket a home will order in\nbut does not keep. Deliberately not \"out of stock\": a family reading\nthat about their mother\'s casket hears a shop.\n',
+    ),
+  position: zod.number(),
+  archivedAt: zod.date().nullable(),
+});
+
+/**
+ * @summary Remove it, or retire it if a family has already chosen it
+ */
+export const DeleteCatalogueItemParams = zod.object({
+  itemId: zod.coerce.number(),
+});
+
+export const DeleteCatalogueItemResponse = zod
+  .object({
+    archived: zod.boolean(),
+  })
+  .describe(
+    "Returned in place of a 204 when the row could not be deleted because a\nfamily has already chosen from it. A statement is a document the home\nhanded across a desk, and it does not get to change.\n",
+  );
+
+/**
+ * In addition to the itemised catalogue, never instead of it. Choosing a
+package writes its members as ordinary itemised lines plus a single
+adjustment carrying the difference, so declining any one of them still
+works and still moves the total.
+
+ * @summary Offer several items together, at a price of the home's own
+ */
+export const createCataloguePackageBodyNameMax = 160;
+
+export const createCataloguePackageBodyDescriptionMax = 1000;
+
+export const createCataloguePackageBodyPriceCentsMin = 0;
+export const createCataloguePackageBodyPriceCentsMax = 1000000000;
+
+export const createCataloguePackageBodyItemIdsMax = 60;
+
+export const CreateCataloguePackageBody = zod.object({
+  name: zod.string().min(1).max(createCataloguePackageBodyNameMax),
+  description: zod
+    .string()
+    .max(createCataloguePackageBodyDescriptionMax)
+    .nullish(),
+  priceCents: zod
+    .number()
+    .min(createCataloguePackageBodyPriceCentsMin)
+    .max(createCataloguePackageBodyPriceCentsMax),
+  itemIds: zod
+    .array(zod.number())
+    .min(1)
+    .max(createCataloguePackageBodyItemIdsMax),
+});
+
+export const UpdateCataloguePackageParams = zod.object({
+  packageId: zod.coerce.number(),
+});
+
+export const updateCataloguePackageBodyNameMax = 160;
+
+export const updateCataloguePackageBodyDescriptionMax = 1000;
+
+export const updateCataloguePackageBodyPriceCentsMin = 0;
+export const updateCataloguePackageBodyPriceCentsMax = 1000000000;
+
+export const updateCataloguePackageBodyItemIdsMax = 60;
+
+export const UpdateCataloguePackageBody = zod.object({
+  name: zod.string().min(1).max(updateCataloguePackageBodyNameMax).optional(),
+  description: zod
+    .string()
+    .max(updateCataloguePackageBodyDescriptionMax)
+    .nullish(),
+  priceCents: zod
+    .number()
+    .min(updateCataloguePackageBodyPriceCentsMin)
+    .max(updateCataloguePackageBodyPriceCentsMax)
+    .optional(),
+  itemIds: zod
+    .array(zod.number())
+    .min(1)
+    .max(updateCataloguePackageBodyItemIdsMax)
+    .optional(),
+  archived: zod.boolean().optional(),
+});
+
+export const UpdateCataloguePackageResponse = zod.object({
+  id: zod.number(),
+  name: zod.string(),
+  description: zod.string().nullable(),
+  priceCents: zod.number(),
+  itemisedTotalCents: zod
+    .number()
+    .describe(
+      "What the same items come to bought one at a time. Always sent\nalongside the package price, never instead of it — a package that\nis the only price on offer is the thing the Rule forbids.\n",
+    ),
+  items: zod.array(
+    zod.object({
+      id: zod.number(),
+      categoryId: zod.number(),
+      name: zod.string(),
+      description: zod.string().nullable(),
+      itemCode: zod
+        .string()
+        .nullable()
+        .describe(
+          "The home's own reference, so a re-import updates rather than duplicates.",
+        ),
+      priceCents: zod.number(),
+      priceUnit: zod
+        .string()
+        .nullable()
+        .describe(
+          '\"each\", \"per day\", \"per mile\". Printed beside the price, never parsed.',
+        ),
+      photoUploadId: zod.number().nullable(),
+      availability: zod
+        .enum(["available", "by_request"])
+        .describe(
+          '`by_request` is the honest answer for the casket a home will order in\nbut does not keep. Deliberately not \"out of stock\": a family reading\nthat about their mother\'s casket hears a shop.\n',
+        ),
+      position: zod.number(),
+      archivedAt: zod.date().nullable(),
+    }),
+  ),
+});
+
+/**
+ * Archived rather than deleted once anybody has chosen it. A selection's
+lines point back at the package they came from, and that link is what
+lets declining one of its items take the package's price adjustment
+with it.
+
+ * @summary Withdraw it, or retire it if a family has already chosen it
+ */
+export const DeleteCataloguePackageParams = zod.object({
+  packageId: zod.coerce.number(),
+});
+
+export const DeleteCataloguePackageResponse = zod
+  .object({
+    archived: zod.boolean(),
+  })
+  .describe(
+    "Returned in place of a 204 when the row could not be deleted because a\nfamily has already chosen from it. A statement is a document the home\nhanded across a desk, and it does not get to change.\n",
+  );
+
+/**
+ * Always run before importing. Returns the guessed column mapping, the
+guessed price list for each of the home's own category names, the first
+rows as they would be created, and every row that could not be read.
+
+Columns labelled cost or wholesale are never read as a price. They sit
+beside the retail column in every supplier's export, and importing one
+would publish a home's margin on the sheet it hands a family.
+
+ * @summary Read a price sheet and show what would be loaded
+ */
+export const PreviewCatalogueImportBody = zod.object({
+  file: zod.instanceof(File),
+});
+
+export const PreviewCatalogueImportResponse = zod.object({
+  headers: zod.array(zod.string()),
+  mapping: zod.record(zod.string(), zod.string().nullable()),
+  totalRows: zod.number(),
+  categories: zod.array(
+    zod
+      .object({
+        name: zod.string(),
+        section: zod
+          .enum([
+            "services",
+            "caskets",
+            "outer_burial_containers",
+            "merchandise",
+            "cash_advance",
+          ])
+          .describe(
+            "Which statutory price list a category's items print on. Fixed rather\nthan named by the home, because these are the Rule's own divisions and\na home that invents a fourth one has a price list that does not comply.\nWhat the home names is the category.\n",
+          ),
+        itemCount: zod.number(),
+      })
+      .describe(
+        "One of the home's own category names, and where we think it goes.",
+      ),
+  ),
+  wouldCreate: zod.number(),
+  wouldUpdate: zod.number(),
+  rows: zod.array(
+    zod.object({
+      row: zod
+        .number()
+        .describe(
+          'The line number a spreadsheet shows, so \"row 34\" means row 34.',
+        ),
+      categoryName: zod.string(),
+      name: zod.string(),
+      description: zod.string().nullable(),
+      priceCents: zod.number(),
+      itemCode: zod.string().nullable(),
+    }),
+  ),
+  issues: zod.array(
+    zod.object({
+      row: zod
+        .number()
+        .describe("Line number in the file, counting the header as line 1."),
+      message: zod.string(),
+    }),
+  ),
+});
+
+/**
+ * Matches on the home's own item code where there is one and on name
+otherwise, so dropping in last year's sheet again updates prices rather
+than doubling the catalogue.
+
+ * @summary Load a price sheet
+ */
+export const ImportCatalogueBody = zod.object({
+  file: zod.instanceof(File),
+  sections: zod
+    .string()
+    .optional()
+    .describe(
+      "JSON object mapping each of the home's own category names to the\nprice list it belongs on, as corrected by the director in the\npreview. A category left out keeps the guess.\n",
+    ),
+});
+
+export const ImportCatalogueResponse = zod.object({
+  created: zod.number(),
+  updated: zod.number(),
+  issues: zod.array(
+    zod.object({
+      row: zod
+        .number()
+        .describe("Line number in the file, counting the header as line 1."),
+      message: zod.string(),
+    }),
+  ),
+});
+
+/**
+ * Print-ready HTML on letter paper. The three documents the Funeral Rule
+requires a provider to be able to produce, rendered from the same
+function the family surface renders them from — a family and a director
+looking at two different price lists is the bug this makes impossible.
+
+ * @summary The General, Casket or Outer Burial Container Price List
+ */
+export const RenderPriceListParams = zod.object({
+  kind: zod
+    .enum(["gpl", "cpl", "obcpl"])
+    .describe("Which of the three statutory lists."),
+});
+
+/**
+ * @summary The catalogue and this family's selection, as the director sees it
+ */
+export const GetCaseStorefrontParams = zod.object({
+  caseId: zod.coerce.number(),
+});
+
+export const GetCaseStorefrontResponse = zod.object({
+  hasGeneralPriceList: zod.boolean(),
+  gplEffectiveOn: zod.date().nullable(),
+  casketsUnlocked: zod
+    .boolean()
+    .describe(
+      "Whether caskets and outer burial containers are showing. False\nuntil the home has a dated price list and this family has it.\n",
+    ),
+  categories: zod.array(
+    zod.object({
+      id: zod.number(),
+      name: zod.string(),
+      description: zod.string().nullable(),
+      section: zod
+        .enum([
+          "services",
+          "caskets",
+          "outer_burial_containers",
+          "merchandise",
+          "cash_advance",
+        ])
+        .describe(
+          "Which statutory price list a category's items print on. Fixed rather\nthan named by the home, because these are the Rule's own divisions and\na home that invents a fourth one has a price list that does not comply.\nWhat the home names is the category.\n",
+        ),
+      position: zod.number(),
+      archivedAt: zod.date().nullable(),
+      items: zod.array(
+        zod.object({
+          id: zod.number(),
+          categoryId: zod.number(),
+          name: zod.string(),
+          description: zod.string().nullable(),
+          itemCode: zod
+            .string()
+            .nullable()
+            .describe(
+              "The home's own reference, so a re-import updates rather than duplicates.",
+            ),
+          priceCents: zod.number(),
+          priceUnit: zod
+            .string()
+            .nullable()
+            .describe(
+              '\"each\", \"per day\", \"per mile\". Printed beside the price, never parsed.',
+            ),
+          photoUploadId: zod.number().nullable(),
+          availability: zod
+            .enum(["available", "by_request"])
+            .describe(
+              '`by_request` is the honest answer for the casket a home will order in\nbut does not keep. Deliberately not \"out of stock\": a family reading\nthat about their mother\'s casket hears a shop.\n',
+            ),
+          position: zod.number(),
+          archivedAt: zod.date().nullable(),
+        }),
+      ),
+    }),
+  ),
+  packages: zod.array(
+    zod.object({
+      id: zod.number(),
+      name: zod.string(),
+      description: zod.string().nullable(),
+      priceCents: zod.number(),
+      itemisedTotalCents: zod
+        .number()
+        .describe(
+          "What the same items come to bought one at a time. Always sent\nalongside the package price, never instead of it — a package that\nis the only price on offer is the thing the Rule forbids.\n",
+        ),
+      items: zod.array(
+        zod.object({
+          id: zod.number(),
+          categoryId: zod.number(),
+          name: zod.string(),
+          description: zod.string().nullable(),
+          itemCode: zod
+            .string()
+            .nullable()
+            .describe(
+              "The home's own reference, so a re-import updates rather than duplicates.",
+            ),
+          priceCents: zod.number(),
+          priceUnit: zod
+            .string()
+            .nullable()
+            .describe(
+              '\"each\", \"per day\", \"per mile\". Printed beside the price, never parsed.',
+            ),
+          photoUploadId: zod.number().nullable(),
+          availability: zod
+            .enum(["available", "by_request"])
+            .describe(
+              '`by_request` is the honest answer for the casket a home will order in\nbut does not keep. Deliberately not \"out of stock\": a family reading\nthat about their mother\'s casket hears a shop.\n',
+            ),
+          position: zod.number(),
+          archivedAt: zod.date().nullable(),
+        }),
+      ),
+    }),
+  ),
+  selection: zod.object({
+    id: zod.number(),
+    status: zod.enum(["draft", "confirmed"]),
+    gplShownAt: zod
+      .date()
+      .nullable()
+      .describe("When this family was given the General Price List."),
+    gplEffectiveOn: zod
+      .date()
+      .nullable()
+      .describe("Which price list these numbers came from."),
+    confirmedAt: zod.date().nullable(),
+    settledAt: zod
+      .date()
+      .nullable()
+      .describe(
+        "A note about the home's own books, never a receipt from us. We\nprocess no payments, so we do not know.\n",
+      ),
+    settledNote: zod.string().nullable(),
+    notes: zod.string().nullable(),
+    lines: zod.array(
+      zod.object({
+        id: zod.number(),
+        kind: zod
+          .enum(["item", "family_provided", "package_adjustment"])
+          .describe(
+            "`family_provided` is the one that matters legally: that line carries no\nprice, because a provider may not charge for handling a casket or urn\nbought elsewhere. `package_adjustment` is the only line that may be\nnegative, because it is the only one that is a discount.\n",
+          ),
+        catalogueItemId: zod.number().nullable(),
+        packageId: zod.number().nullable(),
+        name: zod
+          .string()
+          .describe(
+            "Snapshotted when the line was written, not joined at render time.\nA home raising its prices in March must not rewrite what a family\nagreed in February.\n",
+          ),
+        description: zod.string().nullable(),
+        section: zod.string().nullable(),
+        unitPriceCents: zod
+          .number()
+          .nullable()
+          .describe(
+            "Null on a family-provided line. There is no fee on that path.",
+          ),
+        quantity: zod.number(),
+        lineTotalCents: zod.number(),
+        notes: zod.string().nullable(),
+        position: zod.number(),
+      }),
+    ),
+    totalCents: zod.number(),
+    updatedAt: zod.date(),
+  }),
+  payment: zod
+    .object({
+      url: zod.string().nullable(),
+      host: zod
+        .string()
+        .nullable()
+        .describe(
+          "Shown beside the link so nobody is surprised by where it goes.",
+        ),
+      instructions: zod.string().nullable(),
+      phone: zod
+        .string()
+        .nullable()
+        .describe(
+          "The number to ring when there is no link, which is not an error.",
+        ),
+    })
+    .describe(
+      "Where a family is told to send the money, which is never to us. Null on\na pre-need plan and null on a draft. There is no amount in this shape\nand never will be: we process nothing, so we know nothing, and a field\ncalled `amountPaid` would be a lie with a type annotation.\n",
+    )
+    .nullable(),
+  mayDiscussPayment: zod
+    .boolean()
+    .describe("False on a pre-need case. Nothing is owed on a plan."),
+});
+
+/**
+ * `settled` is a note about the home's records and nothing more. We
+process no payments, so we cannot know whether one was made; a request
+to settle a `pre_need` case is refused, because nothing is owed on a
+plan.
+
+ * @summary Agree the arrangement, reopen it, or note the home's own books
+ */
+export const UpdateMerchandiseSelectionParams = zod.object({
+  caseId: zod.coerce.number(),
+});
+
+export const updateMerchandiseSelectionBodyNotesMax = 4000;
+
+export const updateMerchandiseSelectionBodySettledNoteMax = 500;
+
+export const UpdateMerchandiseSelectionBody = zod.object({
+  notes: zod.string().max(updateMerchandiseSelectionBodyNotesMax).nullish(),
+  confirmed: zod.boolean().optional(),
+  settled: zod
+    .boolean()
+    .optional()
+    .describe(
+      "A director reading their own books. Refused on a pre-need case,\nwhere nothing is owed and nothing is collected.\n",
+    ),
+  settledNote: zod
+    .string()
+    .max(updateMerchandiseSelectionBodySettledNoteMax)
+    .nullish(),
+});
+
+export const UpdateMerchandiseSelectionResponse = zod.object({
+  hasGeneralPriceList: zod.boolean(),
+  gplEffectiveOn: zod.date().nullable(),
+  casketsUnlocked: zod
+    .boolean()
+    .describe(
+      "Whether caskets and outer burial containers are showing. False\nuntil the home has a dated price list and this family has it.\n",
+    ),
+  categories: zod.array(
+    zod.object({
+      id: zod.number(),
+      name: zod.string(),
+      description: zod.string().nullable(),
+      section: zod
+        .enum([
+          "services",
+          "caskets",
+          "outer_burial_containers",
+          "merchandise",
+          "cash_advance",
+        ])
+        .describe(
+          "Which statutory price list a category's items print on. Fixed rather\nthan named by the home, because these are the Rule's own divisions and\na home that invents a fourth one has a price list that does not comply.\nWhat the home names is the category.\n",
+        ),
+      position: zod.number(),
+      archivedAt: zod.date().nullable(),
+      items: zod.array(
+        zod.object({
+          id: zod.number(),
+          categoryId: zod.number(),
+          name: zod.string(),
+          description: zod.string().nullable(),
+          itemCode: zod
+            .string()
+            .nullable()
+            .describe(
+              "The home's own reference, so a re-import updates rather than duplicates.",
+            ),
+          priceCents: zod.number(),
+          priceUnit: zod
+            .string()
+            .nullable()
+            .describe(
+              '\"each\", \"per day\", \"per mile\". Printed beside the price, never parsed.',
+            ),
+          photoUploadId: zod.number().nullable(),
+          availability: zod
+            .enum(["available", "by_request"])
+            .describe(
+              '`by_request` is the honest answer for the casket a home will order in\nbut does not keep. Deliberately not \"out of stock\": a family reading\nthat about their mother\'s casket hears a shop.\n',
+            ),
+          position: zod.number(),
+          archivedAt: zod.date().nullable(),
+        }),
+      ),
+    }),
+  ),
+  packages: zod.array(
+    zod.object({
+      id: zod.number(),
+      name: zod.string(),
+      description: zod.string().nullable(),
+      priceCents: zod.number(),
+      itemisedTotalCents: zod
+        .number()
+        .describe(
+          "What the same items come to bought one at a time. Always sent\nalongside the package price, never instead of it — a package that\nis the only price on offer is the thing the Rule forbids.\n",
+        ),
+      items: zod.array(
+        zod.object({
+          id: zod.number(),
+          categoryId: zod.number(),
+          name: zod.string(),
+          description: zod.string().nullable(),
+          itemCode: zod
+            .string()
+            .nullable()
+            .describe(
+              "The home's own reference, so a re-import updates rather than duplicates.",
+            ),
+          priceCents: zod.number(),
+          priceUnit: zod
+            .string()
+            .nullable()
+            .describe(
+              '\"each\", \"per day\", \"per mile\". Printed beside the price, never parsed.',
+            ),
+          photoUploadId: zod.number().nullable(),
+          availability: zod
+            .enum(["available", "by_request"])
+            .describe(
+              '`by_request` is the honest answer for the casket a home will order in\nbut does not keep. Deliberately not \"out of stock\": a family reading\nthat about their mother\'s casket hears a shop.\n',
+            ),
+          position: zod.number(),
+          archivedAt: zod.date().nullable(),
+        }),
+      ),
+    }),
+  ),
+  selection: zod.object({
+    id: zod.number(),
+    status: zod.enum(["draft", "confirmed"]),
+    gplShownAt: zod
+      .date()
+      .nullable()
+      .describe("When this family was given the General Price List."),
+    gplEffectiveOn: zod
+      .date()
+      .nullable()
+      .describe("Which price list these numbers came from."),
+    confirmedAt: zod.date().nullable(),
+    settledAt: zod
+      .date()
+      .nullable()
+      .describe(
+        "A note about the home's own books, never a receipt from us. We\nprocess no payments, so we do not know.\n",
+      ),
+    settledNote: zod.string().nullable(),
+    notes: zod.string().nullable(),
+    lines: zod.array(
+      zod.object({
+        id: zod.number(),
+        kind: zod
+          .enum(["item", "family_provided", "package_adjustment"])
+          .describe(
+            "`family_provided` is the one that matters legally: that line carries no\nprice, because a provider may not charge for handling a casket or urn\nbought elsewhere. `package_adjustment` is the only line that may be\nnegative, because it is the only one that is a discount.\n",
+          ),
+        catalogueItemId: zod.number().nullable(),
+        packageId: zod.number().nullable(),
+        name: zod
+          .string()
+          .describe(
+            "Snapshotted when the line was written, not joined at render time.\nA home raising its prices in March must not rewrite what a family\nagreed in February.\n",
+          ),
+        description: zod.string().nullable(),
+        section: zod.string().nullable(),
+        unitPriceCents: zod
+          .number()
+          .nullable()
+          .describe(
+            "Null on a family-provided line. There is no fee on that path.",
+          ),
+        quantity: zod.number(),
+        lineTotalCents: zod.number(),
+        notes: zod.string().nullable(),
+        position: zod.number(),
+      }),
+    ),
+    totalCents: zod.number(),
+    updatedAt: zod.date(),
+  }),
+  payment: zod
+    .object({
+      url: zod.string().nullable(),
+      host: zod
+        .string()
+        .nullable()
+        .describe(
+          "Shown beside the link so nobody is surprised by where it goes.",
+        ),
+      instructions: zod.string().nullable(),
+      phone: zod
+        .string()
+        .nullable()
+        .describe(
+          "The number to ring when there is no link, which is not an error.",
+        ),
+    })
+    .describe(
+      "Where a family is told to send the money, which is never to us. Null on\na pre-need plan and null on a draft. There is no amount in this shape\nand never will be: we process nothing, so we know nothing, and a field\ncalled `amountPaid` would be a lie with a type annotation.\n",
+    )
+    .nullable(),
+  mayDiscussPayment: zod
+    .boolean()
+    .describe("False on a pre-need case. Nothing is owed on a plan."),
+});
+
+/**
+ * Set by the family opening it, and by a director recording that they
+handed one across the desk. Both are the same fact and both unlock the
+same thing: the Rule cares that the family has the list, not which way
+it reached them.
+
+ * @summary Record that this family has the General Price List
+ */
+export const RecordGplGivenParams = zod.object({
+  caseId: zod.coerce.number(),
+});
+
+export const RecordGplGivenResponse = zod.object({
+  id: zod.number(),
+  status: zod.enum(["draft", "confirmed"]),
+  gplShownAt: zod
+    .date()
+    .nullable()
+    .describe("When this family was given the General Price List."),
+  gplEffectiveOn: zod
+    .date()
+    .nullable()
+    .describe("Which price list these numbers came from."),
+  confirmedAt: zod.date().nullable(),
+  settledAt: zod
+    .date()
+    .nullable()
+    .describe(
+      "A note about the home's own books, never a receipt from us. We\nprocess no payments, so we do not know.\n",
+    ),
+  settledNote: zod.string().nullable(),
+  notes: zod.string().nullable(),
+  lines: zod.array(
+    zod.object({
+      id: zod.number(),
+      kind: zod
+        .enum(["item", "family_provided", "package_adjustment"])
+        .describe(
+          "`family_provided` is the one that matters legally: that line carries no\nprice, because a provider may not charge for handling a casket or urn\nbought elsewhere. `package_adjustment` is the only line that may be\nnegative, because it is the only one that is a discount.\n",
+        ),
+      catalogueItemId: zod.number().nullable(),
+      packageId: zod.number().nullable(),
+      name: zod
+        .string()
+        .describe(
+          "Snapshotted when the line was written, not joined at render time.\nA home raising its prices in March must not rewrite what a family\nagreed in February.\n",
+        ),
+      description: zod.string().nullable(),
+      section: zod.string().nullable(),
+      unitPriceCents: zod
+        .number()
+        .nullable()
+        .describe(
+          "Null on a family-provided line. There is no fee on that path.",
+        ),
+      quantity: zod.number(),
+      lineTotalCents: zod.number(),
+      notes: zod.string().nullable(),
+      position: zod.number(),
+    }),
+  ),
+  totalCents: zod.number(),
+  updatedAt: zod.date(),
+});
+
+/**
+ * There is no price in this body and there never will be. What a thing
+costs is copied from the home's own catalogue row at the moment the
+line is written — a client that could name a price could name a
+different one.
+
+ * @summary Put a catalogue item on the sheet
+ */
+export const AddSelectionItemParams = zod.object({
+  caseId: zod.coerce.number(),
+});
+
+export const addSelectionItemBodyQuantityMax = 99;
+
+export const AddSelectionItemBody = zod.object({
+  itemId: zod.number(),
+  quantity: zod.number().min(1).max(addSelectionItemBodyQuantityMax).optional(),
+});
+
+/**
+ * @summary Fill the sheet from a package
+ */
+export const AddSelectionPackageParams = zod.object({
+  caseId: zod.coerce.number(),
+});
+
+export const AddSelectionPackageBody = zod.object({
+  packageId: zod.number(),
+});
+
+/**
+ * No price is accepted here, and none is stored. A funeral provider may
+not refuse a casket or urn a family bought elsewhere and may not charge
+a handling fee for one, so there is nowhere on this path for a fee to
+go — enforced by a check constraint on the table as well as by this
+schema.
+
+ * @summary Record that the family is bringing their own
+ */
+export const AddFamilyProvidedItemParams = zod.object({
+  caseId: zod.coerce.number(),
+});
+
+export const addFamilyProvidedItemBodyNameMax = 200;
+
+export const addFamilyProvidedItemBodyNotesMax = 500;
+
+export const AddFamilyProvidedItemBody = zod
+  .object({
+    name: zod.string().min(1).max(addFamilyProvidedItemBodyNameMax),
+    notes: zod.string().max(addFamilyProvidedItemBodyNotesMax).nullish(),
+  })
+  .describe(
+    "What the family is bringing, and optionally who is bringing it and\nwhen. No price, and no field to put one in.\n\n`additionalProperties: false` here means what it says: a client that\ntries to attach a fee to a third-party casket is refused outright\nrather than having the field quietly ignored. The generator does not\ncarry that through to the validator, so the server re-applies it —\nsee `assertNoExtraKeys` in `lib\/storefront.ts`.\n",
+  );
+
+export const UpdateSelectionLineParams = zod.object({
+  caseId: zod.coerce.number(),
+  lineId: zod.coerce.number(),
+});
+
+export const updateSelectionLineBodyQuantityMax = 99;
+
+export const updateSelectionLineBodyNotesMax = 500;
+
+export const UpdateSelectionLineBody = zod.object({
+  quantity: zod
+    .number()
+    .min(1)
+    .max(updateSelectionLineBodyQuantityMax)
+    .optional(),
+  notes: zod.string().max(updateSelectionLineBodyNotesMax).nullish(),
+});
+
+export const UpdateSelectionLineResponse = zod.object({
+  id: zod.number(),
+  status: zod.enum(["draft", "confirmed"]),
+  gplShownAt: zod
+    .date()
+    .nullable()
+    .describe("When this family was given the General Price List."),
+  gplEffectiveOn: zod
+    .date()
+    .nullable()
+    .describe("Which price list these numbers came from."),
+  confirmedAt: zod.date().nullable(),
+  settledAt: zod
+    .date()
+    .nullable()
+    .describe(
+      "A note about the home's own books, never a receipt from us. We\nprocess no payments, so we do not know.\n",
+    ),
+  settledNote: zod.string().nullable(),
+  notes: zod.string().nullable(),
+  lines: zod.array(
+    zod.object({
+      id: zod.number(),
+      kind: zod
+        .enum(["item", "family_provided", "package_adjustment"])
+        .describe(
+          "`family_provided` is the one that matters legally: that line carries no\nprice, because a provider may not charge for handling a casket or urn\nbought elsewhere. `package_adjustment` is the only line that may be\nnegative, because it is the only one that is a discount.\n",
+        ),
+      catalogueItemId: zod.number().nullable(),
+      packageId: zod.number().nullable(),
+      name: zod
+        .string()
+        .describe(
+          "Snapshotted when the line was written, not joined at render time.\nA home raising its prices in March must not rewrite what a family\nagreed in February.\n",
+        ),
+      description: zod.string().nullable(),
+      section: zod.string().nullable(),
+      unitPriceCents: zod
+        .number()
+        .nullable()
+        .describe(
+          "Null on a family-provided line. There is no fee on that path.",
+        ),
+      quantity: zod.number(),
+      lineTotalCents: zod.number(),
+      notes: zod.string().nullable(),
+      position: zod.number(),
+    }),
+  ),
+  totalCents: zod.number(),
+  updatedAt: zod.date(),
+});
+
+/**
+ * When the line came in as part of a package, the package's adjustment
+goes with it: the set is broken, so everything left stands at its own
+price.
+
+ * @summary Decline something, and watch the total change
+ */
+export const RemoveSelectionLineParams = zod.object({
+  caseId: zod.coerce.number(),
+  lineId: zod.coerce.number(),
+});
+
+export const RemoveSelectionLineResponse = zod.object({
+  id: zod.number(),
+  status: zod.enum(["draft", "confirmed"]),
+  gplShownAt: zod
+    .date()
+    .nullable()
+    .describe("When this family was given the General Price List."),
+  gplEffectiveOn: zod
+    .date()
+    .nullable()
+    .describe("Which price list these numbers came from."),
+  confirmedAt: zod.date().nullable(),
+  settledAt: zod
+    .date()
+    .nullable()
+    .describe(
+      "A note about the home's own books, never a receipt from us. We\nprocess no payments, so we do not know.\n",
+    ),
+  settledNote: zod.string().nullable(),
+  notes: zod.string().nullable(),
+  lines: zod.array(
+    zod.object({
+      id: zod.number(),
+      kind: zod
+        .enum(["item", "family_provided", "package_adjustment"])
+        .describe(
+          "`family_provided` is the one that matters legally: that line carries no\nprice, because a provider may not charge for handling a casket or urn\nbought elsewhere. `package_adjustment` is the only line that may be\nnegative, because it is the only one that is a discount.\n",
+        ),
+      catalogueItemId: zod.number().nullable(),
+      packageId: zod.number().nullable(),
+      name: zod
+        .string()
+        .describe(
+          "Snapshotted when the line was written, not joined at render time.\nA home raising its prices in March must not rewrite what a family\nagreed in February.\n",
+        ),
+      description: zod.string().nullable(),
+      section: zod.string().nullable(),
+      unitPriceCents: zod
+        .number()
+        .nullable()
+        .describe(
+          "Null on a family-provided line. There is no fee on that path.",
+        ),
+      quantity: zod.number(),
+      lineTotalCents: zod.number(),
+      notes: zod.string().nullable(),
+      position: zod.number(),
+    }),
+  ),
+  totalCents: zod.number(),
+  updatedAt: zod.date(),
+});
+
+/**
+ * The itemised document the Funeral Rule requires a provider to give at
+the end of an arrangement, generated from what the family actually
+chose. Carries the legal name; every other screen says what they were
+called, and this one is read beside a death certificate.
+
+ * @summary The Statement of Funeral Goods and Services Selected
+ */
+export const RenderStatementParams = zod.object({
+  caseId: zod.coerce.number(),
+});
+
+/**
+ * @summary What this family may see, and what they have chosen
+ */
+export const GetFamilyStorefrontResponse = zod.object({
+  hasGeneralPriceList: zod.boolean(),
+  gplEffectiveOn: zod.date().nullable(),
+  casketsUnlocked: zod
+    .boolean()
+    .describe(
+      "Whether caskets and outer burial containers are showing. False\nuntil the home has a dated price list and this family has it.\n",
+    ),
+  categories: zod.array(
+    zod.object({
+      id: zod.number(),
+      name: zod.string(),
+      description: zod.string().nullable(),
+      section: zod
+        .enum([
+          "services",
+          "caskets",
+          "outer_burial_containers",
+          "merchandise",
+          "cash_advance",
+        ])
+        .describe(
+          "Which statutory price list a category's items print on. Fixed rather\nthan named by the home, because these are the Rule's own divisions and\na home that invents a fourth one has a price list that does not comply.\nWhat the home names is the category.\n",
+        ),
+      position: zod.number(),
+      archivedAt: zod.date().nullable(),
+      items: zod.array(
+        zod.object({
+          id: zod.number(),
+          categoryId: zod.number(),
+          name: zod.string(),
+          description: zod.string().nullable(),
+          itemCode: zod
+            .string()
+            .nullable()
+            .describe(
+              "The home's own reference, so a re-import updates rather than duplicates.",
+            ),
+          priceCents: zod.number(),
+          priceUnit: zod
+            .string()
+            .nullable()
+            .describe(
+              '\"each\", \"per day\", \"per mile\". Printed beside the price, never parsed.',
+            ),
+          photoUploadId: zod.number().nullable(),
+          availability: zod
+            .enum(["available", "by_request"])
+            .describe(
+              '`by_request` is the honest answer for the casket a home will order in\nbut does not keep. Deliberately not \"out of stock\": a family reading\nthat about their mother\'s casket hears a shop.\n',
+            ),
+          position: zod.number(),
+          archivedAt: zod.date().nullable(),
+        }),
+      ),
+    }),
+  ),
+  packages: zod.array(
+    zod.object({
+      id: zod.number(),
+      name: zod.string(),
+      description: zod.string().nullable(),
+      priceCents: zod.number(),
+      itemisedTotalCents: zod
+        .number()
+        .describe(
+          "What the same items come to bought one at a time. Always sent\nalongside the package price, never instead of it — a package that\nis the only price on offer is the thing the Rule forbids.\n",
+        ),
+      items: zod.array(
+        zod.object({
+          id: zod.number(),
+          categoryId: zod.number(),
+          name: zod.string(),
+          description: zod.string().nullable(),
+          itemCode: zod
+            .string()
+            .nullable()
+            .describe(
+              "The home's own reference, so a re-import updates rather than duplicates.",
+            ),
+          priceCents: zod.number(),
+          priceUnit: zod
+            .string()
+            .nullable()
+            .describe(
+              '\"each\", \"per day\", \"per mile\". Printed beside the price, never parsed.',
+            ),
+          photoUploadId: zod.number().nullable(),
+          availability: zod
+            .enum(["available", "by_request"])
+            .describe(
+              '`by_request` is the honest answer for the casket a home will order in\nbut does not keep. Deliberately not \"out of stock\": a family reading\nthat about their mother\'s casket hears a shop.\n',
+            ),
+          position: zod.number(),
+          archivedAt: zod.date().nullable(),
+        }),
+      ),
+    }),
+  ),
+  selection: zod.object({
+    id: zod.number(),
+    status: zod.enum(["draft", "confirmed"]),
+    gplShownAt: zod
+      .date()
+      .nullable()
+      .describe("When this family was given the General Price List."),
+    gplEffectiveOn: zod
+      .date()
+      .nullable()
+      .describe("Which price list these numbers came from."),
+    confirmedAt: zod.date().nullable(),
+    settledAt: zod
+      .date()
+      .nullable()
+      .describe(
+        "A note about the home's own books, never a receipt from us. We\nprocess no payments, so we do not know.\n",
+      ),
+    settledNote: zod.string().nullable(),
+    notes: zod.string().nullable(),
+    lines: zod.array(
+      zod.object({
+        id: zod.number(),
+        kind: zod
+          .enum(["item", "family_provided", "package_adjustment"])
+          .describe(
+            "`family_provided` is the one that matters legally: that line carries no\nprice, because a provider may not charge for handling a casket or urn\nbought elsewhere. `package_adjustment` is the only line that may be\nnegative, because it is the only one that is a discount.\n",
+          ),
+        catalogueItemId: zod.number().nullable(),
+        packageId: zod.number().nullable(),
+        name: zod
+          .string()
+          .describe(
+            "Snapshotted when the line was written, not joined at render time.\nA home raising its prices in March must not rewrite what a family\nagreed in February.\n",
+          ),
+        description: zod.string().nullable(),
+        section: zod.string().nullable(),
+        unitPriceCents: zod
+          .number()
+          .nullable()
+          .describe(
+            "Null on a family-provided line. There is no fee on that path.",
+          ),
+        quantity: zod.number(),
+        lineTotalCents: zod.number(),
+        notes: zod.string().nullable(),
+        position: zod.number(),
+      }),
+    ),
+    totalCents: zod.number(),
+    updatedAt: zod.date(),
+  }),
+  payment: zod
+    .object({
+      url: zod.string().nullable(),
+      host: zod
+        .string()
+        .nullable()
+        .describe(
+          "Shown beside the link so nobody is surprised by where it goes.",
+        ),
+      instructions: zod.string().nullable(),
+      phone: zod
+        .string()
+        .nullable()
+        .describe(
+          "The number to ring when there is no link, which is not an error.",
+        ),
+    })
+    .describe(
+      "Where a family is told to send the money, which is never to us. Null on\na pre-need plan and null on a draft. There is no amount in this shape\nand never will be: we process nothing, so we know nothing, and a field\ncalled `amountPaid` would be a lie with a type annotation.\n",
+    )
+    .nullable(),
+  mayDiscussPayment: zod
+    .boolean()
+    .describe("False on a pre-need case. Nothing is owed on a plan."),
+});
+
+/**
+ * Opening the General Price List records that this family has it, which
+is the moment caskets become visible. A side effect on a GET, and the
+honest option: the fact the Rule cares about is that the family has the
+list, and that becomes true when the sheet renders.
+
+The Casket and Outer Burial Container lists are behind the same gate as
+the caskets themselves.
+
+ * @summary The price list, as the family reads it
+ */
+export const RenderFamilyPriceListParams = zod.object({
+  kind: zod
+    .enum(["gpl", "cpl", "obcpl"])
+    .describe("Which of the three statutory lists."),
+});
+
+/**
+ * @summary Choose something
+ */
+export const addFamilyStorefrontItemBodyQuantityMax = 99;
+
+export const AddFamilyStorefrontItemBody = zod.object({
+  itemId: zod.number(),
+  quantity: zod
+    .number()
+    .min(1)
+    .max(addFamilyStorefrontItemBodyQuantityMax)
+    .optional(),
+});
+
+/**
+ * @summary Choose a package
+ */
+export const AddFamilyStorefrontPackageBody = zod.object({
+  packageId: zod.number(),
+});
+
+/**
+ * A name, and optionally a note about who is bringing it and when. No
+price, no fee, and nowhere for one to be added later.
+
+ * @summary Tell the home you are bringing your own
+ */
+export const addFamilyProvidedToStorefrontBodyNameMax = 200;
+
+export const addFamilyProvidedToStorefrontBodyNotesMax = 500;
+
+export const AddFamilyProvidedToStorefrontBody = zod
+  .object({
+    name: zod.string().min(1).max(addFamilyProvidedToStorefrontBodyNameMax),
+    notes: zod
+      .string()
+      .max(addFamilyProvidedToStorefrontBodyNotesMax)
+      .nullish(),
+  })
+  .describe(
+    "What the family is bringing, and optionally who is bringing it and\nwhen. No price, and no field to put one in.\n\n`additionalProperties: false` here means what it says: a client that\ntries to attach a fee to a third-party casket is refused outright\nrather than having the field quietly ignored. The generator does not\ncarry that through to the validator, so the server re-applies it —\nsee `assertNoExtraKeys` in `lib\/storefront.ts`.\n",
+  );
+
+export const UpdateFamilyStorefrontLineParams = zod.object({
+  lineId: zod.coerce.number(),
+});
+
+export const updateFamilyStorefrontLineBodyQuantityMax = 99;
+
+export const updateFamilyStorefrontLineBodyNotesMax = 500;
+
+export const UpdateFamilyStorefrontLineBody = zod.object({
+  quantity: zod
+    .number()
+    .min(1)
+    .max(updateFamilyStorefrontLineBodyQuantityMax)
+    .optional(),
+  notes: zod.string().max(updateFamilyStorefrontLineBodyNotesMax).nullish(),
+});
+
+export const UpdateFamilyStorefrontLineResponse = zod.object({
+  id: zod.number(),
+  status: zod.enum(["draft", "confirmed"]),
+  gplShownAt: zod
+    .date()
+    .nullable()
+    .describe("When this family was given the General Price List."),
+  gplEffectiveOn: zod
+    .date()
+    .nullable()
+    .describe("Which price list these numbers came from."),
+  confirmedAt: zod.date().nullable(),
+  settledAt: zod
+    .date()
+    .nullable()
+    .describe(
+      "A note about the home's own books, never a receipt from us. We\nprocess no payments, so we do not know.\n",
+    ),
+  settledNote: zod.string().nullable(),
+  notes: zod.string().nullable(),
+  lines: zod.array(
+    zod.object({
+      id: zod.number(),
+      kind: zod
+        .enum(["item", "family_provided", "package_adjustment"])
+        .describe(
+          "`family_provided` is the one that matters legally: that line carries no\nprice, because a provider may not charge for handling a casket or urn\nbought elsewhere. `package_adjustment` is the only line that may be\nnegative, because it is the only one that is a discount.\n",
+        ),
+      catalogueItemId: zod.number().nullable(),
+      packageId: zod.number().nullable(),
+      name: zod
+        .string()
+        .describe(
+          "Snapshotted when the line was written, not joined at render time.\nA home raising its prices in March must not rewrite what a family\nagreed in February.\n",
+        ),
+      description: zod.string().nullable(),
+      section: zod.string().nullable(),
+      unitPriceCents: zod
+        .number()
+        .nullable()
+        .describe(
+          "Null on a family-provided line. There is no fee on that path.",
+        ),
+      quantity: zod.number(),
+      lineTotalCents: zod.number(),
+      notes: zod.string().nullable(),
+      position: zod.number(),
+    }),
+  ),
+  totalCents: zod.number(),
+  updatedAt: zod.date(),
+});
+
+/**
+ * @summary Change your mind about something
+ */
+export const RemoveFamilyStorefrontLineParams = zod.object({
+  lineId: zod.coerce.number(),
+});
+
+export const RemoveFamilyStorefrontLineResponse = zod.object({
+  id: zod.number(),
+  status: zod.enum(["draft", "confirmed"]),
+  gplShownAt: zod
+    .date()
+    .nullable()
+    .describe("When this family was given the General Price List."),
+  gplEffectiveOn: zod
+    .date()
+    .nullable()
+    .describe("Which price list these numbers came from."),
+  confirmedAt: zod.date().nullable(),
+  settledAt: zod
+    .date()
+    .nullable()
+    .describe(
+      "A note about the home's own books, never a receipt from us. We\nprocess no payments, so we do not know.\n",
+    ),
+  settledNote: zod.string().nullable(),
+  notes: zod.string().nullable(),
+  lines: zod.array(
+    zod.object({
+      id: zod.number(),
+      kind: zod
+        .enum(["item", "family_provided", "package_adjustment"])
+        .describe(
+          "`family_provided` is the one that matters legally: that line carries no\nprice, because a provider may not charge for handling a casket or urn\nbought elsewhere. `package_adjustment` is the only line that may be\nnegative, because it is the only one that is a discount.\n",
+        ),
+      catalogueItemId: zod.number().nullable(),
+      packageId: zod.number().nullable(),
+      name: zod
+        .string()
+        .describe(
+          "Snapshotted when the line was written, not joined at render time.\nA home raising its prices in March must not rewrite what a family\nagreed in February.\n",
+        ),
+      description: zod.string().nullable(),
+      section: zod.string().nullable(),
+      unitPriceCents: zod
+        .number()
+        .nullable()
+        .describe(
+          "Null on a family-provided line. There is no fee on that path.",
+        ),
+      quantity: zod.number(),
+      lineTotalCents: zod.number(),
+      notes: zod.string().nullable(),
+      position: zod.number(),
+    }),
+  ),
+  totalCents: zod.number(),
+  updatedAt: zod.date(),
+});
+
+/**
+ * The home's catalogue photographs belong to no case, so the family's
+ordinary upload route — which serves only files on their own case —
+cannot reach them, and rightly so. This one checks the file is in use
+by a live item in this home's catalogue before it serves a byte.
+
+ * @summary A photograph of something in the catalogue
+ */
+export const GetFamilyCataloguePhotoParams = zod.object({
+  uploadId: zod.coerce.number(),
+});
+
+/**
  * Staff-only, and that is a rule rather than a default. These numbers
 are never returned by a family route or a public one - the FTC
 Funeral Rule governs how a funeral provider discloses prices, and a

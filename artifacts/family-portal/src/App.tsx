@@ -29,6 +29,7 @@ import NotFound from "@/pages/NotFound";
 const Photos = lazy(() => import("@/pages/Photos"));
 const Obituary = lazy(() => import("@/pages/Obituary"));
 const Selections = lazy(() => import("@/pages/Selections"));
+const Choices = lazy(() => import("@/pages/Choices"));
 const Timeline = lazy(() => import("@/pages/Timeline"));
 const ServiceTime = lazy(() => import("@/pages/ServiceTime"));
 const Messages = lazy(() => import("@/pages/Messages"));
@@ -138,6 +139,7 @@ export default function App() {
                       <Route path="/photos" component={Photos} />
                       <Route path="/obituary" component={Obituary} />
                       <Route path="/service" component={Selections} />
+                      <Route path="/choices" component={Choices} />
                       <Route path="/timeline" component={Timeline} />
                       <Route path="/service-time" component={ServiceTime} />
                       <Route path="/messages" component={Messages} />

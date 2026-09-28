@@ -5,10 +5,13 @@ import { Link } from "wouter";
 import {
   useGetFamilySession,
   useGetFamilyDeadlines,
+  useGetFamilyStorefront,
+  formatPrice,
 } from "@workspace/api-client-react";
 import {
   Images,
   FileText,
+  Flower2,
   ListMusic,
   Shirt,
   ClipboardList,
@@ -168,6 +171,7 @@ function Group({ label, children }: { label: string; children: ReactNode }) {
 export default function Hub() {
   const session = useGetFamilySession();
   const deadlines = useGetFamilyDeadlines();
+  const storefront = useGetFamilyStorefront();
 
   if (!session.data) return null;
 
@@ -201,6 +205,12 @@ export default function Hub() {
   } = nextDue(deadlines.data ?? [], now);
   const serviceIsPast =
     deceased.serviceAt !== null && new Date(deceased.serviceAt).getTime() < now;
+
+  // Counted rather than badged. A number beside "Caskets, urns and services"
+  // is the family's own note of where they got to; a badge would be a shop.
+  const chosenCount = (storefront.data?.selection.lines ?? []).filter(
+    (line) => line.kind !== "package_adjustment",
+  ).length;
 
   return (
     <div className="space-y-8">
@@ -458,6 +468,23 @@ export default function Hub() {
             title="Hymns and readings"
             detail="Music, readings, and who will carry"
           />
+          {/*
+            Offered only once the home has a price list, because until then
+            there is genuinely nothing behind it — and a card that opens onto
+            an apology is worse than no card.
+          */}
+          {storefront.data?.hasGeneralPriceList && (
+            <Card
+              href="/choices"
+              icon={Flower2}
+              title="Caskets, urns and services"
+              detail={
+                chosenCount === 0
+                  ? `What ${home.name} can arrange, with every price`
+                  : `${chosenCount} chosen · ${formatPrice(storefront.data.selection.totalCents)}`
+              }
+            />
+          )}
           <Card
             href="/proofs"
             icon={FileCheck}

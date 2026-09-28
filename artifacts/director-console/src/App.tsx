@@ -41,6 +41,7 @@ import NotFound from "@/pages/NotFound";
  */
 const Inbox = lazy(() => import("@/pages/Inbox"));
 const Storefront = lazy(() => import("@/pages/Storefront"));
+const Catalogue = lazy(() => import("@/pages/Catalogue"));
 const PriceList = lazy(() => import("@/pages/PriceList"));
 const Cases = lazy(() => import("@/pages/Cases"));
 const CaseDetail = lazy(() => import("@/pages/CaseDetail"));
@@ -144,6 +145,7 @@ function Routes() {
           <Route path="/requests" component={Requests} />
           <Route path="/vendors" component={Vendors} />
           <Route path="/storefront" component={Storefront} />
+          <Route path="/catalogue" component={Catalogue} />
           <Route path="/prices" component={PriceList} />
           <Route path="/settings" component={Settings} />
           <Route component={NotFound} />

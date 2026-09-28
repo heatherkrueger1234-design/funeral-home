@@ -34,6 +34,7 @@ import type {
   AftercareEnrollment,
   AftercareUnsubscribeParams,
   AftercareUnsubscribeState,
+  ArchivedInstead,
   AuthUser,
   Belonging,
   BelongingInput,
@@ -50,6 +51,19 @@ import type {
   CasePhotoUploadInput,
   CaseSummary,
   CaseUpdate,
+  Catalogue,
+  CatalogueCategory,
+  CatalogueCategoryInput,
+  CatalogueCategoryUpdate,
+  CatalogueImportInput,
+  CatalogueImportPreview,
+  CatalogueImportResult,
+  CatalogueItem,
+  CatalogueItemInput,
+  CatalogueItemUpdate,
+  CataloguePackage,
+  CataloguePackageInput,
+  CataloguePackageUpdate,
   ChosenService,
   CompleteDeadlineInput,
   ComposeObituaryInput,
@@ -69,6 +83,7 @@ import type {
   FamilyPhotoUpdate,
   FamilyPhotoUploadInput,
   FamilyPreparationUpdate,
+  FamilyProvidedInput,
   FamilyRelativeInput,
   FamilyRelativeInvited,
   FamilyRelatives,
@@ -104,6 +119,8 @@ import type {
   MemoryEntry,
   MemoryEntryInput,
   MemoryEntryUpdate,
+  MerchandiseSelection,
+  MerchandiseSelectionUpdate,
   MessageInput,
   MessageThread,
   ObituaryDraft,
@@ -134,6 +151,9 @@ import type {
   RegisterInput,
   ResetPasswordInput,
   SelectionInput,
+  SelectionItemInput,
+  SelectionLineUpdate,
+  SelectionPackageInput,
   SelectionUpdate,
   SentLink,
   ServiceOffer,
@@ -150,6 +170,9 @@ import type {
   StaffMemoryEntryInput,
   StaffMemoryEntryUpdate,
   StaffUpdate,
+  Storefront,
+  StorefrontSettings,
+  StorefrontSettingsUpdate,
   TimelineTemplate,
   TimelineTemplateInput,
   TimelineTemplateUpdate,
@@ -3498,6 +3521,2915 @@ export const useDeleteHomePolicy = <
 > => {
   return useMutation(getDeleteHomePolicyMutationOptions(options));
 };
+
+/**
+ * @summary The price list's effective date, its disclosures, and how the home is paid
+ */
+export const getGetStorefrontSettingsUrl = () => {
+  return `/api/storefront/settings`;
+};
+
+export const getStorefrontSettings = async (
+  options?: RequestInit,
+): Promise<StorefrontSettings> => {
+  return customFetch<StorefrontSettings>(getGetStorefrontSettingsUrl(), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getGetStorefrontSettingsQueryKey = () => {
+  return [`/api/storefront/settings`] as const;
+};
+
+export const getGetStorefrontSettingsQueryOptions = <
+  TData = Awaited<ReturnType<typeof getStorefrontSettings>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof getStorefrontSettings>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getGetStorefrontSettingsQueryKey();
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof getStorefrontSettings>>
+  > = ({ signal }) => getStorefrontSettings({ signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof getStorefrontSettings>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type GetStorefrontSettingsQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getStorefrontSettings>>
+>;
+export type GetStorefrontSettingsQueryError = ErrorType<unknown>;
+
+/**
+ * @summary The price list's effective date, its disclosures, and how the home is paid
+ */
+
+export function useGetStorefrontSettings<
+  TData = Awaited<ReturnType<typeof getStorefrontSettings>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof getStorefrontSettings>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getGetStorefrontSettingsQueryOptions(options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * Disclosures are merged by key rather than replaced, because the console
+edits one slot at a time and a PUT that dropped the others would strip
+a home's price list of paragraphs their attorney wrote.
+
+ * @summary Change them
+ */
+export const getUpdateStorefrontSettingsUrl = () => {
+  return `/api/storefront/settings`;
+};
+
+export const updateStorefrontSettings = async (
+  storefrontSettingsUpdate: StorefrontSettingsUpdate,
+  options?: RequestInit,
+): Promise<StorefrontSettings> => {
+  return customFetch<StorefrontSettings>(getUpdateStorefrontSettingsUrl(), {
+    ...options,
+    method: "PUT",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(storefrontSettingsUpdate),
+  });
+};
+
+export const getUpdateStorefrontSettingsMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof updateStorefrontSettings>>,
+    TError,
+    { data: BodyType<StorefrontSettingsUpdate> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof updateStorefrontSettings>>,
+  TError,
+  { data: BodyType<StorefrontSettingsUpdate> },
+  TContext
+> => {
+  const mutationKey = ["updateStorefrontSettings"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof updateStorefrontSettings>>,
+    { data: BodyType<StorefrontSettingsUpdate> }
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return updateStorefrontSettings(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type UpdateStorefrontSettingsMutationResult = NonNullable<
+  Awaited<ReturnType<typeof updateStorefrontSettings>>
+>;
+export type UpdateStorefrontSettingsMutationBody =
+  BodyType<StorefrontSettingsUpdate>;
+export type UpdateStorefrontSettingsMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Change them
+ */
+export const useUpdateStorefrontSettings = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof updateStorefrontSettings>>,
+    TError,
+    { data: BodyType<StorefrontSettingsUpdate> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof updateStorefrontSettings>>,
+  TError,
+  { data: BodyType<StorefrontSettingsUpdate> },
+  TContext
+> => {
+  return useMutation(getUpdateStorefrontSettingsMutationOptions(options));
+};
+
+/**
+ * @summary Everything this home sells, by category
+ */
+export const getGetCatalogueUrl = () => {
+  return `/api/catalogue`;
+};
+
+export const getCatalogue = async (
+  options?: RequestInit,
+): Promise<Catalogue> => {
+  return customFetch<Catalogue>(getGetCatalogueUrl(), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getGetCatalogueQueryKey = () => {
+  return [`/api/catalogue`] as const;
+};
+
+export const getGetCatalogueQueryOptions = <
+  TData = Awaited<ReturnType<typeof getCatalogue>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof getCatalogue>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getGetCatalogueQueryKey();
+
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof getCatalogue>>> = ({
+    signal,
+  }) => getCatalogue({ signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof getCatalogue>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type GetCatalogueQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getCatalogue>>
+>;
+export type GetCatalogueQueryError = ErrorType<unknown>;
+
+/**
+ * @summary Everything this home sells, by category
+ */
+
+export function useGetCatalogue<
+  TData = Awaited<ReturnType<typeof getCatalogue>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof getCatalogue>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getGetCatalogueQueryOptions(options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary Add a category, named by the home
+ */
+export const getCreateCatalogueCategoryUrl = () => {
+  return `/api/catalogue/categories`;
+};
+
+export const createCatalogueCategory = async (
+  catalogueCategoryInput: CatalogueCategoryInput,
+  options?: RequestInit,
+): Promise<CatalogueCategory> => {
+  return customFetch<CatalogueCategory>(getCreateCatalogueCategoryUrl(), {
+    ...options,
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(catalogueCategoryInput),
+  });
+};
+
+export const getCreateCatalogueCategoryMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof createCatalogueCategory>>,
+    TError,
+    { data: BodyType<CatalogueCategoryInput> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof createCatalogueCategory>>,
+  TError,
+  { data: BodyType<CatalogueCategoryInput> },
+  TContext
+> => {
+  const mutationKey = ["createCatalogueCategory"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof createCatalogueCategory>>,
+    { data: BodyType<CatalogueCategoryInput> }
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return createCatalogueCategory(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type CreateCatalogueCategoryMutationResult = NonNullable<
+  Awaited<ReturnType<typeof createCatalogueCategory>>
+>;
+export type CreateCatalogueCategoryMutationBody =
+  BodyType<CatalogueCategoryInput>;
+export type CreateCatalogueCategoryMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Add a category, named by the home
+ */
+export const useCreateCatalogueCategory = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof createCatalogueCategory>>,
+    TError,
+    { data: BodyType<CatalogueCategoryInput> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof createCatalogueCategory>>,
+  TError,
+  { data: BodyType<CatalogueCategoryInput> },
+  TContext
+> => {
+  return useMutation(getCreateCatalogueCategoryMutationOptions(options));
+};
+
+export const getUpdateCatalogueCategoryUrl = (categoryId: number) => {
+  return `/api/catalogue/categories/${categoryId}`;
+};
+
+export const updateCatalogueCategory = async (
+  categoryId: number,
+  catalogueCategoryUpdate: CatalogueCategoryUpdate,
+  options?: RequestInit,
+): Promise<CatalogueCategory> => {
+  return customFetch<CatalogueCategory>(
+    getUpdateCatalogueCategoryUrl(categoryId),
+    {
+      ...options,
+      method: "PUT",
+      headers: { "Content-Type": "application/json", ...options?.headers },
+      body: JSON.stringify(catalogueCategoryUpdate),
+    },
+  );
+};
+
+export const getUpdateCatalogueCategoryMutationOptions = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof updateCatalogueCategory>>,
+    TError,
+    { categoryId: number; data: BodyType<CatalogueCategoryUpdate> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof updateCatalogueCategory>>,
+  TError,
+  { categoryId: number; data: BodyType<CatalogueCategoryUpdate> },
+  TContext
+> => {
+  const mutationKey = ["updateCatalogueCategory"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof updateCatalogueCategory>>,
+    { categoryId: number; data: BodyType<CatalogueCategoryUpdate> }
+  > = (props) => {
+    const { categoryId, data } = props ?? {};
+
+    return updateCatalogueCategory(categoryId, data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type UpdateCatalogueCategoryMutationResult = NonNullable<
+  Awaited<ReturnType<typeof updateCatalogueCategory>>
+>;
+export type UpdateCatalogueCategoryMutationBody =
+  BodyType<CatalogueCategoryUpdate>;
+export type UpdateCatalogueCategoryMutationError = ErrorType<void>;
+
+export const useUpdateCatalogueCategory = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof updateCatalogueCategory>>,
+    TError,
+    { categoryId: number; data: BodyType<CatalogueCategoryUpdate> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof updateCatalogueCategory>>,
+  TError,
+  { categoryId: number; data: BodyType<CatalogueCategoryUpdate> },
+  TContext
+> => {
+  return useMutation(getUpdateCatalogueCategoryMutationOptions(options));
+};
+
+/**
+ * A category a family has chosen from is part of a statement, and a
+statement is a document the home handed across a desk. So once one of
+its items appears on any selection this archives instead of deleting,
+and says which it did.
+
+ * @summary Remove it, or retire it if a family has already chosen from it
+ */
+export const getDeleteCatalogueCategoryUrl = (categoryId: number) => {
+  return `/api/catalogue/categories/${categoryId}`;
+};
+
+export const deleteCatalogueCategory = async (
+  categoryId: number,
+  options?: RequestInit,
+): Promise<ArchivedInstead | void> => {
+  return customFetch<ArchivedInstead | void>(
+    getDeleteCatalogueCategoryUrl(categoryId),
+    {
+      ...options,
+      method: "DELETE",
+    },
+  );
+};
+
+export const getDeleteCatalogueCategoryMutationOptions = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof deleteCatalogueCategory>>,
+    TError,
+    { categoryId: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof deleteCatalogueCategory>>,
+  TError,
+  { categoryId: number },
+  TContext
+> => {
+  const mutationKey = ["deleteCatalogueCategory"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof deleteCatalogueCategory>>,
+    { categoryId: number }
+  > = (props) => {
+    const { categoryId } = props ?? {};
+
+    return deleteCatalogueCategory(categoryId, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type DeleteCatalogueCategoryMutationResult = NonNullable<
+  Awaited<ReturnType<typeof deleteCatalogueCategory>>
+>;
+
+export type DeleteCatalogueCategoryMutationError = ErrorType<void>;
+
+/**
+ * @summary Remove it, or retire it if a family has already chosen from it
+ */
+export const useDeleteCatalogueCategory = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof deleteCatalogueCategory>>,
+    TError,
+    { categoryId: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof deleteCatalogueCategory>>,
+  TError,
+  { categoryId: number },
+  TContext
+> => {
+  return useMutation(getDeleteCatalogueCategoryMutationOptions(options));
+};
+
+/**
+ * @summary Add one item, at the home's own price
+ */
+export const getCreateCatalogueItemUrl = () => {
+  return `/api/catalogue/items`;
+};
+
+export const createCatalogueItem = async (
+  catalogueItemInput: CatalogueItemInput,
+  options?: RequestInit,
+): Promise<CatalogueItem> => {
+  return customFetch<CatalogueItem>(getCreateCatalogueItemUrl(), {
+    ...options,
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(catalogueItemInput),
+  });
+};
+
+export const getCreateCatalogueItemMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof createCatalogueItem>>,
+    TError,
+    { data: BodyType<CatalogueItemInput> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof createCatalogueItem>>,
+  TError,
+  { data: BodyType<CatalogueItemInput> },
+  TContext
+> => {
+  const mutationKey = ["createCatalogueItem"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof createCatalogueItem>>,
+    { data: BodyType<CatalogueItemInput> }
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return createCatalogueItem(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type CreateCatalogueItemMutationResult = NonNullable<
+  Awaited<ReturnType<typeof createCatalogueItem>>
+>;
+export type CreateCatalogueItemMutationBody = BodyType<CatalogueItemInput>;
+export type CreateCatalogueItemMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Add one item, at the home's own price
+ */
+export const useCreateCatalogueItem = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof createCatalogueItem>>,
+    TError,
+    { data: BodyType<CatalogueItemInput> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof createCatalogueItem>>,
+  TError,
+  { data: BodyType<CatalogueItemInput> },
+  TContext
+> => {
+  return useMutation(getCreateCatalogueItemMutationOptions(options));
+};
+
+export const getUpdateCatalogueItemUrl = (itemId: number) => {
+  return `/api/catalogue/items/${itemId}`;
+};
+
+export const updateCatalogueItem = async (
+  itemId: number,
+  catalogueItemUpdate: CatalogueItemUpdate,
+  options?: RequestInit,
+): Promise<CatalogueItem> => {
+  return customFetch<CatalogueItem>(getUpdateCatalogueItemUrl(itemId), {
+    ...options,
+    method: "PUT",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(catalogueItemUpdate),
+  });
+};
+
+export const getUpdateCatalogueItemMutationOptions = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof updateCatalogueItem>>,
+    TError,
+    { itemId: number; data: BodyType<CatalogueItemUpdate> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof updateCatalogueItem>>,
+  TError,
+  { itemId: number; data: BodyType<CatalogueItemUpdate> },
+  TContext
+> => {
+  const mutationKey = ["updateCatalogueItem"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof updateCatalogueItem>>,
+    { itemId: number; data: BodyType<CatalogueItemUpdate> }
+  > = (props) => {
+    const { itemId, data } = props ?? {};
+
+    return updateCatalogueItem(itemId, data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type UpdateCatalogueItemMutationResult = NonNullable<
+  Awaited<ReturnType<typeof updateCatalogueItem>>
+>;
+export type UpdateCatalogueItemMutationBody = BodyType<CatalogueItemUpdate>;
+export type UpdateCatalogueItemMutationError = ErrorType<void>;
+
+export const useUpdateCatalogueItem = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof updateCatalogueItem>>,
+    TError,
+    { itemId: number; data: BodyType<CatalogueItemUpdate> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof updateCatalogueItem>>,
+  TError,
+  { itemId: number; data: BodyType<CatalogueItemUpdate> },
+  TContext
+> => {
+  return useMutation(getUpdateCatalogueItemMutationOptions(options));
+};
+
+/**
+ * @summary Remove it, or retire it if a family has already chosen it
+ */
+export const getDeleteCatalogueItemUrl = (itemId: number) => {
+  return `/api/catalogue/items/${itemId}`;
+};
+
+export const deleteCatalogueItem = async (
+  itemId: number,
+  options?: RequestInit,
+): Promise<ArchivedInstead | void> => {
+  return customFetch<ArchivedInstead | void>(
+    getDeleteCatalogueItemUrl(itemId),
+    {
+      ...options,
+      method: "DELETE",
+    },
+  );
+};
+
+export const getDeleteCatalogueItemMutationOptions = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof deleteCatalogueItem>>,
+    TError,
+    { itemId: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof deleteCatalogueItem>>,
+  TError,
+  { itemId: number },
+  TContext
+> => {
+  const mutationKey = ["deleteCatalogueItem"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof deleteCatalogueItem>>,
+    { itemId: number }
+  > = (props) => {
+    const { itemId } = props ?? {};
+
+    return deleteCatalogueItem(itemId, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type DeleteCatalogueItemMutationResult = NonNullable<
+  Awaited<ReturnType<typeof deleteCatalogueItem>>
+>;
+
+export type DeleteCatalogueItemMutationError = ErrorType<void>;
+
+/**
+ * @summary Remove it, or retire it if a family has already chosen it
+ */
+export const useDeleteCatalogueItem = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof deleteCatalogueItem>>,
+    TError,
+    { itemId: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof deleteCatalogueItem>>,
+  TError,
+  { itemId: number },
+  TContext
+> => {
+  return useMutation(getDeleteCatalogueItemMutationOptions(options));
+};
+
+/**
+ * In addition to the itemised catalogue, never instead of it. Choosing a
+package writes its members as ordinary itemised lines plus a single
+adjustment carrying the difference, so declining any one of them still
+works and still moves the total.
+
+ * @summary Offer several items together, at a price of the home's own
+ */
+export const getCreateCataloguePackageUrl = () => {
+  return `/api/catalogue/packages`;
+};
+
+export const createCataloguePackage = async (
+  cataloguePackageInput: CataloguePackageInput,
+  options?: RequestInit,
+): Promise<CataloguePackage> => {
+  return customFetch<CataloguePackage>(getCreateCataloguePackageUrl(), {
+    ...options,
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(cataloguePackageInput),
+  });
+};
+
+export const getCreateCataloguePackageMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof createCataloguePackage>>,
+    TError,
+    { data: BodyType<CataloguePackageInput> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof createCataloguePackage>>,
+  TError,
+  { data: BodyType<CataloguePackageInput> },
+  TContext
+> => {
+  const mutationKey = ["createCataloguePackage"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof createCataloguePackage>>,
+    { data: BodyType<CataloguePackageInput> }
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return createCataloguePackage(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type CreateCataloguePackageMutationResult = NonNullable<
+  Awaited<ReturnType<typeof createCataloguePackage>>
+>;
+export type CreateCataloguePackageMutationBody =
+  BodyType<CataloguePackageInput>;
+export type CreateCataloguePackageMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Offer several items together, at a price of the home's own
+ */
+export const useCreateCataloguePackage = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof createCataloguePackage>>,
+    TError,
+    { data: BodyType<CataloguePackageInput> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof createCataloguePackage>>,
+  TError,
+  { data: BodyType<CataloguePackageInput> },
+  TContext
+> => {
+  return useMutation(getCreateCataloguePackageMutationOptions(options));
+};
+
+export const getUpdateCataloguePackageUrl = (packageId: number) => {
+  return `/api/catalogue/packages/${packageId}`;
+};
+
+export const updateCataloguePackage = async (
+  packageId: number,
+  cataloguePackageUpdate: CataloguePackageUpdate,
+  options?: RequestInit,
+): Promise<CataloguePackage> => {
+  return customFetch<CataloguePackage>(
+    getUpdateCataloguePackageUrl(packageId),
+    {
+      ...options,
+      method: "PUT",
+      headers: { "Content-Type": "application/json", ...options?.headers },
+      body: JSON.stringify(cataloguePackageUpdate),
+    },
+  );
+};
+
+export const getUpdateCataloguePackageMutationOptions = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof updateCataloguePackage>>,
+    TError,
+    { packageId: number; data: BodyType<CataloguePackageUpdate> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof updateCataloguePackage>>,
+  TError,
+  { packageId: number; data: BodyType<CataloguePackageUpdate> },
+  TContext
+> => {
+  const mutationKey = ["updateCataloguePackage"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof updateCataloguePackage>>,
+    { packageId: number; data: BodyType<CataloguePackageUpdate> }
+  > = (props) => {
+    const { packageId, data } = props ?? {};
+
+    return updateCataloguePackage(packageId, data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type UpdateCataloguePackageMutationResult = NonNullable<
+  Awaited<ReturnType<typeof updateCataloguePackage>>
+>;
+export type UpdateCataloguePackageMutationBody =
+  BodyType<CataloguePackageUpdate>;
+export type UpdateCataloguePackageMutationError = ErrorType<void>;
+
+export const useUpdateCataloguePackage = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof updateCataloguePackage>>,
+    TError,
+    { packageId: number; data: BodyType<CataloguePackageUpdate> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof updateCataloguePackage>>,
+  TError,
+  { packageId: number; data: BodyType<CataloguePackageUpdate> },
+  TContext
+> => {
+  return useMutation(getUpdateCataloguePackageMutationOptions(options));
+};
+
+/**
+ * Archived rather than deleted once anybody has chosen it. A selection's
+lines point back at the package they came from, and that link is what
+lets declining one of its items take the package's price adjustment
+with it.
+
+ * @summary Withdraw it, or retire it if a family has already chosen it
+ */
+export const getDeleteCataloguePackageUrl = (packageId: number) => {
+  return `/api/catalogue/packages/${packageId}`;
+};
+
+export const deleteCataloguePackage = async (
+  packageId: number,
+  options?: RequestInit,
+): Promise<ArchivedInstead | void> => {
+  return customFetch<ArchivedInstead | void>(
+    getDeleteCataloguePackageUrl(packageId),
+    {
+      ...options,
+      method: "DELETE",
+    },
+  );
+};
+
+export const getDeleteCataloguePackageMutationOptions = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof deleteCataloguePackage>>,
+    TError,
+    { packageId: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof deleteCataloguePackage>>,
+  TError,
+  { packageId: number },
+  TContext
+> => {
+  const mutationKey = ["deleteCataloguePackage"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof deleteCataloguePackage>>,
+    { packageId: number }
+  > = (props) => {
+    const { packageId } = props ?? {};
+
+    return deleteCataloguePackage(packageId, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type DeleteCataloguePackageMutationResult = NonNullable<
+  Awaited<ReturnType<typeof deleteCataloguePackage>>
+>;
+
+export type DeleteCataloguePackageMutationError = ErrorType<void>;
+
+/**
+ * @summary Withdraw it, or retire it if a family has already chosen it
+ */
+export const useDeleteCataloguePackage = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof deleteCataloguePackage>>,
+    TError,
+    { packageId: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof deleteCataloguePackage>>,
+  TError,
+  { packageId: number },
+  TContext
+> => {
+  return useMutation(getDeleteCataloguePackageMutationOptions(options));
+};
+
+/**
+ * Always run before importing. Returns the guessed column mapping, the
+guessed price list for each of the home's own category names, the first
+rows as they would be created, and every row that could not be read.
+
+Columns labelled cost or wholesale are never read as a price. They sit
+beside the retail column in every supplier's export, and importing one
+would publish a home's margin on the sheet it hands a family.
+
+ * @summary Read a price sheet and show what would be loaded
+ */
+export const getPreviewCatalogueImportUrl = () => {
+  return `/api/catalogue/import/preview`;
+};
+
+export const previewCatalogueImport = async (
+  csvUploadInput: CsvUploadInput,
+  options?: RequestInit,
+): Promise<CatalogueImportPreview> => {
+  const formData = new FormData();
+  formData.append(`file`, csvUploadInput.file);
+
+  return customFetch<CatalogueImportPreview>(getPreviewCatalogueImportUrl(), {
+    ...options,
+    method: "POST",
+    body: formData,
+  });
+};
+
+export const getPreviewCatalogueImportMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof previewCatalogueImport>>,
+    TError,
+    { data: BodyType<CsvUploadInput> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof previewCatalogueImport>>,
+  TError,
+  { data: BodyType<CsvUploadInput> },
+  TContext
+> => {
+  const mutationKey = ["previewCatalogueImport"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof previewCatalogueImport>>,
+    { data: BodyType<CsvUploadInput> }
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return previewCatalogueImport(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type PreviewCatalogueImportMutationResult = NonNullable<
+  Awaited<ReturnType<typeof previewCatalogueImport>>
+>;
+export type PreviewCatalogueImportMutationBody = BodyType<CsvUploadInput>;
+export type PreviewCatalogueImportMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Read a price sheet and show what would be loaded
+ */
+export const usePreviewCatalogueImport = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof previewCatalogueImport>>,
+    TError,
+    { data: BodyType<CsvUploadInput> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof previewCatalogueImport>>,
+  TError,
+  { data: BodyType<CsvUploadInput> },
+  TContext
+> => {
+  return useMutation(getPreviewCatalogueImportMutationOptions(options));
+};
+
+/**
+ * Matches on the home's own item code where there is one and on name
+otherwise, so dropping in last year's sheet again updates prices rather
+than doubling the catalogue.
+
+ * @summary Load a price sheet
+ */
+export const getImportCatalogueUrl = () => {
+  return `/api/catalogue/import`;
+};
+
+export const importCatalogue = async (
+  catalogueImportInput: CatalogueImportInput,
+  options?: RequestInit,
+): Promise<CatalogueImportResult> => {
+  const formData = new FormData();
+  formData.append(`file`, catalogueImportInput.file);
+  if (catalogueImportInput.sections !== undefined) {
+    formData.append(`sections`, catalogueImportInput.sections);
+  }
+
+  return customFetch<CatalogueImportResult>(getImportCatalogueUrl(), {
+    ...options,
+    method: "POST",
+    body: formData,
+  });
+};
+
+export const getImportCatalogueMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof importCatalogue>>,
+    TError,
+    { data: BodyType<CatalogueImportInput> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof importCatalogue>>,
+  TError,
+  { data: BodyType<CatalogueImportInput> },
+  TContext
+> => {
+  const mutationKey = ["importCatalogue"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof importCatalogue>>,
+    { data: BodyType<CatalogueImportInput> }
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return importCatalogue(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type ImportCatalogueMutationResult = NonNullable<
+  Awaited<ReturnType<typeof importCatalogue>>
+>;
+export type ImportCatalogueMutationBody = BodyType<CatalogueImportInput>;
+export type ImportCatalogueMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Load a price sheet
+ */
+export const useImportCatalogue = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof importCatalogue>>,
+    TError,
+    { data: BodyType<CatalogueImportInput> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof importCatalogue>>,
+  TError,
+  { data: BodyType<CatalogueImportInput> },
+  TContext
+> => {
+  return useMutation(getImportCatalogueMutationOptions(options));
+};
+
+/**
+ * Print-ready HTML on letter paper. The three documents the Funeral Rule
+requires a provider to be able to produce, rendered from the same
+function the family surface renders them from — a family and a director
+looking at two different price lists is the bug this makes impossible.
+
+ * @summary The General, Casket or Outer Burial Container Price List
+ */
+export const getRenderPriceListUrl = (kind: "gpl" | "cpl" | "obcpl") => {
+  return `/api/catalogue/price-lists/${kind}/render`;
+};
+
+export const renderPriceList = async (
+  kind: "gpl" | "cpl" | "obcpl",
+  options?: RequestInit,
+): Promise<string> => {
+  return customFetch<string>(getRenderPriceListUrl(kind), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getRenderPriceListQueryKey = (kind: "gpl" | "cpl" | "obcpl") => {
+  return [`/api/catalogue/price-lists/${kind}/render`] as const;
+};
+
+export const getRenderPriceListQueryOptions = <
+  TData = Awaited<ReturnType<typeof renderPriceList>>,
+  TError = ErrorType<void>,
+>(
+  kind: "gpl" | "cpl" | "obcpl",
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof renderPriceList>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getRenderPriceListQueryKey(kind);
+
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof renderPriceList>>> = ({
+    signal,
+  }) => renderPriceList(kind, { signal, ...requestOptions });
+
+  return {
+    queryKey,
+    queryFn,
+    enabled: !!kind,
+    ...queryOptions,
+  } as UseQueryOptions<
+    Awaited<ReturnType<typeof renderPriceList>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type RenderPriceListQueryResult = NonNullable<
+  Awaited<ReturnType<typeof renderPriceList>>
+>;
+export type RenderPriceListQueryError = ErrorType<void>;
+
+/**
+ * @summary The General, Casket or Outer Burial Container Price List
+ */
+
+export function useRenderPriceList<
+  TData = Awaited<ReturnType<typeof renderPriceList>>,
+  TError = ErrorType<void>,
+>(
+  kind: "gpl" | "cpl" | "obcpl",
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof renderPriceList>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getRenderPriceListQueryOptions(kind, options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary The catalogue and this family's selection, as the director sees it
+ */
+export const getGetCaseStorefrontUrl = (caseId: number) => {
+  return `/api/cases/${caseId}/selection`;
+};
+
+export const getCaseStorefront = async (
+  caseId: number,
+  options?: RequestInit,
+): Promise<Storefront> => {
+  return customFetch<Storefront>(getGetCaseStorefrontUrl(caseId), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getGetCaseStorefrontQueryKey = (caseId: number) => {
+  return [`/api/cases/${caseId}/selection`] as const;
+};
+
+export const getGetCaseStorefrontQueryOptions = <
+  TData = Awaited<ReturnType<typeof getCaseStorefront>>,
+  TError = ErrorType<void>,
+>(
+  caseId: number,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getCaseStorefront>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey =
+    queryOptions?.queryKey ?? getGetCaseStorefrontQueryKey(caseId);
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof getCaseStorefront>>
+  > = ({ signal }) => getCaseStorefront(caseId, { signal, ...requestOptions });
+
+  return {
+    queryKey,
+    queryFn,
+    enabled: !!caseId,
+    ...queryOptions,
+  } as UseQueryOptions<
+    Awaited<ReturnType<typeof getCaseStorefront>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type GetCaseStorefrontQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getCaseStorefront>>
+>;
+export type GetCaseStorefrontQueryError = ErrorType<void>;
+
+/**
+ * @summary The catalogue and this family's selection, as the director sees it
+ */
+
+export function useGetCaseStorefront<
+  TData = Awaited<ReturnType<typeof getCaseStorefront>>,
+  TError = ErrorType<void>,
+>(
+  caseId: number,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getCaseStorefront>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getGetCaseStorefrontQueryOptions(caseId, options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * `settled` is a note about the home's records and nothing more. We
+process no payments, so we cannot know whether one was made; a request
+to settle a `pre_need` case is refused, because nothing is owed on a
+plan.
+
+ * @summary Agree the arrangement, reopen it, or note the home's own books
+ */
+export const getUpdateMerchandiseSelectionUrl = (caseId: number) => {
+  return `/api/cases/${caseId}/selection`;
+};
+
+export const updateMerchandiseSelection = async (
+  caseId: number,
+  merchandiseSelectionUpdate: MerchandiseSelectionUpdate,
+  options?: RequestInit,
+): Promise<Storefront> => {
+  return customFetch<Storefront>(getUpdateMerchandiseSelectionUrl(caseId), {
+    ...options,
+    method: "PUT",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(merchandiseSelectionUpdate),
+  });
+};
+
+export const getUpdateMerchandiseSelectionMutationOptions = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof updateMerchandiseSelection>>,
+    TError,
+    { caseId: number; data: BodyType<MerchandiseSelectionUpdate> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof updateMerchandiseSelection>>,
+  TError,
+  { caseId: number; data: BodyType<MerchandiseSelectionUpdate> },
+  TContext
+> => {
+  const mutationKey = ["updateMerchandiseSelection"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof updateMerchandiseSelection>>,
+    { caseId: number; data: BodyType<MerchandiseSelectionUpdate> }
+  > = (props) => {
+    const { caseId, data } = props ?? {};
+
+    return updateMerchandiseSelection(caseId, data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type UpdateMerchandiseSelectionMutationResult = NonNullable<
+  Awaited<ReturnType<typeof updateMerchandiseSelection>>
+>;
+export type UpdateMerchandiseSelectionMutationBody =
+  BodyType<MerchandiseSelectionUpdate>;
+export type UpdateMerchandiseSelectionMutationError = ErrorType<void>;
+
+/**
+ * @summary Agree the arrangement, reopen it, or note the home's own books
+ */
+export const useUpdateMerchandiseSelection = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof updateMerchandiseSelection>>,
+    TError,
+    { caseId: number; data: BodyType<MerchandiseSelectionUpdate> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof updateMerchandiseSelection>>,
+  TError,
+  { caseId: number; data: BodyType<MerchandiseSelectionUpdate> },
+  TContext
+> => {
+  return useMutation(getUpdateMerchandiseSelectionMutationOptions(options));
+};
+
+/**
+ * Set by the family opening it, and by a director recording that they
+handed one across the desk. Both are the same fact and both unlock the
+same thing: the Rule cares that the family has the list, not which way
+it reached them.
+
+ * @summary Record that this family has the General Price List
+ */
+export const getRecordGplGivenUrl = (caseId: number) => {
+  return `/api/cases/${caseId}/selection/gpl-given`;
+};
+
+export const recordGplGiven = async (
+  caseId: number,
+  options?: RequestInit,
+): Promise<MerchandiseSelection> => {
+  return customFetch<MerchandiseSelection>(getRecordGplGivenUrl(caseId), {
+    ...options,
+    method: "POST",
+  });
+};
+
+export const getRecordGplGivenMutationOptions = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof recordGplGiven>>,
+    TError,
+    { caseId: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof recordGplGiven>>,
+  TError,
+  { caseId: number },
+  TContext
+> => {
+  const mutationKey = ["recordGplGiven"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof recordGplGiven>>,
+    { caseId: number }
+  > = (props) => {
+    const { caseId } = props ?? {};
+
+    return recordGplGiven(caseId, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type RecordGplGivenMutationResult = NonNullable<
+  Awaited<ReturnType<typeof recordGplGiven>>
+>;
+
+export type RecordGplGivenMutationError = ErrorType<void>;
+
+/**
+ * @summary Record that this family has the General Price List
+ */
+export const useRecordGplGiven = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof recordGplGiven>>,
+    TError,
+    { caseId: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof recordGplGiven>>,
+  TError,
+  { caseId: number },
+  TContext
+> => {
+  return useMutation(getRecordGplGivenMutationOptions(options));
+};
+
+/**
+ * There is no price in this body and there never will be. What a thing
+costs is copied from the home's own catalogue row at the moment the
+line is written — a client that could name a price could name a
+different one.
+
+ * @summary Put a catalogue item on the sheet
+ */
+export const getAddSelectionItemUrl = (caseId: number) => {
+  return `/api/cases/${caseId}/selection/items`;
+};
+
+export const addSelectionItem = async (
+  caseId: number,
+  selectionItemInput: SelectionItemInput,
+  options?: RequestInit,
+): Promise<MerchandiseSelection> => {
+  return customFetch<MerchandiseSelection>(getAddSelectionItemUrl(caseId), {
+    ...options,
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(selectionItemInput),
+  });
+};
+
+export const getAddSelectionItemMutationOptions = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof addSelectionItem>>,
+    TError,
+    { caseId: number; data: BodyType<SelectionItemInput> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof addSelectionItem>>,
+  TError,
+  { caseId: number; data: BodyType<SelectionItemInput> },
+  TContext
+> => {
+  const mutationKey = ["addSelectionItem"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof addSelectionItem>>,
+    { caseId: number; data: BodyType<SelectionItemInput> }
+  > = (props) => {
+    const { caseId, data } = props ?? {};
+
+    return addSelectionItem(caseId, data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type AddSelectionItemMutationResult = NonNullable<
+  Awaited<ReturnType<typeof addSelectionItem>>
+>;
+export type AddSelectionItemMutationBody = BodyType<SelectionItemInput>;
+export type AddSelectionItemMutationError = ErrorType<void>;
+
+/**
+ * @summary Put a catalogue item on the sheet
+ */
+export const useAddSelectionItem = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof addSelectionItem>>,
+    TError,
+    { caseId: number; data: BodyType<SelectionItemInput> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof addSelectionItem>>,
+  TError,
+  { caseId: number; data: BodyType<SelectionItemInput> },
+  TContext
+> => {
+  return useMutation(getAddSelectionItemMutationOptions(options));
+};
+
+/**
+ * @summary Fill the sheet from a package
+ */
+export const getAddSelectionPackageUrl = (caseId: number) => {
+  return `/api/cases/${caseId}/selection/packages`;
+};
+
+export const addSelectionPackage = async (
+  caseId: number,
+  selectionPackageInput: SelectionPackageInput,
+  options?: RequestInit,
+): Promise<MerchandiseSelection> => {
+  return customFetch<MerchandiseSelection>(getAddSelectionPackageUrl(caseId), {
+    ...options,
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(selectionPackageInput),
+  });
+};
+
+export const getAddSelectionPackageMutationOptions = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof addSelectionPackage>>,
+    TError,
+    { caseId: number; data: BodyType<SelectionPackageInput> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof addSelectionPackage>>,
+  TError,
+  { caseId: number; data: BodyType<SelectionPackageInput> },
+  TContext
+> => {
+  const mutationKey = ["addSelectionPackage"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof addSelectionPackage>>,
+    { caseId: number; data: BodyType<SelectionPackageInput> }
+  > = (props) => {
+    const { caseId, data } = props ?? {};
+
+    return addSelectionPackage(caseId, data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type AddSelectionPackageMutationResult = NonNullable<
+  Awaited<ReturnType<typeof addSelectionPackage>>
+>;
+export type AddSelectionPackageMutationBody = BodyType<SelectionPackageInput>;
+export type AddSelectionPackageMutationError = ErrorType<void>;
+
+/**
+ * @summary Fill the sheet from a package
+ */
+export const useAddSelectionPackage = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof addSelectionPackage>>,
+    TError,
+    { caseId: number; data: BodyType<SelectionPackageInput> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof addSelectionPackage>>,
+  TError,
+  { caseId: number; data: BodyType<SelectionPackageInput> },
+  TContext
+> => {
+  return useMutation(getAddSelectionPackageMutationOptions(options));
+};
+
+/**
+ * No price is accepted here, and none is stored. A funeral provider may
+not refuse a casket or urn a family bought elsewhere and may not charge
+a handling fee for one, so there is nowhere on this path for a fee to
+go — enforced by a check constraint on the table as well as by this
+schema.
+
+ * @summary Record that the family is bringing their own
+ */
+export const getAddFamilyProvidedItemUrl = (caseId: number) => {
+  return `/api/cases/${caseId}/selection/family-provided`;
+};
+
+export const addFamilyProvidedItem = async (
+  caseId: number,
+  familyProvidedInput: FamilyProvidedInput,
+  options?: RequestInit,
+): Promise<MerchandiseSelection> => {
+  return customFetch<MerchandiseSelection>(
+    getAddFamilyProvidedItemUrl(caseId),
+    {
+      ...options,
+      method: "POST",
+      headers: { "Content-Type": "application/json", ...options?.headers },
+      body: JSON.stringify(familyProvidedInput),
+    },
+  );
+};
+
+export const getAddFamilyProvidedItemMutationOptions = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof addFamilyProvidedItem>>,
+    TError,
+    { caseId: number; data: BodyType<FamilyProvidedInput> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof addFamilyProvidedItem>>,
+  TError,
+  { caseId: number; data: BodyType<FamilyProvidedInput> },
+  TContext
+> => {
+  const mutationKey = ["addFamilyProvidedItem"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof addFamilyProvidedItem>>,
+    { caseId: number; data: BodyType<FamilyProvidedInput> }
+  > = (props) => {
+    const { caseId, data } = props ?? {};
+
+    return addFamilyProvidedItem(caseId, data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type AddFamilyProvidedItemMutationResult = NonNullable<
+  Awaited<ReturnType<typeof addFamilyProvidedItem>>
+>;
+export type AddFamilyProvidedItemMutationBody = BodyType<FamilyProvidedInput>;
+export type AddFamilyProvidedItemMutationError = ErrorType<void>;
+
+/**
+ * @summary Record that the family is bringing their own
+ */
+export const useAddFamilyProvidedItem = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof addFamilyProvidedItem>>,
+    TError,
+    { caseId: number; data: BodyType<FamilyProvidedInput> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof addFamilyProvidedItem>>,
+  TError,
+  { caseId: number; data: BodyType<FamilyProvidedInput> },
+  TContext
+> => {
+  return useMutation(getAddFamilyProvidedItemMutationOptions(options));
+};
+
+export const getUpdateSelectionLineUrl = (caseId: number, lineId: number) => {
+  return `/api/cases/${caseId}/selection/items/${lineId}`;
+};
+
+export const updateSelectionLine = async (
+  caseId: number,
+  lineId: number,
+  selectionLineUpdate: SelectionLineUpdate,
+  options?: RequestInit,
+): Promise<MerchandiseSelection> => {
+  return customFetch<MerchandiseSelection>(
+    getUpdateSelectionLineUrl(caseId, lineId),
+    {
+      ...options,
+      method: "PUT",
+      headers: { "Content-Type": "application/json", ...options?.headers },
+      body: JSON.stringify(selectionLineUpdate),
+    },
+  );
+};
+
+export const getUpdateSelectionLineMutationOptions = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof updateSelectionLine>>,
+    TError,
+    { caseId: number; lineId: number; data: BodyType<SelectionLineUpdate> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof updateSelectionLine>>,
+  TError,
+  { caseId: number; lineId: number; data: BodyType<SelectionLineUpdate> },
+  TContext
+> => {
+  const mutationKey = ["updateSelectionLine"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof updateSelectionLine>>,
+    { caseId: number; lineId: number; data: BodyType<SelectionLineUpdate> }
+  > = (props) => {
+    const { caseId, lineId, data } = props ?? {};
+
+    return updateSelectionLine(caseId, lineId, data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type UpdateSelectionLineMutationResult = NonNullable<
+  Awaited<ReturnType<typeof updateSelectionLine>>
+>;
+export type UpdateSelectionLineMutationBody = BodyType<SelectionLineUpdate>;
+export type UpdateSelectionLineMutationError = ErrorType<void>;
+
+export const useUpdateSelectionLine = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof updateSelectionLine>>,
+    TError,
+    { caseId: number; lineId: number; data: BodyType<SelectionLineUpdate> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof updateSelectionLine>>,
+  TError,
+  { caseId: number; lineId: number; data: BodyType<SelectionLineUpdate> },
+  TContext
+> => {
+  return useMutation(getUpdateSelectionLineMutationOptions(options));
+};
+
+/**
+ * When the line came in as part of a package, the package's adjustment
+goes with it: the set is broken, so everything left stands at its own
+price.
+
+ * @summary Decline something, and watch the total change
+ */
+export const getRemoveSelectionLineUrl = (caseId: number, lineId: number) => {
+  return `/api/cases/${caseId}/selection/items/${lineId}`;
+};
+
+export const removeSelectionLine = async (
+  caseId: number,
+  lineId: number,
+  options?: RequestInit,
+): Promise<MerchandiseSelection> => {
+  return customFetch<MerchandiseSelection>(
+    getRemoveSelectionLineUrl(caseId, lineId),
+    {
+      ...options,
+      method: "DELETE",
+    },
+  );
+};
+
+export const getRemoveSelectionLineMutationOptions = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof removeSelectionLine>>,
+    TError,
+    { caseId: number; lineId: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof removeSelectionLine>>,
+  TError,
+  { caseId: number; lineId: number },
+  TContext
+> => {
+  const mutationKey = ["removeSelectionLine"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof removeSelectionLine>>,
+    { caseId: number; lineId: number }
+  > = (props) => {
+    const { caseId, lineId } = props ?? {};
+
+    return removeSelectionLine(caseId, lineId, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type RemoveSelectionLineMutationResult = NonNullable<
+  Awaited<ReturnType<typeof removeSelectionLine>>
+>;
+
+export type RemoveSelectionLineMutationError = ErrorType<void>;
+
+/**
+ * @summary Decline something, and watch the total change
+ */
+export const useRemoveSelectionLine = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof removeSelectionLine>>,
+    TError,
+    { caseId: number; lineId: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof removeSelectionLine>>,
+  TError,
+  { caseId: number; lineId: number },
+  TContext
+> => {
+  return useMutation(getRemoveSelectionLineMutationOptions(options));
+};
+
+/**
+ * The itemised document the Funeral Rule requires a provider to give at
+the end of an arrangement, generated from what the family actually
+chose. Carries the legal name; every other screen says what they were
+called, and this one is read beside a death certificate.
+
+ * @summary The Statement of Funeral Goods and Services Selected
+ */
+export const getRenderStatementUrl = (caseId: number) => {
+  return `/api/cases/${caseId}/statement/render`;
+};
+
+export const renderStatement = async (
+  caseId: number,
+  options?: RequestInit,
+): Promise<string> => {
+  return customFetch<string>(getRenderStatementUrl(caseId), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getRenderStatementQueryKey = (caseId: number) => {
+  return [`/api/cases/${caseId}/statement/render`] as const;
+};
+
+export const getRenderStatementQueryOptions = <
+  TData = Awaited<ReturnType<typeof renderStatement>>,
+  TError = ErrorType<void>,
+>(
+  caseId: number,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof renderStatement>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getRenderStatementQueryKey(caseId);
+
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof renderStatement>>> = ({
+    signal,
+  }) => renderStatement(caseId, { signal, ...requestOptions });
+
+  return {
+    queryKey,
+    queryFn,
+    enabled: !!caseId,
+    ...queryOptions,
+  } as UseQueryOptions<
+    Awaited<ReturnType<typeof renderStatement>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type RenderStatementQueryResult = NonNullable<
+  Awaited<ReturnType<typeof renderStatement>>
+>;
+export type RenderStatementQueryError = ErrorType<void>;
+
+/**
+ * @summary The Statement of Funeral Goods and Services Selected
+ */
+
+export function useRenderStatement<
+  TData = Awaited<ReturnType<typeof renderStatement>>,
+  TError = ErrorType<void>,
+>(
+  caseId: number,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof renderStatement>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getRenderStatementQueryOptions(caseId, options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary What this family may see, and what they have chosen
+ */
+export const getGetFamilyStorefrontUrl = () => {
+  return `/api/family/storefront`;
+};
+
+export const getFamilyStorefront = async (
+  options?: RequestInit,
+): Promise<Storefront> => {
+  return customFetch<Storefront>(getGetFamilyStorefrontUrl(), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getGetFamilyStorefrontQueryKey = () => {
+  return [`/api/family/storefront`] as const;
+};
+
+export const getGetFamilyStorefrontQueryOptions = <
+  TData = Awaited<ReturnType<typeof getFamilyStorefront>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof getFamilyStorefront>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getGetFamilyStorefrontQueryKey();
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof getFamilyStorefront>>
+  > = ({ signal }) => getFamilyStorefront({ signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof getFamilyStorefront>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type GetFamilyStorefrontQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getFamilyStorefront>>
+>;
+export type GetFamilyStorefrontQueryError = ErrorType<unknown>;
+
+/**
+ * @summary What this family may see, and what they have chosen
+ */
+
+export function useGetFamilyStorefront<
+  TData = Awaited<ReturnType<typeof getFamilyStorefront>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof getFamilyStorefront>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getGetFamilyStorefrontQueryOptions(options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * Opening the General Price List records that this family has it, which
+is the moment caskets become visible. A side effect on a GET, and the
+honest option: the fact the Rule cares about is that the family has the
+list, and that becomes true when the sheet renders.
+
+The Casket and Outer Burial Container lists are behind the same gate as
+the caskets themselves.
+
+ * @summary The price list, as the family reads it
+ */
+export const getRenderFamilyPriceListUrl = (kind: "gpl" | "cpl" | "obcpl") => {
+  return `/api/family/storefront/price-lists/${kind}/render`;
+};
+
+export const renderFamilyPriceList = async (
+  kind: "gpl" | "cpl" | "obcpl",
+  options?: RequestInit,
+): Promise<string> => {
+  return customFetch<string>(getRenderFamilyPriceListUrl(kind), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getRenderFamilyPriceListQueryKey = (
+  kind: "gpl" | "cpl" | "obcpl",
+) => {
+  return [`/api/family/storefront/price-lists/${kind}/render`] as const;
+};
+
+export const getRenderFamilyPriceListQueryOptions = <
+  TData = Awaited<ReturnType<typeof renderFamilyPriceList>>,
+  TError = ErrorType<void>,
+>(
+  kind: "gpl" | "cpl" | "obcpl",
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof renderFamilyPriceList>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey =
+    queryOptions?.queryKey ?? getRenderFamilyPriceListQueryKey(kind);
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof renderFamilyPriceList>>
+  > = ({ signal }) =>
+    renderFamilyPriceList(kind, { signal, ...requestOptions });
+
+  return {
+    queryKey,
+    queryFn,
+    enabled: !!kind,
+    ...queryOptions,
+  } as UseQueryOptions<
+    Awaited<ReturnType<typeof renderFamilyPriceList>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type RenderFamilyPriceListQueryResult = NonNullable<
+  Awaited<ReturnType<typeof renderFamilyPriceList>>
+>;
+export type RenderFamilyPriceListQueryError = ErrorType<void>;
+
+/**
+ * @summary The price list, as the family reads it
+ */
+
+export function useRenderFamilyPriceList<
+  TData = Awaited<ReturnType<typeof renderFamilyPriceList>>,
+  TError = ErrorType<void>,
+>(
+  kind: "gpl" | "cpl" | "obcpl",
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof renderFamilyPriceList>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getRenderFamilyPriceListQueryOptions(kind, options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary Choose something
+ */
+export const getAddFamilyStorefrontItemUrl = () => {
+  return `/api/family/storefront/items`;
+};
+
+export const addFamilyStorefrontItem = async (
+  selectionItemInput: SelectionItemInput,
+  options?: RequestInit,
+): Promise<MerchandiseSelection> => {
+  return customFetch<MerchandiseSelection>(getAddFamilyStorefrontItemUrl(), {
+    ...options,
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(selectionItemInput),
+  });
+};
+
+export const getAddFamilyStorefrontItemMutationOptions = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof addFamilyStorefrontItem>>,
+    TError,
+    { data: BodyType<SelectionItemInput> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof addFamilyStorefrontItem>>,
+  TError,
+  { data: BodyType<SelectionItemInput> },
+  TContext
+> => {
+  const mutationKey = ["addFamilyStorefrontItem"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof addFamilyStorefrontItem>>,
+    { data: BodyType<SelectionItemInput> }
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return addFamilyStorefrontItem(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type AddFamilyStorefrontItemMutationResult = NonNullable<
+  Awaited<ReturnType<typeof addFamilyStorefrontItem>>
+>;
+export type AddFamilyStorefrontItemMutationBody = BodyType<SelectionItemInput>;
+export type AddFamilyStorefrontItemMutationError = ErrorType<void>;
+
+/**
+ * @summary Choose something
+ */
+export const useAddFamilyStorefrontItem = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof addFamilyStorefrontItem>>,
+    TError,
+    { data: BodyType<SelectionItemInput> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof addFamilyStorefrontItem>>,
+  TError,
+  { data: BodyType<SelectionItemInput> },
+  TContext
+> => {
+  return useMutation(getAddFamilyStorefrontItemMutationOptions(options));
+};
+
+/**
+ * @summary Choose a package
+ */
+export const getAddFamilyStorefrontPackageUrl = () => {
+  return `/api/family/storefront/packages`;
+};
+
+export const addFamilyStorefrontPackage = async (
+  selectionPackageInput: SelectionPackageInput,
+  options?: RequestInit,
+): Promise<MerchandiseSelection> => {
+  return customFetch<MerchandiseSelection>(getAddFamilyStorefrontPackageUrl(), {
+    ...options,
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(selectionPackageInput),
+  });
+};
+
+export const getAddFamilyStorefrontPackageMutationOptions = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof addFamilyStorefrontPackage>>,
+    TError,
+    { data: BodyType<SelectionPackageInput> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof addFamilyStorefrontPackage>>,
+  TError,
+  { data: BodyType<SelectionPackageInput> },
+  TContext
+> => {
+  const mutationKey = ["addFamilyStorefrontPackage"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof addFamilyStorefrontPackage>>,
+    { data: BodyType<SelectionPackageInput> }
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return addFamilyStorefrontPackage(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type AddFamilyStorefrontPackageMutationResult = NonNullable<
+  Awaited<ReturnType<typeof addFamilyStorefrontPackage>>
+>;
+export type AddFamilyStorefrontPackageMutationBody =
+  BodyType<SelectionPackageInput>;
+export type AddFamilyStorefrontPackageMutationError = ErrorType<void>;
+
+/**
+ * @summary Choose a package
+ */
+export const useAddFamilyStorefrontPackage = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof addFamilyStorefrontPackage>>,
+    TError,
+    { data: BodyType<SelectionPackageInput> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof addFamilyStorefrontPackage>>,
+  TError,
+  { data: BodyType<SelectionPackageInput> },
+  TContext
+> => {
+  return useMutation(getAddFamilyStorefrontPackageMutationOptions(options));
+};
+
+/**
+ * A name, and optionally a note about who is bringing it and when. No
+price, no fee, and nowhere for one to be added later.
+
+ * @summary Tell the home you are bringing your own
+ */
+export const getAddFamilyProvidedToStorefrontUrl = () => {
+  return `/api/family/storefront/family-provided`;
+};
+
+export const addFamilyProvidedToStorefront = async (
+  familyProvidedInput: FamilyProvidedInput,
+  options?: RequestInit,
+): Promise<MerchandiseSelection> => {
+  return customFetch<MerchandiseSelection>(
+    getAddFamilyProvidedToStorefrontUrl(),
+    {
+      ...options,
+      method: "POST",
+      headers: { "Content-Type": "application/json", ...options?.headers },
+      body: JSON.stringify(familyProvidedInput),
+    },
+  );
+};
+
+export const getAddFamilyProvidedToStorefrontMutationOptions = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof addFamilyProvidedToStorefront>>,
+    TError,
+    { data: BodyType<FamilyProvidedInput> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof addFamilyProvidedToStorefront>>,
+  TError,
+  { data: BodyType<FamilyProvidedInput> },
+  TContext
+> => {
+  const mutationKey = ["addFamilyProvidedToStorefront"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof addFamilyProvidedToStorefront>>,
+    { data: BodyType<FamilyProvidedInput> }
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return addFamilyProvidedToStorefront(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type AddFamilyProvidedToStorefrontMutationResult = NonNullable<
+  Awaited<ReturnType<typeof addFamilyProvidedToStorefront>>
+>;
+export type AddFamilyProvidedToStorefrontMutationBody =
+  BodyType<FamilyProvidedInput>;
+export type AddFamilyProvidedToStorefrontMutationError = ErrorType<void>;
+
+/**
+ * @summary Tell the home you are bringing your own
+ */
+export const useAddFamilyProvidedToStorefront = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof addFamilyProvidedToStorefront>>,
+    TError,
+    { data: BodyType<FamilyProvidedInput> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof addFamilyProvidedToStorefront>>,
+  TError,
+  { data: BodyType<FamilyProvidedInput> },
+  TContext
+> => {
+  return useMutation(getAddFamilyProvidedToStorefrontMutationOptions(options));
+};
+
+export const getUpdateFamilyStorefrontLineUrl = (lineId: number) => {
+  return `/api/family/storefront/items/${lineId}`;
+};
+
+export const updateFamilyStorefrontLine = async (
+  lineId: number,
+  selectionLineUpdate: SelectionLineUpdate,
+  options?: RequestInit,
+): Promise<MerchandiseSelection> => {
+  return customFetch<MerchandiseSelection>(
+    getUpdateFamilyStorefrontLineUrl(lineId),
+    {
+      ...options,
+      method: "PUT",
+      headers: { "Content-Type": "application/json", ...options?.headers },
+      body: JSON.stringify(selectionLineUpdate),
+    },
+  );
+};
+
+export const getUpdateFamilyStorefrontLineMutationOptions = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof updateFamilyStorefrontLine>>,
+    TError,
+    { lineId: number; data: BodyType<SelectionLineUpdate> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof updateFamilyStorefrontLine>>,
+  TError,
+  { lineId: number; data: BodyType<SelectionLineUpdate> },
+  TContext
+> => {
+  const mutationKey = ["updateFamilyStorefrontLine"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof updateFamilyStorefrontLine>>,
+    { lineId: number; data: BodyType<SelectionLineUpdate> }
+  > = (props) => {
+    const { lineId, data } = props ?? {};
+
+    return updateFamilyStorefrontLine(lineId, data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type UpdateFamilyStorefrontLineMutationResult = NonNullable<
+  Awaited<ReturnType<typeof updateFamilyStorefrontLine>>
+>;
+export type UpdateFamilyStorefrontLineMutationBody =
+  BodyType<SelectionLineUpdate>;
+export type UpdateFamilyStorefrontLineMutationError = ErrorType<void>;
+
+export const useUpdateFamilyStorefrontLine = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof updateFamilyStorefrontLine>>,
+    TError,
+    { lineId: number; data: BodyType<SelectionLineUpdate> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof updateFamilyStorefrontLine>>,
+  TError,
+  { lineId: number; data: BodyType<SelectionLineUpdate> },
+  TContext
+> => {
+  return useMutation(getUpdateFamilyStorefrontLineMutationOptions(options));
+};
+
+/**
+ * @summary Change your mind about something
+ */
+export const getRemoveFamilyStorefrontLineUrl = (lineId: number) => {
+  return `/api/family/storefront/items/${lineId}`;
+};
+
+export const removeFamilyStorefrontLine = async (
+  lineId: number,
+  options?: RequestInit,
+): Promise<MerchandiseSelection> => {
+  return customFetch<MerchandiseSelection>(
+    getRemoveFamilyStorefrontLineUrl(lineId),
+    {
+      ...options,
+      method: "DELETE",
+    },
+  );
+};
+
+export const getRemoveFamilyStorefrontLineMutationOptions = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof removeFamilyStorefrontLine>>,
+    TError,
+    { lineId: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof removeFamilyStorefrontLine>>,
+  TError,
+  { lineId: number },
+  TContext
+> => {
+  const mutationKey = ["removeFamilyStorefrontLine"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof removeFamilyStorefrontLine>>,
+    { lineId: number }
+  > = (props) => {
+    const { lineId } = props ?? {};
+
+    return removeFamilyStorefrontLine(lineId, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type RemoveFamilyStorefrontLineMutationResult = NonNullable<
+  Awaited<ReturnType<typeof removeFamilyStorefrontLine>>
+>;
+
+export type RemoveFamilyStorefrontLineMutationError = ErrorType<void>;
+
+/**
+ * @summary Change your mind about something
+ */
+export const useRemoveFamilyStorefrontLine = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof removeFamilyStorefrontLine>>,
+    TError,
+    { lineId: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof removeFamilyStorefrontLine>>,
+  TError,
+  { lineId: number },
+  TContext
+> => {
+  return useMutation(getRemoveFamilyStorefrontLineMutationOptions(options));
+};
+
+/**
+ * @summary The family's own copy of the statement
+ */
+export const getRenderFamilyStatementUrl = () => {
+  return `/api/family/storefront/statement/render`;
+};
+
+export const renderFamilyStatement = async (
+  options?: RequestInit,
+): Promise<string> => {
+  return customFetch<string>(getRenderFamilyStatementUrl(), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getRenderFamilyStatementQueryKey = () => {
+  return [`/api/family/storefront/statement/render`] as const;
+};
+
+export const getRenderFamilyStatementQueryOptions = <
+  TData = Awaited<ReturnType<typeof renderFamilyStatement>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof renderFamilyStatement>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getRenderFamilyStatementQueryKey();
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof renderFamilyStatement>>
+  > = ({ signal }) => renderFamilyStatement({ signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof renderFamilyStatement>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type RenderFamilyStatementQueryResult = NonNullable<
+  Awaited<ReturnType<typeof renderFamilyStatement>>
+>;
+export type RenderFamilyStatementQueryError = ErrorType<unknown>;
+
+/**
+ * @summary The family's own copy of the statement
+ */
+
+export function useRenderFamilyStatement<
+  TData = Awaited<ReturnType<typeof renderFamilyStatement>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof renderFamilyStatement>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getRenderFamilyStatementQueryOptions(options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * The home's catalogue photographs belong to no case, so the family's
+ordinary upload route — which serves only files on their own case —
+cannot reach them, and rightly so. This one checks the file is in use
+by a live item in this home's catalogue before it serves a byte.
+
+ * @summary A photograph of something in the catalogue
+ */
+export const getGetFamilyCataloguePhotoUrl = (uploadId: number) => {
+  return `/api/family/storefront/uploads/${uploadId}`;
+};
+
+export const getFamilyCataloguePhoto = async (
+  uploadId: number,
+  options?: RequestInit,
+): Promise<Blob> => {
+  return customFetch<Blob>(getGetFamilyCataloguePhotoUrl(uploadId), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getGetFamilyCataloguePhotoQueryKey = (uploadId: number) => {
+  return [`/api/family/storefront/uploads/${uploadId}`] as const;
+};
+
+export const getGetFamilyCataloguePhotoQueryOptions = <
+  TData = Awaited<ReturnType<typeof getFamilyCataloguePhoto>>,
+  TError = ErrorType<void>,
+>(
+  uploadId: number,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getFamilyCataloguePhoto>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey =
+    queryOptions?.queryKey ?? getGetFamilyCataloguePhotoQueryKey(uploadId);
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof getFamilyCataloguePhoto>>
+  > = ({ signal }) =>
+    getFamilyCataloguePhoto(uploadId, { signal, ...requestOptions });
+
+  return {
+    queryKey,
+    queryFn,
+    enabled: !!uploadId,
+    ...queryOptions,
+  } as UseQueryOptions<
+    Awaited<ReturnType<typeof getFamilyCataloguePhoto>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type GetFamilyCataloguePhotoQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getFamilyCataloguePhoto>>
+>;
+export type GetFamilyCataloguePhotoQueryError = ErrorType<void>;
+
+/**
+ * @summary A photograph of something in the catalogue
+ */
+
+export function useGetFamilyCataloguePhoto<
+  TData = Awaited<ReturnType<typeof getFamilyCataloguePhoto>>,
+  TError = ErrorType<void>,
+>(
+  uploadId: number,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getFamilyCataloguePhoto>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getGetFamilyCataloguePhotoQueryOptions(
+    uploadId,
+    options,
+  );
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
 
 /**
  * Staff-only, and that is a rule rather than a default. These numbers
