@@ -31,7 +31,7 @@ inbox holding forty attachments from six addresses.
 
 **2. One contained thread.** Everyone on the family's side sees the same
 conversation, so the "who told you that?" arguments settle themselves and the
-director answers once. Office hours are _shown, never enforced_ — a 2am message
+director answers once. Office hours are *shown, never enforced* — a 2am message
 is delivered at 2am and the family is told, before they send, when it will be
 read, with the 24-hour number next to it. The thread locks a fortnight after
 the service, for both sides.
@@ -144,13 +144,13 @@ pnpm run build
 Replit serves everything from one hostname, so the front ends are told apart
 by path instead of by subdomain (the Docker deployment gives each its own):
 
-| Path        | App                                                           |
-| ----------- | ------------------------------------------------------------- |
-| `/`         | director console — the one sign-in that can deal with anybody |
-| `/family`   | family portal, where a texted link opens                      |
-| `/admin`    | platform admin console                                        |
-| `/api`      | the API                                                       |
-| `/__mockup` | component preview sandbox, development only                   |
+| Path | App |
+| --- | --- |
+| `/` | director console — the one sign-in that can deal with anybody |
+| `/family` | family portal, where a texted link opens |
+| `/admin` | platform admin console |
+| `/api` | the API |
+| `/__mockup` | component preview sandbox, development only |
 
 The director console is at the root deliberately: it is the only screen that
 can sort out a director, a platform admin and a lost family member, so it is
@@ -182,21 +182,21 @@ deployment does not pay it.
 
 Environment the server reads:
 
-| Variable                                                          | Why                                                                                                                                                                                                                                                                                                                                                     |
-| ----------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `DATABASE_URL`                                                    | Postgres. Required.                                                                                                                                                                                                                                                                                                                                     |
-| `ENCRYPTION_KEY`                                                  | 32 bytes, base64. Uploads are AES-256-GCM at rest; the server refuses to start without it.                                                                                                                                                                                                                                                              |
-| `PORT`                                                            | Required.                                                                                                                                                                                                                                                                                                                                               |
-| `FAMILY_PORTAL_URL`                                               | Origin used to build the texted link. Falls back to a relative path — an obviously incomplete link beats one that opens someone else's deployment.                                                                                                                                                                                                      |
-| `CONSOLE_URL`                                                     | Where the director console lives, used in staff password-reset emails. On Replit that includes the path — see below.                                                                                                                                                                                                                                    |
-| `SMTP_*`                                                          | Optional. Without it, mail is logged rather than sent, which keeps local development and the tests working.                                                                                                                                                                                                                                             |
-| `TWILIO_ACCOUNT_SID` / `TWILIO_AUTH_TOKEN` / `TWILIO_FROM_NUMBER` | Optional. Without them a director is handed the link to send themselves rather than being told nothing happened.                                                                                                                                                                                                                                        |
-| `SMS_DEFAULT_COUNTRY_CODE`                                        | Defaults to `+1`. Used only for numbers typed without one.                                                                                                                                                                                                                                                                                              |
-| `TASK_SECRET`                                                     | Shared secret for `/api/tasks/*`. Unset means scheduled work is refused, not open.                                                                                                                                                                                                                                                                      |
-| `STRIPE_SECRET_KEY` / `STRIPE_PRICE_ID`                           | Optional. Without them the product runs on trial and charges nothing.                                                                                                                                                                                                                                                                                   |
-| `STRIPE_WEBHOOK_SECRET`                                           | Required if Stripe is configured — the webhook refuses anything it cannot verify.                                                                                                                                                                                                                                                                       |
-| `GOOGLE_PLACES_API_KEY`                                           | Optional. Enables live vendor lookup; without it the directory is hand-entered.                                                                                                                                                                                                                                                                         |
-| `PLATFORM_ADMIN_EMAILS`                                           | **Bootstrap only.** Comma-separated staff addresses seeded into `platform_admins` on the first start of an empty table, so a fresh deployment is reachable. After that the table is the list and this variable is never read again — which is what makes revoking somebody's access actually work. Unset means nobody, and an empty table means nobody. |
+| Variable | Why |
+| --- | --- |
+| `DATABASE_URL` | Postgres. Required. |
+| `ENCRYPTION_KEY` | 32 bytes, base64. Uploads are AES-256-GCM at rest; the server refuses to start without it. |
+| `PORT` | Required. |
+| `FAMILY_PORTAL_URL` | Origin used to build the texted link. Falls back to a relative path — an obviously incomplete link beats one that opens someone else's deployment. |
+| `CONSOLE_URL` | Where the director console lives, used in staff password-reset emails. On Replit that includes the path — see below. |
+| `SMTP_*` | Optional. Without it, mail is logged rather than sent, which keeps local development and the tests working. |
+| `TWILIO_ACCOUNT_SID` / `TWILIO_AUTH_TOKEN` / `TWILIO_FROM_NUMBER` | Optional. Without them a director is handed the link to send themselves rather than being told nothing happened. |
+| `SMS_DEFAULT_COUNTRY_CODE` | Defaults to `+1`. Used only for numbers typed without one. |
+| `TASK_SECRET` | Shared secret for `/api/tasks/*`. Unset means scheduled work is refused, not open. |
+| `STRIPE_SECRET_KEY` / `STRIPE_PRICE_ID` | Optional. Without them the product runs on trial and charges nothing. |
+| `STRIPE_WEBHOOK_SECRET` | Required if Stripe is configured — the webhook refuses anything it cannot verify. |
+| `GOOGLE_PLACES_API_KEY` | Optional. Enables live vendor lookup; without it the directory is hand-entered. |
+| `PLATFORM_ADMIN_EMAILS` | **Bootstrap only.** Comma-separated staff addresses seeded into `platform_admins` on the first start of an empty table, so a fresh deployment is reachable. After that the table is the list and this variable is never read again — which is what makes revoking somebody's access actually work. Unset means nobody, and an empty table means nobody. |
 
 ### Scheduling the aftercare
 
@@ -251,7 +251,7 @@ Add `?dryRun=1` to see what is due without sending or marking anything —
 that is how to check a new deployment is wired up without writing to a
 bereaved family.
 
-Deliberately _not_ an in-process timer. This deploys to an autoscale target
+Deliberately *not* an in-process timer. This deploys to an autoscale target
 that sleeps when idle and runs several instances when it is not, so a
 `setInterval` there fires unpredictably or four times at once.
 
@@ -268,7 +268,7 @@ and single-sheet orders of service, register page, thank-you card. A director
 picks a template and fills the slots; the case already knows the name, the
 dates, the portrait and the service details, so most of them arrive filled.
 
-Deliberately **not** a drag-and-drop canvas. Templates declare _named slots_,
+Deliberately **not** a drag-and-drop canvas. Templates declare *named slots*,
 never coordinates, because a canvas is how a name ends up 3mm into the fold
 and nobody notices until two hundred are printed. What a director chooses is
 which template and what goes in it.
@@ -329,7 +329,7 @@ Colorado this year — where each home stands with DORA.
 **How you get in.** A platform admin is a signed-in staff account that is also
 named in the `platform_admins` table. That is on purpose: one way to authenticate
 in this application means one cookie to protect, not two. Being on the list is
-an _additional_ condition and never an alternative one, and an empty list
+an *additional* condition and never an alternative one, and an empty list
 means nobody. `routes/admin.ts` applies that check under `/admin`, below the
 ordinary session gate. The account's address must also be **confirmed**: the
 list names addresses and registration never checks them, so without that
@@ -424,17 +424,17 @@ than no button.
 Replit publishes the whole workspace on one domain, continuumaftercare.com, so
 the three apps are told apart by path instead of by hostname:
 
-| Path      | App              | Who                                             |
-| --------- | ---------------- | ----------------------------------------------- |
-| `/`       | director console | funeral homes, and the platform team's sign-in  |
-| `/admin`  | platform console | platform admins only (the API checks the table) |
-| `/family` | family portal    | clients, through the link they are texted       |
-| `/api`    | API              | all three                                       |
+| Path | App | Who |
+| --- | --- | --- |
+| `/` | director console | funeral homes, and the platform team's sign-in |
+| `/admin` | platform console | platform admins only (the API checks the table) |
+| `/family` | family portal | clients, through the link they are texted |
+| `/api` | API | all three |
 
 Each app's `.replit-artifact/artifact.toml` claims its path and sets
 `BASE_PATH`, which Vite bakes into `import.meta.env.BASE_URL` and each app hands
 to wouter as the router base. The director console and the family portal used
-to _both_ claim `/`, and the platform console had no artifact file at all, so a
+to *both* claim `/`, and the platform console had no artifact file at all, so a
 client's link and a director's sign-in were fighting over the same front page
 and the platform console was not published. The API's `FAMILY_PORTAL_URL` (in
 its artifact file) must end in `/family`, or every texted link opens the
@@ -460,7 +460,7 @@ Four cases, deliberately at four different stages, because the screen that
 sells this is the master page and it only means anything when each of its
 buckets has something in it: one mid-arrangement with an unanswered message and
 an overdue item, one closed and in aftercare with an open memory book, one with
-no service date at all, and a pre-need file that is correctly _not_ in
+no service date at all, and a pre-need file that is correctly *not* in
 aftercare. Two requests wait on the public page.
 
 Distinct from `seed-demo`, which exists for the backup drill and deliberately
@@ -518,13 +518,13 @@ predicts.
 
 So, when you are deciding where a name goes:
 
-| Reads it                                          | Name                        |
-| ------------------------------------------------- | --------------------------- |
-| A director, about their account or their bill     | Continuum Aftercare         |
-| A funeral home's staff, in any email we send them | Continuum Aftercare         |
-| A family, about the arrangement                   | the funeral home's own name |
-| A family, in a grief check-in                     | the funeral home's own name |
-| A family, once they are handed on afterwards      | Holding Today               |
+| Reads it | Name |
+| --- | --- |
+| A director, about their account or their bill | Continuum Aftercare |
+| A funeral home's staff, in any email we send them | Continuum Aftercare |
+| A family, about the arrangement | the funeral home's own name |
+| A family, in a grief check-in | the funeral home's own name |
+| A family, once they are handed on afterwards | Holding Today |
 
 This repository began as a fork of Memory-Haven at `6e79cb4`, for its workspace
 layout, auth, encrypted uploads and component set. Nothing here changes anything
@@ -566,7 +566,7 @@ subscription state in Settings. This is deliberate: the CRM columns are
 Heather's deal notes (including how-heard and private notes), not the home's
 invoice.
 
-**Deliberate deviations from the spec.** (1) There is no second admin _role_
+**Deliberate deviations from the spec.** (1) There is no second admin *role*
 with reduced permissions: this repo has one platform-admin capability and no
 hierarchy, per CONTRIBUTING.md ("do not invent a second role system"). There
 is also no way to delete a home or export the list at all, so the "no delete,
