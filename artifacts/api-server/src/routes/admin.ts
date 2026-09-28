@@ -57,6 +57,7 @@ import {
   parseQuery,
   requireRow,
 } from "../lib/http";
+import { uniqueSlug } from "../lib/slug";
 import { currentUser } from "../middleware/require-auth";
 import {
   createPasswordReset,
@@ -760,35 +761,6 @@ const CreateHomeBody = z.object({
   phone: z.string().trim().max(40).optional(),
   timezone: z.string().trim().max(60).optional(),
 });
-
-/**
- * Lifted from `auth/register`, which owns the canonical version. Duplicated
- * rather than shared because that one lives in Component 1's file and the two
- * will merge there when the spec split lands.
- *
- * TODO(C1): import `uniqueSlug` from Component 1's `routes/auth.ts`.
- */
-async function uniqueSlug(name: string): Promise<string> {
-  const base =
-    name
-      .toLowerCase()
-      .replace(/[^a-z0-9]+/g, "-")
-      .replace(/^-+|-+$/g, "")
-      .slice(0, 48) || "home";
-
-  for (let attempt = 0; attempt < 100; attempt += 1) {
-    const candidate = attempt === 0 ? base : `${base}-${attempt + 1}`;
-    const [taken] = await db
-      .select({ id: funeralHomesTable.id })
-      .from(funeralHomesTable)
-      .where(eq(funeralHomesTable.slug, candidate))
-      .limit(1);
-
-    if (!taken) return candidate;
-  }
-
-  throw new HttpError(500, "Could not allocate a unique name for this home");
-}
 
 router.post("/admin/homes", async (req, res) => {
   const who = actor(req);
