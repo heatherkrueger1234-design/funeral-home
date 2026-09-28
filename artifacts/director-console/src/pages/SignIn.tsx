@@ -65,7 +65,15 @@ export default function SignIn() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
 
-  const onSuccess = (payload: { platformAdmin?: boolean }) => {
+  const onSuccess = (
+    payload: { platformAdmin?: boolean } | { checkEmail: boolean; message: string },
+  ) => {
+    /* The address already has an account; the next step went to its inbox. */
+    if ("checkEmail" in payload) {
+      toast({ title: "Check your email", description: payload.message });
+      return;
+    }
+
     /*
      * Somebody at the platform who signed in here wanted the other console —
      * there is no reason for them to be on this one, and making them find it

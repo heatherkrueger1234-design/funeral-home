@@ -220,6 +220,21 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/AuthUser"
+        "202":
+          description: >
+            The address already has an account. Said the same way whatever the
+            reason, so the form cannot be used to find out who is staff where;
+            the owner of the address is emailed.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [checkEmail, message]
+                properties:
+                  checkEmail:
+                    type: boolean
+                  message:
+                    type: string
 
   /auth/login:
     post:
@@ -3700,8 +3715,24 @@ components:
             $ref: "#/components/schemas/OnboardingItem"
         onboardingComplete:
           type: boolean
+        addOns:
+          type: array
+          description: What is on the plan, and whether this home has it now.
+          items:
+            type: object
+            properties:
+              key:
+                type: string
+              title:
+                type: string
+              detail:
+                type: string
+              included:
+                type: boolean
+            required: [key, title, detail, included]
       required:
         [
+          addOns,
           subscriptionStatus,
           trialEndsAt,
           trialDaysLeft,

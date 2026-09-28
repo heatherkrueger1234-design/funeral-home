@@ -40,17 +40,35 @@ jobs:
   report:
     runs-on: ubuntu-latest
     steps:
+      # Before the server exists there is nothing to call, and a job that goes
+      # red every day for that trains everyone to ignore it. A scheduled run
+      # skips with a notice; a hand-started run, or any run once the
+      # REQUIRE_TASK_SECRETS repository variable is "true", fails instead.
+      - name: Check there is a server to call
+        id: config
+        env:
+          API_URL: ${{ secrets.API_URL }}
+          TASK_SECRET: ${{ secrets.TASK_SECRET }}
+          REQUIRED: ${{ github.event_name == 'workflow_dispatch' || vars.REQUIRE_TASK_SECRETS == 'true' }}
+        run: |
+          if [ -n "$API_URL" ] && [ -n "$TASK_SECRET" ]; then
+            echo "ready=true" >> "$GITHUB_OUTPUT"
+          elif [ "$REQUIRED" = "true" ]; then
+            echo "::error::API_URL and TASK_SECRET must be set as repository secrets."
+            exit 1
+          else
+            echo "ready=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::Skipped: API_URL and TASK_SECRET are not set yet. Set the repository variable REQUIRE_TASK_SECRETS=true once deployed so a missing secret fails the run."
+            echo "Skipped: no server configured yet (API_URL / TASK_SECRET unset)." >> "$GITHUB_STEP_SUMMARY"
+          fi
+
       - name: Trigger the report
+        if: steps.config.outputs.ready == 'true'
         env:
           API_URL: ${{ secrets.API_URL }}
           TASK_SECRET: ${{ secrets.TASK_SECRET }}
           DRY_RUN: ${{ inputs.dryRun && '1' || '0' }}
         run: |
-          if [ -z "$API_URL" ] || [ -z "$TASK_SECRET" ]; then
-            echo "API_URL and TASK_SECRET must be set as repository secrets." >&2
-            exit 1
-          fi
-
           # --fail-with-body so a 4xx/5xx fails the job *and* prints why,
           # rather than failing silently on a schedule nobody is watching.
           curl --fail-with-body --silent --show-error \
