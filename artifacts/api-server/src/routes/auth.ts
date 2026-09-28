@@ -17,6 +17,7 @@ import {
   VerifyEmailBody,
 } from "@workspace/api-zod";
 import { badRequest, HttpError, parseBody } from "../lib/http";
+import { uniqueSlug } from "../lib/slug";
 import {
   EMAIL_VERIFICATION_TTL_MS,
   MIN_PASSWORD_LENGTH,
@@ -71,35 +72,6 @@ async function authPayload(user: User, home: FuneralHome) {
     home,
     platformAdmin: await isPlatformAdmin(user.email),
   };
-}
-
-/**
- * A URL slug from the home's name, made unique by suffixing.
- *
- * The suffix loop is bounded rather than a `while (true)`: two homes called
- * "Green Lawn" is ordinary, two hundred is a bug or an attack, and either
- * way it should fail loudly instead of spinning.
- */
-async function uniqueSlug(name: string): Promise<string> {
-  const base =
-    name
-      .toLowerCase()
-      .replace(/[^a-z0-9]+/g, "-")
-      .replace(/^-+|-+$/g, "")
-      .slice(0, 48) || "home";
-
-  for (let attempt = 0; attempt < 100; attempt += 1) {
-    const candidate = attempt === 0 ? base : `${base}-${attempt + 1}`;
-    const [taken] = await db
-      .select({ id: funeralHomesTable.id })
-      .from(funeralHomesTable)
-      .where(eq(funeralHomesTable.slug, candidate))
-      .limit(1);
-
-    if (!taken) return candidate;
-  }
-
-  throw new HttpError(500, "Could not allocate a unique name for this home");
 }
 
 /**

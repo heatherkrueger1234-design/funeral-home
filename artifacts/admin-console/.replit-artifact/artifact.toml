@@ -33,7 +33,12 @@ args = [ "pnpm", "--filter", "@workspace/admin-console", "run", "build" ]
 
 [services.production.build.env]
 BASE_PATH = "/admin"
-
+# Vite bakes these in too, so they belong with the build rather than only in
+# [services.env] below, which is not guaranteed to reach it. Without them a
+# platform admin is not forwarded to /admin on sign-in, and the pointers
+# between the three apps are left out of the bundle.
+VITE_CONSOLE_URL = "https://continuumaftercare.com"
+VITE_FAMILY_PORTAL_URL = "https://continuumaftercare.com/family"
 
 [[services.production.rewrites]]
 from = "/*"
