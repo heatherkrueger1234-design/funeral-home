@@ -109,6 +109,24 @@ export default function Settings() {
         </div>
 
         <div className="space-y-1.5">
+          <Label htmlFor="contactName">Contact person</Label>
+          <Input
+            id="contactName"
+            disabled={readOnly}
+            defaultValue={row.contactName ?? ""}
+            onBlur={(event) => {
+              const value = event.target.value.trim();
+              if (value !== (row.contactName ?? ""))
+                save({ contactName: value || null });
+            }}
+          />
+          <p className="text-sm leading-snug text-muted-foreground">
+            The person families reach for the practical questions. Heather
+            entered this when your home joined; keep it current.
+          </p>
+        </div>
+
+        <div className="space-y-1.5">
           <Label htmlFor="accentColor">Brand color</Label>
           <div className="flex items-center gap-3">
             {/* The swatch is the control. A hex field would be a worse

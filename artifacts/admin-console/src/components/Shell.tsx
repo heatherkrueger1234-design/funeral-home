@@ -62,6 +62,7 @@ const PLACES = [
   { href: "/", label: "Overview" },
   { href: "/homes", label: "Homes" },
   { href: "/groups", label: "Groups" },
+  { href: "/plans", label: "Plans" },
   { href: "/audit", label: "Access log" },
   { href: "/admins", label: "Who has access" },
 ] as const;

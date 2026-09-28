@@ -11,11 +11,16 @@ import {
   describeAccount,
   formatDate,
   formatDay,
+  formatMoney,
   HOME_STATUS_LABELS,
   HOME_STATUSES,
   plural,
   type AdminHome,
+  type FinancialHome,
+  type Financials as FinancialsData,
   type HomeStatus,
+  type RunningCost,
+  type PlatformPlan,
 } from "@/lib/api";
 import {
   Button,
@@ -69,13 +74,19 @@ export function Homes() {
   const [includeInternal, setIncludeInternal] = useState(false);
   const [page, setPage] = useState(0);
   const [creating, setCreating] = useState(false);
+  /**
+   * Server-side sort, because a sorted first page of an unsorted list is a
+   * lie about the other pages. The value packs the column and the direction
+   * together so the select stays one control.
+   */
+  const [sort, setSort] = useState<string>("");
 
   // Keyed on the trimmed, settled text: a trailing space is not a new
   // question, and neither is a word somebody is halfway through typing.
   const term = useSettled(search.trim(), 300);
 
   const query = useQuery({
-    queryKey: ["homes", { term, page, status, includeInternal }],
+    queryKey: ["homes", { term, page, status, includeInternal, sort }],
     queryFn: () => {
       const params = new URLSearchParams({
         limit: String(PAGE_SIZE),
@@ -84,6 +95,11 @@ export function Homes() {
       if (term) params.set("search", term);
       if (status) params.set("status", status);
       if (includeInternal) params.set("includeInternal", "true");
+      if (sort) {
+        const [column, direction] = sort.split("-");
+        params.set("sort", column!);
+        params.set("order", direction!);
+      }
       return api.get<HomesPage>(`/admin/homes?${params.toString()}`);
     },
     // The last answer stays on screen while the next one loads, rather than
@@ -136,6 +152,24 @@ export function Homes() {
               setPage(0);
             }}
           />
+        </div>
+        <div className="w-56">
+          <Select
+            label="Sort the list"
+            value={sort}
+            onChange={(event) => {
+              setSort(event.target.value);
+              setPage(0);
+            }}
+          >
+            <option value="">Name (A–Z)</option>
+            <option value="name-desc">Name (Z–A)</option>
+            <option value="plan-asc">Plan (A–Z)</option>
+            <option value="amount-desc">Amount (highest first)</option>
+            <option value="amount-asc">Amount (lowest first)</option>
+            <option value="dueDate-asc">Next due (soonest first)</option>
+            <option value="dueDate-desc">Next due (latest first)</option>
+          </Select>
         </div>
         <div className="w-56">
           <Select
@@ -213,7 +247,367 @@ export function Homes() {
           />
         </>
       )}
+
+      <Financials />
     </div>
+  );
+}
+
+/**
+ * The money, at a glance. Phase 1 §4c: what the homes agreed to pay, what
+ * running the platform costs, and the difference — the whole financial
+ * picture in under 30 seconds.
+ */
+function Financials() {
+  const query = useQuery({
+    queryKey: ["financials"],
+    queryFn: () => api.get<FinancialsData>("/admin/financials"),
+  });
+
+  return (
+    <section aria-label="Financials" className="mt-4 flex flex-col gap-6">
+      <div>
+        <h2 className="font-display text-xl">Financials</h2>
+        <p className="mt-1 text-sm text-[var(--muted-foreground)]">
+          What the homes pay us, what the platform costs, and the difference.
+        </p>
+      </div>
+
+      {query.isPending ? (
+        <LoadingRows rows={4} />
+      ) : query.error ? (
+        <ErrorState error={query.error} onRetry={() => void query.refetch()} />
+      ) : (
+        <>
+          <div className="grid gap-4 sm:grid-cols-3">
+            <Card>
+              <p className="eyebrow">Monthly total</p>
+              <p className="tabular mt-1 font-display text-2xl">
+                {formatMoney(query.data.monthlyTotalCents)}
+              </p>
+              <p className="mt-1 text-sm text-[var(--muted-foreground)]">
+                Across {plural(query.data.payingHomes, "paying home")}. Trials
+                are not revenue yet; canceled and suspended homes are not
+                revenue any more. Annual plans count as a twelfth of their
+                yearly amount — the per-home table keeps what was actually
+                charged.
+              </p>
+            </Card>
+            <Card>
+              <p className="eyebrow">Running costs</p>
+              <p className="tabular mt-1 font-display text-2xl">
+                {formatMoney(query.data.runningCostsCents)}
+              </p>
+              <p className="mt-1 text-sm text-[var(--muted-foreground)]">
+                What the platform itself costs each month.
+              </p>
+            </Card>
+            <Card>
+              <p className="eyebrow">Profit</p>
+              <p
+                className={`tabular mt-1 font-display text-2xl ${
+                  query.data.profitCents < 0 ? "text-[var(--notice)]" : ""
+                }`}
+              >
+                {formatMoney(query.data.profitCents)}
+              </p>
+              <p className="mt-1 text-sm text-[var(--muted-foreground)]">
+                Revenue minus running costs.
+              </p>
+            </Card>
+          </div>
+
+          <FinancialsTable homes={query.data.homes} />
+          <RunningCosts
+            costs={query.data.runningCosts}
+            onChanged={() => void query.refetch()}
+          />
+        </>
+      )}
+    </section>
+  );
+}
+
+function FinancialsTable({ homes }: { homes: FinancialHome[] }) {
+  if (homes.length === 0) {
+    return (
+      <EmptyState
+        title="No homes to show"
+        detail="Add a home above and its commercial details will appear here."
+      />
+    );
+  }
+
+  return (
+    <div className="overflow-x-auto rounded-xl border border-[var(--border)] bg-[var(--card)] shadow-[var(--elevation-1)]">
+      <table className="w-full text-left md:min-w-[64rem]">
+        <thead>
+          <tr className="border-b border-[var(--border-strong)] bg-[var(--sunken)]">
+            <th scope="col" className="eyebrow px-4 py-2.5">
+              Home
+            </th>
+            <th scope="col" className="eyebrow px-4 py-2.5">
+              Contact
+            </th>
+            <th scope="col" className="eyebrow px-4 py-2.5">
+              Status
+            </th>
+            <th scope="col" className="eyebrow px-4 py-2.5">
+              Plan
+            </th>
+            <th scope="col" className="eyebrow px-4 py-2.5 text-right">
+              Amount
+            </th>
+            <th scope="col" className="eyebrow px-4 py-2.5">
+              Next due
+            </th>
+            <th scope="col" className="eyebrow px-4 py-2.5">
+              Discount
+            </th>
+            <th scope="col" className="eyebrow px-4 py-2.5">
+              Heard via
+            </th>
+            <th scope="col" className="eyebrow px-4 py-2.5">
+              Notes
+            </th>
+          </tr>
+        </thead>
+        <tbody>
+          {homes.map((home) => (
+            <tr
+              key={home.id}
+              className="border-b border-[var(--border)] transition-colors duration-150 last:border-0 hover:bg-[var(--sunken)]"
+            >
+              <td className="px-4 py-3">
+                <Link
+                  href={`/homes/${home.id}`}
+                  className="font-semibold no-underline hover:underline"
+                >
+                  {home.name}
+                </Link>
+              </td>
+              <td className="px-4 py-3 text-sm">{home.contactName ?? "—"}</td>
+              <td className="px-4 py-3 text-sm">
+                {HOME_STATUS_LABELS[home.status as HomeStatus] ?? home.status}
+              </td>
+              <td className="px-4 py-3 text-sm">{home.plan ?? "—"}</td>
+              <td className="tabular px-4 py-3 text-right text-sm font-semibold">
+                {formatMoney(home.amountChargedCents)}
+                {home.billingPeriod && (
+                  <span className="ml-1 font-normal text-[var(--muted-foreground)]">
+                    /{home.billingPeriod === "annual" ? "yr" : "mo"}
+                  </span>
+                )}
+              </td>
+              <td className="tabular whitespace-nowrap px-4 py-3 text-sm">
+                {home.nextDueDate ? formatDay(home.nextDueDate) : "—"}
+              </td>
+              <td className="max-w-[12rem] break-words px-4 py-3 text-sm">
+                {home.discount ?? "—"}
+              </td>
+              <td className="max-w-[12rem] break-words px-4 py-3 text-sm">
+                {home.howHeardAboutUs ?? "—"}
+              </td>
+              <td className="max-w-[16rem] break-words px-4 py-3 text-sm text-[var(--muted-foreground)]">
+                {home.notes ?? "—"}
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+/**
+ * What the platform itself costs each month: hosting, domains, the Prodigi
+ * print account, anything else with a recurring bill.
+ */
+function RunningCosts({
+  costs,
+  onChanged,
+}: {
+  costs: RunningCost[];
+  onChanged: () => void;
+}) {
+  const [adding, setAdding] = useState(false);
+  const [name, setName] = useState("");
+  const [amount, setAmount] = useState("");
+  const [notes, setNotes] = useState("");
+  const [editingId, setEditingId] = useState<number | null>(null);
+
+  const save = useMutation({
+    mutationFn: () => {
+      const body = {
+        name: name.trim(),
+        monthlyAmountCents: Math.round(parseFloat(amount) * 100),
+        ...(notes.trim() ? { notes: notes.trim() } : {}),
+      };
+      return editingId === null
+        ? api.post<RunningCost>("/admin/running-costs", body)
+        : api.put<RunningCost>(`/admin/running-costs/${editingId}`, body);
+    },
+    onSuccess: () => {
+      setAdding(false);
+      setEditingId(null);
+      setName("");
+      setAmount("");
+      setNotes("");
+      onChanged();
+    },
+  });
+
+  const remove = useMutation({
+    mutationFn: (id: number) => api.delete(`/admin/running-costs/${id}`),
+    onSuccess: () => onChanged(),
+  });
+
+  const problem = save.error instanceof Error ? save.error.message : null;
+
+  return (
+    <Card>
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <h3 className="font-display text-lg">Running costs</h3>
+        {!adding && (
+          <Button
+            variant="plain"
+            onClick={() => {
+              setAdding(true);
+              setEditingId(null);
+              setName("");
+              setAmount("");
+              setNotes("");
+            }}
+          >
+            Add a cost
+          </Button>
+        )}
+      </div>
+
+      {costs.length === 0 && !adding ? (
+        <p className="mt-2 text-sm text-[var(--muted-foreground)]">
+          Nothing recorded. Add hosting, domains, the Prodigi fees — whatever
+          the platform costs you each month.
+        </p>
+      ) : (
+        <ul className="mt-3 flex flex-col gap-2">
+          {costs.map((cost) => (
+            <li
+              key={cost.id}
+              className="flex flex-wrap items-center justify-between gap-2 rounded-md border border-[var(--border)] px-3 py-2"
+            >
+              <div>
+                <span className="font-semibold">{cost.name}</span>
+                {cost.notes && (
+                  <span className="ml-2 text-sm text-[var(--muted-foreground)]">
+                    {cost.notes}
+                  </span>
+                )}
+              </div>
+              <div className="flex items-center gap-3">
+                <span className="tabular text-sm font-semibold">
+                  {formatMoney(cost.monthlyAmountCents)}/mo
+                </span>
+                <Button
+                  variant="plain"
+                  onClick={() => {
+                    setAdding(true);
+                    setEditingId(cost.id);
+                    setName(cost.name);
+                    setAmount(String(cost.monthlyAmountCents / 100));
+                    setNotes(cost.notes ?? "");
+                  }}
+                >
+                  Edit
+                </Button>
+                <Button
+                  variant="plain"
+                  disabled={remove.isPending}
+                  onClick={() => {
+                    if (
+                      window.confirm(
+                        `Remove “${cost.name}”? This only stops counting it, nothing else changes.`,
+                      )
+                    ) {
+                      remove.mutate(cost.id);
+                    }
+                  }}
+                >
+                  Remove
+                </Button>
+              </div>
+            </li>
+          ))}
+        </ul>
+      )}
+
+      {adding && (
+        <form
+          className="mt-4 grid gap-4 sm:grid-cols-3"
+          onSubmit={(event) => {
+            event.preventDefault();
+            save.mutate();
+          }}
+        >
+          <Field
+            label="Name"
+            required
+            maxLength={120}
+            value={name}
+            onChange={(event) => setName(event.target.value)}
+            hint="“Hosting”, “Domains”, “Prodigi fees”…"
+          />
+          <Field
+            label="Monthly amount"
+            type="number"
+            min="0"
+            step="0.01"
+            inputMode="decimal"
+            required
+            value={amount}
+            onChange={(event) => setAmount(event.target.value)}
+            hint="Dollars per month."
+          />
+          <Field
+            label="Notes"
+            maxLength={1000}
+            value={notes}
+            onChange={(event) => setNotes(event.target.value)}
+          />
+          {problem && (
+            <p
+              role="alert"
+              className="rounded-md bg-[var(--notice-soft)] p-3 text-sm text-[var(--notice)] sm:col-span-3"
+            >
+              {problem}
+            </p>
+          )}
+          <div className="flex gap-3 sm:col-span-3">
+            <Button
+              type="submit"
+              variant="primary"
+              disabled={save.isPending || !name.trim() || !amount.trim()}
+            >
+              {save.isPending
+                ? "Saving…"
+                : editingId === null
+                  ? "Add the cost"
+                  : "Save the cost"}
+            </Button>
+            <Button
+              type="button"
+              variant="plain"
+              onClick={() => {
+                setAdding(false);
+                setEditingId(null);
+              }}
+            >
+              Cancel
+            </Button>
+          </div>
+        </form>
+      )}
+    </Card>
   );
 }
 
@@ -234,13 +628,65 @@ function HomesTable({ homes }: { homes: AdminHome[] }) {
         */}
         <thead>
           <tr className="border-b border-[var(--border-strong)] bg-[var(--sunken)]">
-            <th scope="col" className="eyebrow px-4 py-2.5">Home</th>
-            <th scope="col" className="eyebrow px-4 py-2.5">Account</th>
-            <th scope="col" className="eyebrow px-4 py-2.5">Trial ends</th>
-            <th scope="col" className="eyebrow px-4 py-2.5 text-right">Cases</th>
-            <th scope="col" className="eyebrow hidden px-4 py-2.5 text-right md:table-cell">Links opened</th>
-            <th scope="col" className="eyebrow hidden px-4 py-2.5 text-right md:table-cell">Photographs</th>
-            <th scope="col" className="eyebrow hidden px-4 py-2.5 text-right md:table-cell">Joined</th>
+            <th scope="col" className="eyebrow px-4 py-2.5">
+              Home
+            </th>
+            <th scope="col" className="eyebrow px-4 py-2.5">
+              Account
+            </th>
+            <th scope="col" className="eyebrow px-4 py-2.5">
+              Trial ends
+            </th>
+            {/*
+              The commercial columns — the point of the Phase 1 §4b customer
+              record is that Heather can read her book of business at a
+              glance, not by opening every home. They sort server-side.
+            */}
+            <th
+              scope="col"
+              className="eyebrow hidden px-4 py-2.5 md:table-cell"
+            >
+              Plan
+            </th>
+            <th
+              scope="col"
+              className="eyebrow hidden px-4 py-2.5 text-right md:table-cell"
+            >
+              Amount
+            </th>
+            <th
+              scope="col"
+              className="eyebrow hidden px-4 py-2.5 md:table-cell"
+            >
+              Next due
+            </th>
+            <th
+              scope="col"
+              className="eyebrow hidden px-4 py-2.5 md:table-cell"
+            >
+              Discount
+            </th>
+            <th scope="col" className="eyebrow px-4 py-2.5 text-right">
+              Cases
+            </th>
+            <th
+              scope="col"
+              className="eyebrow hidden px-4 py-2.5 text-right md:table-cell"
+            >
+              Links opened
+            </th>
+            <th
+              scope="col"
+              className="eyebrow hidden px-4 py-2.5 text-right md:table-cell"
+            >
+              Photographs
+            </th>
+            <th
+              scope="col"
+              className="eyebrow hidden px-4 py-2.5 text-right md:table-cell"
+            >
+              Joined
+            </th>
           </tr>
         </thead>
         <tbody>
@@ -281,6 +727,29 @@ function HomesTable({ homes }: { homes: AdminHome[] }) {
                 {home.subscriptionStatus === "trial" ? (
                   formatDay(home.trialEndsAt)
                 ) : (
+                  <span className="text-[var(--muted-foreground)]">—</span>
+                )}
+              </td>
+              <td className="hidden whitespace-nowrap px-4 py-3 text-sm md:table-cell">
+                {home.subscriptionPlan ?? (
+                  <span className="text-[var(--muted-foreground)]">—</span>
+                )}
+              </td>
+              <td className="tabular hidden whitespace-nowrap px-4 py-3 text-right text-sm md:table-cell">
+                {formatMoney(home.billingAmountCents)}
+              </td>
+              <td className="tabular hidden whitespace-nowrap px-4 py-3 text-sm md:table-cell">
+                {home.subscriptionDueDate ? (
+                  formatDay(home.subscriptionDueDate)
+                ) : (
+                  <span className="text-[var(--muted-foreground)]">—</span>
+                )}
+              </td>
+              <td
+                className="hidden max-w-[12rem] truncate px-4 py-3 text-sm md:table-cell"
+                title={home.discount ?? undefined}
+              >
+                {home.discount ?? (
                   <span className="text-[var(--muted-foreground)]">—</span>
                 )}
               </td>
@@ -379,13 +848,30 @@ function CreateHome({
   onCreated: () => void;
 }) {
   const queryClient = useQueryClient();
+  const plansQuery = useQuery({
+    queryKey: ["plans"],
+    queryFn: () => api.get<{ plans: PlatformPlan[] }>("/admin/plans"),
+  });
+  const plans = plansQuery.data?.plans ?? [];
+
   const [form, setForm] = useState({
     name: "",
+    contactName: "",
     ownerEmail: "",
+    addressLine1: "",
     city: "",
     region: "CO",
+    postalCode: "",
     phone: "",
     timezone: "America/Denver",
+    planName: "",
+    billingPeriod: "monthly",
+    billingAmount: "",
+    billingStartDate: "",
+    subscriptionDueDate: "",
+    discount: "",
+    howHeardAboutUs: "",
+    adminNotes: "",
   });
   const [created, setCreated] = useState<{
     id: number;
@@ -394,21 +880,87 @@ function CreateHome({
     mailSent: boolean;
   } | null>(null);
 
+  const set =
+    (key: keyof typeof form) =>
+    (
+      event: React.ChangeEvent<
+        HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement
+      >,
+    ) =>
+      setForm((current) => ({ ...current, [key]: event.target.value }));
+
+  /**
+   * Choosing a plan fills in its price for the chosen cadence — a starting
+   * point, not a lock. A hand-edited amount is left alone when the cadence
+   * changes afterwards; clearing the field and re-picking brings the price
+   * back.
+   */
+  const pickPlan = (planName: string, period: string) => {
+    const plan = plans.find((p) => p.name === planName);
+    const price =
+      plan == null
+        ? null
+        : period === "annual"
+          ? plan.annualAmountCents
+          : plan.monthlyAmountCents;
+    setForm((current) => ({
+      ...current,
+      planName,
+      billingPeriod: period,
+      billingAmount:
+        price !== null && current.billingAmount.trim() === ""
+          ? String(price / 100)
+          : current.billingAmount,
+    }));
+  };
   const create = useMutation({
-    mutationFn: () =>
-      api.post<AdminHome & { mailSent: boolean }>("/admin/homes", {
+    mutationFn: () => {
+      const amount = form.billingAmount.trim();
+      const commercial = form.planName.trim() !== "" || amount !== "";
+      return api.post<AdminHome & { mailSent: boolean }>("/admin/homes", {
         name: form.name.trim(),
+        ...(form.contactName.trim()
+          ? { contactName: form.contactName.trim() }
+          : {}),
         ...(form.ownerEmail.trim()
           ? { ownerEmail: form.ownerEmail.trim() }
           : {}),
+        ...(form.addressLine1.trim()
+          ? { addressLine1: form.addressLine1.trim() }
+          : {}),
         ...(form.city.trim() ? { city: form.city.trim() } : {}),
         ...(form.region.trim() ? { region: form.region.trim() } : {}),
+        ...(form.postalCode.trim()
+          ? { postalCode: form.postalCode.trim() }
+          : {}),
         ...(form.phone.trim() ? { phone: form.phone.trim() } : {}),
         timezone: form.timezone,
-      }),
+        ...(form.planName.trim()
+          ? { subscriptionPlan: form.planName.trim() }
+          : {}),
+        ...(commercial ? { billingPeriod: form.billingPeriod } : {}),
+        ...(amount
+          ? { billingAmountCents: Math.round(parseFloat(amount) * 100) }
+          : {}),
+        ...(form.billingStartDate
+          ? { billingStartDate: form.billingStartDate }
+          : {}),
+        ...(form.subscriptionDueDate
+          ? { subscriptionDueDate: form.subscriptionDueDate }
+          : {}),
+        ...(form.discount.trim() ? { discount: form.discount.trim() } : {}),
+        ...(form.howHeardAboutUs.trim()
+          ? { howHeardAboutUs: form.howHeardAboutUs.trim() }
+          : {}),
+        ...(form.adminNotes.trim()
+          ? { adminNotes: form.adminNotes.trim() }
+          : {}),
+      });
+    },
     onSuccess: (home) => {
       void queryClient.invalidateQueries({ queryKey: ["homes"] });
       void queryClient.invalidateQueries({ queryKey: ["overview"] });
+      void queryClient.invalidateQueries({ queryKey: ["financials"] });
       setCreated({
         id: home.id,
         name: home.name,
@@ -481,81 +1033,198 @@ function CreateHome({
   return (
     <Card>
       <h2 className="font-display text-lg">Add a home</h2>
+      <p className="mt-1 max-w-prose text-sm text-[var(--muted-foreground)]">
+        Everything you know about them, captured once. Saving creates their
+        account and invites the owner — the home's side is already filled in
+        with what you typed here.
+      </p>
       <form
-        className="mt-4 flex flex-col gap-5"
+        className="mt-4 flex flex-col gap-6"
         onSubmit={(event) => {
           event.preventDefault();
           create.mutate();
         }}
       >
-        <div className="grid gap-5 sm:grid-cols-2">
-          <Field
-            label="Name of the home"
-            required
-            maxLength={160}
-            value={form.name}
-            onChange={(event) =>
-              setForm((current) => ({ ...current, name: event.target.value }))
-            }
-            hint="As it appears on their sign."
-          />
-          <Field
-            label="Owner's email address"
-            type="email"
-            maxLength={254}
-            value={form.ownerEmail}
-            onChange={(event) =>
-              setForm((current) => ({
-                ...current,
-                ownerEmail: event.target.value,
-              }))
-            }
-            hint="Optional. They get an invitation and set their own password."
-            problem={emailProblem}
-          />
-          <Field
-            label="Town"
-            maxLength={120}
-            value={form.city}
-            onChange={(event) =>
-              setForm((current) => ({ ...current, city: event.target.value }))
-            }
-          />
-          <Field
-            label="State"
-            maxLength={120}
-            value={form.region}
-            onChange={(event) =>
-              setForm((current) => ({ ...current, region: event.target.value }))
-            }
-          />
-          <Field
-            label="Telephone"
-            type="tel"
-            autoComplete="off"
-            value={form.phone}
-            onChange={(event) =>
-              setForm((current) => ({ ...current, phone: event.target.value }))
-            }
-            hint="Optional. The home's main number."
-          />
-          <Select
-            label="Time zone"
-            value={form.timezone}
-            onChange={(event) =>
-              setForm((current) => ({
-                ...current,
-                timezone: event.target.value,
-              }))
-            }
-          >
-            {TIMEZONES.map(([value, label]) => (
-              <option key={value} value={value}>
-                {label}
-              </option>
-            ))}
-          </Select>
-        </div>
+        <fieldset>
+          <legend className="eyebrow mb-3">The home</legend>
+          <div className="grid gap-5 sm:grid-cols-2">
+            <Field
+              label="Name of the home"
+              required
+              maxLength={160}
+              value={form.name}
+              onChange={set("name")}
+              hint="As it appears on their sign."
+            />
+            <Field
+              label="Contact person"
+              maxLength={160}
+              value={form.contactName}
+              onChange={set("contactName")}
+              hint="The person you dealt with signing them up."
+            />
+            <Field
+              label="Owner's email address"
+              type="email"
+              maxLength={254}
+              value={form.ownerEmail}
+              onChange={set("ownerEmail")}
+              hint="Optional. They get an invitation and set their own password."
+              problem={emailProblem}
+            />
+            <Field
+              label="Telephone"
+              type="tel"
+              autoComplete="off"
+              value={form.phone}
+              onChange={set("phone")}
+              hint="Optional. The home's main number."
+            />
+            <Field
+              label="Street address"
+              maxLength={200}
+              value={form.addressLine1}
+              onChange={set("addressLine1")}
+            />
+            <div className="grid grid-cols-3 gap-5">
+              <Field
+                label="Town"
+                maxLength={120}
+                value={form.city}
+                onChange={set("city")}
+              />
+              <Field
+                label="State"
+                maxLength={120}
+                value={form.region}
+                onChange={set("region")}
+              />
+              <Field
+                label="ZIP"
+                maxLength={20}
+                value={form.postalCode}
+                onChange={set("postalCode")}
+              />
+            </div>
+            <Select
+              label="Time zone"
+              value={form.timezone}
+              onChange={set("timezone")}
+            >
+              {TIMEZONES.map(([value, label]) => (
+                <option key={value} value={value}>
+                  {label}
+                </option>
+              ))}
+            </Select>
+          </div>
+        </fieldset>
+
+        <fieldset>
+          <legend className="eyebrow mb-3">
+            The commercial relationship — only we see this
+          </legend>
+          <div className="grid gap-5 sm:grid-cols-2">
+            <Select
+              label="Plan"
+              value={form.planName}
+              onChange={(event) =>
+                pickPlan(event.target.value, form.billingPeriod)
+              }
+              hint={
+                plansQuery.isPending
+                  ? "Loading the price list…"
+                  : plans.length === 0
+                    ? "No plans yet — add them on the Plans page and they appear here."
+                    : "From the price list. The amount fills in below; change it if the deal differs."
+              }
+            >
+              <option value="">No plan — amount by hand</option>
+              {plans.map((plan) => (
+                <option key={plan.id} value={plan.name}>
+                  {plan.name}
+                </option>
+              ))}
+            </Select>
+            <Select
+              label="Billing period"
+              value={form.billingPeriod}
+              onChange={(event) => pickPlan(form.planName, event.target.value)}
+            >
+              <option value="monthly">Monthly</option>
+              <option value="annual">Annual</option>
+            </Select>
+            <Field
+              label="Amount charged"
+              type="number"
+              min="0"
+              step="0.01"
+              inputMode="decimal"
+              value={form.billingAmount}
+              onChange={set("billingAmount")}
+              hint={
+                form.billingPeriod === "annual"
+                  ? "Dollars per year. The monthly total counts a twelfth of this."
+                  : "Dollars per month."
+              }
+            />
+            <Field
+              label="Billing started"
+              type="date"
+              value={form.billingStartDate}
+              onChange={set("billingStartDate")}
+            />
+            <Field
+              label="Next due date"
+              type="date"
+              value={form.subscriptionDueDate}
+              onChange={set("subscriptionDueDate")}
+            />
+            <Field
+              label="Discount"
+              maxLength={200}
+              value={form.discount}
+              onChange={set("discount")}
+              hint="In your own words — “20% off the first year”, “$50/mo loyalty”."
+            />
+            <div className="flex flex-col gap-1.5">
+              <label htmlFor="how-heard" className="text-sm font-semibold">
+                How they heard about us
+              </label>
+              <input
+                id="how-heard"
+                list="how-heard-options"
+                maxLength={200}
+                value={form.howHeardAboutUs}
+                onChange={set("howHeardAboutUs")}
+                className="min-h-11 rounded-md border border-[var(--border-strong)] bg-white px-3 text-base shadow-[inset_0_1px_2px_rgb(40_34_24/0.04)]"
+              />
+              <datalist id="how-heard-options">
+                <option value="Referral from another home" />
+                <option value="Google search" />
+                <option value="Conference" />
+                <option value="Cold outreach" />
+                <option value="Word of mouth" />
+              </datalist>
+            </div>
+            <div className="flex flex-col gap-1.5 sm:col-span-2">
+              <label htmlFor="admin-notes" className="text-sm font-semibold">
+                Special notes
+              </label>
+              <textarea
+                id="admin-notes"
+                rows={3}
+                maxLength={4000}
+                value={form.adminNotes}
+                onChange={set("adminNotes")}
+                className="rounded-md border border-[var(--border-strong)] bg-white px-3 py-2.5 text-base shadow-[inset_0_1px_2px_rgb(40_34_24/0.04)]"
+              />
+              <p className="text-sm text-[var(--muted-foreground)]">
+                Anything you need to know at a glance about this customer.
+              </p>
+            </div>
+          </div>
+        </fieldset>
 
         {formProblem && (
           <p

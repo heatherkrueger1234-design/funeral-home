@@ -57,6 +57,8 @@ beforeEach(async () => {
 
   await db.execute(
     sql`TRUNCATE TABLE
+      platform_plans,
+      platform_running_costs,
       platform_admins,
       platform_audit,
       billable_cases,

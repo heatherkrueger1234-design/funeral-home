@@ -82,9 +82,16 @@ test("a platform admin signs in, adds a home, and opens it", async ({ page }) =>
   await expect(page.locator("body")).not.toContainText("reset-password");
   await expect(page.locator("body")).not.toContainText("token=");
 
-  // The new home is findable, and opens.
+  // The new home is findable, and opens. The search-results table is scoped
+  // because the Financials section below it links every home by the same
+  // name -- the same destination, so no a11y fault, but two identical
+  // accessible names on the page.
   await page.getByLabel("Find a home").fill(name);
-  await page.getByRole("link", { name, exact: true }).click();
+  await page
+    .getByRole("table")
+    .first()
+    .getByRole("link", { name, exact: true })
+    .click();
   await expect(page).toHaveURL(/\/homes\/\d+$/);
   await expect(page.getByRole("heading", { name })).toBeVisible();
 

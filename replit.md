@@ -529,3 +529,56 @@ So, when you are deciding where a name goes:
 This repository began as a fork of Memory-Haven at `6e79cb4`, for its workspace
 layout, auth, encrypted uploads and component set. Nothing here changes anything
 there.
+
+## Phase 1 §4: admin onboarding template and financials (2026-09-28)
+
+The platform console can now do the two admin jobs the spec's §4 asks for.
+
+**Onboarding template.** "Add a home" on the Homes page captures the full
+template: home and contact details, owner email, address, phone, timezone,
+then the commercial relationship — plan (by name, from the price list),
+billing period (monthly/annual), agreed amount, billing start and next-due
+dates, discount in Heather's own words, how they heard about us, and notes.
+Saving provisions the home and invites the owner through the existing
+single-use invitation link; no temporary password is ever generated or shown.
+The home's page has a "Commercial relationship" card where the whole record
+can be revised, including the subscription status (trial/active/past-due/
+canceled) for homes that pay outside Stripe.
+
+**Plans price list.** A Plans page (console nav) manages named plans with
+monthly and annual prices. The onboarding template offers plans by name and
+prefills the agreed amount from the chosen plan and period; the amount stays
+editable per deal.
+
+**Financials.** The Homes page has a Financials section: monthly total,
+running costs, profit, and a per-home table (contact, status, plan, amount,
+next due, discount, how-heard, notes). The monthly total counts only
+active/past-due homes, and an annual amount counts as a twelfth — the screen
+answers "what did we agree to take in per month", not a revenue schedule.
+Running costs are Heather's own line items (hosting, domains, Prodigi fees),
+added/edited/removed inline.
+
+**What the director sees.** The director-facing `/home` serialiser strips the
+whole commercial record. The one shared field is the contact person, which the
+director sees and can edit from Settings ("Heather entered this when your
+home joined; keep it current"). The director's own bill remains the Stripe
+subscription state in Settings. This is deliberate: the CRM columns are
+Heather's deal notes (including how-heard and private notes), not the home's
+invoice.
+
+**Deliberate deviations from the spec.** (1) There is no second admin *role*
+with reduced permissions: this repo has one platform-admin capability and no
+hierarchy, per CONTRIBUTING.md ("do not invent a second role system"). There
+is also no way to delete a home or export the list at all, so the "no delete,
+no export" constraint holds for everyone. (2) Invitation provisioning stays
+single-use links, not emailed temporary passwords. (3) The plan select offers
+plans by name plus a period selector, rather than the spec's literal
+monthly/annual plan select — the amounts behind each period are the
+configurable part.
+
+**Schema.** `platform_plans` and `platform_running_costs` tables, plus the
+`funeral_homes` CRM columns (`contact_name`, `subscription_plan`,
+`billing_period`, `billing_amount_cents`, `billing_start_date`,
+`subscription_due_date`, `discount`, `how_heard_about_us`, `admin_notes`).
+Deploys with the repo-standard `pnpm --filter @workspace/db run push`; there
+are no checked-in SQL migrations.

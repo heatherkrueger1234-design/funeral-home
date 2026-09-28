@@ -1,4 +1,11 @@
-import { pgTable, text, serial, timestamp, uniqueIndex } from "drizzle-orm/pg-core";
+import {
+  pgTable,
+  text,
+  serial,
+  timestamp,
+  uniqueIndex,
+  integer,
+} from "drizzle-orm/pg-core";
 
 /**
  * Who at the vendor may look across the tenant boundary.
@@ -47,3 +54,27 @@ export const platformAdminsTable = pgTable(
 );
 
 export type PlatformAdmin = typeof platformAdminsTable.$inferSelect;
+
+/**
+ * What running the platform itself costs Heather each month: hosting,
+ * domains, the Prodigi print account, anything else with a recurring bill.
+ *
+ * Phase 1, spec §4c: the financials screen shows this next to the revenue
+ * from the homes, so "the whole financial picture" is profit at a glance.
+ * A handful of rows Heather edits by hand — not per-tenant, not audited
+ * per read, just the cost of keeping the lights on.
+ */
+export const platformRunningCostsTable = pgTable("platform_running_costs", {
+  id: serial("id").primaryKey(),
+  /** "Hosting", "Domains", "Prodigi fees" — Heather's own label. */
+  name: text("name").notNull(),
+  /** Monthly amount, in cents. */
+  monthlyAmountCents: integer("monthly_amount_cents").notNull(),
+  /** Anything Heather needs to remember about this cost. */
+  notes: text("notes"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+});
+
+export type PlatformRunningCost =
+  typeof platformRunningCostsTable.$inferSelect;

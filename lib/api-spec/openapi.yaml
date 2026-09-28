@@ -3866,6 +3866,13 @@ components:
           nullable: true
         accentColor:
           type: string
+        contactName:
+          type: string
+          nullable: true
+          description: |
+            The home's own contact person, from the onboarding template.
+            The director can see and edit it; the rest of the commercial
+            record stays admin-only and is not in this schema at all.
         phone:
           type: string
           nullable: true
@@ -3969,6 +3976,10 @@ components:
           nullable: true
         accentColor:
           type: string
+        contactName:
+          type: string
+          nullable: true
+          maxLength: 160
         phone:
           type: string
           nullable: true

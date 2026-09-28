@@ -7,6 +7,7 @@ import {
   timelineTemplatesTable,
   uploadsTable,
   toPublicUser,
+  type FuneralHome,
 } from "@workspace/db";
 import {
   UpdateHomeBody,
@@ -36,8 +37,34 @@ import { markOnboarding } from "../lib/onboarding";
 
 const router: IRouter = Router();
 
+/**
+ * The platform's own customer record never leaves the admin console.
+ *
+ * Phase 1 §4b: Heather's CRM columns (the plan sold, the amount agreed, the
+ * discount, how they heard about us, her notes) live on the same row as the
+ * home's business details, so every director-facing serialisation of that row
+ * goes through here. `contactName` is *not* on the list: it is the home's own
+ * contact person, which the spec says the director sees and can edit.
+ */
+const ADMIN_ONLY_HOME_FIELDS = [
+  "subscriptionPlan",
+  "billingPeriod",
+  "billingAmountCents",
+  "billingStartDate",
+  "subscriptionDueDate",
+  "discount",
+  "howHeardAboutUs",
+  "adminNotes",
+] as const;
+
+function toDirectorHome(home: FuneralHome) {
+  const stripped: Record<string, unknown> = { ...home };
+  for (const field of ADMIN_ONLY_HOME_FIELDS) delete stripped[field];
+  return stripped;
+}
+
 router.get("/home", (req, res) => {
-  res.json(tenant(req));
+  res.json(toDirectorHome(tenant(req)));
 });
 
 router.put("/home", async (req, res) => {
@@ -129,7 +156,7 @@ router.put("/home", async (req, res) => {
   }
 
   if (marks.length === 0) {
-    res.json(updated);
+    res.json(toDirectorHome(updated));
     return;
   }
 
@@ -141,7 +168,7 @@ router.put("/home", async (req, res) => {
     .where(eq(funeralHomesTable.id, home.id))
     .limit(1);
 
-  res.json(reread ?? updated);
+  res.json(toDirectorHome(reread ?? updated));
 });
 
 router.get("/home/staff", async (req, res) => {

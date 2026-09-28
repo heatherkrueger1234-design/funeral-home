@@ -22,6 +22,8 @@ export interface FuneralHomeUpdate {
   name?: string;
   logoUploadId?: number | null;
   accentColor?: string;
+  /** @maxLength 160 */
+  contactName?: string | null;
   phone?: string | null;
   urgentPhone?: string | null;
   addressLine1?: string | null;

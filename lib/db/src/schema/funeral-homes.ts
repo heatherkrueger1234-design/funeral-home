@@ -84,7 +84,9 @@ export const funeralHomesTable = pgTable(
      * Silently holding a message would be worse than the midnight text this
      * feature exists to prevent.
      */
-    officeOpensMinute: integer("office_opens_minute").notNull().default(8 * 60),
+    officeOpensMinute: integer("office_opens_minute")
+      .notNull()
+      .default(8 * 60),
     officeClosesMinute: integer("office_closes_minute")
       .notNull()
       .default(17 * 60),
@@ -178,6 +180,44 @@ export const funeralHomesTable = pgTable(
     slideshowTarget: integer("slideshow_target")
       .notNull()
       .default(DEFAULT_SLIDESHOW_TARGET),
+
+    /* ------------------------------------------- platform CRM (admin-side) */
+
+    /**
+     * The platform's own customer record for this home — Heather's sales and
+     * admin notes, not the home's. The home never sees these columns: they
+     * answer "who pays us what, and what do we know about them", which is a
+     * different question from anything on the home's own screens.
+     *
+     * Money still lives in Stripe for whether the home may open cases (see
+     * `subscriptionStatus` above). These columns are the admin's working
+     * notes about the commercial relationship — the plan that was sold, the
+     * amount that was agreed, when it is due — recorded at onboarding and
+     * kept current from the console.
+     */
+    /** The person Heather dealt with when the home signed up. */
+    contactName: text("contact_name"),
+    /** The plan that was sold: the name of a row in platform_plans. */
+    subscriptionPlan: text("subscription_plan"),
+    /**
+     * Which of the plan's prices the home pays: "monthly" or "annual".
+     * Null until Heather records one. The financials treat an annual amount
+     * as twelve monthly slices, so the monthly total never calls a full
+     * year's charge a month's revenue.
+     */
+    billingPeriod: text("billing_period"),
+    /** Agreed amount per billing period, in cents. Null until Heather records one. */
+    billingAmountCents: integer("billing_amount_cents"),
+    /** When the agreed billing started, as Heather understands it. */
+    billingStartDate: timestamp("billing_start_date"),
+    /** When the subscription is next due, as Heather understands it. */
+    subscriptionDueDate: timestamp("subscription_due_date"),
+    /** Discount given, in Heather's own words, e.g. "20% off the first year". */
+    discount: text("discount"),
+    /** How the home heard about Continuum Aftercare. */
+    howHeardAboutUs: text("how_heard_about_us"),
+    /** Special notes — anything Heather needs to know at a glance. */
+    adminNotes: text("admin_notes"),
 
     /* ---------------------------------------------------- subscription */
 
@@ -422,11 +462,14 @@ export type SubscriptionStatus = (typeof SUBSCRIPTION_STATUSES)[number];
  * uploading photographs of their mother must not lose access because the home
  * changed billing plans.
  */
-export function canOpenCases(home: {
-  subscriptionStatus: string;
-  trialEndsAt: Date | null;
-  suspendedAt?: Date | null;
-}, now = new Date()): boolean {
+export function canOpenCases(
+  home: {
+    subscriptionStatus: string;
+    trialEndsAt: Date | null;
+    suspendedAt?: Date | null;
+  },
+  now = new Date(),
+): boolean {
   // Checked before the subscription, because a suspended home is suspended
   // whatever Stripe thinks of it.
   if (home.suspendedAt != null) return false;
@@ -466,10 +509,13 @@ export function cannotOpenCasesReason(home: {
 }
 
 /** Days left on a trial, floored at zero. Null when not on one. */
-export function trialDaysLeft(home: {
-  subscriptionStatus: string;
-  trialEndsAt: Date | null;
-}, now = new Date()): number | null {
+export function trialDaysLeft(
+  home: {
+    subscriptionStatus: string;
+    trialEndsAt: Date | null;
+  },
+  now = new Date(),
+): number | null {
   if (home.subscriptionStatus !== "trial" || home.trialEndsAt === null) {
     return null;
   }
