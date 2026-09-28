@@ -191,6 +191,13 @@ export const BillingSubscriptionStatus = {
   canceled: "canceled",
 } as const;
 
+export type BillingAddOnsItem = {
+  key: string;
+  title: string;
+  detail: string;
+  included: boolean;
+};
+
 export interface Billing {
   subscriptionStatus: BillingSubscriptionStatus;
   trialEndsAt: string | null;
@@ -202,6 +209,8 @@ export interface Billing {
   hasSubscription: boolean;
   onboarding: OnboardingItem[];
   onboardingComplete: boolean;
+  /** What is on the plan, and whether this home has it now. */
+  addOns: BillingAddOnsItem[];
 }
 
 export interface BillingReturnInput {
@@ -2684,6 +2693,11 @@ export type GetAftercareUnsubscribeParams = {
 
 export type AftercareUnsubscribeParams = {
   token: string;
+};
+
+export type RegisterHome202 = {
+  checkEmail: boolean;
+  message: string;
 };
 
 export type GetIntakeRequestsParams = {

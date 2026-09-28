@@ -377,6 +377,59 @@ export async function sendPasswordResetEmail(options: {
   });
 }
 
+/**
+ * Somebody tried to open an account with an address that already has one.
+ *
+ * Registration answers "check your email" either way, so the page cannot be
+ * used to learn which addresses are staff somewhere; this is where the real
+ * owner of the address finds out, with the two things they might want.
+ */
+export async function sendAccountExistsEmail(options: {
+  to: string;
+  signInUrl: string;
+}): Promise<void> {
+  const { to, signInUrl } = options;
+  const text = [
+    "Someone tried to open a new Continuum Aftercare account with this address,",
+    "which already has one.",
+    "",
+    "If that was you, sign in here — or use \"Forgot your password?\" on the same page:",
+    signInUrl,
+    "",
+    "If it wasn't you, you can ignore this email. Nothing has changed.",
+    "",
+    "— Continuum Aftercare",
+  ].join("\n");
+
+  const html = `
+<div style="font-family:-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;
+            max-width:520px;margin:0 auto;padding:32px 24px;color:#1f2937;
+            line-height:1.6;font-size:15px">
+  <p style="margin:0 0 20px">
+    Someone tried to open a new Continuum&nbsp;Aftercare account with this
+    address, which already has one.
+  </p>
+  <p style="margin:0 0 28px">
+    <a href="${esc(signInUrl)}"
+       style="display:inline-block;background:#1f4e46;color:#ffffff;
+              text-decoration:none;padding:12px 26px;border-radius:999px;
+              font-weight:600">Sign in</a>
+  </p>
+  <p style="margin:0 0 8px;color:#6b7280;font-size:13px">
+    Forgotten the password? Use &ldquo;Forgot your password?&rdquo; on the same
+    page. If this wasn't you, you can ignore this email — nothing has changed.
+  </p>
+  <p style="margin:24px 0 0;color:#9ca3af;font-size:12px">— Continuum Aftercare</p>
+</div>`.trim();
+
+  await send({
+    to,
+    subject: "About your Continuum Aftercare account",
+    text,
+    html,
+  });
+}
+
 export async function sendStaffInviteEmail(options: {
   to: string;
   homeName: string;

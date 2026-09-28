@@ -17,21 +17,10 @@ Two audiences, two authentication schemes, and the split is load-bearing:
 
  * OpenAPI spec version: 0.1.0
  */
-import type { BillingAddOnsItem } from "./billingAddOnsItem";
-import type { BillingSubscriptionStatus } from "./billingSubscriptionStatus";
-import type { OnboardingItem } from "./onboardingItem";
 
-export interface Billing {
-  subscriptionStatus: BillingSubscriptionStatus;
-  trialEndsAt: Date | null;
-  trialDaysLeft: number | null;
-  currentPeriodEndsAt: Date | null;
-  canOpenCases: boolean;
-  /** False when this deployment has no Stripe keys. */
-  billingConfigured: boolean;
-  hasSubscription: boolean;
-  onboarding: OnboardingItem[];
-  onboardingComplete: boolean;
-  /** What is on the plan, and whether this home has it now. */
-  addOns: BillingAddOnsItem[];
-}
+export type BillingAddOnsItem = {
+  key: string;
+  title: string;
+  detail: string;
+  included: boolean;
+};
