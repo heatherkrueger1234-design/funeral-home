@@ -240,6 +240,12 @@ export const LoginResponse = zod.object({
     slug: zod.string(),
     logoUploadId: zod.number().nullable(),
     accentColor: zod.string(),
+    contactName: zod
+      .string()
+      .nullish()
+      .describe(
+        "The home's own contact person, from the onboarding template.\nThe director can see and edit it; the rest of the commercial\nrecord stays admin-only and is not in this schema at all.\n",
+      ),
     phone: zod.string().nullable(),
     urgentPhone: zod.string().nullable(),
     addressLine1: zod.string().nullish(),
@@ -321,6 +327,12 @@ export const GetCurrentUserResponse = zod.object({
     slug: zod.string(),
     logoUploadId: zod.number().nullable(),
     accentColor: zod.string(),
+    contactName: zod
+      .string()
+      .nullish()
+      .describe(
+        "The home's own contact person, from the onboarding template.\nThe director can see and edit it; the rest of the commercial\nrecord stays admin-only and is not in this schema at all.\n",
+      ),
     phone: zod.string().nullable(),
     urgentPhone: zod.string().nullable(),
     addressLine1: zod.string().nullish(),
@@ -409,6 +421,12 @@ export const GetHomeResponse = zod.object({
   slug: zod.string(),
   logoUploadId: zod.number().nullable(),
   accentColor: zod.string(),
+  contactName: zod
+    .string()
+    .nullish()
+    .describe(
+      "The home's own contact person, from the onboarding template.\nThe director can see and edit it; the rest of the commercial\nrecord stays admin-only and is not in this schema at all.\n",
+    ),
   phone: zod.string().nullable(),
   urgentPhone: zod.string().nullable(),
   addressLine1: zod.string().nullish(),
@@ -459,6 +477,8 @@ export const GetHomeResponse = zod.object({
 /**
  * @summary Update branding, hours and contact details
  */
+export const updateHomeBodyContactNameMax = 160;
+
 export const updateHomeBodyOfficeOpensMinuteMin = 0;
 export const updateHomeBodyOfficeOpensMinuteMax = 1439;
 
@@ -477,6 +497,7 @@ export const UpdateHomeBody = zod.object({
   name: zod.string().optional(),
   logoUploadId: zod.number().nullish(),
   accentColor: zod.string().optional(),
+  contactName: zod.string().max(updateHomeBodyContactNameMax).nullish(),
   phone: zod.string().nullish(),
   urgentPhone: zod.string().nullish(),
   addressLine1: zod.string().nullish(),
@@ -522,6 +543,12 @@ export const UpdateHomeResponse = zod.object({
   slug: zod.string(),
   logoUploadId: zod.number().nullable(),
   accentColor: zod.string(),
+  contactName: zod
+    .string()
+    .nullish()
+    .describe(
+      "The home's own contact person, from the onboarding template.\nThe director can see and edit it; the rest of the commercial\nrecord stays admin-only and is not in this schema at all.\n",
+    ),
   phone: zod.string().nullable(),
   urgentPhone: zod.string().nullable(),
   addressLine1: zod.string().nullish(),

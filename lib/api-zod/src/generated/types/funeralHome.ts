@@ -25,6 +25,11 @@ export interface FuneralHome {
   slug: string;
   logoUploadId: number | null;
   accentColor: string;
+  /** The home's own contact person, from the onboarding template.
+The director can see and edit it; the rest of the commercial
+record stays admin-only and is not in this schema at all.
+ */
+  contactName?: string | null;
   phone: string | null;
   urgentPhone: string | null;
   addressLine1?: string | null;

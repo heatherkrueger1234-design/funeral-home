@@ -9,12 +9,16 @@ import {
   formatDate,
   formatDay,
   formatDateTime,
+  formatMoney,
+  HOME_STATUS_LABELS,
   isNotFound,
   plural,
   STAFF_ROLE_LABELS,
   type AdminGroup,
   type AdminHomeDetail,
   type AuditEntry,
+  type HomeStatus,
+  type PlatformPlan,
 } from "@/lib/api";
 import {
   Button,
@@ -148,6 +152,8 @@ export function HomeDetail({ homeId }: { homeId: number }) {
 
       <AccountCard home={home} />
 
+      <CommercialCard home={home} />
+
       <Card>
         <CardTitle>How much they are using it</CardTitle>
         <div className="grid grid-cols-2 gap-6 sm:grid-cols-4">
@@ -173,9 +179,9 @@ export function HomeDetail({ homeId }: { homeId: number }) {
             {plural(home.engagement.aftercareEnrolled, "family", "families")}{" "}
             enrolled in aftercare: {home.engagement.aftercareConsented} said
             yes, {home.engagement.aftercareDeclined} have not answered either
-            way, and {home.engagement.aftercareUnsubscribed} asked to stop.
-            None of that is a failure; most people never reply to anything in
-            that first year.
+            way, and {home.engagement.aftercareUnsubscribed} asked to stop. None
+            of that is a failure; most people never reply to anything in that
+            first year.
           </p>
         )}
       </Card>
@@ -206,8 +212,8 @@ export function HomeDetail({ homeId }: { homeId: number }) {
         )}
         <p className="mt-4 max-w-prose text-sm text-[var(--muted-foreground)]">
           Names and roles only. Their email addresses are the home's business,
-          not ours — a reset link goes to the address on their account, and
-          is never shown here.
+          not ours — a reset link goes to the address on their account, and is
+          never shown here.
         </p>
       </Card>
 
@@ -231,6 +237,273 @@ export function HomeDetail({ homeId }: { homeId: number }) {
  * about its billing can be changed from here, and the person on the phone
  * should know that before they promise anything.
  */
+/**
+ * The commercial relationship: the contact person, the plan sold, the amount
+ * agreed, the discount, how they heard about us, Heather's notes.
+ *
+ * This lives here and only here — it is the admin console's customer
+ * record, and none of it is visible to the home itself (see
+ * routes/home.ts `toDirectorHome`). The one shared field, `contactName`,
+ * is also the home's own contact person, which the director can edit from
+ * their side; editing it here just sets the same value.
+ */
+function CommercialCard({ home }: { home: AdminHomeDetail }) {
+  const queryClient = useQueryClient();
+  const [editing, setEditing] = useState(false);
+  const [form, setForm] = useState({
+    contactName: home.contactName ?? "",
+    subscriptionPlan: home.subscriptionPlan ?? "",
+    subscriptionStatus: home.subscriptionStatus,
+    billingPeriod: home.billingPeriod ?? "",
+    billingAmount:
+      home.billingAmountCents == null
+        ? ""
+        : String(home.billingAmountCents / 100),
+    billingStartDate: home.billingStartDate
+      ? home.billingStartDate.slice(0, 10)
+      : "",
+    subscriptionDueDate: home.subscriptionDueDate
+      ? home.subscriptionDueDate.slice(0, 10)
+      : "",
+    discount: home.discount ?? "",
+    howHeardAboutUs: home.howHeardAboutUs ?? "",
+    adminNotes: home.adminNotes ?? "",
+  });
+
+  // The configured price list, so the plan options show both prices rather
+  // than making Heather remember them.
+  const priceListQuery = useQuery({
+    queryKey: ["plans"],
+    queryFn: () => api.get<{ plans: PlatformPlan[] }>("/admin/plans"),
+    enabled: editing,
+  });
+  const plans = priceListQuery.data?.plans ?? [];
+  const planOptionLabel = (plan: PlatformPlan) =>
+    `${plan.name} — ${formatMoney(plan.monthlyAmountCents)}/mo · ${formatMoney(plan.annualAmountCents)}/yr`;
+
+  const set =
+    (key: keyof typeof form) =>
+    (
+      event: React.ChangeEvent<
+        HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement
+      >,
+    ) =>
+      setForm((current) => ({ ...current, [key]: event.target.value }));
+
+  const save = useMutation({
+    mutationFn: () => {
+      const amount = form.billingAmount.trim();
+      return api.put<AdminHomeDetail>(`/admin/homes/${home.id}/crm`, {
+        contactName: form.contactName.trim(),
+        subscriptionPlan: form.subscriptionPlan.trim(),
+        // Suspension is managed from the account section, not here: sending
+        // "suspended" would be refused, and silently rewriting it to "trial"
+        // would unsuspend a home by accident.
+        ...(form.subscriptionStatus === "suspended"
+          ? {}
+          : { subscriptionStatus: form.subscriptionStatus }),
+        billingPeriod: form.billingPeriod || null,
+        billingAmountCents: amount
+          ? Math.round(parseFloat(amount) * 100)
+          : null,
+        billingStartDate: form.billingStartDate || null,
+        subscriptionDueDate: form.subscriptionDueDate || null,
+        discount: form.discount.trim(),
+        howHeardAboutUs: form.howHeardAboutUs.trim(),
+        adminNotes: form.adminNotes.trim(),
+      });
+    },
+    onSuccess: () => {
+      setEditing(false);
+      void queryClient.invalidateQueries({ queryKey: ["home", home.id] });
+      void queryClient.invalidateQueries({ queryKey: ["homes"] });
+      void queryClient.invalidateQueries({ queryKey: ["financials"] });
+    },
+  });
+
+  const rows: Array<[string, string]> = [
+    ["Contact person", home.contactName ?? "—"],
+    [
+      "Status",
+      HOME_STATUS_LABELS[home.subscriptionStatus as HomeStatus] ??
+        home.subscriptionStatus,
+    ],
+    ["Plan", home.subscriptionPlan ?? "—"],
+    [
+      "Billing period",
+      home.billingPeriod === "annual"
+        ? "Annual"
+        : home.billingPeriod === "monthly"
+          ? "Monthly"
+          : "—",
+    ],
+    ["Amount charged", formatMoney(home.billingAmountCents)],
+    [
+      "Billing started",
+      home.billingStartDate ? formatDay(home.billingStartDate) : "—",
+    ],
+    [
+      "Next due date",
+      home.subscriptionDueDate ? formatDay(home.subscriptionDueDate) : "—",
+    ],
+    ["Discount", home.discount ?? "—"],
+    ["How they heard about us", home.howHeardAboutUs ?? "—"],
+    ["Notes", home.adminNotes ?? "—"],
+  ];
+
+  return (
+    <Card>
+      <div className="flex items-center justify-between">
+        <CardTitle>Commercial relationship</CardTitle>
+        {!editing && (
+          <Button variant="plain" onClick={() => setEditing(true)}>
+            Edit
+          </Button>
+        )}
+      </div>
+      {editing ? (
+        <form
+          className="mt-4 grid gap-5 sm:grid-cols-2"
+          onSubmit={(event) => {
+            event.preventDefault();
+            save.mutate();
+          }}
+        >
+          <Field
+            label="Contact person"
+            maxLength={160}
+            value={form.contactName}
+            onChange={set("contactName")}
+          />
+          <Select
+            label="Plan"
+            value={form.subscriptionPlan}
+            onChange={set("subscriptionPlan")}
+            hint={
+              plans.length === 0
+                ? "No plans configured — add them on the Plans page."
+                : undefined
+            }
+          >
+            <option value="">Not set</option>
+            {plans.map((plan) => (
+              <option key={plan.id} value={plan.name}>
+                {planOptionLabel(plan)}
+              </option>
+            ))}
+          </Select>
+          <Select
+            label="Billing period"
+            value={form.billingPeriod}
+            onChange={set("billingPeriod")}
+          >
+            <option value="">Not set</option>
+            <option value="monthly">Monthly</option>
+            <option value="annual">Annual</option>
+          </Select>
+          <Select
+            label="Status"
+            value={form.subscriptionStatus}
+            onChange={set("subscriptionStatus")}
+            disabled={form.subscriptionStatus === "suspended"}
+            hint={
+              form.subscriptionStatus === "suspended"
+                ? "Suspended — unsuspend from the account section below before changing the status here."
+                : "The template's Status field. Changing this by hand overrides what Stripe reported — use it for homes that pay outside Stripe."
+            }
+          >
+            {form.subscriptionStatus === "suspended" && (
+              <option value="suspended">Suspended</option>
+            )}
+            <option value="trial">Trial</option>
+            <option value="active">Active</option>
+            <option value="past_due">Past due</option>
+            <option value="canceled">Canceled</option>
+          </Select>
+          <Field
+            label="Amount charged"
+            type="number"
+            min="0"
+            step="0.01"
+            inputMode="decimal"
+            value={form.billingAmount}
+            onChange={set("billingAmount")}
+            hint="Dollars per billing period."
+          />
+          <Field
+            label="Billing started"
+            type="date"
+            value={form.billingStartDate}
+            onChange={set("billingStartDate")}
+          />
+          <Field
+            label="Next due date"
+            type="date"
+            value={form.subscriptionDueDate}
+            onChange={set("subscriptionDueDate")}
+          />
+          <Field
+            label="Discount"
+            maxLength={200}
+            value={form.discount}
+            onChange={set("discount")}
+          />
+          <Field
+            label="How they heard about us"
+            maxLength={200}
+            value={form.howHeardAboutUs}
+            onChange={set("howHeardAboutUs")}
+          />
+          <div className="flex flex-col gap-1.5 sm:col-span-2">
+            <label htmlFor="crm-notes" className="text-sm font-semibold">
+              Notes
+            </label>
+            <textarea
+              id="crm-notes"
+              rows={3}
+              maxLength={4000}
+              value={form.adminNotes}
+              onChange={set("adminNotes")}
+              className="rounded-md border border-[var(--border-strong)] bg-white px-3 py-2.5 text-base shadow-[inset_0_1px_2px_rgb(40_34_24/0.04)]"
+            />
+          </div>
+          {save.error instanceof Error && (
+            <p
+              role="alert"
+              className="rounded-md bg-[var(--notice-soft)] p-3 text-sm text-[var(--notice)] sm:col-span-2"
+            >
+              {save.error.message}
+            </p>
+          )}
+          <div className="flex gap-3 sm:col-span-2">
+            <Button type="submit" variant="primary" disabled={save.isPending}>
+              {save.isPending ? "Saving…" : "Save"}
+            </Button>
+            <Button
+              type="button"
+              variant="plain"
+              onClick={() => setEditing(false)}
+            >
+              Cancel
+            </Button>
+          </div>
+        </form>
+      ) : (
+        <dl className="mt-4 grid gap-x-8 gap-y-4 sm:grid-cols-2">
+          {rows.map(([label, value]) => (
+            <div key={label}>
+              <dt className="text-sm text-[var(--muted-foreground)]">
+                {label}
+              </dt>
+              <dd className="tabular break-words">{value}</dd>
+            </div>
+          ))}
+        </dl>
+      )}
+    </Card>
+  );
+}
+
 function AccountCard({ home }: { home: AdminHomeDetail }) {
   const rows: Array<[string, string]> = [
     ["Account", describeAccount(home)],
@@ -462,9 +735,7 @@ function AccessHistory({ home }: { home: AdminHomeDetail }) {
       ) : query.error ? (
         <ErrorState error={query.error} onRetry={() => void query.refetch()} />
       ) : query.data.length === 0 ? (
-        <p className="text-sm text-[var(--muted-foreground)]">
-          Nothing yet.
-        </p>
+        <p className="text-sm text-[var(--muted-foreground)]">Nothing yet.</p>
       ) : (
         <ul className="flex flex-col divide-y divide-[var(--border)]">
           {query.data.map((entry) => (
@@ -692,9 +963,9 @@ function SuspensionCard({ home }: { home: AdminHomeDetail }) {
       <CardTitle>Suspension</CardTitle>
       <p className="mb-4 max-w-prose text-sm text-[var(--muted-foreground)]">
         Suspending stops this home opening new cases. It does not delete
-        anything, does not lock them out, and does not cut off a family
-        part-way through uploading photographs of their mother. It is the
-        smallest thing that gets somebody's attention.
+        anything, does not lock them out, and does not cut off a family part-way
+        through uploading photographs of their mother. It is the smallest thing
+        that gets somebody's attention.
       </p>
 
       {confirming ? (
@@ -801,9 +1072,9 @@ function GroupCard({ home }: { home: AdminHomeDetail }) {
           , and covered by its contract.
         </p>
         <p className="mt-2 mb-4 max-w-prose text-sm text-[var(--muted-foreground)]">
-          Taking it out of the group puts it on a fourteen-day trial of its
-          own, without the group's add-ons, so it keeps working while it sets
-          up its own billing. Nothing in the home changes.
+          Taking it out of the group puts it on a fourteen-day trial of its own,
+          without the group's add-ons, so it keeps working while it sets up its
+          own billing. Nothing in the home changes.
         </p>
         {moving ? (
           <div className="flex flex-col gap-3">
@@ -824,7 +1095,9 @@ function GroupCard({ home }: { home: AdminHomeDetail }) {
             </div>
           </div>
         ) : (
-          <Button onClick={() => setMoving(true)}>Take it out of the group</Button>
+          <Button onClick={() => setMoving(true)}>
+            Take it out of the group
+          </Button>
         )}
       </Card>
     );
@@ -836,9 +1109,9 @@ function GroupCard({ home }: { home: AdminHomeDetail }) {
     <Card>
       <CardTitle>Group</CardTitle>
       <p className="mb-4 max-w-prose text-sm text-[var(--muted-foreground)]">
-        An independent home, on its own contract. If it belongs to a group
-        that has one contract for many locations, moving it in puts it on the
-        group's plan and the group's bill.
+        An independent home, on its own contract. If it belongs to a group that
+        has one contract for many locations, moving it in puts it on the group's
+        plan and the group's bill.
       </p>
 
       {!moving ? (
@@ -846,7 +1119,10 @@ function GroupCard({ home }: { home: AdminHomeDetail }) {
       ) : groups.isPending ? (
         <LoadingRows rows={1} />
       ) : groups.error ? (
-        <ErrorState error={groups.error} onRetry={() => void groups.refetch()} />
+        <ErrorState
+          error={groups.error}
+          onRetry={() => void groups.refetch()}
+        />
       ) : groups.data.length === 0 ? (
         <EmptyState
           title="There are no groups yet"
@@ -893,8 +1169,8 @@ function GroupCard({ home }: { home: AdminHomeDetail }) {
           {chosen && (
             <p className="max-w-prose text-sm">
               {home.name} will take on {chosen.name}'s contract straight away.
-              If it pays for itself today, that subscription has to be
-              cancelled first, or both would be charged.
+              If it pays for itself today, that subscription has to be cancelled
+              first, or both would be charged.
             </p>
           )}
           {problem}

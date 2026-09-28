@@ -78,3 +78,4 @@ export * from "./deletions";
 export * from "./licensure";
 export * from "./platform";
 export * from "./platform-audit";
+export * from "./platform-plans";

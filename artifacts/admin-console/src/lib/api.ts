@@ -66,7 +66,10 @@ async function call<T>(
   }
 
   if (!response.ok) {
-    throw new ApiError(response.status, sayWhatWentWrong(response.status, parsed));
+    throw new ApiError(
+      response.status,
+      sayWhatWentWrong(response.status, parsed),
+    );
   }
 
   return parsed as T;
@@ -86,7 +89,10 @@ function sayWhatWentWrong(status: number, parsed: unknown): string {
   if (status >= 500 || typeof message !== "string") {
     return "Something went wrong on our side. Please try again in a moment.";
   }
-  if (message === "Invalid request body" || message === "Invalid query parameters") {
+  if (
+    message === "Invalid request body" ||
+    message === "Invalid query parameters"
+  ) {
     return "Something in that could not be saved as written. Please check each field and try again.";
   }
   return message;
@@ -148,9 +154,71 @@ export type AdminHomeSummary = {
   internalAccount: boolean;
   onboardingDone: string[];
   createdAt: string;
+  // Phase 1 §4b — Heather's own customer record. Admin-side only; the
+  // director console never sees these (see routes/home.ts toDirectorHome).
+  contactName: string | null;
+  subscriptionPlan: string | null;
+  /** "monthly" | "annual" — which of the plan's prices the home pays. */
+  billingPeriod: string | null;
+  billingAmountCents: number | null;
+  billingStartDate: string | null;
+  subscriptionDueDate: string | null;
+  discount: string | null;
+  howHeardAboutUs: string | null;
+  adminNotes: string | null;
 };
 
 export type AdminHome = AdminHomeSummary & { engagement: Engagement };
+
+/** One row of the financials table, Phase 1 §4c. */
+export type FinancialHome = {
+  id: number;
+  name: string;
+  contactName: string | null;
+  status: string;
+  plan: string | null;
+  /** "monthly" | "annual" | null — the cadence of `amountChargedCents`. */
+  billingPeriod: string | null;
+  amountChargedCents: number | null;
+  nextDueDate: string | null;
+  discount: string | null;
+  howHeardAboutUs: string | null;
+  notes: string | null;
+};
+
+/** A subscription plan Heather sells: the price list the template draws from. */
+export type PlatformPlan = {
+  id: number;
+  name: string;
+  monthlyAmountCents: number;
+  annualAmountCents: number;
+};
+
+export type RunningCost = {
+  id: number;
+  name: string;
+  monthlyAmountCents: number;
+  notes: string | null;
+};
+
+export type Financials = {
+  homes: FinancialHome[];
+  monthlyTotalCents: number;
+  payingHomes: number;
+  runningCosts: RunningCost[];
+  runningCostsCents: number;
+  profitCents: number;
+};
+
+/** Cents to dollars, for every money figure on the financials screen. */
+export function formatMoney(cents: number | null | undefined): string {
+  if (cents === null || cents === undefined) return "—";
+  return (cents / 100).toLocaleString("en-US", {
+    style: "currency",
+    currency: "USD",
+    maximumFractionDigits: cents % 100 === 0 ? 0 : 2,
+  });
+}
 
 /**
  * The account states the homes list can be filtered by, in the words the
@@ -335,7 +403,12 @@ export type AdminGroup = {
  */
 export type AdminGroupDetail = Omit<AdminGroup, "locations"> & {
   billingConfigured: boolean;
-  addOns: Array<{ key: string; title: string; detail: string; included: boolean }>;
+  addOns: Array<{
+    key: string;
+    title: string;
+    detail: string;
+    included: boolean;
+  }>;
   /** Locations carry no engagement here; the group page is about the contract. */
   locations: AdminHomeSummary[];
 };
@@ -427,7 +500,10 @@ export function describeSubscription(status: string): string {
 
 /** A group's contract in a phrase, with the one date that matters next. */
 export function describeContract(
-  group: Pick<AdminGroup, "subscriptionStatus" | "trialEndsAt" | "currentPeriodEndsAt">,
+  group: Pick<
+    AdminGroup,
+    "subscriptionStatus" | "trialEndsAt" | "currentPeriodEndsAt"
+  >,
 ): string {
   const status = describeSubscription(group.subscriptionStatus);
 
@@ -442,7 +518,10 @@ export function describeContract(
 
 /** How the account is doing, in a phrase rather than a status chip. */
 export function describeAccount(
-  home: Pick<AdminHomeSummary, "suspendedAt" | "subscriptionStatus" | "trialDaysLeft">,
+  home: Pick<
+    AdminHomeSummary,
+    "suspendedAt" | "subscriptionStatus" | "trialDaysLeft"
+  >,
 ): string {
   if (home.suspendedAt) return "Suspended";
   if (home.subscriptionStatus === "trial") {
@@ -454,7 +533,6 @@ export function describeAccount(
   }
   return describeSubscription(home.subscriptionStatus);
 }
-
 
 /** What the log line says, in English. */
 export const AUDIT_ACTION_LABELS: Record<string, string> = {

@@ -28,6 +28,8 @@ import {
   homeLicensureTable,
   practitionerLicencesTable,
   platformAuditTable,
+  platformPlansTable,
+  platformRunningCostsTable,
   licensureReminders,
   canOpenCases,
   trialDaysLeft,
@@ -41,6 +43,7 @@ import {
   type FuneralHome,
   type HomeGroup,
   type HomeLicensure,
+  type PlatformPlan,
   type PractitionerLicence,
 } from "@workspace/db";
 import {
@@ -249,9 +252,16 @@ const AUDIT_ACTIONS = [
   "platform.admin.grant",
   "platform.admin.revoke",
   "home.internal.update",
+  "home.crm.update",
   "home.staff.reset",
   "home.owner.invite",
   "home.trial.extend",
+  "plan.create",
+  "plan.update",
+  "plan.delete",
+  "running-cost.create",
+  "running-cost.update",
+  "running-cost.delete",
 ] as const;
 type AuditAction = (typeof AUDIT_ACTIONS)[number];
 
@@ -402,7 +412,13 @@ async function platformFindHomeForChange(homeId: number): Promise<FuneralHome> {
   return requireRow(row, "That home could not be found.");
 }
 
-const HOME_STATUSES = ["trial", "active", "past_due", "canceled", "suspended"] as const;
+const HOME_STATUSES = [
+  "trial",
+  "active",
+  "past_due",
+  "canceled",
+  "suspended",
+] as const;
 type HomeStatus = (typeof HOME_STATUSES)[number];
 
 /** The customer list. Names and account state only — no case ever loads here. */
@@ -416,6 +432,8 @@ async function platformListHomes(
     /** Our own homes only -- the other way to find a home marked ours. */
     ours?: boolean | undefined;
     status?: HomeStatus | undefined;
+    sort?: "name" | "plan" | "amount" | "dueDate" | undefined;
+    order?: "asc" | "desc" | undefined;
   },
 ): Promise<{ homes: FuneralHome[]; total: number }> {
   const search = options.search?.trim();
@@ -478,11 +496,25 @@ async function platformListHomes(
 
   const scoped = and(whose, filter, byStatus);
 
+  /*
+   * Sorting is done here, in the database, not in the browser -- a sorted
+   * first page of an unsorted list is a lie about the other pages. The
+   * columns the financials screen cares about (plan, amount, next due date)
+   * are the ones this offers.
+   */
+  const sortColumn = {
+    name: funeralHomesTable.name,
+    plan: funeralHomesTable.subscriptionPlan,
+    amount: funeralHomesTable.billingAmountCents,
+    dueDate: funeralHomesTable.subscriptionDueDate,
+  }[options.sort ?? "name"];
+  const orderBy = options.order === "desc" ? desc(sortColumn) : asc(sortColumn);
+
   const homes = await db
     .select()
     .from(funeralHomesTable)
     .where(scoped)
-    .orderBy(asc(funeralHomesTable.name))
+    .orderBy(orderBy, asc(funeralHomesTable.id))
     .limit(options.limit)
     .offset(options.offset);
 
@@ -493,7 +525,11 @@ async function platformListHomes(
 
   const qualifiers = [
     options.status ? `status ${options.status}` : null,
-    options.ours ? "our own" : options.includeInternal ? "including ours" : null,
+    options.ours
+      ? "our own"
+      : options.includeInternal
+        ? "including ours"
+        : null,
   ].filter(Boolean);
 
   await recordPlatformAccess(
@@ -558,7 +594,10 @@ async function platformEngagementFor(
     .select({
       homeId: casesTable.funeralHomeId,
       total: count(),
-      active: sql<number>`count(*) filter (where ${casesTable.status} <> 'closed')`.mapWith(Number),
+      active:
+        sql<number>`count(*) filter (where ${casesTable.status} <> 'closed')`.mapWith(
+          Number,
+        ),
     })
     .from(casesTable)
     .where(inArray(casesTable.funeralHomeId, homeIds))
@@ -574,7 +613,10 @@ async function platformEngagementFor(
     .select({
       homeId: familyContactsTable.funeralHomeId,
       created: count(),
-      opened: sql<number>`count(*) filter (where ${familyContactsTable.firstSeenAt} is not null)`.mapWith(Number),
+      opened:
+        sql<number>`count(*) filter (where ${familyContactsTable.firstSeenAt} is not null)`.mapWith(
+          Number,
+        ),
     })
     .from(familyContactsTable)
     .where(inArray(familyContactsTable.funeralHomeId, homeIds))
@@ -600,8 +642,14 @@ async function platformEngagementFor(
     .select({
       homeId: aftercareEnrollmentsTable.funeralHomeId,
       enrolled: count(),
-      consented: sql<number>`count(*) filter (where ${aftercareEnrollmentsTable.consentedAt} is not null)`.mapWith(Number),
-      unsubscribed: sql<number>`count(*) filter (where ${aftercareEnrollmentsTable.unsubscribedAt} is not null)`.mapWith(Number),
+      consented:
+        sql<number>`count(*) filter (where ${aftercareEnrollmentsTable.consentedAt} is not null)`.mapWith(
+          Number,
+        ),
+      unsubscribed:
+        sql<number>`count(*) filter (where ${aftercareEnrollmentsTable.unsubscribedAt} is not null)`.mapWith(
+          Number,
+        ),
     })
     .from(aftercareEnrollmentsTable)
     .where(inArray(aftercareEnrollmentsTable.funeralHomeId, homeIds))
@@ -699,6 +747,19 @@ function toAdminHome(home: FuneralHome) {
     suspendedAt: home.suspendedAt,
     suspendedReason: home.suspendedReason,
     internalAccount: home.internalAccount,
+    // Phase 1 §4b/§4c — Heather's own customer record for this home: the
+    // commercial relationship, not the home's. These columns are the reason
+    // the template exists, and they never leave the admin console: the
+    // director-facing `/home` serialiser strips them (see routes/home.ts).
+    contactName: home.contactName,
+    subscriptionPlan: home.subscriptionPlan,
+    billingPeriod: home.billingPeriod,
+    billingAmountCents: home.billingAmountCents,
+    billingStartDate: home.billingStartDate,
+    subscriptionDueDate: home.subscriptionDueDate,
+    discount: home.discount,
+    howHeardAboutUs: home.howHeardAboutUs,
+    adminNotes: home.adminNotes,
     onboardingDone: home.onboardingDone
       .split(",")
       .map((step) => step.trim())
@@ -724,6 +785,10 @@ const ListHomesQuery = z.object({
     .optional()
     .transform((value) => value === "true"),
   status: z.enum(HOME_STATUSES).optional(),
+  // Sorting the list, in the database. `desc` on a money or date column
+  // puts the biggest or most urgent first; on `name` it is Z to A.
+  sort: z.enum(["name", "plan", "amount", "dueDate"]).optional(),
+  order: z.enum(["asc", "desc"]).optional(),
 });
 
 router.get("/admin/homes", async (req, res) => {
@@ -756,10 +821,31 @@ router.get("/admin/homes", async (req, res) => {
 const CreateHomeBody = z.object({
   name: z.string().trim().min(1).max(160),
   ownerEmail: z.string().trim().email().max(254).optional(),
+  // Phase 1 §4b — the onboarding template. Everything Heather knows when she
+  // signs a home up, captured once, so the director sees it on their side and
+  // she never re-types it. The commercial half (plan, billing, discount,
+  // how-heard, notes) is admin-side only; see toAdminHome.
+  contactName: z.string().trim().max(160).optional(),
+  addressLine1: z.string().trim().max(200).optional(),
+  postalCode: z.string().trim().max(20).optional(),
   city: z.string().trim().max(120).optional(),
   region: z.string().trim().max(120).optional(),
   phone: z.string().trim().max(40).optional(),
   timezone: z.string().trim().max(60).optional(),
+  subscriptionPlan: z.string().trim().max(60).optional(),
+  /** Which of the plan's prices the home pays: "monthly" or "annual". */
+  billingPeriod: z.enum(["monthly", "annual"]).optional(),
+  billingAmountCents: z.coerce
+    .number()
+    .int()
+    .min(0)
+    .max(100_000_000)
+    .optional(),
+  billingStartDate: z.coerce.date().optional(),
+  subscriptionDueDate: z.coerce.date().optional(),
+  discount: z.string().trim().max(200).optional(),
+  howHeardAboutUs: z.string().trim().max(200).optional(),
+  adminNotes: z.string().trim().max(4000).optional(),
 });
 
 router.post("/admin/homes", async (req, res) => {
@@ -770,11 +856,15 @@ router.post("/admin/homes", async (req, res) => {
     try {
       new Intl.DateTimeFormat("en-US", { timeZone: values.timezone });
     } catch {
-      throw badRequest(`"${values.timezone}" is not a timezone this server knows.`);
+      throw badRequest(
+        `"${values.timezone}" is not a timezone this server knows.`,
+      );
     }
   }
 
-  const ownerEmail = values.ownerEmail ? normaliseEmail(values.ownerEmail) : null;
+  const ownerEmail = values.ownerEmail
+    ? normaliseEmail(values.ownerEmail)
+    : null;
 
   if (ownerEmail) {
     const [existing] = await db
@@ -796,10 +886,21 @@ router.post("/admin/homes", async (req, res) => {
       .values({
         name: values.name,
         slug,
+        contactName: values.contactName ?? null,
+        addressLine1: values.addressLine1 ?? null,
         city: values.city ?? null,
         region: values.region ?? null,
+        postalCode: values.postalCode ?? null,
         phone: values.phone ?? null,
         ...(values.timezone ? { timezone: values.timezone } : {}),
+        subscriptionPlan: values.subscriptionPlan ?? null,
+        billingPeriod: values.billingPeriod ?? null,
+        billingAmountCents: values.billingAmountCents ?? null,
+        billingStartDate: values.billingStartDate ?? null,
+        subscriptionDueDate: values.subscriptionDueDate ?? null,
+        discount: values.discount ?? null,
+        howHeardAboutUs: values.howHeardAboutUs ?? null,
+        adminNotes: values.adminNotes ?? null,
         trialEndsAt: new Date(Date.now() + TRIAL_DAYS * 24 * 60 * 60 * 1000),
       })
       .returning();
@@ -928,7 +1029,9 @@ router.post("/admin/homes/:homeId/invite-owner", async (req, res) => {
   const [owner] = await db
     .select({ id: usersTable.id })
     .from(usersTable)
-    .where(and(eq(usersTable.funeralHomeId, home.id), eq(usersTable.role, "owner")))
+    .where(
+      and(eq(usersTable.funeralHomeId, home.id), eq(usersTable.role, "owner")),
+    )
     .limit(1);
 
   if (owner) {
@@ -949,7 +1052,12 @@ router.post("/admin/homes/:homeId/invite-owner", async (req, res) => {
   }
 
   // Checked, so now it is a change, and the log says so before it happens.
-  await recordPlatformAccess(who, "home.owner.invite", home, "invited an owner");
+  await recordPlatformAccess(
+    who,
+    "home.owner.invite",
+    home,
+    "invited an owner",
+  );
 
   const [created] = await db
     .insert(usersTable)
@@ -1180,10 +1288,15 @@ router.post(
         hasPassword: sql<boolean>`${usersTable.passwordHash} is not null`,
       })
       .from(usersTable)
-      .where(and(eq(usersTable.id, userId), eq(usersTable.funeralHomeId, home.id)))
+      .where(
+        and(eq(usersTable.id, userId), eq(usersTable.funeralHomeId, home.id)),
+      )
       .limit(1);
 
-    const found = requireRow(person, "That person could not be found at this home.");
+    const found = requireRow(
+      person,
+      "That person could not be found at this home.",
+    );
 
     if (found.deactivatedAt !== null) {
       throw badRequest(
@@ -1237,7 +1350,10 @@ const isoDate = z
 
 const LicensureBody = z.object({
   doraRegistrationNumber: z.string().trim().max(60).nullish(),
-  registeredServices: z.array(z.string().trim().min(1).max(120)).max(40).optional(),
+  registeredServices: z
+    .array(z.string().trim().min(1).max(120))
+    .max(40)
+    .optional(),
   designeeName: z.string().trim().max(160).nullish(),
   designeeTitle: z.string().trim().max(160).nullish(),
   beganBusinessOn: isoDate.nullish(),
@@ -1324,44 +1440,50 @@ async function loadPractitioner(homeId: number, rawId: string | undefined) {
   return requireRow(row, "That person could not be found at this home.");
 }
 
-router.put("/admin/homes/:homeId/practitioners/:licenceId", async (req, res) => {
-  const who = actor(req);
-  const values = parseBody(PractitionerBody, req.body);
-  const home = await platformLoadHome(
-    who,
-    parseId(req.params.homeId),
-    "home.practitioner.update",
-    `updated ${values.personName}`,
-  );
+router.put(
+  "/admin/homes/:homeId/practitioners/:licenceId",
+  async (req, res) => {
+    const who = actor(req);
+    const values = parseBody(PractitionerBody, req.body);
+    const home = await platformLoadHome(
+      who,
+      parseId(req.params.homeId),
+      "home.practitioner.update",
+      `updated ${values.personName}`,
+    );
 
-  const existing = await loadPractitioner(home.id, req.params.licenceId);
+    const existing = await loadPractitioner(home.id, req.params.licenceId);
 
-  const [updated] = await db
-    .update(practitionerLicencesTable)
-    .set({ ...values, updatedAt: new Date() })
-    .where(eq(practitionerLicencesTable.id, existing.id))
-    .returning();
+    const [updated] = await db
+      .update(practitionerLicencesTable)
+      .set({ ...values, updatedAt: new Date() })
+      .where(eq(practitionerLicencesTable.id, existing.id))
+      .returning();
 
-  res.json(updated!);
-});
+    res.json(updated!);
+  },
+);
 
-router.delete("/admin/homes/:homeId/practitioners/:licenceId", async (req, res) => {
-  const who = actor(req);
-  const home = await platformLoadHome(
-    who,
-    parseId(req.params.homeId),
-    "home.practitioner.update",
-    "removed a practitioner",
-  );
+router.delete(
+  "/admin/homes/:homeId/practitioners/:licenceId",
+  async (req, res) => {
+    const who = actor(req);
+    const home = await platformLoadHome(
+      who,
+      parseId(req.params.homeId),
+      "home.practitioner.update",
+      "removed a practitioner",
+    );
 
-  const existing = await loadPractitioner(home.id, req.params.licenceId);
+    const existing = await loadPractitioner(home.id, req.params.licenceId);
 
-  await db
-    .delete(practitionerLicencesTable)
-    .where(eq(practitionerLicencesTable.id, existing.id));
+    await db
+      .delete(practitionerLicencesTable)
+      .where(eq(practitionerLicencesTable.id, existing.id));
 
-  res.status(204).end();
-});
+    res.status(204).end();
+  },
+);
 
 /* ------------------------------------------------------------ overview -- */
 
@@ -1376,14 +1498,29 @@ router.get("/admin/overview", async (req, res) => {
   const [totals] = await db
     .select({
       homes: count(),
-      suspended: sql<number>`count(*) filter (where ${funeralHomesTable.suspendedAt} is not null)`.mapWith(Number),
-      paying: sql<number>`count(*) filter (where ${funeralHomesTable.subscriptionStatus} = 'active')`.mapWith(Number),
-      onTrial: sql<number>`count(*) filter (where ${funeralHomesTable.subscriptionStatus} = 'trial')`.mapWith(Number),
+      suspended:
+        sql<number>`count(*) filter (where ${funeralHomesTable.suspendedAt} is not null)`.mapWith(
+          Number,
+        ),
+      paying:
+        sql<number>`count(*) filter (where ${funeralHomesTable.subscriptionStatus} = 'active')`.mapWith(
+          Number,
+        ),
+      onTrial:
+        sql<number>`count(*) filter (where ${funeralHomesTable.subscriptionStatus} = 'trial')`.mapWith(
+          Number,
+        ),
       // The two that are money going wrong. Without them the four figures
       // above did not add up to the total, and the difference was exactly
       // the homes somebody should be ringing.
-      pastDue: sql<number>`count(*) filter (where ${funeralHomesTable.subscriptionStatus} = 'past_due')`.mapWith(Number),
-      canceled: sql<number>`count(*) filter (where ${funeralHomesTable.subscriptionStatus} = 'canceled')`.mapWith(Number),
+      pastDue:
+        sql<number>`count(*) filter (where ${funeralHomesTable.subscriptionStatus} = 'past_due')`.mapWith(
+          Number,
+        ),
+      canceled:
+        sql<number>`count(*) filter (where ${funeralHomesTable.subscriptionStatus} = 'canceled')`.mapWith(
+          Number,
+        ),
     })
     .from(funeralHomesTable)
     .where(customerHomes);
@@ -1570,15 +1707,19 @@ router.get("/admin/overview", async (req, res) => {
   const [failures] = await db
     .select({
       failed: count(),
-      homes: sql<number>`count(distinct ${aftercareEnrollmentsTable.funeralHomeId})`.mapWith(Number),
+      homes:
+        sql<number>`count(distinct ${aftercareEnrollmentsTable.funeralHomeId})`.mapWith(
+          Number,
+        ),
       // Mapped through the column, not left as `sql<string>`. `failed_at` is
       // a timestamp without a zone, so the raw aggregate came back as
       // "2026-09-14 16:02:11.5" -- which a browser reads as *local* time and
       // renders hours out -- while every other date in this API is an ISO
       // string in UTC. The column's own mapping is what makes those agree.
-      latest: sql<Date | null>`max(${aftercareDeliveriesTable.failedAt})`.mapWith(
-        aftercareDeliveriesTable.failedAt,
-      ),
+      latest:
+        sql<Date | null>`max(${aftercareDeliveriesTable.failedAt})`.mapWith(
+          aftercareDeliveriesTable.failedAt,
+        ),
     })
     .from(aftercareDeliveriesTable)
     .innerJoin(
@@ -1842,6 +1983,390 @@ router.put("/admin/homes/:homeId/internal", async (req, res) => {
   res.json(toAdminHome(updated!));
 });
 
+/* ------------------------------------------- the customer record (CRM) -- */
+
+/**
+ * Heather's own customer record for a home: the commercial relationship.
+ *
+ * Phase 1 §4b — the second half of the onboarding template, editable after
+ * the fact. Same audit discipline as every other write here: the change is
+ * logged after the checks and before the write, so a refused request never
+ * leaves a line saying it happened.
+ *
+ * What is *not* here is deliberate. The home's own business details (name,
+ * contact name, address, phone) are edited by the director on their side;
+ * what lives here is what the home never sees: the plan that was sold, the
+ * amount agreed, when it is due, the discount, how they heard about us, and
+ * Heather's notes.
+ */
+const CrmBody = z.object({
+  contactName: z.string().trim().max(160).nullish(),
+  subscriptionPlan: z.string().trim().max(60).nullish(),
+  billingPeriod: z.enum(["monthly", "annual"]).nullish(),
+  billingAmountCents: z.coerce.number().int().min(0).max(100_000_000).nullish(),
+  billingStartDate: z.coerce.date().nullish(),
+  subscriptionDueDate: z.coerce.date().nullish(),
+  discount: z.string().trim().max(200).nullish(),
+  howHeardAboutUs: z.string().trim().max(200).nullish(),
+  adminNotes: z.string().trim().max(4000).nullish(),
+  // The template's Status field (spec §4b): trial / active / past-due /
+  // canceled. "Suspended" is not set here -- suspension is its own action
+  // with its own reason, on the home's page.
+  subscriptionStatus: z
+    .enum(["trial", "active", "past_due", "canceled"])
+    .nullish(),
+});
+
+router.put("/admin/homes/:homeId/crm", async (req, res) => {
+  const who = actor(req);
+  const homeId = parseId(req.params.homeId);
+  const values = parseBody(CrmBody, req.body);
+  const home = await platformFindHomeForChange(homeId);
+
+  // A cleared text field arrives as "" from the console; store null so a
+  // cleared discount reads as "no discount" rather than an empty string.
+  const updates = Object.fromEntries(
+    Object.entries(values)
+      .filter(([, value]) => value !== undefined)
+      .map(([key, value]) => [key, value === "" ? null : value]),
+  );
+
+  if (Object.keys(updates).length === 0) {
+    throw badRequest("Nothing to update.");
+  }
+
+  await recordPlatformAccess(
+    who,
+    "home.crm.update",
+    home,
+    "customer record updated",
+  );
+
+  const [updated] = await db
+    .update(funeralHomesTable)
+    .set({ ...updates, updatedAt: new Date() })
+    .where(eq(funeralHomesTable.id, home.id))
+    .returning();
+
+  res.json(toAdminHome(updated!));
+});
+
+/* ---------------------------------------------------------- financials -- */
+
+/**
+ * The money, at a glance. Phase 1 §4c.
+ *
+ * "Monthly total" is the sum of the agreed amounts for homes that are
+ * actually paying — active or past-due. Trials are not revenue yet, and
+ * canceled or suspended homes are not revenue any more. An annual plan's
+ * agreed amount is a year's charge, so it counts here as twelve monthly
+ * slices (rounded), never as a month's revenue; the per-home row keeps the
+ * actual agreed amount and its cadence, so nobody mistakes the normalised
+ * figure for what was charged.
+ *
+ * Running costs are what the platform itself costs Heather each month.
+ * Profit is the difference. All three figures, plus the per-home rows, are
+ * what "the whole financial picture in under 30 seconds" means.
+ */
+function toFinancialHome(home: FuneralHome) {
+  return {
+    id: home.id,
+    name: home.name,
+    contactName: home.contactName,
+    status: home.subscriptionStatus,
+    plan: home.subscriptionPlan,
+    billingPeriod: home.billingPeriod,
+    amountChargedCents: home.billingAmountCents,
+    nextDueDate: home.subscriptionDueDate,
+    discount: home.discount,
+    howHeardAboutUs: home.howHeardAboutUs,
+    notes: home.adminNotes,
+  };
+}
+
+/** What a home's agreed amount contributes to the monthly total. */
+function monthlyEquivalent(home: FuneralHome): number {
+  const amount = home.billingAmountCents ?? 0;
+  return home.billingPeriod === "annual" ? Math.round(amount / 12) : amount;
+}
+
+router.get("/admin/financials", async (req, res) => {
+  const who = actor(req);
+
+  const homes = await db
+    .select()
+    .from(funeralHomesTable)
+    .where(eq(funeralHomesTable.internalAccount, false))
+    .orderBy(asc(funeralHomesTable.name));
+
+  const paying = homes.filter((home) =>
+    ["active", "past_due"].includes(home.subscriptionStatus),
+  );
+  const monthlyTotalCents = paying.reduce(
+    (sum, home) => sum + monthlyEquivalent(home),
+    0,
+  );
+
+  const costs = await db
+    .select()
+    .from(platformRunningCostsTable)
+    .orderBy(asc(platformRunningCostsTable.name));
+  const runningCostsCents = costs.reduce(
+    (sum, cost) => sum + cost.monthlyAmountCents,
+    0,
+  );
+
+  await recordPlatformAccess(
+    who,
+    "platform.overview",
+    null,
+    `financials: ${homes.length} homes`,
+  );
+
+  res.json({
+    homes: homes.map(toFinancialHome),
+    monthlyTotalCents,
+    payingHomes: paying.length,
+    runningCosts: costs.map((cost) => ({
+      id: cost.id,
+      name: cost.name,
+      monthlyAmountCents: cost.monthlyAmountCents,
+      notes: cost.notes,
+    })),
+    runningCostsCents,
+    profitCents: monthlyTotalCents - runningCostsCents,
+  });
+});
+
+const RunningCostBody = z.object({
+  name: z.string().trim().min(1).max(120),
+  monthlyAmountCents: z.coerce.number().int().min(0).max(100_000_000),
+  notes: z.string().trim().max(1000).nullish(),
+});
+
+router.post("/admin/running-costs", async (req, res) => {
+  const who = actor(req);
+  const values = parseBody(RunningCostBody, req.body);
+
+  const [cost] = await db
+    .insert(platformRunningCostsTable)
+    .values({
+      name: values.name,
+      monthlyAmountCents: values.monthlyAmountCents,
+      notes: values.notes ?? null,
+    })
+    .returning();
+
+  await recordPlatformAccess(
+    who,
+    "running-cost.create",
+    null,
+    `running cost added: ${cost!.name}`,
+  );
+
+  res.status(201).json(cost);
+});
+
+router.put("/admin/running-costs/:costId", async (req, res) => {
+  const who = actor(req);
+  const costId = parseId(req.params.costId);
+  const values = parseBody(RunningCostBody.partial(), req.body);
+
+  const updates = Object.fromEntries(
+    Object.entries(values).filter(([, value]) => value !== undefined),
+  );
+  if (Object.keys(updates).length === 0) {
+    throw badRequest("Nothing to update.");
+  }
+
+  const [cost] = await db
+    .select()
+    .from(platformRunningCostsTable)
+    .where(eq(platformRunningCostsTable.id, costId))
+    .limit(1);
+  requireRow(cost, "That cost could not be found.");
+
+  const [updated] = await db
+    .update(platformRunningCostsTable)
+    .set({ ...updates, updatedAt: new Date() })
+    .where(eq(platformRunningCostsTable.id, costId))
+    .returning();
+
+  await recordPlatformAccess(
+    who,
+    "running-cost.update",
+    null,
+    `running cost updated: ${updated!.name}`,
+  );
+
+  res.json(updated);
+});
+
+router.delete("/admin/running-costs/:costId", async (req, res) => {
+  const who = actor(req);
+  const costId = parseId(req.params.costId);
+
+  const [cost] = await db
+    .select()
+    .from(platformRunningCostsTable)
+    .where(eq(platformRunningCostsTable.id, costId))
+    .limit(1);
+  requireRow(cost, "That cost could not be found.");
+
+  await db
+    .delete(platformRunningCostsTable)
+    .where(eq(platformRunningCostsTable.id, costId));
+
+  await recordPlatformAccess(
+    who,
+    "running-cost.delete",
+    null,
+    `running cost removed: ${cost!.name}`,
+  );
+
+  res.status(204).end();
+});
+
+/* --------------------------------------------------------------- plans -- */
+
+/**
+ * The subscription plans Heather sells, with their prices.
+ *
+ * Phase 1 §4b: "amounts configurable in settings". The onboarding template's
+ * plan select reads from here; the home row records the plan name that was
+ * sold (free text, so a renamed plan does not rewrite history), the billing
+ * period, and the amount actually agreed.
+ */
+
+function toPlatformPlan(plan: PlatformPlan) {
+  return {
+    id: plan.id,
+    name: plan.name,
+    monthlyAmountCents: plan.monthlyAmountCents,
+    annualAmountCents: plan.annualAmountCents,
+  };
+}
+
+router.get("/admin/plans", async (req, res) => {
+  const who = actor(req);
+
+  const plans = await db
+    .select()
+    .from(platformPlansTable)
+    .orderBy(asc(platformPlansTable.name));
+
+  await recordPlatformAccess(who, "platform.overview", null, "plans listed");
+
+  res.json({ plans: plans.map(toPlatformPlan) });
+});
+
+const PlanBody = z.object({
+  name: z.string().trim().min(1).max(60),
+  monthlyAmountCents: z.coerce.number().int().min(0).max(100_000_000),
+  annualAmountCents: z.coerce.number().int().min(0).max(100_000_000),
+});
+
+router.post("/admin/plans", async (req, res) => {
+  const who = actor(req);
+  const values = parseBody(PlanBody, req.body);
+
+  const [existing] = await db
+    .select({ id: platformPlansTable.id })
+    .from(platformPlansTable)
+    .where(eq(platformPlansTable.name, values.name))
+    .limit(1);
+  if (existing) {
+    throw badRequest("There is already a plan with that name.");
+  }
+
+  const [plan] = await db
+    .insert(platformPlansTable)
+    .values({
+      name: values.name,
+      monthlyAmountCents: values.monthlyAmountCents,
+      annualAmountCents: values.annualAmountCents,
+    })
+    .returning();
+
+  await recordPlatformAccess(
+    who,
+    "plan.create",
+    null,
+    `plan added: ${plan!.name}`,
+  );
+
+  res.status(201).json(toPlatformPlan(plan!));
+});
+
+router.put("/admin/plans/:planId", async (req, res) => {
+  const who = actor(req);
+  const planId = parseId(req.params.planId);
+  const values = parseBody(PlanBody.partial(), req.body);
+
+  const updates = Object.fromEntries(
+    Object.entries(values).filter(([, value]) => value !== undefined),
+  );
+  if (Object.keys(updates).length === 0) {
+    throw badRequest("Nothing to update.");
+  }
+
+  const [plan] = await db
+    .select()
+    .from(platformPlansTable)
+    .where(eq(platformPlansTable.id, planId))
+    .limit(1);
+  requireRow(plan, "That plan could not be found.");
+
+  if (values.name && values.name !== plan!.name) {
+    const [clash] = await db
+      .select({ id: platformPlansTable.id })
+      .from(platformPlansTable)
+      .where(eq(platformPlansTable.name, values.name))
+      .limit(1);
+    if (clash) {
+      throw badRequest("There is already a plan with that name.");
+    }
+  }
+
+  const [updated] = await db
+    .update(platformPlansTable)
+    .set(updates)
+    .where(eq(platformPlansTable.id, planId))
+    .returning();
+
+  await recordPlatformAccess(
+    who,
+    "plan.update",
+    null,
+    `plan updated: ${updated!.name}`,
+  );
+
+  res.json(toPlatformPlan(updated!));
+});
+
+router.delete("/admin/plans/:planId", async (req, res) => {
+  const who = actor(req);
+  const planId = parseId(req.params.planId);
+
+  const [plan] = await db
+    .select()
+    .from(platformPlansTable)
+    .where(eq(platformPlansTable.id, planId))
+    .limit(1);
+  requireRow(plan, "That plan could not be found.");
+
+  await db.delete(platformPlansTable).where(eq(platformPlansTable.id, planId));
+
+  await recordPlatformAccess(
+    who,
+    "plan.delete",
+    null,
+    `plan removed: ${plan!.name}`,
+  );
+
+  res.status(204).end();
+});
+
 router.get("/admin/audit", async (req, res) => {
   const options = parseQuery(AuditQuery, req.query);
 
@@ -1856,7 +2381,9 @@ router.get("/admin/audit", async (req, res) => {
         options.homeId
           ? eq(platformAuditTable.subjectHomeId, options.homeId)
           : undefined,
-        options.action ? eq(platformAuditTable.action, options.action) : undefined,
+        options.action
+          ? eq(platformAuditTable.action, options.action)
+          : undefined,
         options.before ? lt(platformAuditTable.id, options.before) : undefined,
       ),
     )
@@ -1942,7 +2469,9 @@ async function locationCounts(
     .groupBy(funeralHomesTable.groupId);
 
   return new Map(
-    rows.flatMap((row) => (row.groupId === null ? [] : [[row.groupId, row.total]])),
+    rows.flatMap((row) =>
+      row.groupId === null ? [] : [[row.groupId, row.total]],
+    ),
   );
 }
 
@@ -1981,7 +2510,12 @@ router.post("/admin/groups", async (req, res) => {
     })
     .returning();
 
-  await recordPlatformAccess(who, "group.create", null, `Created group "${name}"`);
+  await recordPlatformAccess(
+    who,
+    "group.create",
+    null,
+    `Created group "${name}"`,
+  );
 
   res.status(201).json(toAdminGroup(created!, 0));
 });
@@ -1994,7 +2528,12 @@ async function loadGroup(who: PlatformActor, raw: string | undefined) {
     .limit(1);
 
   const row = requireRow(group, "That group could not be found.");
-  await recordPlatformAccess(who, "group.open", null, `Opened group "${row.name}"`);
+  await recordPlatformAccess(
+    who,
+    "group.open",
+    null,
+    `Opened group "${row.name}"`,
+  );
   return row;
 }
 
@@ -2067,7 +2606,9 @@ router.put("/admin/homes/:homeId/group", async (req, res) => {
           .limit(1);
 
   const target =
-    groupId === null ? null : requireRow(group, "That group could not be found.");
+    groupId === null
+      ? null
+      : requireRow(group, "That group could not be found.");
 
   // Found here and logged below, once the move has passed its checks -- see
   // `platformFindHomeForChange` for why a refused move must not leave a line
@@ -2082,7 +2623,12 @@ router.put("/admin/homes/:homeId/group", async (req, res) => {
       throw badRequest("This home is not part of a group.");
     }
 
-    await recordPlatformAccess(who, "home.group.update", home, "Removed from its group");
+    await recordPlatformAccess(
+      who,
+      "home.group.update",
+      home,
+      "Removed from its group",
+    );
 
     const graceEnds = new Date(
       Date.now() + GROUP_EXIT_GRACE_DAYS * 24 * 60 * 60 * 1000,
@@ -2144,10 +2690,15 @@ router.put("/admin/homes/:homeId/group", async (req, res) => {
 const GroupCheckoutBody = z.object({
   // A real web address: Stripe refuses anything else, and refuses it with an
   // error the console could only pass on as "something went wrong".
-  returnUrl: z.string().trim().url().max(2048).refine(
-    (value) => /^https?:\/\//.test(value),
-    "Please give a web address starting with http:// or https://",
-  ),
+  returnUrl: z
+    .string()
+    .trim()
+    .url()
+    .max(2048)
+    .refine(
+      (value) => /^https?:\/\//.test(value),
+      "Please give a web address starting with http:// or https://",
+    ),
   email: z.string().trim().email().max(254),
   addOns: z.array(z.string().refine(isAddOnKey)).optional(),
 });

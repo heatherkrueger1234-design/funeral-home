@@ -17,6 +17,7 @@ import { Audit } from "@/pages/Audit";
 import { Groups } from "@/pages/Groups";
 import { GroupDetail } from "@/pages/GroupDetail";
 import { Admins } from "@/pages/Admins";
+import { Plans } from "@/pages/Plans";
 import { BASE_PATH } from "@/lib/base";
 
 const queryClient = new QueryClient({
@@ -135,6 +136,7 @@ function Gate() {
         <Route path="/groups/:groupId" component={GroupRoute} />
         <Route path="/audit" component={Audit} />
         <Route path="/admins" component={Admins} />
+        <Route path="/plans" component={Plans} />
         <Route component={NotFound} />
       </Switch>
     </Shell>
