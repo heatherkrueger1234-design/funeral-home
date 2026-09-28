@@ -34,7 +34,7 @@ export type RenderInput = {
 };
 
 /** Escape for HTML. Everything here is typed by a person. */
-function esc(value: string): string {
+export function esc(value: string): string {
   return value
     .replace(/&/g, "&amp;")
     .replace(/</g, "&lt;")
@@ -43,7 +43,7 @@ function esc(value: string): string {
 }
 
 /** Preserve the line breaks a director typed, which are the layout. */
-function lines(value: string): string {
+export function lines(value: string): string {
   return esc(value)
     .split(/\r?\n/)
     .map((line) => line.trim())

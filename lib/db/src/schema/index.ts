@@ -54,6 +54,14 @@ export * from "./service-offers";
 export * from "./policies";
 export * from "./price-list";
 
+/* The Funeral-Rule-shaped answer to putting prices in front of families:
+ * the home's catalogue (General / Casket / Outer Burial Container price
+ * lists), the family's selections, and the itemised Statement of Funeral
+ * Goods and Services Selected. `catalogue.ts` explains why the unit is the
+ * item and why packages never replace items. */
+export * from "./catalogue";
+export * from "./storefront";
+
 /* What we charge the home, and the standing refusal to charge the family.
  * `plans.ts` is the file that argues the second one. */
 export * from "./plans";

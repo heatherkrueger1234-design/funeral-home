@@ -33,6 +33,7 @@ import { VitalsPanel } from "@/components/case/VitalsPanel";
 import { PrintPanel } from "@/components/case/PrintPanel";
 import { MemoryBookPanel } from "@/components/case/MemoryBookPanel";
 import { DetailsPanel } from "@/components/case/DetailsPanel";
+import { ArrangementPanel } from "@/components/case/ArrangementPanel";
 import { CaseData } from "@/components/CaseData";
 import { CaseGlance } from "@/components/case/CaseGlance";
 import { Empty, LoadFailed, Loading } from "@/components/page";
@@ -342,6 +343,7 @@ export default function CaseDetail() {
           <TabsTrigger value="belongings">Belongings</TabsTrigger>
           <TabsTrigger value="obituary">Obituary</TabsTrigger>
           <TabsTrigger value="service">Service</TabsTrigger>
+          <TabsTrigger value="arrangement">Arrangement</TabsTrigger>
           <TabsTrigger value="print">Print</TabsTrigger>
           {/* Not on a pre-need file: a memory book is about somebody who has died. */}
           {detail.kind !== "pre_need" && (
@@ -399,6 +401,12 @@ export default function CaseDetail() {
           </TabsContent>
           <TabsContent value="service">
             <ServicePanel caseId={caseId} />
+          </TabsContent>
+          <TabsContent value="arrangement">
+            <ArrangementPanel
+              caseId={caseId}
+              isPreNeed={detail.kind === "pre_need"}
+            />
           </TabsContent>
           <TabsContent value="print">
             <PrintPanel caseId={caseId} />

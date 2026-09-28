@@ -2678,6 +2678,460 @@ portal puts it above everything else.
   aftercare: AftercareEnrollment | null;
 }
 
+/**
+ * Returned in place of a 204 when the row could not be deleted because a
+family has already chosen from it. A statement is a document the home
+handed across a desk, and it does not get to change.
+
+ */
+export interface ArchivedInstead {
+  archived: boolean;
+}
+
+/**
+ * Which statutory price list a category's items print on. Fixed rather
+than named by the home, because these are the Rule's own divisions and
+a home that invents a fourth one has a price list that does not comply.
+What the home names is the category.
+
+ */
+export type CatalogueSection =
+  (typeof CatalogueSection)[keyof typeof CatalogueSection];
+
+export const CatalogueSection = {
+  services: "services",
+  caskets: "caskets",
+  outer_burial_containers: "outer_burial_containers",
+  merchandise: "merchandise",
+  cash_advance: "cash_advance",
+} as const;
+
+/**
+ * `by_request` is the honest answer for the casket a home will order in
+but does not keep. Deliberately not "out of stock": a family reading
+that about their mother's casket hears a shop.
+
+ */
+export type ItemAvailability =
+  (typeof ItemAvailability)[keyof typeof ItemAvailability];
+
+export const ItemAvailability = {
+  available: "available",
+  by_request: "by_request",
+} as const;
+
+export interface CatalogueItem {
+  id: number;
+  categoryId: number;
+  name: string;
+  description: string | null;
+  /** The home's own reference, so a re-import updates rather than duplicates. */
+  itemCode: string | null;
+  priceCents: number;
+  /** "each", "per day", "per mile". Printed beside the price, never parsed. */
+  priceUnit: string | null;
+  photoUploadId: number | null;
+  availability: ItemAvailability;
+  position: number;
+  archivedAt: string | null;
+}
+
+export interface CatalogueCategory {
+  id: number;
+  name: string;
+  description: string | null;
+  section: CatalogueSection;
+  position: number;
+  archivedAt: string | null;
+  items: CatalogueItem[];
+}
+
+export interface CataloguePackage {
+  id: number;
+  name: string;
+  description: string | null;
+  priceCents: number;
+  /** What the same items come to bought one at a time. Always sent
+alongside the package price, never instead of it — a package that
+is the only price on offer is the thing the Rule forbids.
+ */
+  itemisedTotalCents: number;
+  items: CatalogueItem[];
+}
+
+export interface Catalogue {
+  hasGeneralPriceList: boolean;
+  gplEffectiveOn: string | null;
+  categories: CatalogueCategory[];
+  packages: CataloguePackage[];
+}
+
+export interface CatalogueCategoryInput {
+  /**
+   * @minLength 1
+   * @maxLength 120
+   */
+  name: string;
+  /** @maxLength 400 */
+  description?: string | null;
+  section: CatalogueSection;
+}
+
+export interface CatalogueCategoryUpdate {
+  /**
+   * @minLength 1
+   * @maxLength 120
+   */
+  name?: string;
+  /** @maxLength 400 */
+  description?: string | null;
+  section?: CatalogueSection;
+  /** @minimum 0 */
+  position?: number;
+  archived?: boolean;
+}
+
+export interface CatalogueImportInput {
+  file: Blob;
+  /** JSON object mapping each of the home's own category names to the
+price list it belongs on, as corrected by the director in the
+preview. A category left out keeps the guess.
+ */
+  sections?: string;
+}
+
+export type CatalogueImportPreviewMapping = { [key: string]: string | null };
+
+/**
+ * One of the home's own category names, and where we think it goes.
+ */
+export interface CatalogueImportCategory {
+  name: string;
+  section: CatalogueSection;
+  itemCount: number;
+}
+
+export interface CatalogueImportRow {
+  /** The line number a spreadsheet shows, so "row 34" means row 34. */
+  row: number;
+  categoryName: string;
+  name: string;
+  description: string | null;
+  priceCents: number;
+  itemCode: string | null;
+}
+
+export interface CatalogueImportPreview {
+  headers: string[];
+  mapping: CatalogueImportPreviewMapping;
+  totalRows: number;
+  categories: CatalogueImportCategory[];
+  wouldCreate: number;
+  wouldUpdate: number;
+  rows: CatalogueImportRow[];
+  issues: ImportRowIssue[];
+}
+
+export interface CatalogueImportResult {
+  created: number;
+  updated: number;
+  issues: ImportRowIssue[];
+}
+
+export interface CatalogueItemInput {
+  categoryId: number;
+  /**
+   * @minLength 1
+   * @maxLength 200
+   */
+  name: string;
+  /** @maxLength 2000 */
+  description?: string | null;
+  /** @maxLength 100 */
+  itemCode?: string | null;
+  /**
+   * @minimum 0
+   * @maximum 1000000000
+   */
+  priceCents: number;
+  /** @maxLength 40 */
+  priceUnit?: string | null;
+  photoUploadId?: number | null;
+  availability?: ItemAvailability;
+}
+
+export interface CatalogueItemUpdate {
+  categoryId?: number;
+  /**
+   * @minLength 1
+   * @maxLength 200
+   */
+  name?: string;
+  /** @maxLength 2000 */
+  description?: string | null;
+  /** @maxLength 100 */
+  itemCode?: string | null;
+  /**
+   * @minimum 0
+   * @maximum 1000000000
+   */
+  priceCents?: number;
+  /** @maxLength 40 */
+  priceUnit?: string | null;
+  photoUploadId?: number | null;
+  availability?: ItemAvailability;
+  /** @minimum 0 */
+  position?: number;
+  archived?: boolean;
+}
+
+export interface CataloguePackageInput {
+  /**
+   * @minLength 1
+   * @maxLength 160
+   */
+  name: string;
+  /** @maxLength 1000 */
+  description?: string | null;
+  /**
+   * @minimum 0
+   * @maximum 1000000000
+   */
+  priceCents: number;
+  /**
+   * @minItems 1
+   * @maxItems 60
+   */
+  itemIds: number[];
+}
+
+export interface CataloguePackageUpdate {
+  /**
+   * @minLength 1
+   * @maxLength 160
+   */
+  name?: string;
+  /** @maxLength 1000 */
+  description?: string | null;
+  /**
+   * @minimum 0
+   * @maximum 1000000000
+   */
+  priceCents?: number;
+  /**
+   * @minItems 1
+   * @maxItems 60
+   */
+  itemIds?: number[];
+  archived?: boolean;
+}
+
+/**
+ * What the family is bringing, and optionally who is bringing it and
+when. No price, and no field to put one in.
+
+`additionalProperties: false` here means what it says: a client that
+tries to attach a fee to a third-party casket is refused outright
+rather than having the field quietly ignored. The generator does not
+carry that through to the validator, so the server re-applies it —
+see `assertNoExtraKeys` in `lib/storefront.ts`.
+
+ */
+export interface FamilyProvidedInput {
+  /**
+   * @minLength 1
+   * @maxLength 200
+   */
+  name: string;
+  /** @maxLength 500 */
+  notes?: string | null;
+}
+
+export type MerchandiseSelectionStatus =
+  (typeof MerchandiseSelectionStatus)[keyof typeof MerchandiseSelectionStatus];
+
+export const MerchandiseSelectionStatus = {
+  draft: "draft",
+  confirmed: "confirmed",
+} as const;
+
+/**
+ * `family_provided` is the one that matters legally: that line carries no
+price, because a provider may not charge for handling a casket or urn
+bought elsewhere. `package_adjustment` is the only line that may be
+negative, because it is the only one that is a discount.
+
+ */
+export type SelectionLineKind =
+  (typeof SelectionLineKind)[keyof typeof SelectionLineKind];
+
+export const SelectionLineKind = {
+  item: "item",
+  family_provided: "family_provided",
+  package_adjustment: "package_adjustment",
+} as const;
+
+export interface MerchandiseSelectionLine {
+  id: number;
+  kind: SelectionLineKind;
+  catalogueItemId: number | null;
+  packageId: number | null;
+  /** Snapshotted when the line was written, not joined at render time.
+A home raising its prices in March must not rewrite what a family
+agreed in February.
+ */
+  name: string;
+  description: string | null;
+  section: string | null;
+  /** Null on a family-provided line. There is no fee on that path. */
+  unitPriceCents: number | null;
+  quantity: number;
+  lineTotalCents: number;
+  notes: string | null;
+  position: number;
+}
+
+export interface MerchandiseSelection {
+  id: number;
+  status: MerchandiseSelectionStatus;
+  /** When this family was given the General Price List. */
+  gplShownAt: string | null;
+  /** Which price list these numbers came from. */
+  gplEffectiveOn: string | null;
+  confirmedAt: string | null;
+  /** A note about the home's own books, never a receipt from us. We
+process no payments, so we do not know.
+ */
+  settledAt: string | null;
+  settledNote: string | null;
+  notes: string | null;
+  lines: MerchandiseSelectionLine[];
+  totalCents: number;
+  updatedAt: string;
+}
+
+export interface MerchandiseSelectionUpdate {
+  /** @maxLength 4000 */
+  notes?: string | null;
+  confirmed?: boolean;
+  /** A director reading their own books. Refused on a pre-need case,
+where nothing is owed and nothing is collected.
+ */
+  settled?: boolean;
+  /** @maxLength 500 */
+  settledNote?: string | null;
+}
+
+export interface SelectionItemInput {
+  itemId: number;
+  /**
+   * @minimum 1
+   * @maximum 99
+   */
+  quantity?: number;
+}
+
+export interface SelectionLineUpdate {
+  /**
+   * @minimum 1
+   * @maximum 99
+   */
+  quantity?: number;
+  /** @maxLength 500 */
+  notes?: string | null;
+}
+
+export interface SelectionPackageInput {
+  packageId: number;
+}
+
+/**
+ * Where a family is told to send the money, which is never to us. Null on
+a pre-need plan and null on a draft. There is no amount in this shape
+and never will be: we process nothing, so we know nothing, and a field
+called `amountPaid` would be a lie with a type annotation.
+
+ */
+export interface PaymentHandoff {
+  url: string | null;
+  /** Shown beside the link so nobody is surprised by where it goes. */
+  host: string | null;
+  instructions: string | null;
+  /** The number to ring when there is no link, which is not an error. */
+  phone: string | null;
+}
+
+export interface Storefront {
+  hasGeneralPriceList: boolean;
+  gplEffectiveOn: string | null;
+  /** Whether caskets and outer burial containers are showing. False
+until the home has a dated price list and this family has it.
+ */
+  casketsUnlocked: boolean;
+  categories: CatalogueCategory[];
+  packages: CataloguePackage[];
+  selection: MerchandiseSelection;
+  payment: PaymentHandoff | null;
+  /** False on a pre-need case. Nothing is owed on a plan. */
+  mayDiscussPayment: boolean;
+}
+
+/**
+ * The home's own wording, by slot key. Blank slots are not printed.
+ */
+export type StorefrontSettingsDisclosures = { [key: string]: string };
+
+/**
+ * A disclosure the Funeral Rule requires on a General Price List. The
+slot is ours; the words are the home's. The Rule prescribes what each
+must convey and a home's counsel signs off on how it is said.
+
+ */
+export interface DisclosureSlot {
+  key: string;
+  title: string;
+  /** What the Rule requires this to convey, in plain English. */
+  note: string;
+}
+
+export interface StorefrontSettings {
+  /** The date printed on the price lists, and the switch that turns the
+storefront on. Until it is set the home has no General Price List,
+and no family is shown a casket.
+ */
+  gplEffectiveOn: string | null;
+  hasGeneralPriceList: boolean;
+  /** The home's own wording, by slot key. Blank slots are not printed. */
+  disclosures: StorefrontSettingsDisclosures;
+  priceListFootnote: string | null;
+  /** The home's own payment page, at the home's own processor. A link,
+not an integration. Nothing in this product takes money from a
+family.
+ */
+  paymentPageUrl: string | null;
+  /** The other ways the home takes money, in the home's own words. */
+  paymentInstructions: string | null;
+  disclosureSlots: DisclosureSlot[];
+}
+
+export type StorefrontSettingsUpdateDisclosures = { [key: string]: string };
+
+export interface StorefrontSettingsUpdate {
+  gplEffectiveOn?: string | null;
+  disclosures?: StorefrontSettingsUpdateDisclosures;
+  priceListFootnote?: string | null;
+  /**
+   * Send null to clear it. A payment link under a funeral home's name
+that is not even encrypted has no business existing, so the scheme
+is part of the contract rather than a check one client remembers.
+
+   * @maxLength 500
+   * @pattern ^https://\S+$
+   */
+  paymentPageUrl?: string | null;
+  paymentInstructions?: string | null;
+}
+
 export type GetAftercareUnsubscribeParams = {
   token: string;
 };

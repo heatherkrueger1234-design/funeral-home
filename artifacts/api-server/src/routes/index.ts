@@ -20,6 +20,8 @@ import contactsRouter from "./contacts";
 import photosRouter from "./photos";
 import obituaryRouter from "./obituary";
 import selectionsRouter from "./selections";
+import catalogueRouter from "./catalogue";
+import ordersRouter, { familyStorefrontRouter } from "./orders";
 import messagesRouter from "./messages";
 import deadlinesRouter from "./deadlines";
 import serviceOffersRouter from "./service-offers";
@@ -95,7 +97,7 @@ router.use(tasksRouter);
  * there is nothing for a handler to check and nothing for a family member to
  * tamper with.
  */
-router.use("/family", familyRateLimit, requireFamilyLink, familyRouter);
+router.use("/family", familyRateLimit, requireFamilyLink, familyRouter, familyStorefrontRouter);
 
 /**
  * Everything below requires a staff session. Handlers then scope every query
@@ -123,6 +125,15 @@ router.use(contactsRouter);
 router.use(photosRouter);
 router.use(obituaryRouter);
 router.use(selectionsRouter);
+/*
+ * The Funeral-Rule-shaped catalogue: the home's goods at the home's prices
+ * (General / Casket / Outer Burial Container lists), the family's
+ * selections, and the itemised Statement of Funeral Goods and Services
+ * Selected. Staff-only on the catalogue side; the family's own browsing and
+ * choosing rides the family gate above.
+ */
+router.use(catalogueRouter);
+router.use(ordersRouter);
 router.use(messagesRouter);
 router.use(deadlinesRouter);
 router.use(serviceOffersRouter);

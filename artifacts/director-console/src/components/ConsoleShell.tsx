@@ -20,6 +20,7 @@ import {
   Home,
   MessageSquare,
   MoreHorizontal,
+  Package,
   Store,
   Tag,
 } from "lucide-react";
@@ -279,6 +280,12 @@ export function ConsoleShell({ children }: { children: ReactNode }) {
                   <Link href="/storefront" className="no-underline">
                     <Store className="size-4" strokeWidth={1.75} />
                     Your page and policies
+                  </Link>
+                </DropdownMenuItem>
+                <DropdownMenuItem asChild>
+                  <Link href="/catalogue" className="no-underline">
+                    <Package className="size-4" strokeWidth={1.75} />
+                    Catalogue
                   </Link>
                 </DropdownMenuItem>
                 <DropdownMenuItem asChild>
