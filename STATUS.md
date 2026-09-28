@@ -1,24 +1,22 @@
 # Status — where things stand
 
-Last checked: **23 September 2026**, branch counts re-measured against main on
-the same day. Update this file when any of it changes; a stale status page is
+Last checked: **28 September 2026**. Update this file when any of it changes; a stale status page is
 worse than none.
 
 ## The short version
 
-- **The code is healthy.** CI's typecheck, tests, codegen-drift and build jobs
-  are green on main.
-- **The `e2e` job was red from the day it was added** and is now fixed. It was
-  never a test failure: CI exported the fixed public encryption key, which
-  `lib/db/crypto.ts` refuses in production, so the API could not boot and
-  Playwright never ran a test. Worth knowing because it passed locally the
-  whole time — nothing sets that variable there.
+- **The code is healthy.** Typecheck passes on all projects, 529 api-server
+  tests pass, and the director-console and family-portal builds succeed
+  (verified 28 Sep 2026 against the catalogue migration).
 - **The scheduled jobs fail every day**, because there is nowhere for them to
   send their request yet. This is a settings problem, not a code problem.
-- **There are two "main" branches.** Most of the recent confusion comes from
-  this. A block of work from 14 September lives only on the old one.
-- **29 branches exist; 18 of them contain nothing main does not** and can be
-  deleted without losing a line.
+- **The two-main-branches problem is being resolved one component at a time.**
+  The owner decided 28 Sep 2026: **bring all four stranded components, drop
+  none.** The catalogue/storefront + itemised statement migration landed 28
+  Sep (`claude/launch-sprint-catalogue`, committed, not yet pushed). Forms /
+  72-hour clock and engagement scoring are still to come.
+- **5 remote branches exist; none are dead.** The 29-branch list below is
+  obsolete — the others were deleted since. See `BRANCH-CLEANUP.md`.
 
 ---
 
@@ -84,14 +82,19 @@ Some of this main has since rebuilt differently (`policies.ts`, the admin
 console, the deployment/TLS work), which is part of why a straight merge
 would conflict everywhere.
 
-**Decision needed (owner, not an agent):** for each of the four items above —
-*bring it to main* or *drop it*. Then:
+**Decision made (owner, 28 Sep 2026): bring all four, drop none.** One small
+branch per component, each reviewed on its own before it lands on main:
+
+| Component | Branch | State 28 Sep 2026 |
+| --- | --- | --- |
+| Catalogue/storefront + itemised statement + payment-page handoff | `claude/launch-sprint-catalogue` | **Done, committed locally, not yet pushed.** 26 API paths, 30 schemas, 5 parameters added to the spec (purely additive); server routes, DB tables, director catalogue UI, case arrangement tab, family Choices page all migrated; 38 catalogue tests pass; full suite 529 green; both frontends build. |
+| Forms/authorisations + Colorado 72-hour clock | — | Not started. Compare `claude/component-5-forms` with `claude/component-5-forms-an85uj` first; two answers to the same problem is one too many. |
+| Engagement scoring | — | Not started. Source is `claude/app-capability-check-mvfn8x` (`lib/db/src/schema/engagement.ts`). |
 
 - *Bring it:* one small pull request per item, into main, copying that one
   feature's files across and fixing them against current main. Not a branch
   merge.
-- *Drop it:* close PR #8 and say so in this file, so nobody rebuilds it by
-  accident.
+- *Drop it:* no longer an option — the owner chose to bring everything.
 
 Either way, nothing new should be based on `app-capability-check-mvfn8x`.
 
@@ -107,8 +110,12 @@ this documentation are all on main now.
 
 ## Problem 4 — Branch clean-up
 
-Do not trust the list below to be current — two more branches appeared while it
-was being written. Regenerate it:
+Regenerated 28 Sep 2026. Only **5 remote branches** remain; the 29-branch
+snapshot below is obsolete. None of the 5 are dead — see `BRANCH-CLEANUP.md`
+for the verified list and the deletion commands to run *after* the remaining
+migrations land.
+
+The old snapshot is kept for history:
 
 ```sh
 pnpm --filter @workspace/scripts run dead-branches
