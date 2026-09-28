@@ -202,6 +202,9 @@ export interface Billing {
   subscriptionStatus: BillingSubscriptionStatus;
   trialEndsAt: string | null;
   trialDaysLeft: number | null;
+  /** Days a subscribe button gives with no card; 0 when switched off. */
+  freeTrialDays: number;
+  trialEnded: boolean;
   currentPeriodEndsAt: string | null;
   canOpenCases: boolean;
   /** False when this deployment has no Stripe keys. */
@@ -219,7 +222,11 @@ export interface BillingReturnInput {
 }
 
 export interface BillingRedirect {
-  url: string;
+  /** Null when the button started the free trial here instead. */
+  url: string | null;
+  trialStarted?: boolean;
+  trialEndsAt?: string | null;
+  trialDaysLeft?: number | null;
 }
 
 export interface OnboardingStepInput {

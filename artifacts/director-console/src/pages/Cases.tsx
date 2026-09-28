@@ -31,7 +31,6 @@ import {
   TriangleAlert,
 } from "lucide-react";
 import { ImportCases } from "@/components/ImportCases";
-import { TrialBanner } from "@/components/SetupChecklist";
 import { Empty, LoadFailed, Loading, PageHeader } from "@/components/page";
 import { formatAtHome, fromHomeInput, zoneHint } from "@/lib/utils";
 import { useHomeZone } from "@/lib/session";
@@ -247,9 +246,6 @@ export default function Cases() {
 
   return (
     <div className="space-y-6">
-      {/* The setup checklist moved to the landing page; the trial notice
-          stays because this is where a director tries to open a case. */}
-      <TrialBanner />
 
       <PageHeader
         title={showClosed ? "Closed cases" : "Cases"}

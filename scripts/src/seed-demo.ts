@@ -35,7 +35,7 @@ import {
   caseMessagesTable,
   vitalStatisticsTable,
   caseBelongingsTable,
-  TRIAL_DAYS,
+  freeTrialDays,
 } from "@workspace/db";
 import { encryptBuffer, encrypt } from "@workspace/db/crypto";
 
@@ -111,7 +111,7 @@ async function main(): Promise<void> {
       city: "Denver",
       region: "CO",
       postalCode: "80202",
-      trialEndsAt: new Date(Date.now() + TRIAL_DAYS * DAY),
+      trialEndsAt: new Date(Date.now() + freeTrialDays() * DAY),
     })
     .returning();
 

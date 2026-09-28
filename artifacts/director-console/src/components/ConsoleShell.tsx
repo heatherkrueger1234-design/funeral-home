@@ -4,6 +4,7 @@ import { Link, useLocation } from "wouter";
 import { useLogout } from "@workspace/api-client-react";
 import { useSession } from "@/lib/session";
 import { ConfirmAddressNotice } from "@/components/ConfirmAddressNotice";
+import { TrialBanner } from "@/components/SetupChecklist";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -320,6 +321,7 @@ export function ConsoleShell({ children }: { children: ReactNode }) {
 
       <main className="mx-auto w-full max-w-5xl flex-1 px-5 pb-16 pt-9">
         <ConfirmAddressNotice />
+        <TrialBanner />
         {children}
       </main>
     </div>

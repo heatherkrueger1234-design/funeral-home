@@ -3698,6 +3698,11 @@ components:
         trialDaysLeft:
           type: integer
           nullable: true
+        freeTrialDays:
+          type: integer
+          description: Days a subscribe button gives with no card; 0 when switched off.
+        trialEnded:
+          type: boolean
         currentPeriodEndsAt:
           type: string
           format: date-time
@@ -3733,6 +3738,8 @@ components:
       required:
         [
           addOns,
+          freeTrialDays,
+          trialEnded,
           subscriptionStatus,
           trialEndsAt,
           trialDaysLeft,
@@ -3757,6 +3764,17 @@ components:
       properties:
         url:
           type: string
+          nullable: true
+          description: Null when the button started the free trial here instead.
+        trialStarted:
+          type: boolean
+        trialEndsAt:
+          type: string
+          format: date-time
+          nullable: true
+        trialDaysLeft:
+          type: integer
+          nullable: true
       required: [url]
 
     OnboardingStepInput:

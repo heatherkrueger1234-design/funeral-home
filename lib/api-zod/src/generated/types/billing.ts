@@ -25,6 +25,9 @@ export interface Billing {
   subscriptionStatus: BillingSubscriptionStatus;
   trialEndsAt: Date | null;
   trialDaysLeft: number | null;
+  /** Days a subscribe button gives with no card; 0 when switched off. */
+  freeTrialDays: number;
+  trialEnded: boolean;
   currentPeriodEndsAt: Date | null;
   canOpenCases: boolean;
   /** False when this deployment has no Stripe keys. */

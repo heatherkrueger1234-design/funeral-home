@@ -576,6 +576,12 @@ export const GetBillingResponse = zod.object({
   subscriptionStatus: zod.enum(["trial", "active", "past_due", "canceled"]),
   trialEndsAt: zod.date().nullable(),
   trialDaysLeft: zod.number().nullable(),
+  freeTrialDays: zod
+    .number()
+    .describe(
+      "Days a subscribe button gives with no card; 0 when switched off.",
+    ),
+  trialEnded: zod.boolean(),
   currentPeriodEndsAt: zod.date().nullable(),
   canOpenCases: zod.boolean(),
   billingConfigured: zod
@@ -612,7 +618,13 @@ export const StartCheckoutBody = zod.object({
 });
 
 export const StartCheckoutResponse = zod.object({
-  url: zod.string(),
+  url: zod
+    .string()
+    .nullable()
+    .describe("Null when the button started the free trial here instead."),
+  trialStarted: zod.boolean().optional(),
+  trialEndsAt: zod.date().nullish(),
+  trialDaysLeft: zod.number().nullish(),
 });
 
 /**
@@ -623,7 +635,13 @@ export const OpenBillingPortalBody = zod.object({
 });
 
 export const OpenBillingPortalResponse = zod.object({
-  url: zod.string(),
+  url: zod
+    .string()
+    .nullable()
+    .describe("Null when the button started the free trial here instead."),
+  trialStarted: zod.boolean().optional(),
+  trialEndsAt: zod.date().nullish(),
+  trialDaysLeft: zod.number().nullish(),
 });
 
 /**
@@ -638,6 +656,12 @@ export const CompleteOnboardingStepResponse = zod.object({
   subscriptionStatus: zod.enum(["trial", "active", "past_due", "canceled"]),
   trialEndsAt: zod.date().nullable(),
   trialDaysLeft: zod.number().nullable(),
+  freeTrialDays: zod
+    .number()
+    .describe(
+      "Days a subscribe button gives with no card; 0 when switched off.",
+    ),
+  trialEnded: zod.boolean(),
   currentPeriodEndsAt: zod.date().nullable(),
   canOpenCases: zod.boolean(),
   billingConfigured: zod

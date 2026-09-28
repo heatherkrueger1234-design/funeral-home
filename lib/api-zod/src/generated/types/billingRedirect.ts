@@ -19,5 +19,9 @@ Two audiences, two authentication schemes, and the split is load-bearing:
  */
 
 export interface BillingRedirect {
-  url: string;
+  /** Null when the button started the free trial here instead. */
+  url: string | null;
+  trialStarted?: boolean;
+  trialEndsAt?: Date | null;
+  trialDaysLeft?: number | null;
 }

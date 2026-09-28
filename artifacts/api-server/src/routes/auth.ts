@@ -5,7 +5,7 @@ import {
   funeralHomesTable,
   usersTable,
   toPublicUser,
-  TRIAL_DAYS,
+  freeTrialEndsAt,
   type FuneralHome,
   type User,
 } from "@workspace/db";
@@ -179,7 +179,7 @@ router.post("/auth/register", authRateLimit, async (req, res) => {
         // Set at registration rather than left null, so "when does this
         // end" has an answer from the first minute and the console can say
         // it plainly instead of implying the trial is indefinite.
-        trialEndsAt: new Date(Date.now() + TRIAL_DAYS * 24 * 60 * 60 * 1000),
+        trialEndsAt: freeTrialEndsAt(),
       })
       .returning();
 
