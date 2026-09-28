@@ -5,7 +5,7 @@ import {
   funeralHomesTable,
   usersTable,
   toPublicUser,
-  TRIAL_DAYS,
+  freeTrialEndsAt,
   type FuneralHome,
   type User,
 } from "@workspace/db";
@@ -39,6 +39,7 @@ import {
   verifyPassword,
 } from "../lib/auth";
 import {
+  sendAccountExistsEmail,
   sendEmailVerificationEmail,
   sendPasswordResetEmail,
 } from "@workspace/mailer";
@@ -79,6 +80,12 @@ async function authPayload(user: User, home: FuneralHome) {
  * because neither is any use without the other and a half-finished signup
  * would leave an unreachable home row behind.
  */
+const CHECK_EMAIL = {
+  checkEmail: true,
+  message:
+    "Check your email. We have sent the next step to that address.",
+} as const;
+
 router.post("/auth/register", authRateLimit, async (req, res) => {
   const values = parseBody(RegisterHomeBody, req.body);
   const email = normaliseEmail(values.email);
@@ -93,13 +100,40 @@ router.post("/auth/register", authRateLimit, async (req, res) => {
   if (!homeName) throw badRequest("Please give the funeral home a name.");
 
   const [existing] = await db
-    .select({ id: usersTable.id })
+    .select()
     .from(usersTable)
     .where(eq(usersTable.email, email))
     .limit(1);
 
+  /*
+   * An address that already has an account. Saying so would let anyone
+   * collect which addresses are staff at a funeral home, so the answer is
+   * "check your email" and the real owner hears about it there. Somebody
+   * registering twice with their own password is simply signed in.
+   */
   if (existing) {
-    throw badRequest("There is already an account with that email address.");
+    const ownPassword =
+      existing.passwordHash !== null &&
+      existing.deactivatedAt === null &&
+      (await verifyPassword(values.password, existing.passwordHash));
+
+    if (ownPassword) {
+      const [home] = await db
+        .select()
+        .from(funeralHomesTable)
+        .where(eq(funeralHomesTable.id, existing.funeralHomeId))
+        .limit(1);
+      if (home) {
+        setSessionCookie(req, res, await createSession(existing.id));
+        res.status(201).json(await authPayload(existing, home));
+        return;
+      }
+    }
+
+    const base = process.env["CONSOLE_URL"]?.replace(/\/+$/, "") ?? "";
+    await sendAccountExistsEmail({ to: email, signInUrl: `${base}/` });
+    res.status(202).json(CHECK_EMAIL);
+    return;
   }
 
   const passwordHash = await hashPassword(values.password);
@@ -117,7 +151,7 @@ router.post("/auth/register", authRateLimit, async (req, res) => {
         // Set at registration rather than left null, so "when does this
         // end" has an answer from the first minute and the console can say
         // it plainly instead of implying the trial is indefinite.
-        trialEndsAt: new Date(Date.now() + TRIAL_DAYS * 24 * 60 * 60 * 1000),
+        trialEndsAt: freeTrialEndsAt(),
       })
       .returning();
 

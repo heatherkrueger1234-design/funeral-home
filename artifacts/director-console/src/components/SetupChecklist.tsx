@@ -160,13 +160,12 @@ export function SetupChecklist() {
 }
 
 /**
- * The trial banner.
+ * The trial banner, on every page of the console.
  *
- * Shown only in the last stretch, and never as a countdown from day one:
- * a director who has just signed up does not need a clock on the screen while
- * they work their first case. The wording is careful about what actually
- * happens — existing cases and families stay reachable — because implying
- * otherwise would be both untrue and frightening.
+ * Quiet while there is time (a line, not a warning), the notice colour in the
+ * last week, and a plain end state that says what still works. The button
+ * starts the free trial itself when card billing is not live, so nothing here
+ * waits on Stripe.
  */
 export function TrialBanner() {
   const billing = useGetBilling();
@@ -175,49 +174,82 @@ export function TrialBanner() {
 
   if (!billing.data) return null;
 
-  const { subscriptionStatus, trialDaysLeft, billingConfigured } = billing.data;
+  const {
+    subscriptionStatus,
+    trialDaysLeft,
+    billingConfigured,
+    freeTrialDays,
+    trialEnded,
+    trialEndsAt,
+  } = billing.data;
   // The server lets only an owner start a subscription; anybody else is told
   // who can, rather than handed a button that fails.
   const isOwner = session?.user.role === "owner";
 
-  const ended = subscriptionStatus === "canceled";
-  const closing = subscriptionStatus === "trial" && (trialDaysLeft ?? 99) <= 7;
+  const canceled = subscriptionStatus === "canceled";
+  const onTrial = subscriptionStatus === "trial" && !trialEnded;
+  if (!canceled && !trialEnded && !onTrial) return null;
 
-  if (!ended && !closing) return null;
+  const closing = onTrial && (trialDaysLeft ?? 99) <= 7;
+  const ended = canceled || trialEnded;
+  const offersTrial = freeTrialDays > 0;
+  const buttonLabel =
+    !billingConfigured && offersTrial
+      ? ended
+        ? `Start another ${freeTrialDays}-day free trial`
+        : null
+      : billingConfigured
+        ? offersTrial
+          ? `Subscribe — first ${freeTrialDays} days free`
+          : "Start a subscription"
+        : null;
 
   return (
-    <div className="flex flex-wrap items-center gap-3 rounded-xl border border-[var(--notice)]/30 bg-[var(--notice-soft)] px-4 py-3.5">
+    <div
+      role="status"
+      className={
+        ended || closing
+          ? "mb-6 flex flex-wrap items-center gap-3 rounded-xl border border-[var(--notice)]/30 bg-[var(--notice-soft)] px-4 py-3.5"
+          : "mb-6 flex flex-wrap items-center gap-3 rounded-xl border border-border bg-card px-4 py-2.5"
+      }
+    >
       <span className="min-w-0 flex-1 text-sm leading-relaxed">
         {ended ? (
           <>
-            <strong>This subscription has ended.</strong> Everything already
-            here stays available — you just can't open new cases.
-          </>
-        ) : trialDaysLeft === 0 ? (
-          <>
-            <strong>Your trial has finished.</strong> Existing cases and
-            families are unaffected; a subscription reopens new ones.
+            <strong>
+              {canceled ? "This subscription has ended." : "Your free trial has ended"}
+              {!canceled && trialEndsAt
+                ? ` (${new Date(trialEndsAt).toLocaleDateString(undefined, { day: "numeric", month: "long" })}).`
+                : ""}
+            </strong>{" "}
+            Every case, photograph and family link stays available — only
+            opening new cases is paused.
           </>
         ) : (
           <>
-            <strong>
-              {trialDaysLeft} day{trialDaysLeft === 1 ? "" : "s"} left on your
-              trial.
+            <strong className="tabular">
+              {trialDaysLeft} day{trialDaysLeft === 1 ? "" : "s"} left
             </strong>{" "}
-            Nothing disappears when it ends.
+            on your free trial — everything included, aftercare too.
+            {closing ? " Nothing disappears when it ends." : ""}
           </>
         )}
       </span>
 
-      {billingConfigured &&
+      {buttonLabel &&
         (isOwner ? (
-          <Button size="sm" disabled={busy} onClick={() => void go("/api/billing/checkout")}>
+          <Button
+            size="sm"
+            variant={ended || closing ? "default" : "outline"}
+            disabled={busy}
+            onClick={() => void go("/api/billing/checkout")}
+          >
             {busy && <Loader2 className="size-4 animate-spin" />}
-            Start a subscription
+            {buttonLabel}
           </Button>
         ) : (
           <span className="text-sm text-muted-foreground">
-            Your home&rsquo;s owner can start one from Settings.
+            Your home&rsquo;s owner can do this from Settings.
           </span>
         ))}
     </div>

@@ -33,7 +33,7 @@ import {
   trialDaysLeft,
   LICENCE_STANDINGS,
   PRACTITIONER_ROLES,
-  TRIAL_DAYS,
+  freeTrialEndsAt,
   ADD_ONS,
   isAddOnKey,
   serialiseEntitlements,
@@ -800,7 +800,7 @@ router.post("/admin/homes", async (req, res) => {
         region: values.region ?? null,
         phone: values.phone ?? null,
         ...(values.timezone ? { timezone: values.timezone } : {}),
-        trialEndsAt: new Date(Date.now() + TRIAL_DAYS * 24 * 60 * 60 * 1000),
+        trialEndsAt: freeTrialEndsAt(),
       })
       .returning();
 
@@ -1977,7 +1977,7 @@ router.post("/admin/groups", async (req, res) => {
       slug: await uniqueGroupSlug(name),
       // A group starts on the same trial a single home gets. Nobody signs a
       // forty-location contract without trying it on one of them first.
-      trialEndsAt: new Date(Date.now() + TRIAL_DAYS * 24 * 60 * 60 * 1000),
+      trialEndsAt: freeTrialEndsAt(),
     })
     .returning();
 

@@ -131,6 +131,7 @@ import type {
   PublicFuneralHome,
   QuoteRequestInput,
   QuoteUpdate,
+  RegisterHome202,
   RegisterInput,
   ResetPasswordInput,
   SelectionInput,
@@ -651,8 +652,8 @@ export const getRegisterHomeUrl = () => {
 export const registerHome = async (
   registerInput: RegisterInput,
   options?: RequestInit,
-): Promise<AuthUser> => {
-  return customFetch<AuthUser>(getRegisterHomeUrl(), {
+): Promise<AuthUser | RegisterHome202> => {
+  return customFetch<AuthUser | RegisterHome202>(getRegisterHomeUrl(), {
     ...options,
     method: "POST",
     headers: { "Content-Type": "application/json", ...options?.headers },

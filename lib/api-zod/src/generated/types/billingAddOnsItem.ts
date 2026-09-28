@@ -18,10 +18,9 @@ Two audiences, two authentication schemes, and the split is load-bearing:
  * OpenAPI spec version: 0.1.0
  */
 
-export interface BillingRedirect {
-  /** Null when the button started the free trial here instead. */
-  url: string | null;
-  trialStarted?: boolean;
-  trialEndsAt?: Date | null;
-  trialDaysLeft?: number | null;
-}
+export type BillingAddOnsItem = {
+  key: string;
+  title: string;
+  detail: string;
+  included: boolean;
+};

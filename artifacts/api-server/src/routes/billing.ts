@@ -10,6 +10,7 @@ import {
   ADD_ONS,
   ONBOARDING_STEPS,
   canOpenCases,
+  freeTrialDays,
   hasAddOn,
   isAddOnKey,
   trialDaysLeft,
@@ -25,6 +26,7 @@ import {
   createCheckoutSession,
   createPortalSession,
   isBillingConfigured,
+  startFreeTrial,
   verifyWebhook,
 } from "../lib/billing";
 
@@ -185,6 +187,13 @@ function toBillingJson(
     subscriptionStatus: home.subscriptionStatus,
     trialEndsAt: home.trialEndsAt,
     trialDaysLeft: trialDaysLeft(home),
+    /** Days a subscribe button gives, with no card. 0 when switched off. */
+    freeTrialDays: freeTrialDays(),
+    /** The trial ran out and nothing has replaced it: new cases are paused. */
+    trialEnded:
+      home.subscriptionStatus === "trial" &&
+      home.trialEndsAt !== null &&
+      home.trialEndsAt <= new Date(),
     currentPeriodEndsAt: home.currentPeriodEndsAt,
     canOpenCases: canOpenCases(home),
     billingConfigured: isBillingConfigured(),
@@ -258,13 +267,28 @@ router.post("/billing/checkout", async (req, res) => {
   // subscription, whether or not Stripe is wired up here.
   assertNotInGroup(home);
 
+  const { returnUrl } = parseBody(StartCheckoutBody, req.body);
+
+  /*
+   * No Stripe yet: the button starts the free trial itself, no card, full
+   * features. Nothing a home can do waits on billing being live.
+   */
   if (!isBillingConfigured()) {
-    throw badRequest(
-      "Billing is not set up on this deployment. Nothing is being charged.",
-    );
+    if (freeTrialDays() <= 0) {
+      throw badRequest(
+        "Billing is not set up on this deployment. Nothing is being charged.",
+      );
+    }
+    const updated = await startFreeTrial(home);
+    res.json({
+      url: null,
+      trialStarted: true,
+      trialEndsAt: updated.trialEndsAt,
+      trialDaysLeft: trialDaysLeft(updated),
+    });
+    return;
   }
 
-  const { returnUrl } = parseBody(StartCheckoutBody, req.body);
   // Parsed separately from the generated body schema, which is regenerated
   // from `openapi.yaml` and does not know about add-ons yet.
   // safeParse rather than parse: a thrown ZodError is not an HttpError, so a
