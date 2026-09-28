@@ -591,6 +591,16 @@ export const GetBillingResponse = zod.object({
     }),
   ),
   onboardingComplete: zod.boolean(),
+  addOns: zod
+    .array(
+      zod.object({
+        key: zod.string(),
+        title: zod.string(),
+        detail: zod.string(),
+        included: zod.boolean(),
+      }),
+    )
+    .describe("What is on the plan, and whether this home has it now."),
 });
 
 /**
@@ -643,6 +653,16 @@ export const CompleteOnboardingStepResponse = zod.object({
     }),
   ),
   onboardingComplete: zod.boolean(),
+  addOns: zod
+    .array(
+      zod.object({
+        key: zod.string(),
+        title: zod.string(),
+        detail: zod.string(),
+        included: zod.boolean(),
+      }),
+    )
+    .describe("What is on the plan, and whether this home has it now."),
 });
 
 /**

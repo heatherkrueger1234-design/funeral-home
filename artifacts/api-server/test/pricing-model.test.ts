@@ -338,10 +338,25 @@ describe("aftercare as something the home buys", () => {
   });
 
   it("does not enrol anybody new once it is off the contract", async () => {
+    process.env["STRIPE_PRICE_ID_AFTERCARE"] = "price_aftercare_test";
+    try {
+      const staff = await signUpHome();
+      await makePaying(staff.homeId, { entitlements: "" });
+
+      expect(await closeWithFamily(staff)).toHaveLength(0);
+    } finally {
+      delete process.env["STRIPE_PRICE_ID_AFTERCARE"];
+    }
+  });
+
+  it("is part of the base plan when it has no price of its own", async () => {
+    delete process.env["STRIPE_PRICE_ID_AFTERCARE"];
     const staff = await signUpHome();
     await makePaying(staff.homeId, { entitlements: "" });
 
-    expect(await closeWithFamily(staff)).toHaveLength(0);
+    // Before this, a paying home on a deployment with no add-on price
+    // silently enrolled nobody, ever.
+    expect(await closeWithFamily(staff)).toHaveLength(1);
   });
 
   it("enrols again when the add-on is on the contract", async () => {
