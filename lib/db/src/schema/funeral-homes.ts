@@ -179,6 +179,35 @@ export const funeralHomesTable = pgTable(
       .notNull()
       .default(DEFAULT_SLIDESHOW_TARGET),
 
+    /* ------------------------------------------- platform CRM (admin-side) */
+
+    /**
+     * The platform's own customer record for this home — Heather's sales and
+     * admin notes, not the home's. The home never sees these columns: they
+     * answer "who pays us what, and what do we know about them", which is a
+     * different question from anything on the home's own screens.
+     *
+     * Money still lives in Stripe for whether the home may open cases (see
+     * `subscriptionStatus` above). These columns are the admin's working
+     * notes about the commercial relationship — the plan that was sold, the
+     * amount that was agreed, when it is due — recorded at onboarding and
+     * kept current from the console.
+     */
+    /** The person Heather dealt with when the home signed up. */
+    contactName: text("contact_name"),
+    /** The plan that was sold, e.g. "standard". Free text, not an enum: the plans will change. */
+    subscriptionPlan: text("subscription_plan"),
+    /** Agreed monthly amount, in cents. Null until Heather records one. */
+    billingAmountCents: integer("billing_amount_cents"),
+    /** When the subscription is next due, as Heather understands it. */
+    subscriptionDueDate: timestamp("subscription_due_date"),
+    /** Discount given, in Heather's own words, e.g. "20% off the first year". */
+    discount: text("discount"),
+    /** How the home heard about Continuum Aftercare. */
+    howHeardAboutUs: text("how_heard_about_us"),
+    /** Special notes — anything Heather needs to know at a glance. */
+    adminNotes: text("admin_notes"),
+
     /* ---------------------------------------------------- subscription */
 
     /**
