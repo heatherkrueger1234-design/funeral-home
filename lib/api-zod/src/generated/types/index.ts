@@ -52,6 +52,7 @@ export * from "./billing";
 export * from "./billingAddOnsItem";
 export * from "./billingRedirect";
 export * from "./billingReturnInput";
+export * from "./billingReturnInputInterval";
 export * from "./billingSubscriptionStatus";
 export * from "./case";
 export * from "./caseDeadline";

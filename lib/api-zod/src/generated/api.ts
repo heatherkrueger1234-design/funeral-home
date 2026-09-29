@@ -611,6 +611,9 @@ export const GetBillingResponse = zod.object({
   billingConfigured: zod
     .boolean()
     .describe("False when this deployment has no Stripe keys."),
+  annualAvailable: zod
+    .boolean()
+    .describe("Whether checkout offers annual billing (two months free)."),
   hasSubscription: zod.boolean(),
   onboarding: zod.array(
     zod.object({
@@ -639,6 +642,10 @@ export const GetBillingResponse = zod.object({
  */
 export const StartCheckoutBody = zod.object({
   returnUrl: zod.string().describe("Where Stripe sends them back to."),
+  interval: zod
+    .enum(["month", "year"])
+    .optional()
+    .describe("Checkout only. Annual is twelve months for the price of ten."),
 });
 
 export const StartCheckoutResponse = zod.object({
@@ -656,6 +663,10 @@ export const StartCheckoutResponse = zod.object({
  */
 export const OpenBillingPortalBody = zod.object({
   returnUrl: zod.string().describe("Where Stripe sends them back to."),
+  interval: zod
+    .enum(["month", "year"])
+    .optional()
+    .describe("Checkout only. Annual is twelve months for the price of ten."),
 });
 
 export const OpenBillingPortalResponse = zod.object({
@@ -691,6 +702,9 @@ export const CompleteOnboardingStepResponse = zod.object({
   billingConfigured: zod
     .boolean()
     .describe("False when this deployment has no Stripe keys."),
+  annualAvailable: zod
+    .boolean()
+    .describe("Whether checkout offers annual billing (two months free)."),
   hasSubscription: zod.boolean(),
   onboarding: zod.array(
     zod.object({

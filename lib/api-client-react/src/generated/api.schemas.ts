@@ -209,6 +209,8 @@ export interface Billing {
   canOpenCases: boolean;
   /** False when this deployment has no Stripe keys. */
   billingConfigured: boolean;
+  /** Whether checkout offers annual billing (two months free). */
+  annualAvailable: boolean;
   hasSubscription: boolean;
   onboarding: OnboardingItem[];
   onboardingComplete: boolean;
@@ -216,9 +218,22 @@ export interface Billing {
   addOns: BillingAddOnsItem[];
 }
 
+/**
+ * Checkout only. Annual is twelve months for the price of ten.
+ */
+export type BillingReturnInputInterval =
+  (typeof BillingReturnInputInterval)[keyof typeof BillingReturnInputInterval];
+
+export const BillingReturnInputInterval = {
+  month: "month",
+  year: "year",
+} as const;
+
 export interface BillingReturnInput {
   /** Where Stripe sends them back to. */
   returnUrl: string;
+  /** Checkout only. Annual is twelve months for the price of ten. */
+  interval?: BillingReturnInputInterval;
 }
 
 export interface BillingRedirect {

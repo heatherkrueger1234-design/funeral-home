@@ -1,26 +1,64 @@
 # What we charge, who we charge, and the one we turned down
 
-Written against what is in the code, not against what a pricing deck would
-like to be true. Where something is built but never run against real Stripe,
-it says so.
+Written against what is in the code. The numbers live in one file,
+`lib/db/src/price-book.ts`: the marketing site shows them, the Stripe setup
+script creates them, and the tests below check the arithmetic. Invoices
+still come from Stripe; this code never bills anybody.
 
-## The shape
+## The price
 
-| Line | Who pays | Where the number lives |
+| | |
+| --- | --- |
+| Per location | **$169 a month** |
+| Per funeral served | **$7**, counted once, at-need only |
+| Annual | **$1,690 a location a year**: twelve months for the price of ten |
+| Activation or setup fee | **None** |
+| Aftercare, texts and email to families | **Included**, not add-ons |
+| Free trial | **30 days, no card**, from every subscribe button |
+| Families | **Never charged, for anything, ever** |
+
+A home with ten funerals a month pays $169 + $70 = **$239**. A rural home
+with two pays $183. A group pays per location on one invoice.
+
+## Why it costs us what it does
+
+Per home, per month, at 10 homes each serving 10 funerals a month
+(`monthlyCostDollars` in `price-book.ts`; `scripts/src/lib/stripe-plan.test.ts`
+checks these figures):
+
+| Line | Cost | Basis |
 | --- | --- | --- |
-| Base subscription, per location | The funeral home | Stripe (`STRIPE_PRICE_ID`) |
-| Per funeral served | The funeral home | Stripe, metered (`STRIPE_PRICE_ID_CASE`) |
-| Grief aftercare | The funeral home | Stripe (`STRIPE_PRICE_ID_AFTERCARE`) |
-| Group contract | The group, one invoice | Stripe, against the group's customer |
-| The obituary, the slideshow and the memory book | **Nobody. Free to the family, for ever.** | — |
+| SMS | $5.00 | ~45 segments a funeral (link, reminders, aftercare) at ~$0.011 including carrier fees (Twilio US pricing) |
+| 10DLC | $4.00 | Campaign monthly fee and a number, plus the one-off brand registration and vetting spread over two years (Twilio A2P 10DLC fees) |
+| Email | $1.00 | ~65 messages a funeral at ~$1.50 per thousand (Postmark) |
+| Photo storage | $4.00 | ~$0.40 a funeral, encrypted, with backups |
+| Hosting share | $15.00 | ~$150 a month of platform, split across ten homes |
+| Support | $25.00 | Time spent answering a home, per month |
+| Onboarding | $6.00 | ~$150 of setup help, spread over two years |
+| Stripe | $8.90 | Stripe Billing 0.7% plus card 2.9% + 30¢ on $239 |
+| **Total** | **$68.90** | against **$239** of revenue: **71% gross margin** |
 
-**No price appears anywhere in this repository.** Not the base rate, not the
-per-case rate. The application stores a count of funerals and a set of
-entitlement keys; Stripe turns those into money. A second source of truth for
-money is always the wrong one, and it is the one with the friendlier user
-interface, so it is the one the customer believes.
+For comparison, aftercare on its own is sold at about $150 a month (Tukios);
+this is the whole arrangement, aftercare included, for $169 plus $7 a funeral.
 
-## Per-case pricing
+Margin by home size and fleet size (funerals a month across the top):
+
+| Homes in fleet | 1/mo | 3/mo | 5/mo | 10/mo | 20/mo | 40/mo |
+| --- | --- | --- | --- | --- | --- | --- |
+| 5 | 59% | 60% | 62% | 65% | 69% | 73% |
+| 10 | 67% | 68% | 69% | 71% | 74% | 76% |
+| 16 | 70% | 71% | 72% | 74% | 75% | 78% |
+| 25 | 72% | 73% | 74% | 75% | 77% | 78% |
+| 50 | 74% | 75% | 75% | 76% | 78% | 79% |
+| 100 | 75% | 75% | 76% | 77% | 78% | 79% |
+
+Honestly stated: at ten homes the typical home clears 70%, but a home doing
+five funerals a month or fewer sits at 67–69%, because the fixed hosting
+share is the biggest line. From about **sixteen homes**, every size of home
+clears 70%, even one doing a single funeral a month. Support is the number
+most likely to be wrong; it is modelled flat per home.
+
+## How funerals are counted
 
 Volume pays more. That is how this category prices, and more to the point it
 is what lets a rural home with nine funerals a year afford the base rate at
@@ -51,15 +89,13 @@ while a director is opening a case. A funeral home at eight in the morning with
 a family on the way in must never be waiting on `api.stripe.com`, and must
 never be refused by it.
 
-## Aftercare as a line item
+## Aftercare is in the price
 
-It is the right thing to sell separately: it is the feature that produces the
-repeat family, and it costs the home nothing in staff hours, which is a very
-easy thing to put a number on in a room.
-
-It is **included in the trial regardless**, deliberately. A director who never
-watches a thirty-day check-in go out in their own name has not been shown the
-thing they would be buying.
+It used to be sketched as an add-on. It is included now: it is the feature
+that produces the repeat family, and a home should not have to decide
+whether grieving families deserve a check-in. Leave
+`STRIPE_PRICE_ID_AFTERCARE` **unset**; `hasAddOn` then treats aftercare as
+part of every paying plan (`lib/db/src/schema/plans.ts`).
 
 One guardrail is not negotiable and is not configurable:
 
@@ -157,22 +193,15 @@ That is its sale to make, with its own disclosures attached.
 
 ## Before you charge a single home
 
-This is the part a pricing document usually leaves out.
-
-1. **Create the prices in Stripe.** Base, the metered per-case price and its
-   meter, and the aftercare add-on. Set all five environment variables. With
-   `STRIPE_PRICE_ID_CASE` and `STRIPE_CASE_METER_EVENT` empty the product sells
-   a flat subscription and the usage job skips every run — a supported
-   configuration, not a half-finished one.
-2. **Set `STRIPE_PRICE_ID_AFTERCARE` before taking anybody off trial.** While
-   it is unset, no subscription can carry the entitlement, so aftercare works
-   during trials and stops at conversion. If aftercare is meant to be in the
-   base price, leave it blank *on purpose* and remove the gate.
-3. **Schedule `POST /api/tasks/usage`.** `usage.yml` does it, or the host's own
-   scheduler. Until something triggers it, every home is invoiced for a flat
-   subscription and nothing says so.
-4. **Run one real billing cycle in Stripe test mode**, end to end, including a
-   metered invoice. Per `LAUNCH.md`, Stripe has never taken a real payment
-   here. A live charge is not tested by a test suite.
-5. **Decide the numbers.** They are not in this repository and they are not
-   going to be.
+1. **Create the prices.** `pnpm --filter @workspace/scripts run stripe-setup`
+   prints the plan; with `STRIPE_SECRET_KEY` and `STRIPE_CASE_METER_ID` set,
+   `-- --apply` creates the monthly and annual location prices and the two
+   metered funeral prices by lookup key (re-running finds rather than
+   duplicates) and prints the `STRIPE_PRICE_ID*` lines to paste into the
+   environment. Until then, every subscribe button starts the 30-day no-card
+   trial and nothing else changes.
+2. **Leave `STRIPE_PRICE_ID_AFTERCARE` unset**, so aftercare stays included.
+3. **Schedule `POST /api/tasks/usage`** (`usage.yml`), or funerals are never
+   reported and every home is invoiced the flat rate only.
+4. **Run one real billing cycle in Stripe test mode**, monthly and annual,
+   including a metered invoice. Stripe has never taken a real payment here.

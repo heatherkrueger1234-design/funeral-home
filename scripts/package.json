@@ -16,7 +16,8 @@
     "seed-showcase": "tsx ./src/seed-showcase.ts",
     "check-artifact-paths": "tsx ./src/check-artifact-paths.ts",
     "test": "tsx ./src/check-artifact-paths.ts && tsx --test src/lib/*.test.ts",
-    "dead-branches": "tsx ./src/dead-branches.ts"
+    "dead-branches": "tsx ./src/dead-branches.ts",
+    "stripe-setup": "tsx ./src/stripe-setup.ts"
   },
   "devDependencies": {
     "@types/node": "catalog:",

@@ -3866,6 +3866,9 @@ components:
         billingConfigured:
           type: boolean
           description: False when this deployment has no Stripe keys.
+        annualAvailable:
+          type: boolean
+          description: Whether checkout offers annual billing (two months free).
         hasSubscription:
           type: boolean
         onboarding:
@@ -3900,6 +3903,7 @@ components:
           currentPeriodEndsAt,
           canOpenCases,
           billingConfigured,
+          annualAvailable,
           hasSubscription,
           onboarding,
           onboardingComplete,
@@ -3911,6 +3915,10 @@ components:
         returnUrl:
           type: string
           description: Where Stripe sends them back to.
+        interval:
+          type: string
+          enum: [month, year]
+          description: Checkout only. Annual is twelve months for the price of ten.
       required: [returnUrl]
 
     BillingRedirect:
