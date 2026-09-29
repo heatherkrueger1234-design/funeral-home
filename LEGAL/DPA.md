@@ -325,6 +325,7 @@ Deceased people; their next of kin and family members; your staff.
 | `[SMTP PROVIDER]` | Sending email | Recipient address and message body: password resets, staff invitations, address confirmations, trial notices, aftercare check-ins, and intake alerts | Yes — without it, mail is written to the log instead of sent |
 | Twilio Inc. (US) | Sending the family their link by text | The recipient's phone number, the link, and your home's name | Yes — without it, your director is handed the link to send themselves |
 | Google LLC (US) | Vendor lookup, only if you supply a key | Search terms and a ZIP code. **No family details.** | Yes — without it, the vendor directory is hand-entered |
+| Anthropic, PBC (US) | A suggested obituary rewrite, only if the deployment enables it and a director asks and confirms | That one obituary's fields. **No photographs, messages, vital statistics or SSNs.** | Yes — off unless enabled; the composed draft needs nothing sent |
 
 There is no analytics provider, no error-reporting provider, no session
 recording, no advertising network, and no customer-data platform. The service

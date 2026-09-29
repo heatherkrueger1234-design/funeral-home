@@ -124,6 +124,9 @@ import {
   toPreparationJson,
 } from "../lib/belongings";
 import { deadlinesForCase } from "./deadlines";
+import { checkPronouns } from "./obituary";
+import { obituaryHints } from "../lib/obituary";
+import type { ObituaryDraft } from "@workspace/db";
 import { nextPosition, selectionsForCase } from "./selections";
 
 /**
@@ -533,14 +536,24 @@ async function loadFamilyDraft(caseId: number) {
   return requireRow(row, "That obituary could not be found.");
 }
 
+/** The family's view: the fields and hints, never a staff suggestion. */
+function toFamilyObituaryJson(draft: ObituaryDraft) {
+  const { aiSuggestion, aiSuggestedAt, aiSuggestedByUserId, ...rest } = draft;
+  void aiSuggestion;
+  void aiSuggestedAt;
+  void aiSuggestedByUserId;
+  return { ...rest, hints: obituaryHints(draft) };
+}
+
 router.get("/obituary", async (req, res) => {
-  res.json(await loadFamilyDraft(familyCase(req).id));
+  res.json(toFamilyObituaryJson(await loadFamilyDraft(familyCase(req).id)));
 });
 
 router.put("/obituary", async (req, res) => {
   const row = familyCase(req);
   const existing = await loadFamilyDraft(row.id);
   const values = assertHasUpdates(parseBody(UpdateFamilyObituaryBody, req.body));
+  checkPronouns(values);
 
   // Once it has gone to the printer, an uncle changing a date would produce
   // cards that do not match the service.
@@ -557,7 +570,7 @@ router.put("/obituary", async (req, res) => {
     .where(eq(obituaryDraftsTable.id, existing.id))
     .returning();
 
-  res.json(updated);
+  res.json(toFamilyObituaryJson(updated!));
 });
 
 /**
@@ -571,7 +584,7 @@ router.post("/obituary/submit", async (req, res) => {
   const existing = await loadFamilyDraft(familyCase(req).id);
 
   if (existing.status === "approved") {
-    res.json(existing);
+    res.json(toFamilyObituaryJson(existing));
     return;
   }
 
@@ -581,7 +594,7 @@ router.post("/obituary/submit", async (req, res) => {
     .where(eq(obituaryDraftsTable.id, existing.id))
     .returning();
 
-  res.json(updated);
+  res.json(toFamilyObituaryJson(updated!));
 });
 
 /* ---------------------------------------------------------- selections --- */

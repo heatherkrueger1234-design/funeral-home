@@ -108,6 +108,7 @@ import type {
   MessageThread,
   ObituaryDraft,
   ObituaryFieldsInput,
+  ObituarySuggestionInput,
   ObituaryUpdate,
   OnboardingStepInput,
   PhotoIdInput,
@@ -7963,6 +7964,265 @@ export const useReopenObituary = <
   TContext
 > => {
   return useMutation(getReopenObituaryMutationOptions(options));
+};
+
+/**
+ * Off unless the deployment has a key. Sends the family's notes to the
+text provider only with `confirm: true`. The answer is stored beside
+the draft and never shown to the family unless a director accepts it.
+
+ * @summary Ask for a suggested rewrite (optional, staff only)
+ */
+export const getSuggestObituaryUrl = (caseId: number) => {
+  return `/api/cases/${caseId}/obituary/suggestion`;
+};
+
+export const suggestObituary = async (
+  caseId: number,
+  obituarySuggestionInput: ObituarySuggestionInput,
+  options?: RequestInit,
+): Promise<ObituaryDraft> => {
+  return customFetch<ObituaryDraft>(getSuggestObituaryUrl(caseId), {
+    ...options,
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(obituarySuggestionInput),
+  });
+};
+
+export const getSuggestObituaryMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof suggestObituary>>,
+    TError,
+    { caseId: number; data: BodyType<ObituarySuggestionInput> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof suggestObituary>>,
+  TError,
+  { caseId: number; data: BodyType<ObituarySuggestionInput> },
+  TContext
+> => {
+  const mutationKey = ["suggestObituary"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof suggestObituary>>,
+    { caseId: number; data: BodyType<ObituarySuggestionInput> }
+  > = (props) => {
+    const { caseId, data } = props ?? {};
+
+    return suggestObituary(caseId, data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type SuggestObituaryMutationResult = NonNullable<
+  Awaited<ReturnType<typeof suggestObituary>>
+>;
+export type SuggestObituaryMutationBody = BodyType<ObituarySuggestionInput>;
+export type SuggestObituaryMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Ask for a suggested rewrite (optional, staff only)
+ */
+export const useSuggestObituary = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof suggestObituary>>,
+    TError,
+    { caseId: number; data: BodyType<ObituarySuggestionInput> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof suggestObituary>>,
+  TError,
+  { caseId: number; data: BodyType<ObituarySuggestionInput> },
+  TContext
+> => {
+  return useMutation(getSuggestObituaryMutationOptions(options));
+};
+
+/**
+ * @summary Throw a suggestion away
+ */
+export const getDiscardObituarySuggestionUrl = (caseId: number) => {
+  return `/api/cases/${caseId}/obituary/suggestion`;
+};
+
+export const discardObituarySuggestion = async (
+  caseId: number,
+  options?: RequestInit,
+): Promise<ObituaryDraft> => {
+  return customFetch<ObituaryDraft>(getDiscardObituarySuggestionUrl(caseId), {
+    ...options,
+    method: "DELETE",
+  });
+};
+
+export const getDiscardObituarySuggestionMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof discardObituarySuggestion>>,
+    TError,
+    { caseId: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof discardObituarySuggestion>>,
+  TError,
+  { caseId: number },
+  TContext
+> => {
+  const mutationKey = ["discardObituarySuggestion"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof discardObituarySuggestion>>,
+    { caseId: number }
+  > = (props) => {
+    const { caseId } = props ?? {};
+
+    return discardObituarySuggestion(caseId, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type DiscardObituarySuggestionMutationResult = NonNullable<
+  Awaited<ReturnType<typeof discardObituarySuggestion>>
+>;
+
+export type DiscardObituarySuggestionMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Throw a suggestion away
+ */
+export const useDiscardObituarySuggestion = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof discardObituarySuggestion>>,
+    TError,
+    { caseId: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof discardObituarySuggestion>>,
+  TError,
+  { caseId: number },
+  TContext
+> => {
+  return useMutation(getDiscardObituarySuggestionMutationOptions(options));
+};
+
+/**
+ * @summary Use the suggestion as the draft
+ */
+export const getAcceptObituarySuggestionUrl = (caseId: number) => {
+  return `/api/cases/${caseId}/obituary/suggestion/accept`;
+};
+
+export const acceptObituarySuggestion = async (
+  caseId: number,
+  options?: RequestInit,
+): Promise<ObituaryDraft> => {
+  return customFetch<ObituaryDraft>(getAcceptObituarySuggestionUrl(caseId), {
+    ...options,
+    method: "POST",
+  });
+};
+
+export const getAcceptObituarySuggestionMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof acceptObituarySuggestion>>,
+    TError,
+    { caseId: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof acceptObituarySuggestion>>,
+  TError,
+  { caseId: number },
+  TContext
+> => {
+  const mutationKey = ["acceptObituarySuggestion"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof acceptObituarySuggestion>>,
+    { caseId: number }
+  > = (props) => {
+    const { caseId } = props ?? {};
+
+    return acceptObituarySuggestion(caseId, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type AcceptObituarySuggestionMutationResult = NonNullable<
+  Awaited<ReturnType<typeof acceptObituarySuggestion>>
+>;
+
+export type AcceptObituarySuggestionMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Use the suggestion as the draft
+ */
+export const useAcceptObituarySuggestion = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof acceptObituarySuggestion>>,
+    TError,
+    { caseId: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof acceptObituarySuggestion>>,
+  TError,
+  { caseId: number },
+  TContext
+> => {
+  return useMutation(getAcceptObituarySuggestionMutationOptions(options));
 };
 
 /**

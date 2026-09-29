@@ -78,7 +78,7 @@ that was never made.
 | Every access we make across a tenant boundary is logged before the data is returned | `artifacts/api-server/src/routes/admin.ts`; `platform_audit` |
 | We can grant and revoke our own staff's access to that console, and both are logged | `lib/db/src/schema/platform.ts`; `lib/platform-auth.ts` |
 | No analytics, no telemetry, and no training on customer data | Nothing in the codebase sends anything anywhere except the four services in Schedule 1 |
-| Case content reaches none of those four services | `RETENTION.md`, "What leaves the building" |
+| Case content reaches none of those services, except one obituary's fields when a director opts in to a suggested rewrite | `RETENTION.md`, "What leaves the building"; `lib/obituary-ai.ts`; `test/obituary-composer.test.ts` |
 | A case exports as a folder that opens without this software, and keeps working after cancellation | `artifacts/api-server/src/routes/export.ts` |
 | Erasure destroys the encrypted bytes, not just the reference | `routes/export.ts` case delete; verified — `uploads` is empty afterwards |
 | Social security numbers are excluded from exports | `routes/export.ts` |

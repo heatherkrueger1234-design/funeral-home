@@ -17,18 +17,13 @@ Two audiences, two authentication schemes, and the split is load-bearing:
 
  * OpenAPI spec version: 0.1.0
  */
-import type { ObituaryFieldsInputPronouns } from "./obituaryFieldsInputPronouns";
 
-export interface ObituaryFieldsInput {
-  fullName?: string | null;
-  pronouns?: ObituaryFieldsInputPronouns;
-  bornOn?: string | null;
-  birthPlace?: string | null;
-  diedOn?: string | null;
-  deathPlace?: string | null;
-  survivedBy?: string | null;
-  precededBy?: string | null;
-  biography?: string | null;
-  inLieuOfFlowers?: string | null;
-  specialThanks?: string | null;
-}
+export type ObituaryDraftPronouns =
+  | (typeof ObituaryDraftPronouns)[keyof typeof ObituaryDraftPronouns]
+  | null;
+
+export const ObituaryDraftPronouns = {
+  she: "she",
+  he: "he",
+  they: "they",
+} as const;

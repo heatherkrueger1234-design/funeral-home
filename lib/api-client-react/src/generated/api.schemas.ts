@@ -2025,6 +2025,24 @@ export type VitalsStaffUpdate = VitalsFamilyUpdate & {
   verified?: boolean;
 };
 
+export type ObituaryDraftPronouns =
+  | (typeof ObituaryDraftPronouns)[keyof typeof ObituaryDraftPronouns]
+  | null;
+
+export const ObituaryDraftPronouns = {
+  she: "she",
+  he: "he",
+  they: "they",
+} as const;
+
+/**
+ * A gentle note under a date box that holds a place instead.
+ */
+export type ObituaryDraftHints = {
+  bornOn: string | null;
+  diedOn: string | null;
+};
+
 export type ObituaryDraftStatus =
   (typeof ObituaryDraftStatus)[keyof typeof ObituaryDraftStatus];
 
@@ -2038,6 +2056,14 @@ export interface ObituaryDraft {
   id: number;
   caseId: number;
   fullName: string | null;
+  pronouns: ObituaryDraftPronouns;
+  /** A gentle note under a date box that holds a place instead. */
+  hints: ObituaryDraftHints;
+  /** Staff only. Whether suggested rewrites are switched on. */
+  aiAvailable?: boolean;
+  /** Staff only. A suggested rewrite a director asked for. */
+  aiSuggestion?: string | null;
+  aiSuggestedAt?: string | null;
   bornOn: string | null;
   birthPlace: string | null;
   diedOn: string | null;
@@ -2055,8 +2081,19 @@ export interface ObituaryDraft {
   updatedAt: string;
 }
 
+export type ObituaryFieldsInputPronouns =
+  | (typeof ObituaryFieldsInputPronouns)[keyof typeof ObituaryFieldsInputPronouns]
+  | null;
+
+export const ObituaryFieldsInputPronouns = {
+  she: "she",
+  he: "he",
+  they: "they",
+} as const;
+
 export interface ObituaryFieldsInput {
   fullName?: string | null;
+  pronouns?: ObituaryFieldsInputPronouns;
   bornOn?: string | null;
   birthPlace?: string | null;
   diedOn?: string | null;
@@ -2071,6 +2108,11 @@ export interface ObituaryFieldsInput {
 export type ObituaryUpdate = ObituaryFieldsInput & {
   draftText?: string | null;
 };
+
+export interface ObituarySuggestionInput {
+  /** The director agreed to send the family's notes out. */
+  confirm: boolean;
+}
 
 export interface ComposeObituaryInput {
   /** Recompose even though staff have hand-edited the text. */

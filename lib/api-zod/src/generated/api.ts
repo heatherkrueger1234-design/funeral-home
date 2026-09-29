@@ -3289,6 +3289,22 @@ export const GetObituaryResponse = zod.object({
   id: zod.number(),
   caseId: zod.number(),
   fullName: zod.string().nullable(),
+  pronouns: zod.enum(["she", "he", "they"]).nullable(),
+  hints: zod
+    .object({
+      bornOn: zod.string().nullable(),
+      diedOn: zod.string().nullable(),
+    })
+    .describe("A gentle note under a date box that holds a place instead."),
+  aiAvailable: zod
+    .boolean()
+    .optional()
+    .describe("Staff only. Whether suggested rewrites are switched on."),
+  aiSuggestion: zod
+    .string()
+    .nullish()
+    .describe("Staff only. A suggested rewrite a director asked for."),
+  aiSuggestedAt: zod.date().nullish(),
   bornOn: zod.string().nullable(),
   birthPlace: zod.string().nullable(),
   diedOn: zod.string().nullable(),
@@ -3316,6 +3332,7 @@ export const UpdateObituaryParams = zod.object({
 export const UpdateObituaryBody = zod
   .object({
     fullName: zod.string().nullish(),
+    pronouns: zod.enum(["she", "he", "they"]).nullish(),
     bornOn: zod.string().nullish(),
     birthPlace: zod.string().nullish(),
     diedOn: zod.string().nullish(),
@@ -3336,6 +3353,22 @@ export const UpdateObituaryResponse = zod.object({
   id: zod.number(),
   caseId: zod.number(),
   fullName: zod.string().nullable(),
+  pronouns: zod.enum(["she", "he", "they"]).nullable(),
+  hints: zod
+    .object({
+      bornOn: zod.string().nullable(),
+      diedOn: zod.string().nullable(),
+    })
+    .describe("A gentle note under a date box that holds a place instead."),
+  aiAvailable: zod
+    .boolean()
+    .optional()
+    .describe("Staff only. Whether suggested rewrites are switched on."),
+  aiSuggestion: zod
+    .string()
+    .nullish()
+    .describe("Staff only. A suggested rewrite a director asked for."),
+  aiSuggestedAt: zod.date().nullish(),
   bornOn: zod.string().nullable(),
   birthPlace: zod.string().nullable(),
   diedOn: zod.string().nullable(),
@@ -3375,6 +3408,22 @@ export const ComposeObituaryResponse = zod.object({
   id: zod.number(),
   caseId: zod.number(),
   fullName: zod.string().nullable(),
+  pronouns: zod.enum(["she", "he", "they"]).nullable(),
+  hints: zod
+    .object({
+      bornOn: zod.string().nullable(),
+      diedOn: zod.string().nullable(),
+    })
+    .describe("A gentle note under a date box that holds a place instead."),
+  aiAvailable: zod
+    .boolean()
+    .optional()
+    .describe("Staff only. Whether suggested rewrites are switched on."),
+  aiSuggestion: zod
+    .string()
+    .nullish()
+    .describe("Staff only. A suggested rewrite a director asked for."),
+  aiSuggestedAt: zod.date().nullish(),
   bornOn: zod.string().nullable(),
   birthPlace: zod.string().nullable(),
   diedOn: zod.string().nullable(),
@@ -3403,6 +3452,22 @@ export const ApproveObituaryResponse = zod.object({
   id: zod.number(),
   caseId: zod.number(),
   fullName: zod.string().nullable(),
+  pronouns: zod.enum(["she", "he", "they"]).nullable(),
+  hints: zod
+    .object({
+      bornOn: zod.string().nullable(),
+      diedOn: zod.string().nullable(),
+    })
+    .describe("A gentle note under a date box that holds a place instead."),
+  aiAvailable: zod
+    .boolean()
+    .optional()
+    .describe("Staff only. Whether suggested rewrites are switched on."),
+  aiSuggestion: zod
+    .string()
+    .nullish()
+    .describe("Staff only. A suggested rewrite a director asked for."),
+  aiSuggestedAt: zod.date().nullish(),
   bornOn: zod.string().nullable(),
   birthPlace: zod.string().nullable(),
   diedOn: zod.string().nullable(),
@@ -3436,6 +3501,164 @@ export const ReopenObituaryResponse = zod.object({
   id: zod.number(),
   caseId: zod.number(),
   fullName: zod.string().nullable(),
+  pronouns: zod.enum(["she", "he", "they"]).nullable(),
+  hints: zod
+    .object({
+      bornOn: zod.string().nullable(),
+      diedOn: zod.string().nullable(),
+    })
+    .describe("A gentle note under a date box that holds a place instead."),
+  aiAvailable: zod
+    .boolean()
+    .optional()
+    .describe("Staff only. Whether suggested rewrites are switched on."),
+  aiSuggestion: zod
+    .string()
+    .nullish()
+    .describe("Staff only. A suggested rewrite a director asked for."),
+  aiSuggestedAt: zod.date().nullish(),
+  bornOn: zod.string().nullable(),
+  birthPlace: zod.string().nullable(),
+  diedOn: zod.string().nullable(),
+  deathPlace: zod.string().nullable(),
+  survivedBy: zod.string().nullable(),
+  precededBy: zod.string().nullable(),
+  biography: zod.string().nullable(),
+  inLieuOfFlowers: zod.string().nullable(),
+  specialThanks: zod.string().nullable(),
+  draftText: zod.string().nullable(),
+  draftEditedByStaff: zod.date().nullable(),
+  status: zod.enum(["family_draft", "submitted", "approved"]),
+  submittedAt: zod.date().nullable(),
+  approvedAt: zod.date().nullable(),
+  updatedAt: zod.date(),
+});
+
+/**
+ * Off unless the deployment has a key. Sends the family's notes to the
+text provider only with `confirm: true`. The answer is stored beside
+the draft and never shown to the family unless a director accepts it.
+
+ * @summary Ask for a suggested rewrite (optional, staff only)
+ */
+export const SuggestObituaryParams = zod.object({
+  caseId: zod.coerce.number(),
+});
+
+export const SuggestObituaryBody = zod.object({
+  confirm: zod
+    .boolean()
+    .describe("The director agreed to send the family's notes out."),
+});
+
+export const SuggestObituaryResponse = zod.object({
+  id: zod.number(),
+  caseId: zod.number(),
+  fullName: zod.string().nullable(),
+  pronouns: zod.enum(["she", "he", "they"]).nullable(),
+  hints: zod
+    .object({
+      bornOn: zod.string().nullable(),
+      diedOn: zod.string().nullable(),
+    })
+    .describe("A gentle note under a date box that holds a place instead."),
+  aiAvailable: zod
+    .boolean()
+    .optional()
+    .describe("Staff only. Whether suggested rewrites are switched on."),
+  aiSuggestion: zod
+    .string()
+    .nullish()
+    .describe("Staff only. A suggested rewrite a director asked for."),
+  aiSuggestedAt: zod.date().nullish(),
+  bornOn: zod.string().nullable(),
+  birthPlace: zod.string().nullable(),
+  diedOn: zod.string().nullable(),
+  deathPlace: zod.string().nullable(),
+  survivedBy: zod.string().nullable(),
+  precededBy: zod.string().nullable(),
+  biography: zod.string().nullable(),
+  inLieuOfFlowers: zod.string().nullable(),
+  specialThanks: zod.string().nullable(),
+  draftText: zod.string().nullable(),
+  draftEditedByStaff: zod.date().nullable(),
+  status: zod.enum(["family_draft", "submitted", "approved"]),
+  submittedAt: zod.date().nullable(),
+  approvedAt: zod.date().nullable(),
+  updatedAt: zod.date(),
+});
+
+/**
+ * @summary Throw a suggestion away
+ */
+export const DiscardObituarySuggestionParams = zod.object({
+  caseId: zod.coerce.number(),
+});
+
+export const DiscardObituarySuggestionResponse = zod.object({
+  id: zod.number(),
+  caseId: zod.number(),
+  fullName: zod.string().nullable(),
+  pronouns: zod.enum(["she", "he", "they"]).nullable(),
+  hints: zod
+    .object({
+      bornOn: zod.string().nullable(),
+      diedOn: zod.string().nullable(),
+    })
+    .describe("A gentle note under a date box that holds a place instead."),
+  aiAvailable: zod
+    .boolean()
+    .optional()
+    .describe("Staff only. Whether suggested rewrites are switched on."),
+  aiSuggestion: zod
+    .string()
+    .nullish()
+    .describe("Staff only. A suggested rewrite a director asked for."),
+  aiSuggestedAt: zod.date().nullish(),
+  bornOn: zod.string().nullable(),
+  birthPlace: zod.string().nullable(),
+  diedOn: zod.string().nullable(),
+  deathPlace: zod.string().nullable(),
+  survivedBy: zod.string().nullable(),
+  precededBy: zod.string().nullable(),
+  biography: zod.string().nullable(),
+  inLieuOfFlowers: zod.string().nullable(),
+  specialThanks: zod.string().nullable(),
+  draftText: zod.string().nullable(),
+  draftEditedByStaff: zod.date().nullable(),
+  status: zod.enum(["family_draft", "submitted", "approved"]),
+  submittedAt: zod.date().nullable(),
+  approvedAt: zod.date().nullable(),
+  updatedAt: zod.date(),
+});
+
+/**
+ * @summary Use the suggestion as the draft
+ */
+export const AcceptObituarySuggestionParams = zod.object({
+  caseId: zod.coerce.number(),
+});
+
+export const AcceptObituarySuggestionResponse = zod.object({
+  id: zod.number(),
+  caseId: zod.number(),
+  fullName: zod.string().nullable(),
+  pronouns: zod.enum(["she", "he", "they"]).nullable(),
+  hints: zod
+    .object({
+      bornOn: zod.string().nullable(),
+      diedOn: zod.string().nullable(),
+    })
+    .describe("A gentle note under a date box that holds a place instead."),
+  aiAvailable: zod
+    .boolean()
+    .optional()
+    .describe("Staff only. Whether suggested rewrites are switched on."),
+  aiSuggestion: zod
+    .string()
+    .nullish()
+    .describe("Staff only. A suggested rewrite a director asked for."),
+  aiSuggestedAt: zod.date().nullish(),
   bornOn: zod.string().nullable(),
   birthPlace: zod.string().nullable(),
   diedOn: zod.string().nullable(),
@@ -5401,6 +5624,22 @@ export const GetFamilyObituaryResponse = zod.object({
   id: zod.number(),
   caseId: zod.number(),
   fullName: zod.string().nullable(),
+  pronouns: zod.enum(["she", "he", "they"]).nullable(),
+  hints: zod
+    .object({
+      bornOn: zod.string().nullable(),
+      diedOn: zod.string().nullable(),
+    })
+    .describe("A gentle note under a date box that holds a place instead."),
+  aiAvailable: zod
+    .boolean()
+    .optional()
+    .describe("Staff only. Whether suggested rewrites are switched on."),
+  aiSuggestion: zod
+    .string()
+    .nullish()
+    .describe("Staff only. A suggested rewrite a director asked for."),
+  aiSuggestedAt: zod.date().nullish(),
   bornOn: zod.string().nullable(),
   birthPlace: zod.string().nullable(),
   diedOn: zod.string().nullable(),
@@ -5427,6 +5666,7 @@ the printer.
  */
 export const UpdateFamilyObituaryBody = zod.object({
   fullName: zod.string().nullish(),
+  pronouns: zod.enum(["she", "he", "they"]).nullish(),
   bornOn: zod.string().nullish(),
   birthPlace: zod.string().nullish(),
   diedOn: zod.string().nullish(),
@@ -5442,6 +5682,22 @@ export const UpdateFamilyObituaryResponse = zod.object({
   id: zod.number(),
   caseId: zod.number(),
   fullName: zod.string().nullable(),
+  pronouns: zod.enum(["she", "he", "they"]).nullable(),
+  hints: zod
+    .object({
+      bornOn: zod.string().nullable(),
+      diedOn: zod.string().nullable(),
+    })
+    .describe("A gentle note under a date box that holds a place instead."),
+  aiAvailable: zod
+    .boolean()
+    .optional()
+    .describe("Staff only. Whether suggested rewrites are switched on."),
+  aiSuggestion: zod
+    .string()
+    .nullish()
+    .describe("Staff only. A suggested rewrite a director asked for."),
+  aiSuggestedAt: zod.date().nullish(),
   bornOn: zod.string().nullable(),
   birthPlace: zod.string().nullable(),
   diedOn: zod.string().nullable(),
@@ -5466,6 +5722,22 @@ export const SubmitFamilyObituaryResponse = zod.object({
   id: zod.number(),
   caseId: zod.number(),
   fullName: zod.string().nullable(),
+  pronouns: zod.enum(["she", "he", "they"]).nullable(),
+  hints: zod
+    .object({
+      bornOn: zod.string().nullable(),
+      diedOn: zod.string().nullable(),
+    })
+    .describe("A gentle note under a date box that holds a place instead."),
+  aiAvailable: zod
+    .boolean()
+    .optional()
+    .describe("Staff only. Whether suggested rewrites are switched on."),
+  aiSuggestion: zod
+    .string()
+    .nullish()
+    .describe("Staff only. A suggested rewrite a director asked for."),
+  aiSuggestedAt: zod.date().nullish(),
   bornOn: zod.string().nullable(),
   birthPlace: zod.string().nullable(),
   diedOn: zod.string().nullable(),

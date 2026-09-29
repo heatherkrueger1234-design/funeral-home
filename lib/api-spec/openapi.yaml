@@ -1855,6 +1855,59 @@ paths:
         "409":
           description: It was not approved, so there is nothing to reopen
 
+  /cases/{caseId}/obituary/suggestion:
+    post:
+      operationId: suggestObituary
+      tags: [obituary]
+      summary: Ask for a suggested rewrite (optional, staff only)
+      description: |
+        Off unless the deployment has a key. Sends the family's notes to the
+        text provider only with `confirm: true`. The answer is stored beside
+        the draft and never shown to the family unless a director accepts it.
+      parameters:
+        - $ref: "#/components/parameters/CaseId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ObituarySuggestionInput"
+      responses:
+        "200":
+          description: The draft, with the suggestion beside it
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ObituaryDraft"
+    delete:
+      operationId: discardObituarySuggestion
+      tags: [obituary]
+      summary: Throw a suggestion away
+      parameters:
+        - $ref: "#/components/parameters/CaseId"
+      responses:
+        "200":
+          description: Discarded
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ObituaryDraft"
+
+  /cases/{caseId}/obituary/suggestion/accept:
+    post:
+      operationId: acceptObituarySuggestion
+      tags: [obituary]
+      summary: Use the suggestion as the draft
+      parameters:
+        - $ref: "#/components/parameters/CaseId"
+      responses:
+        "200":
+          description: The suggestion is now the draft text
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ObituaryDraft"
+
   /cases/{caseId}/selections:
     get:
       operationId: getSelections
@@ -6588,6 +6641,32 @@ components:
         fullName:
           type: string
           nullable: true
+        pronouns:
+          type: string
+          enum: [she, he, they]
+          nullable: true
+        hints:
+          type: object
+          description: A gentle note under a date box that holds a place instead.
+          properties:
+            bornOn:
+              type: string
+              nullable: true
+            diedOn:
+              type: string
+              nullable: true
+          required: [bornOn, diedOn]
+        aiAvailable:
+          type: boolean
+          description: Staff only. Whether suggested rewrites are switched on.
+        aiSuggestion:
+          type: string
+          nullable: true
+          description: Staff only. A suggested rewrite a director asked for.
+        aiSuggestedAt:
+          type: string
+          format: date-time
+          nullable: true
         bornOn:
           type: string
           nullable: true
@@ -6641,6 +6720,8 @@ components:
           id,
           caseId,
           fullName,
+          pronouns,
+          hints,
           bornOn,
           birthPlace,
           diedOn,
@@ -6663,6 +6744,10 @@ components:
       properties:
         fullName:
           type: string
+          nullable: true
+        pronouns:
+          type: string
+          enum: [she, he, they]
           nullable: true
         bornOn:
           type: string
@@ -6700,6 +6785,14 @@ components:
             draftText:
               type: string
               nullable: true
+
+    ObituarySuggestionInput:
+      type: object
+      properties:
+        confirm:
+          type: boolean
+          description: The director agreed to send the family's notes out.
+      required: [confirm]
 
     ComposeObituaryInput:
       type: object

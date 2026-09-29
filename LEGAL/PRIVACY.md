@@ -143,6 +143,7 @@ Four services, and **no case content reaches any of them**:
 | `[SMTP PROVIDER]` | A recipient address and a message: password resets, staff invitations, address confirmations, trial notices, aftercare check-ins, intake alerts. |
 | Twilio | A phone number, the family's link, and the home's name — when a director texts a link. |
 | Google Places | Search terms and a ZIP code, only if the home supplies a key and only when a vendor search runs. No family details. |
+| Anthropic | One obituary's fields, only if the deployment enables suggested rewrites and a director asks for one and confirms. Never photographs, messages or vital statistics. |
 
 There is no analytics provider, no error-reporting service, no session
 recording, no advertising network, and no customer-data platform. **The service
