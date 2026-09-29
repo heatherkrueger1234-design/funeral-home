@@ -17,18 +17,8 @@ Two audiences, two authentication schemes, and the split is load-bearing:
 
  * OpenAPI spec version: 0.1.0
  */
-import type { FamilyContactUpdateRole } from "./familyContactUpdateRole";
 
-export interface FamilyContactUpdate {
-  /** @minLength 1 */
-  name?: string;
-  relationship?: string | null;
-  phone?: string | null;
-  email?: string | null;
-  role?: FamilyContactUpdateRole;
-  canInvite?: boolean;
-  /** The director confirms this person agreed to be texted. Recorded
-with the time and `director` as the source; false withdraws it.
- */
+export interface SendLinkInput {
+  /** The director confirms, now, that this person agreed to be texted. */
   smsConsent?: boolean;
 }

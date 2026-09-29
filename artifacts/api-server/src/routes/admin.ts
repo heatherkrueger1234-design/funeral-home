@@ -33,6 +33,8 @@ import {
   trialDaysLeft,
   LICENCE_STANDINGS,
   PRACTITIONER_ROLES,
+  SMS_REGISTRATION_STATUSES,
+  SMS_TOLL_FREE_STATUSES,
   freeTrialEndsAt,
   ADD_ONS,
   isAddOnKey,
@@ -48,7 +50,14 @@ import {
   sendPasswordResetEmail,
   sendStaffInviteEmail,
 } from "@workspace/mailer";
-import { isSmsConfigured } from "../lib/sms";
+import {
+  createSubaccount,
+  describeSmsRoute,
+  fetchRegistrationStatus,
+  isSmsConfigured,
+  smsRouteFor,
+  SmsNotSentError,
+} from "../lib/sms";
 import {
   badRequest,
   HttpError,
@@ -251,6 +260,7 @@ const AUDIT_ACTIONS = [
   "home.staff.reset",
   "home.owner.invite",
   "home.trial.extend",
+  "home.sms.update",
 ] as const;
 type AuditAction = (typeof AUDIT_ACTIONS)[number];
 
@@ -1389,6 +1399,122 @@ router.delete("/admin/homes/:homeId/practitioners/:licenceId", async (req, res) 
     .where(eq(practitionerLicencesTable.id, existing.id));
 
   res.status(204).end();
+});
+
+/* ------------------------------------------------------------ texting -- */
+
+/**
+ * A home's own texting sender: its Twilio subaccount, the 10DLC brand and
+ * campaign on its messaging service, and a toll-free fallback. Statuses are
+ * refreshed from Twilio where it can say, and otherwise set here by hand
+ * from what the Twilio console shows.
+ */
+function smsSetup(home: FuneralHome) {
+  const route = smsRouteFor(home);
+  return {
+    subaccountSid: home.smsSubaccountSid,
+    messagingServiceSid: home.smsMessagingServiceSid,
+    brandRegistrationSid: home.smsBrandRegistrationSid,
+    brandStatus: home.smsBrandStatus,
+    campaignStatus: home.smsCampaignStatus,
+    tollFreeNumber: home.smsTollFreeNumber,
+    tollFreeStatus: home.smsTollFreeStatus,
+    checkedAt: home.smsStatusCheckedAt,
+    sendingFrom: route?.kind ?? null,
+    description: describeSmsRoute(home),
+  };
+}
+
+const sid = (prefix: string) =>
+  z.string().trim().regex(new RegExp(`^${prefix}[0-9a-fA-F]{32}$`), `Expected a ${prefix}… SID`);
+
+const SmsSetupBody = z.object({
+  subaccountSid: sid("AC").nullish(),
+  messagingServiceSid: sid("MG").nullish(),
+  brandRegistrationSid: sid("BN").nullish(),
+  brandStatus: z.enum(SMS_REGISTRATION_STATUSES).optional(),
+  campaignStatus: z.enum(SMS_REGISTRATION_STATUSES).optional(),
+  tollFreeNumber: z.string().trim().regex(/^\+1(800|833|844|855|866|877|888)\d{7}$/, "A US toll-free number in +1 format").nullish(),
+  tollFreeStatus: z.enum(SMS_TOLL_FREE_STATUSES).optional(),
+});
+
+router.get("/admin/homes/:homeId/sms", async (req, res) => {
+  const home = await platformLoadHome(actor(req), parseId(req.params.homeId));
+  res.json(smsSetup(home));
+});
+
+router.put("/admin/homes/:homeId/sms", async (req, res) => {
+  const who = actor(req);
+  const values = parseBody(SmsSetupBody, req.body);
+  const home = await platformLoadHome(who, parseId(req.params.homeId), "home.sms.update");
+
+  const [updated] = await db
+    .update(funeralHomesTable)
+    .set({
+      ...(values.subaccountSid !== undefined ? { smsSubaccountSid: values.subaccountSid } : {}),
+      ...(values.messagingServiceSid !== undefined
+        ? { smsMessagingServiceSid: values.messagingServiceSid }
+        : {}),
+      ...(values.brandRegistrationSid !== undefined
+        ? { smsBrandRegistrationSid: values.brandRegistrationSid }
+        : {}),
+      ...(values.brandStatus ? { smsBrandStatus: values.brandStatus } : {}),
+      ...(values.campaignStatus ? { smsCampaignStatus: values.campaignStatus } : {}),
+      ...(values.tollFreeNumber !== undefined ? { smsTollFreeNumber: values.tollFreeNumber } : {}),
+      ...(values.tollFreeStatus ? { smsTollFreeStatus: values.tollFreeStatus } : {}),
+      smsStatusCheckedAt: new Date(),
+      updatedAt: new Date(),
+    })
+    .where(eq(funeralHomesTable.id, home.id))
+    .returning();
+
+  res.json(smsSetup(updated!));
+});
+
+/** Create the home's own subaccount, once. */
+router.post("/admin/homes/:homeId/sms/subaccount", async (req, res) => {
+  const who = actor(req);
+  const home = await platformFindHomeForChange(parseId(req.params.homeId));
+  if (home.smsSubaccountSid) throw new HttpError(409, "This home already has a subaccount.");
+  if (!isSmsConfigured()) throw new HttpError(409, "Twilio is not configured on this deployment.");
+  await recordPlatformAccess(who, "home.sms.update", home, "created a Twilio subaccount");
+
+  let subaccountSid: string;
+  try {
+    subaccountSid = await createSubaccount(`Continuum ${home.id} ${home.name}`);
+  } catch (error) {
+    if (error instanceof SmsNotSentError) throw new HttpError(502, error.message);
+    throw error;
+  }
+
+  const [updated] = await db
+    .update(funeralHomesTable)
+    .set({ smsSubaccountSid: subaccountSid, updatedAt: new Date() })
+    .where(eq(funeralHomesTable.id, home.id))
+    .returning();
+  res.json(smsSetup(updated!));
+});
+
+/** Ask Twilio where the 10DLC brand and campaign stand. */
+router.post("/admin/homes/:homeId/sms/refresh", async (req, res) => {
+  const home = await platformLoadHome(
+    actor(req),
+    parseId(req.params.homeId),
+    "home.sms.update",
+    "refreshed texting registration",
+  );
+  const status = await fetchRegistrationStatus(home);
+  const [updated] = await db
+    .update(funeralHomesTable)
+    .set({
+      ...(status.brand ? { smsBrandStatus: status.brand } : {}),
+      ...(status.campaign ? { smsCampaignStatus: status.campaign } : {}),
+      smsStatusCheckedAt: new Date(),
+      updatedAt: new Date(),
+    })
+    .where(eq(funeralHomesTable.id, home.id))
+    .returning();
+  res.json(smsSetup(updated!));
 });
 
 /* ------------------------------------------------------------ overview -- */

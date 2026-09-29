@@ -350,6 +350,14 @@ export default function Settings() {
             Leave blank to use the home's name.
           </p>
         </div>
+
+        {row.textingStatus && (
+          <p className="text-sm leading-snug text-muted-foreground">
+            <span className="font-medium text-foreground">Texts. </span>
+            {row.textingStatus} Families are only texted after they agree,
+            and a STOP reply is honoured for good.
+          </p>
+        )}
       </section>
     </div>
   );

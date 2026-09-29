@@ -137,6 +137,7 @@ import type {
   ResetPasswordInput,
   SelectionInput,
   SelectionUpdate,
+  SendLinkInput,
   SentLink,
   ServiceOffer,
   ServiceOfferInput,
@@ -5291,8 +5292,8 @@ export const useRevokeContact = <
 /**
  * Mints a new link and sends it, so the previous one stops working. The
 response says whether the text actually went; where the home has no
-SMS credentials it returns the link and `sent: false` so the director
-can send it themselves rather than being told nothing happened.
+SMS credentials, the person has not agreed to texts, or they replied
+STOP, it returns the link and `sent: false` with the reason.
 
  * @summary Text a fresh link to this person's mobile
  */
@@ -5302,11 +5303,14 @@ export const getSendContactLinkUrl = (contactId: number) => {
 
 export const sendContactLink = async (
   contactId: number,
+  sendLinkInput?: SendLinkInput,
   options?: RequestInit,
 ): Promise<SentLink> => {
   return customFetch<SentLink>(getSendContactLinkUrl(contactId), {
     ...options,
     method: "POST",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(sendLinkInput),
   });
 };
 
@@ -5317,14 +5321,14 @@ export const getSendContactLinkMutationOptions = <
   mutation?: UseMutationOptions<
     Awaited<ReturnType<typeof sendContactLink>>,
     TError,
-    { contactId: number },
+    { contactId: number; data: BodyType<SendLinkInput> },
     TContext
   >;
   request?: SecondParameter<typeof customFetch>;
 }): UseMutationOptions<
   Awaited<ReturnType<typeof sendContactLink>>,
   TError,
-  { contactId: number },
+  { contactId: number; data: BodyType<SendLinkInput> },
   TContext
 > => {
   const mutationKey = ["sendContactLink"];
@@ -5338,11 +5342,11 @@ export const getSendContactLinkMutationOptions = <
 
   const mutationFn: MutationFunction<
     Awaited<ReturnType<typeof sendContactLink>>,
-    { contactId: number }
+    { contactId: number; data: BodyType<SendLinkInput> }
   > = (props) => {
-    const { contactId } = props ?? {};
+    const { contactId, data } = props ?? {};
 
-    return sendContactLink(contactId, requestOptions);
+    return sendContactLink(contactId, data, requestOptions);
   };
 
   return { mutationFn, ...mutationOptions };
@@ -5351,7 +5355,7 @@ export const getSendContactLinkMutationOptions = <
 export type SendContactLinkMutationResult = NonNullable<
   Awaited<ReturnType<typeof sendContactLink>>
 >;
-
+export type SendContactLinkMutationBody = BodyType<SendLinkInput>;
 export type SendContactLinkMutationError = ErrorType<unknown>;
 
 /**
@@ -5364,14 +5368,14 @@ export const useSendContactLink = <
   mutation?: UseMutationOptions<
     Awaited<ReturnType<typeof sendContactLink>>,
     TError,
-    { contactId: number },
+    { contactId: number; data: BodyType<SendLinkInput> },
     TContext
   >;
   request?: SecondParameter<typeof customFetch>;
 }): UseMutationResult<
   Awaited<ReturnType<typeof sendContactLink>>,
   TError,
-  { contactId: number },
+  { contactId: number; data: BodyType<SendLinkInput> },
   TContext
 > => {
   return useMutation(getSendContactLinkMutationOptions(options));

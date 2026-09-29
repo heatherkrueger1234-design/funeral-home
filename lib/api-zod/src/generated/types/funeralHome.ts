@@ -20,6 +20,8 @@ Two audiences, two authentication schemes, and the split is load-bearing:
 import type { FuneralHomeSubscriptionStatus } from "./funeralHomeSubscriptionStatus";
 
 export interface FuneralHome {
+  /** Where this home's texts are sent from, in words. Only on GET /home. */
+  textingStatus?: string;
   id: number;
   name: string;
   slug: string;

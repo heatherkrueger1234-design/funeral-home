@@ -473,6 +473,7 @@ export const AUDIT_ACTION_LABELS: Record<string, string> = {
   "home.staff.reset": "Emailed a director a password reset",
   "home.owner.invite": "Invited an owner",
   "home.trial.extend": "Extended a trial",
+  "home.sms.update": "Changed a home's texting setup",
   "group.list": "Listed the groups",
   "group.create": "Created a group",
   "group.open": "Opened a group",

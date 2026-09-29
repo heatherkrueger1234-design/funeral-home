@@ -235,6 +235,12 @@ export const LoginResponse = zod.object({
       ),
   }),
   home: zod.object({
+    textingStatus: zod
+      .string()
+      .optional()
+      .describe(
+        "Where this home's texts are sent from, in words. Only on GET \/home.",
+      ),
     id: zod.number(),
     name: zod.string(),
     slug: zod.string(),
@@ -316,6 +322,12 @@ export const GetCurrentUserResponse = zod.object({
       ),
   }),
   home: zod.object({
+    textingStatus: zod
+      .string()
+      .optional()
+      .describe(
+        "Where this home's texts are sent from, in words. Only on GET \/home.",
+      ),
     id: zod.number(),
     name: zod.string(),
     slug: zod.string(),
@@ -404,6 +416,12 @@ export const VerifyEmailBody = zod.object({
  * @summary The signed-in staff member's funeral home
  */
 export const GetHomeResponse = zod.object({
+  textingStatus: zod
+    .string()
+    .optional()
+    .describe(
+      "Where this home's texts are sent from, in words. Only on GET \/home.",
+    ),
   id: zod.number(),
   name: zod.string(),
   slug: zod.string(),
@@ -517,6 +535,12 @@ export const UpdateHomeBody = zod.object({
 });
 
 export const UpdateHomeResponse = zod.object({
+  textingStatus: zod
+    .string()
+    .optional()
+    .describe(
+      "Where this home's texts are sent from, in words. Only on GET \/home.",
+    ),
   id: zod.number(),
   name: zod.string(),
   slug: zod.string(),
@@ -1840,6 +1864,25 @@ export const GetCaseResponse = zod
             .describe(
               "Set when somebody on the family's side added this person, rather than the home.",
             ),
+          smsConsentAt: zod
+            .date()
+            .nullable()
+            .describe(
+              "When this person agreed to be texted. Nobody is texted without it.",
+            ),
+          smsConsentSource: zod
+            .union([
+              zod.literal("director"),
+              zod.literal("family_portal"),
+              zod.literal("reply_start"),
+              zod.literal(null),
+            ])
+            .nullable()
+            .describe("How the consent was given."),
+          smsOptedOutAt: zod
+            .date()
+            .nullable()
+            .describe("When they replied STOP. Wins over any consent."),
           createdAt: zod.date(),
         }),
       ),
@@ -1985,6 +2028,25 @@ export const CloseCaseResponse = zod
             .describe(
               "Set when somebody on the family's side added this person, rather than the home.",
             ),
+          smsConsentAt: zod
+            .date()
+            .nullable()
+            .describe(
+              "When this person agreed to be texted. Nobody is texted without it.",
+            ),
+          smsConsentSource: zod
+            .union([
+              zod.literal("director"),
+              zod.literal("family_portal"),
+              zod.literal("reply_start"),
+              zod.literal(null),
+            ])
+            .nullable()
+            .describe("How the consent was given."),
+          smsOptedOutAt: zod
+            .date()
+            .nullable()
+            .describe("When they replied STOP. Wins over any consent."),
           createdAt: zod.date(),
         }),
       ),
@@ -2017,6 +2079,25 @@ export const GetCaseContactsResponseItem = zod.object({
     .describe(
       "Set when somebody on the family's side added this person, rather than the home.",
     ),
+  smsConsentAt: zod
+    .date()
+    .nullable()
+    .describe(
+      "When this person agreed to be texted. Nobody is texted without it.",
+    ),
+  smsConsentSource: zod
+    .union([
+      zod.literal("director"),
+      zod.literal("family_portal"),
+      zod.literal("reply_start"),
+      zod.literal(null),
+    ])
+    .nullable()
+    .describe("How the consent was given."),
+  smsOptedOutAt: zod
+    .date()
+    .nullable()
+    .describe("When they replied STOP. Wins over any consent."),
   createdAt: zod.date(),
 });
 export const GetCaseContactsResponse = zod.array(GetCaseContactsResponseItem);
@@ -2039,6 +2120,12 @@ export const CreateCaseContactBody = zod.object({
   email: zod.string().nullish(),
   role: zod.enum(["next_of_kin", "contributor"]).optional(),
   canInvite: zod.boolean().optional(),
+  smsConsent: zod
+    .boolean()
+    .optional()
+    .describe(
+      "The director confirms this person agreed to be texted. Recorded\nwith the time and `director` as the source; false withdraws it.\n",
+    ),
 });
 
 /**
@@ -2055,6 +2142,12 @@ export const UpdateContactBody = zod.object({
   email: zod.string().nullish(),
   role: zod.enum(["next_of_kin", "contributor"]).optional(),
   canInvite: zod.boolean().optional(),
+  smsConsent: zod
+    .boolean()
+    .optional()
+    .describe(
+      "The director confirms this person agreed to be texted. Recorded\nwith the time and `director` as the source; false withdraws it.\n",
+    ),
 });
 
 export const UpdateContactResponse = zod.object({
@@ -2076,6 +2169,25 @@ export const UpdateContactResponse = zod.object({
     .describe(
       "Set when somebody on the family's side added this person, rather than the home.",
     ),
+  smsConsentAt: zod
+    .date()
+    .nullable()
+    .describe(
+      "When this person agreed to be texted. Nobody is texted without it.",
+    ),
+  smsConsentSource: zod
+    .union([
+      zod.literal("director"),
+      zod.literal("family_portal"),
+      zod.literal("reply_start"),
+      zod.literal(null),
+    ])
+    .nullable()
+    .describe("How the consent was given."),
+  smsOptedOutAt: zod
+    .date()
+    .nullable()
+    .describe("When they replied STOP. Wins over any consent."),
   createdAt: zod.date(),
 });
 
@@ -2089,13 +2201,22 @@ export const RevokeContactParams = zod.object({
 /**
  * Mints a new link and sends it, so the previous one stops working. The
 response says whether the text actually went; where the home has no
-SMS credentials it returns the link and `sent: false` so the director
-can send it themselves rather than being told nothing happened.
+SMS credentials, the person has not agreed to texts, or they replied
+STOP, it returns the link and `sent: false` with the reason.
 
  * @summary Text a fresh link to this person's mobile
  */
 export const SendContactLinkParams = zod.object({
   contactId: zod.coerce.number(),
+});
+
+export const SendContactLinkBody = zod.object({
+  smsConsent: zod
+    .boolean()
+    .optional()
+    .describe(
+      "The director confirms, now, that this person agreed to be texted.",
+    ),
 });
 
 export const SendContactLinkResponse = zod
@@ -2118,6 +2239,25 @@ export const SendContactLinkResponse = zod
       .describe(
         "Set when somebody on the family's side added this person, rather than the home.",
       ),
+    smsConsentAt: zod
+      .date()
+      .nullable()
+      .describe(
+        "When this person agreed to be texted. Nobody is texted without it.",
+      ),
+    smsConsentSource: zod
+      .union([
+        zod.literal("director"),
+        zod.literal("family_portal"),
+        zod.literal("reply_start"),
+        zod.literal(null),
+      ])
+      .nullable()
+      .describe("How the consent was given."),
+    smsOptedOutAt: zod
+      .date()
+      .nullable()
+      .describe("When they replied STOP. Wins over any consent."),
     createdAt: zod.date(),
   })
   .and(
@@ -2165,6 +2305,25 @@ export const ReissueContactLinkResponse = zod
       .describe(
         "Set when somebody on the family's side added this person, rather than the home.",
       ),
+    smsConsentAt: zod
+      .date()
+      .nullable()
+      .describe(
+        "When this person agreed to be texted. Nobody is texted without it.",
+      ),
+    smsConsentSource: zod
+      .union([
+        zod.literal("director"),
+        zod.literal("family_portal"),
+        zod.literal("reply_start"),
+        zod.literal(null),
+      ])
+      .nullable()
+      .describe("How the consent was given."),
+    smsOptedOutAt: zod
+      .date()
+      .nullable()
+      .describe("When they replied STOP. Wins over any consent."),
     createdAt: zod.date(),
   })
   .and(
@@ -5145,6 +5304,25 @@ export const GetFamilySessionResponse = zod
         .describe(
           "Set when somebody on the family's side added this person, rather than the home.",
         ),
+      smsConsentAt: zod
+        .date()
+        .nullable()
+        .describe(
+          "When this person agreed to be texted. Nobody is texted without it.",
+        ),
+      smsConsentSource: zod
+        .union([
+          zod.literal("director"),
+          zod.literal("family_portal"),
+          zod.literal("reply_start"),
+          zod.literal(null),
+        ])
+        .nullable()
+        .describe("How the consent was given."),
+      smsOptedOutAt: zod
+        .date()
+        .nullable()
+        .describe("When they replied STOP. Wins over any consent."),
       createdAt: zod.date(),
     }),
     home: zod

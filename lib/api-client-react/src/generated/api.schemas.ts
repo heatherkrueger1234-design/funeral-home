@@ -288,6 +288,8 @@ export const FuneralHomeSubscriptionStatus = {
 } as const;
 
 export interface FuneralHome {
+  /** Where this home's texts are sent from, in words. Only on GET /home. */
+  textingStatus?: string;
   id: number;
   name: string;
   slug: string;
@@ -981,6 +983,19 @@ export const FamilyContactRole = {
   contributor: "contributor",
 } as const;
 
+/**
+ * How the consent was given.
+ */
+export type FamilyContactSmsConsentSource =
+  | (typeof FamilyContactSmsConsentSource)[keyof typeof FamilyContactSmsConsentSource]
+  | null;
+
+export const FamilyContactSmsConsentSource = {
+  director: "director",
+  family_portal: "family_portal",
+  reply_start: "reply_start",
+} as const;
+
 export interface FamilyContact {
   id: number;
   caseId: number;
@@ -996,6 +1011,12 @@ export interface FamilyContact {
   lastSeenAt: string | null;
   /** Set when somebody on the family's side added this person, rather than the home. */
   invitedByContactId: number | null;
+  /** When this person agreed to be texted. Nobody is texted without it. */
+  smsConsentAt: string | null;
+  /** How the consent was given. */
+  smsConsentSource: FamilyContactSmsConsentSource;
+  /** When they replied STOP. Wins over any consent. */
+  smsOptedOutAt: string | null;
   createdAt: string;
 }
 
@@ -1124,6 +1145,11 @@ export type FamilyContactWithLink = FamilyContact & {
   link: string;
 };
 
+export interface SendLinkInput {
+  /** The director confirms, now, that this person agreed to be texted. */
+  smsConsent?: boolean;
+}
+
 export type SentLink = FamilyContactWithLink & {
   sent: boolean;
   /** Why the text did not go, in words a director can act on. */
@@ -1146,6 +1172,10 @@ export interface FamilyContactInput {
   email?: string | null;
   role?: FamilyContactInputRole;
   canInvite?: boolean;
+  /** The director confirms this person agreed to be texted. Recorded
+with the time and `director` as the source; false withdraws it.
+ */
+  smsConsent?: boolean;
 }
 
 export type FamilyContactUpdateRole =
@@ -1164,6 +1194,10 @@ export interface FamilyContactUpdate {
   email?: string | null;
   role?: FamilyContactUpdateRole;
   canInvite?: boolean;
+  /** The director confirms this person agreed to be texted. Recorded
+with the time and `director` as the source; false withdraws it.
+ */
+  smsConsent?: boolean;
 }
 
 export type CasePhotoStatus =

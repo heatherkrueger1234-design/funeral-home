@@ -17,18 +17,16 @@ Two audiences, two authentication schemes, and the split is load-bearing:
 
  * OpenAPI spec version: 0.1.0
  */
-import type { FamilyContactUpdateRole } from "./familyContactUpdateRole";
 
-export interface FamilyContactUpdate {
-  /** @minLength 1 */
-  name?: string;
-  relationship?: string | null;
-  phone?: string | null;
-  email?: string | null;
-  role?: FamilyContactUpdateRole;
-  canInvite?: boolean;
-  /** The director confirms this person agreed to be texted. Recorded
-with the time and `director` as the source; false withdraws it.
+/**
+ * How the consent was given.
  */
-  smsConsent?: boolean;
-}
+export type FamilyContactSmsConsentSource =
+  | (typeof FamilyContactSmsConsentSource)[keyof typeof FamilyContactSmsConsentSource]
+  | null;
+
+export const FamilyContactSmsConsentSource = {
+  director: "director",
+  family_portal: "family_portal",
+  reply_start: "reply_start",
+} as const;

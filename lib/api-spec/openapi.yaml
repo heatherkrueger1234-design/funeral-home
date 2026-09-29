@@ -1289,10 +1289,16 @@ paths:
       description: |
         Mints a new link and sends it, so the previous one stops working. The
         response says whether the text actually went; where the home has no
-        SMS credentials it returns the link and `sent: false` so the director
-        can send it themselves rather than being told nothing happened.
+        SMS credentials, the person has not agreed to texts, or they replied
+        STOP, it returns the link and `sent: false` with the reason.
       parameters:
         - $ref: "#/components/parameters/ContactId"
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SendLinkInput"
       responses:
         "200":
           description: Minted, and sent if possible
@@ -3908,6 +3914,9 @@ components:
     FuneralHome:
       type: object
       properties:
+        textingStatus:
+          type: string
+          description: Where this home's texts are sent from, in words. Only on GET /home.
         id:
           type: integer
         name:
@@ -5103,6 +5112,21 @@ components:
           type: integer
           nullable: true
           description: Set when somebody on the family's side added this person, rather than the home.
+        smsConsentAt:
+          type: string
+          format: date-time
+          nullable: true
+          description: When this person agreed to be texted. Nobody is texted without it.
+        smsConsentSource:
+          type: string
+          nullable: true
+          enum: [director, family_portal, reply_start, null]
+          description: How the consent was given.
+        smsOptedOutAt:
+          type: string
+          format: date-time
+          nullable: true
+          description: When they replied STOP. Wins over any consent.
         createdAt:
           type: string
           format: date-time
@@ -5121,6 +5145,9 @@ components:
           firstSeenAt,
           lastSeenAt,
           invitedByContactId,
+          smsConsentAt,
+          smsConsentSource,
+          smsOptedOutAt,
           createdAt,
         ]
 
@@ -5224,6 +5251,13 @@ components:
               type: string
           required: [link]
 
+    SendLinkInput:
+      type: object
+      properties:
+        smsConsent:
+          type: boolean
+          description: The director confirms, now, that this person agreed to be texted.
+
     SentLink:
       allOf:
         - $ref: "#/components/schemas/FamilyContactWithLink"
@@ -5257,6 +5291,11 @@ components:
           enum: [next_of_kin, contributor]
         canInvite:
           type: boolean
+        smsConsent:
+          type: boolean
+          description: |
+            The director confirms this person agreed to be texted. Recorded
+            with the time and `director` as the source; false withdraws it.
       required: [name]
 
     FamilyContactUpdate:
@@ -5279,6 +5318,11 @@ components:
           enum: [next_of_kin, contributor]
         canInvite:
           type: boolean
+        smsConsent:
+          type: boolean
+          description: |
+            The director confirms this person agreed to be texted. Recorded
+            with the time and `director` as the source; false withdraws it.
 
     # -------------------------------------------------------------- photos --
 

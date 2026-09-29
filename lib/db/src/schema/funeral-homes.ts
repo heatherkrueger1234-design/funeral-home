@@ -106,6 +106,28 @@ export const funeralHomesTable = pgTable(
      */
     aftercareSenderName: text("aftercare_sender_name"),
 
+    /* ------------------------------------------------------ texting */
+
+    /**
+     * The home's own Twilio subaccount and messaging service. US carriers
+     * want each business registered (10DLC brand + campaign) before its
+     * texts are delivered reliably, so texts go from the home's registered
+     * sender once approved, from a verified toll-free number meanwhile, and
+     * from the platform's shared number otherwise. See `lib/sms.ts`.
+     */
+    smsSubaccountSid: text("sms_subaccount_sid"),
+    smsMessagingServiceSid: text("sms_messaging_service_sid"),
+    smsBrandRegistrationSid: text("sms_brand_registration_sid"),
+    /** `none`, `pending`, `approved` or `failed`. */
+    smsBrandStatus: text("sms_brand_status").notNull().default("none"),
+    /** The 10DLC campaign on the messaging service, same four values. */
+    smsCampaignStatus: text("sms_campaign_status").notNull().default("none"),
+    /** A toll-free number, the fallback while 10DLC is pending. */
+    smsTollFreeNumber: text("sms_toll_free_number"),
+    /** `none`, `pending`, `verified` or `rejected`. */
+    smsTollFreeStatus: text("sms_toll_free_status").notNull().default("none"),
+    smsStatusCheckedAt: timestamp("sms_status_checked_at"),
+
     /* ---------------------------------------------------- the front door */
 
     /**

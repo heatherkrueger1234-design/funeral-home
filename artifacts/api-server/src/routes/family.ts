@@ -51,7 +51,7 @@ import {
 } from "@workspace/api-zod";
 import { MailNotSentError, sendFamilyLinkEmail } from "@workspace/mailer";
 import { linkUrl, mintLink } from "../lib/family-link";
-import { normalisePhone, sendSms, SmsNotSentError } from "../lib/sms";
+import { normalisePhone } from "../lib/sms";
 import {
   assertPhotoBelongs,
   bookIsOpen,
@@ -1753,31 +1753,14 @@ router.post("/relatives", async (req, res) => {
   });
 
   const url = linkUrl(link.token);
-  let sentBySms = false;
+  /*
+   * Never texted. The relative has not agreed to texts from the home — a
+   * cousin typing their number is not consent — so the inviter gets a link
+   * to share themselves (or it goes by email). The director can text them
+   * once they have recorded consent.
+   */
+  const sentBySms = false;
   let sentByEmail = false;
-
-  if (phone) {
-    try {
-      // Names the home first and the relative second: a link arriving from
-      // an unknown number reads like a scam unless it says who it is from.
-      await sendSms({
-        to: phone,
-        body: `${home.name}: ${contact.name} asked us to send you your own link to the arrangements. ${url}`,
-      });
-      sentBySms = true;
-    } catch (error) {
-      /*
-       * Any failure, not just "not configured". The relative's row is
-       * already committed, so throwing here would lose the only copy of their
-       * link: the retry is refused as "already has a link", and nobody can
-       * see the token again. Logged, and the link is shown to the inviter
-       * instead, below.
-       */
-      if (!(error instanceof SmsNotSentError)) {
-        req.log?.error({ err: error }, "Relative's link text failed to send");
-      }
-    }
-  }
 
   if (email) {
     try {

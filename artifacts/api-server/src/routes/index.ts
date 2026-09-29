@@ -31,6 +31,7 @@ import aftercareRouter from "./aftercare";
 import memoryBookRouter from "./memory-book";
 import uploadsRouter from "./uploads";
 import adminRouter from "./admin";
+import smsWebhookRouter from "./sms-webhook";
 
 const router: IRouter = Router();
 
@@ -76,6 +77,9 @@ router.use("/public", publicRateLimit, publicRouter);
  * and guarded by its own shared secret instead — see `tasks.ts`.
  */
 router.use(tasksRouter);
+
+/** Twilio's STOP/HELP replies. Signed by Twilio instead of a session. */
+router.use(smsWebhookRouter);
 
 /**
  * Stripe's webhook is not mounted here. It has no session and needs the raw
