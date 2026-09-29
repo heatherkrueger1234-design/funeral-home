@@ -44,8 +44,9 @@ production esbuild bundle, through the real nginx config:
   containers restores and verifies. A full restart leaves the photograph
   byte-for-byte identical.
 
-350 tests, 6 projects typechecking, 5 apps building — from a clean
-tree, with no environment variables set.
+622 tests (548 API integration tests against real Postgres, 26 console, 45
+portal, 3 scripts), lint clean, every project typechecking and 5 apps
+building — from a clean tree, with no environment variables set.
 
 ## Lighthouse scores
 

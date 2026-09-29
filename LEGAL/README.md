@@ -72,10 +72,10 @@ that was never made.
 | Uploads and social security numbers encrypted with AES-256-GCM before they are written | `lib/db/src/crypto.ts`; verified at rest — stored bytes carry 29 bytes of version, IV and GCM tag and are not the plaintext file |
 | The encryption key is never in the database | `lib/db/src/crypto.ts` reads it from the environment; the server refuses to start without it |
 | Every table carries `funeralHomeId`, and staff queries filter on the signed-in user's own row rather than on anything in the request | `artifacts/api-server/src/middleware/require-auth.ts`; `test/tenant-isolation.test.ts` |
-| A family link reaches exactly one case, and no family route takes a case id | `artifacts/api-server/src/routes/family.ts`; `middleware/require-family.ts` |
+| A family link reaches exactly one case, and no family route takes a case id | `artifacts/api-server/src/routes/family/`; `middleware/require-family.ts` |
 | Only the SHA-256 of a family link is stored | `artifacts/api-server/src/lib/family-link.ts` |
 | Passwords are hashed with scrypt at OWASP parameters | `artifacts/api-server/src/lib/auth.ts` |
-| Every access we make across a tenant boundary is logged before the data is returned | `artifacts/api-server/src/routes/admin.ts`; `platform_audit` |
+| Every access we make across a tenant boundary is logged before the data is returned | `artifacts/api-server/src/routes/admin/`; `platform_audit` |
 | We can grant and revoke our own staff's access to that console, and both are logged | `lib/db/src/schema/platform.ts`; `lib/platform-auth.ts` |
 | No analytics, no telemetry, and no training on customer data | Nothing in the codebase sends anything anywhere except the four services in Schedule 1 |
 | Case content reaches none of those services, except one obituary's fields when a director opts in to a suggested rewrite | `RETENTION.md`, "What leaves the building"; `lib/obituary-ai.ts`; `test/obituary-composer.test.ts` |

@@ -118,8 +118,8 @@ no mocks, and there are frontend and Playwright suites alongside it. What is
 - The legal documents need a lawyer.
 - No error tracking and no uptime monitoring. The first time production breaks,
   a customer tells us.
-- The three daily scheduled jobs fail every day for want of two repository
-  secrets. `STATUS.md`, problem 1.
+- The three daily scheduled jobs skip until two repository secrets are set.
+  `STATUS.md`, problem 1.
 - Colorado's 72-hour filing clock is built (custody, EDRS request, filing,
   dashboard); home-authored forms and the C.R.S. 15-19-106 authorisation
   order are not.

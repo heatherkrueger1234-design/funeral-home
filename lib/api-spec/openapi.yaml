@@ -932,6 +932,22 @@ paths:
 
   # ---------------------------------------------------------------- intake --
 
+  /export/cases.csv:
+    get:
+      operationId: exportCaseList
+      tags: [cases]
+      summary: Every case as one CSV, for another case system
+      description: |
+        One row per case, in columns our importer reads back. No social
+        security numbers, vital statistics or photographs.
+      responses:
+        "200":
+          description: The CSV
+          content:
+            text/csv:
+              schema:
+                type: string
+
   /cases/{caseId}/export:
     get:
       operationId: exportCase

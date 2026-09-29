@@ -3937,6 +3937,84 @@ export const useApplyTimelineTemplate = <
 };
 
 /**
+ * One row per case, in columns our importer reads back. No social
+security numbers, vital statistics or photographs.
+
+ * @summary Every case as one CSV, for another case system
+ */
+export const getExportCaseListUrl = () => {
+  return `/api/export/cases.csv`;
+};
+
+export const exportCaseList = async (
+  options?: RequestInit,
+): Promise<string> => {
+  return customFetch<string>(getExportCaseListUrl(), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getExportCaseListQueryKey = () => {
+  return [`/api/export/cases.csv`] as const;
+};
+
+export const getExportCaseListQueryOptions = <
+  TData = Awaited<ReturnType<typeof exportCaseList>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof exportCaseList>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getExportCaseListQueryKey();
+
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof exportCaseList>>> = ({
+    signal,
+  }) => exportCaseList({ signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof exportCaseList>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type ExportCaseListQueryResult = NonNullable<
+  Awaited<ReturnType<typeof exportCaseList>>
+>;
+export type ExportCaseListQueryError = ErrorType<unknown>;
+
+/**
+ * @summary Every case as one CSV, for another case system
+ */
+
+export function useExportCaseList<
+  TData = Awaited<ReturnType<typeof exportCaseList>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof exportCaseList>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getExportCaseListQueryOptions(options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
  * A zip the home can walk away with: the photographs at full size, the
 obituary as written, the selections, the belongings, the vital
 statistics, the message thread, and a readable summary of the case

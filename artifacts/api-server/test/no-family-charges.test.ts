@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { readFileSync } from "node:fs";
+import { readdirSync, readFileSync } from "node:fs";
+import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { eq } from "drizzle-orm";
 import { db, funeralHomesTable } from "@workspace/db";
@@ -32,10 +33,11 @@ import { asFamily, createCase, inviteFamily, signUpHome, PNG_BYTES } from "./hel
  * surface rather than over any single endpoint.
  */
 
-const familySource = readFileSync(
-  fileURLToPath(new URL("../src/routes/family.ts", import.meta.url)),
-  "utf8",
-);
+// Every file of the family surface, which is a directory of routers.
+const familyDir = fileURLToPath(new URL("../src/routes/family/", import.meta.url));
+const familySources = readdirSync(familyDir)
+  .filter((file) => file.endsWith(".ts"))
+  .map((file) => [`family/${file}`, readFileSync(join(familyDir, file), "utf8")] as const);
 const publicSource = readFileSync(
   fileURLToPath(new URL("../src/routes/public.ts", import.meta.url)),
   "utf8",
@@ -50,12 +52,10 @@ describe("the family is never charged", () => {
      * boundary from the other direction -- what a family may *read* -- and
      * this one guards what a family may be *asked for*.
      */
-    for (const [name, source] of [
-      ["family.ts", familySource],
-      ["public.ts", publicSource],
-    ] as const) {
+    expect(familySources.length).toBeGreaterThan(5);
+    for (const [name, source] of [...familySources, ["public.ts", publicSource] as const]) {
       expect(source, `${name} must not reach the billing code`).not.toMatch(
-        /from "\.\.\/lib\/(billing|metering)"/,
+        /from "(\.\.\/)+lib\/(billing|metering)"/,
       );
       expect(source, `${name} must not talk to Stripe`).not.toMatch(/stripe/i);
       expect(
