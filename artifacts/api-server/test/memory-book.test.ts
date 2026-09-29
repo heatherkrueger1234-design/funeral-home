@@ -2,7 +2,6 @@ import { describe, expect, it } from "vitest";
 import { and, eq } from "drizzle-orm";
 import {
   db,
-  casePhotosTable,
   familyContactsTable,
   funeralHomesTable,
   memoryBooksTable,

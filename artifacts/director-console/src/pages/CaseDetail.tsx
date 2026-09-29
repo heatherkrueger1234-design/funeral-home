@@ -408,11 +408,7 @@ export default function CaseDetail() {
             <FamilyPanel caseId={caseId} contacts={detail.contacts} />
           </TabsContent>
           <TabsContent value="photos">
-            <PhotosPanel
-              caseId={caseId}
-              portraitPhotoId={detail.portraitPhotoId}
-              referencePhotoId={detail.referencePhotoId}
-            />
+            <PhotosPanel caseId={caseId} />
           </TabsContent>
           <TabsContent value="vitals" className="space-y-6">
             {detail.kind !== "pre_need" && <CertificateClock caseId={caseId} />}

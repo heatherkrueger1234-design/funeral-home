@@ -108,6 +108,8 @@ export class ZipWriter {
         .split("/")
         .filter((part) => part && part !== "." && part !== "..")
         .join("/")
+        // Control characters in a file name, on purpose.
+        // eslint-disable-next-line no-control-regex
         .replace(/[\x00-\x1f]/g, "")
         .slice(0, 180) || "file"
     );

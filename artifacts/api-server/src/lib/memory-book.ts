@@ -3,7 +3,6 @@ import {
   db,
   casePhotosTable,
   familyContactsTable,
-  memoryBooksTable,
   memoryEntriesTable,
   lifeChaptersTable,
   obituaryDraftsTable,

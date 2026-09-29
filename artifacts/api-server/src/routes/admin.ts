@@ -38,7 +38,6 @@ import {
   freeTrialEndsAt,
   ADD_ONS,
   isAddOnKey,
-  serialiseEntitlements,
   type AddOnKey,
   type FuneralHome,
   type HomeGroup,

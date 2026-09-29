@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { and, eq, isNull } from "drizzle-orm";
+import { eq } from "drizzle-orm";
 import { db, uploadsTable, casePhotosTable } from "@workspace/db";
 import {
   asFamily,

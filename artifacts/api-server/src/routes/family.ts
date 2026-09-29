@@ -97,7 +97,6 @@ import {
   photosForCase,
   serveUpload,
   setSelection,
-  storeUpload,
   toPhotoJson,
 } from "../lib/media";
 import { buildThread, isThreadLocked, markRead } from "../lib/thread";
@@ -463,7 +462,6 @@ router.put("/photos/selection", async (req, res) => {
  */
 router.put("/reference-photo", async (req, res) => {
   const row = familyCase(req);
-  const home = familyHome(req);
   const { photoId } = parseBody(SetFamilyReferencePhotoBody, req.body);
 
   const [photo] = await db

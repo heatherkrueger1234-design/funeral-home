@@ -150,7 +150,6 @@ by path instead of by subdomain (the Docker deployment gives each its own):
 | `/family` | family portal, where a texted link opens |
 | `/admin` | platform admin console |
 | `/api` | the API |
-| `/__mockup` | component preview sandbox, development only |
 
 The director console is at the root deliberately: it is the only screen that
 can sort out a director, a platform admin and a lost family member, so it is

@@ -10,8 +10,6 @@
  * from.
  */
 import { describe, expect, it } from "vitest";
-import request from "supertest";
-import app from "../src/app";
 import { asFamily, createCase, inviteFamily, signUpHome, PNG_BYTES } from "./helpers";
 import { db, funeralHomesTable, caseDeletionsTable, casesTable, uploadsTable } from "@workspace/db";
 import { eq } from "drizzle-orm";

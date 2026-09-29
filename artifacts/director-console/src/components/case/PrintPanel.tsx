@@ -26,7 +26,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
-import { Check, Loader2, MessageSquareWarning, Printer, Send, Trash2, Plus } from "lucide-react";
+import { Check, MessageSquareWarning, Printer, Send, Trash2, Plus } from "lucide-react";
 import { Confirm, LoadFailed, Loading } from "@/components/page";
 
 /**

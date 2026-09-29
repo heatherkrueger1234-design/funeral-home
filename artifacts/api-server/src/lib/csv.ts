@@ -7,7 +7,7 @@
  * again — which means:
  *
  *  - a UTF-8 BOM on the first header, so `"Last Name"` silently becomes
- *    `"﻿Last Name"` and matches nothing;
+ *    `"\uFEFFLast Name"` and matches nothing;
  *  - CRLF line endings;
  *  - quoted fields containing commas and newlines (an address, a note);
  *  - doubled quotes inside quoted fields;
@@ -106,7 +106,7 @@ function parseRows(text: string): string[][] {
 /** Normalise a header so "Last Name", "last_name" and "LASTNAME" all match. */
 export function normaliseHeader(header: string): string {
   return header
-    .replace(/^﻿/, "")
+    .replace(/^\uFEFF/, "")
     .trim()
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, "");
@@ -117,7 +117,7 @@ export function parseCsv(text: string): ParsedCsv {
 
   if (rows.length === 0) return { headers: [], rows: [] };
 
-  const headers = rows[0]!.map((header) => header.replace(/^﻿/, "").trim());
+  const headers = rows[0]!.map((header) => header.replace(/^\uFEFF/, "").trim());
 
   const parsed = rows.slice(1).map((cells) => {
     const row: CsvRow = {};

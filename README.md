@@ -73,7 +73,6 @@ artifacts/
   family-portal/     What the family opens from their link   (served at /family)
   admin-console/     Our own platform console                (served at /admin)
   website/           The marketing site
-  mockup-sandbox/    Component previews, not shipped
   e2e-tests/         Playwright, against a real stack
 lib/
   api-spec/          openapi.yaml, the contract. Source of truth.

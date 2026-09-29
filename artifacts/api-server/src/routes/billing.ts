@@ -1,6 +1,6 @@
 import { Router, type IRouter } from "express";
 import express from "express";
-import { and, count, eq, gte, isNotNull, isNull, sql } from "drizzle-orm";
+import { and, count, eq, gte, sql } from "drizzle-orm";
 import { z } from "zod/v4";
 import {
   db,
