@@ -39,6 +39,7 @@ export * from "./belongings";
 
 /* The paperwork that holds everything else up. */
 export * from "./vital-statistics";
+export * from "./certificates";
 
 /* What gets printed. */
 export * from "./print";

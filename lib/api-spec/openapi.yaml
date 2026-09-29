@@ -1686,6 +1686,40 @@ paths:
               schema:
                 $ref: "#/components/schemas/Preparation"
 
+  /cases/{caseId}/certificate:
+    get:
+      operationId: getDeathCertificate
+      tags: [vitals]
+      summary: Colorado's 72-hour certificate clock for this case
+      parameters:
+        - $ref: "#/components/parameters/CaseId"
+      responses:
+        "200":
+          description: The clock
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DeathCertificate"
+    put:
+      operationId: updateDeathCertificate
+      tags: [vitals]
+      summary: Record custody, the EDRS request, certification or the filing
+      parameters:
+        - $ref: "#/components/parameters/CaseId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/DeathCertificateInput"
+      responses:
+        "200":
+          description: Saved
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DeathCertificate"
+
   /cases/{caseId}/vitals:
     get:
       operationId: getVitals
@@ -4287,6 +4321,23 @@ components:
         offersAwaitingChoice:
           type: integer
           description: Cases where the home has offered times and nobody has picked.
+        certificatesDue:
+          type: array
+          description: Colorado 72-hour certificate clocks still running, soonest first.
+          items:
+            type: object
+            properties:
+              caseId:
+                type: integer
+              decedentName:
+                type: string
+              dueAt:
+                type: string
+                format: date-time
+              hoursRemaining:
+                type: number
+                description: Negative once overdue.
+            required: [caseId, decedentName, dueAt, hoursRemaining]
       required:
         [
           homeName,
@@ -4301,7 +4352,107 @@ components:
           quoteRequests,
           pendingRequests,
           offersAwaitingChoice,
+          certificatesDue,
         ]
+
+    DeathCertificate:
+      type: object
+      properties:
+        custodyTakenAt:
+          type: string
+          format: date-time
+          nullable: true
+        dueAt:
+          type: string
+          format: date-time
+          nullable: true
+          description: 72 hours after custody.
+        hoursRemaining:
+          type: number
+          nullable: true
+          description: Until the filing is due; negative once overdue; null once filed.
+        edrsRequestedAt:
+          type: string
+          format: date-time
+          nullable: true
+        certificationDueAt:
+          type: string
+          format: date-time
+          nullable: true
+        certifyingProvider:
+          type: string
+          nullable: true
+        certifiedAt:
+          type: string
+          format: date-time
+          nullable: true
+        filedAt:
+          type: string
+          format: date-time
+          nullable: true
+        filedByName:
+          type: string
+          nullable: true
+        stateFileNumber:
+          type: string
+          nullable: true
+        notes:
+          type: string
+          nullable: true
+        missingVitals:
+          type: array
+          nullable: true
+          items:
+            type: string
+        filingNotice:
+          type: string
+      required:
+        [
+          custodyTakenAt,
+          dueAt,
+          hoursRemaining,
+          edrsRequestedAt,
+          certificationDueAt,
+          certifyingProvider,
+          certifiedAt,
+          filedAt,
+          filedByName,
+          stateFileNumber,
+          notes,
+          missingVitals,
+          filingNotice,
+        ]
+
+    DeathCertificateInput:
+      type: object
+      properties:
+        custodyTakenAt:
+          type: string
+          format: date-time
+          nullable: true
+        edrsRequestedAt:
+          type: string
+          format: date-time
+          nullable: true
+        certifiedAt:
+          type: string
+          format: date-time
+          nullable: true
+        certifyingProvider:
+          type: string
+          nullable: true
+          maxLength: 160
+        stateFileNumber:
+          type: string
+          nullable: true
+          maxLength: 60
+        notes:
+          type: string
+          nullable: true
+          maxLength: 2000
+        filed:
+          type: boolean
+          description: The director filed it in EDRS themselves.
 
     DashboardQuoteRequest:
       type: object

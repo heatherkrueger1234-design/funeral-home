@@ -58,6 +58,7 @@ beforeEach(async () => {
   await db.execute(
     sql`TRUNCATE TABLE
       sms_opt_outs,
+      death_certificate_filings,
       platform_admins,
       platform_audit,
       billable_cases,

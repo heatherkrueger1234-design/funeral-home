@@ -59,6 +59,8 @@ import type {
   CsvUploadInput,
   DeadlineInput,
   DeadlineUpdate,
+  DeathCertificate,
+  DeathCertificateInput,
   DeleteCaseInput,
   FamilyBelongingUpdate,
   FamilyContact,
@@ -7119,6 +7121,183 @@ export const useUpdateFamilyPreparation = <
   TContext
 > => {
   return useMutation(getUpdateFamilyPreparationMutationOptions(options));
+};
+
+/**
+ * @summary Colorado's 72-hour certificate clock for this case
+ */
+export const getGetDeathCertificateUrl = (caseId: number) => {
+  return `/api/cases/${caseId}/certificate`;
+};
+
+export const getDeathCertificate = async (
+  caseId: number,
+  options?: RequestInit,
+): Promise<DeathCertificate> => {
+  return customFetch<DeathCertificate>(getGetDeathCertificateUrl(caseId), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getGetDeathCertificateQueryKey = (caseId: number) => {
+  return [`/api/cases/${caseId}/certificate`] as const;
+};
+
+export const getGetDeathCertificateQueryOptions = <
+  TData = Awaited<ReturnType<typeof getDeathCertificate>>,
+  TError = ErrorType<unknown>,
+>(
+  caseId: number,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getDeathCertificate>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey =
+    queryOptions?.queryKey ?? getGetDeathCertificateQueryKey(caseId);
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof getDeathCertificate>>
+  > = ({ signal }) =>
+    getDeathCertificate(caseId, { signal, ...requestOptions });
+
+  return {
+    queryKey,
+    queryFn,
+    enabled: !!caseId,
+    ...queryOptions,
+  } as UseQueryOptions<
+    Awaited<ReturnType<typeof getDeathCertificate>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type GetDeathCertificateQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getDeathCertificate>>
+>;
+export type GetDeathCertificateQueryError = ErrorType<unknown>;
+
+/**
+ * @summary Colorado's 72-hour certificate clock for this case
+ */
+
+export function useGetDeathCertificate<
+  TData = Awaited<ReturnType<typeof getDeathCertificate>>,
+  TError = ErrorType<unknown>,
+>(
+  caseId: number,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getDeathCertificate>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getGetDeathCertificateQueryOptions(caseId, options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary Record custody, the EDRS request, certification or the filing
+ */
+export const getUpdateDeathCertificateUrl = (caseId: number) => {
+  return `/api/cases/${caseId}/certificate`;
+};
+
+export const updateDeathCertificate = async (
+  caseId: number,
+  deathCertificateInput: DeathCertificateInput,
+  options?: RequestInit,
+): Promise<DeathCertificate> => {
+  return customFetch<DeathCertificate>(getUpdateDeathCertificateUrl(caseId), {
+    ...options,
+    method: "PUT",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(deathCertificateInput),
+  });
+};
+
+export const getUpdateDeathCertificateMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof updateDeathCertificate>>,
+    TError,
+    { caseId: number; data: BodyType<DeathCertificateInput> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof updateDeathCertificate>>,
+  TError,
+  { caseId: number; data: BodyType<DeathCertificateInput> },
+  TContext
+> => {
+  const mutationKey = ["updateDeathCertificate"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof updateDeathCertificate>>,
+    { caseId: number; data: BodyType<DeathCertificateInput> }
+  > = (props) => {
+    const { caseId, data } = props ?? {};
+
+    return updateDeathCertificate(caseId, data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type UpdateDeathCertificateMutationResult = NonNullable<
+  Awaited<ReturnType<typeof updateDeathCertificate>>
+>;
+export type UpdateDeathCertificateMutationBody =
+  BodyType<DeathCertificateInput>;
+export type UpdateDeathCertificateMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Record custody, the EDRS request, certification or the filing
+ */
+export const useUpdateDeathCertificate = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof updateDeathCertificate>>,
+    TError,
+    { caseId: number; data: BodyType<DeathCertificateInput> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof updateDeathCertificate>>,
+  TError,
+  { caseId: number; data: BodyType<DeathCertificateInput> },
+  TContext
+> => {
+  return useMutation(getUpdateDeathCertificateMutationOptions(options));
 };
 
 /**

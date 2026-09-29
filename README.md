@@ -121,7 +121,9 @@ no mocks, and there are frontend and Playwright suites alongside it. What is
   a customer tells us.
 - The three daily scheduled jobs fail every day for want of two repository
   secrets. `STATUS.md`, problem 1.
-- Colorado's 72-hour filing clock is only partly built.
+- Colorado's 72-hour filing clock is built (custody, EDRS request, filing,
+  dashboard); home-authored forms and the C.R.S. 15-19-106 authorisation
+  order are not.
 - A home cannot read the `platform_audit` log about itself. The DPA promises it
   "on request", which we can only honour by hand.
 

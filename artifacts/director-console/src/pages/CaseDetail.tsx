@@ -30,6 +30,7 @@ import { ServicePanel } from "@/components/case/ServicePanel";
 import { TimelinePanel } from "@/components/case/TimelinePanel";
 import { MessagesPanel } from "@/components/case/MessagesPanel";
 import { BelongingsPanel } from "@/components/case/BelongingsPanel";
+import { CertificateClock } from "@/components/case/CertificateClock";
 import { VitalsPanel } from "@/components/case/VitalsPanel";
 import { PrintPanel } from "@/components/case/PrintPanel";
 import { MemoryBookPanel } from "@/components/case/MemoryBookPanel";
@@ -399,7 +400,8 @@ export default function CaseDetail() {
               referencePhotoId={detail.referencePhotoId}
             />
           </TabsContent>
-          <TabsContent value="vitals">
+          <TabsContent value="vitals" className="space-y-6">
+            {detail.kind !== "pre_need" && <CertificateClock caseId={caseId} />}
             <VitalsPanel
               caseId={caseId}
               fromCase={{

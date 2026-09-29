@@ -76,8 +76,8 @@ What is on the old branch and nowhere else:
 - **Storefront and catalogue** (`lib/db/src/schema/{storefront,catalogue}.ts`) —
   a home showing a family goods, itemised per the FTC Funeral Rule
 - **The itemised statement** and the handoff to the home's own payment page
-- **Forms and authorisations** on Colorado's 72-hour death-certificate clock
-  (this is also what open PR #8 adds)
+- **Forms and authorisations** (open PR #8). The 72-hour certificate clock
+  itself has since been ported on its own (`routes/certificate.ts`)
 - **Engagement scoring** (`lib/db/src/schema/engagement.ts`)
 
 Some of this main has since rebuilt differently (`policies.ts`, the admin

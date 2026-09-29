@@ -1024,6 +1024,18 @@ export const GetHomeDashboardResponse = zod
       .describe(
         "Cases where the home has offered times and nobody has picked.",
       ),
+    certificatesDue: zod
+      .array(
+        zod.object({
+          caseId: zod.number(),
+          decedentName: zod.string(),
+          dueAt: zod.date(),
+          hoursRemaining: zod.number().describe("Negative once overdue."),
+        }),
+      )
+      .describe(
+        "Colorado 72-hour certificate clocks still running, soonest first.",
+      ),
   })
   .describe(
     "The landing screen, in one read. Counts and the few rows behind them -\nnever the whole case list, because a home three years in has hundreds\nand a dashboard that loads them all stops being a dashboard.\n",
@@ -3003,6 +3015,87 @@ export const UpdateFamilyPreparationResponse = zod.object({
     .describe("The upload behind the chosen reference photograph."),
   reviewedAt: zod.date().nullable(),
   reviewedByName: zod.string().nullable(),
+});
+
+/**
+ * @summary Colorado's 72-hour certificate clock for this case
+ */
+export const GetDeathCertificateParams = zod.object({
+  caseId: zod.coerce.number(),
+});
+
+export const GetDeathCertificateResponse = zod.object({
+  custodyTakenAt: zod.date().nullable(),
+  dueAt: zod.date().nullable().describe("72 hours after custody."),
+  hoursRemaining: zod
+    .number()
+    .nullable()
+    .describe(
+      "Until the filing is due; negative once overdue; null once filed.",
+    ),
+  edrsRequestedAt: zod.date().nullable(),
+  certificationDueAt: zod.date().nullable(),
+  certifyingProvider: zod.string().nullable(),
+  certifiedAt: zod.date().nullable(),
+  filedAt: zod.date().nullable(),
+  filedByName: zod.string().nullable(),
+  stateFileNumber: zod.string().nullable(),
+  notes: zod.string().nullable(),
+  missingVitals: zod.array(zod.string()).nullable(),
+  filingNotice: zod.string(),
+});
+
+/**
+ * @summary Record custody, the EDRS request, certification or the filing
+ */
+export const UpdateDeathCertificateParams = zod.object({
+  caseId: zod.coerce.number(),
+});
+
+export const updateDeathCertificateBodyCertifyingProviderMax = 160;
+
+export const updateDeathCertificateBodyStateFileNumberMax = 60;
+
+export const updateDeathCertificateBodyNotesMax = 2000;
+
+export const UpdateDeathCertificateBody = zod.object({
+  custodyTakenAt: zod.coerce.date().nullish(),
+  edrsRequestedAt: zod.coerce.date().nullish(),
+  certifiedAt: zod.coerce.date().nullish(),
+  certifyingProvider: zod
+    .string()
+    .max(updateDeathCertificateBodyCertifyingProviderMax)
+    .nullish(),
+  stateFileNumber: zod
+    .string()
+    .max(updateDeathCertificateBodyStateFileNumberMax)
+    .nullish(),
+  notes: zod.string().max(updateDeathCertificateBodyNotesMax).nullish(),
+  filed: zod
+    .boolean()
+    .optional()
+    .describe("The director filed it in EDRS themselves."),
+});
+
+export const UpdateDeathCertificateResponse = zod.object({
+  custodyTakenAt: zod.date().nullable(),
+  dueAt: zod.date().nullable().describe("72 hours after custody."),
+  hoursRemaining: zod
+    .number()
+    .nullable()
+    .describe(
+      "Until the filing is due; negative once overdue; null once filed.",
+    ),
+  edrsRequestedAt: zod.date().nullable(),
+  certificationDueAt: zod.date().nullable(),
+  certifyingProvider: zod.string().nullable(),
+  certifiedAt: zod.date().nullable(),
+  filedAt: zod.date().nullable(),
+  filedByName: zod.string().nullable(),
+  stateFileNumber: zod.string().nullable(),
+  notes: zod.string().nullable(),
+  missingVitals: zod.array(zod.string()).nullable(),
+  filingNotice: zod.string(),
 });
 
 /**

@@ -433,6 +433,14 @@ that is not an oversight - see `/home/price-list`.
   policies: PublicHomePolicy[];
 }
 
+export type HomeDashboardCertificatesDueItem = {
+  caseId: number;
+  decedentName: string;
+  dueAt: string;
+  /** Negative once overdue. */
+  hoursRemaining: number;
+};
+
 export type DashboardServiceKind =
   (typeof DashboardServiceKind)[keyof typeof DashboardServiceKind];
 
@@ -532,6 +540,40 @@ the home has answered yet, across every open case.
   pendingRequests: number;
   /** Cases where the home has offered times and nobody has picked. */
   offersAwaitingChoice: number;
+  /** Colorado 72-hour certificate clocks still running, soonest first. */
+  certificatesDue: HomeDashboardCertificatesDueItem[];
+}
+
+export interface DeathCertificate {
+  custodyTakenAt: string | null;
+  /** 72 hours after custody. */
+  dueAt: string | null;
+  /** Until the filing is due; negative once overdue; null once filed. */
+  hoursRemaining: number | null;
+  edrsRequestedAt: string | null;
+  certificationDueAt: string | null;
+  certifyingProvider: string | null;
+  certifiedAt: string | null;
+  filedAt: string | null;
+  filedByName: string | null;
+  stateFileNumber: string | null;
+  notes: string | null;
+  missingVitals: string[] | null;
+  filingNotice: string;
+}
+
+export interface DeathCertificateInput {
+  custodyTakenAt?: string | null;
+  edrsRequestedAt?: string | null;
+  certifiedAt?: string | null;
+  /** @maxLength 160 */
+  certifyingProvider?: string | null;
+  /** @maxLength 60 */
+  stateFileNumber?: string | null;
+  /** @maxLength 2000 */
+  notes?: string | null;
+  /** The director filed it in EDRS themselves. */
+  filed?: boolean;
 }
 
 export type InboxEntryKind =
