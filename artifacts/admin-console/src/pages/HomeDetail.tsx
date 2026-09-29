@@ -32,6 +32,7 @@ import {
   usePageTitle,
 } from "@/components/ui";
 import { LicensurePanel } from "@/components/LicensurePanel";
+import { TextingPanel } from "@/components/TextingPanel";
 
 /**
  * One home, and everything the platform is allowed to know about it.
@@ -181,6 +182,8 @@ export function HomeDetail({ homeId }: { homeId: number }) {
       </Card>
 
       <LicensurePanel home={home} />
+
+      <TextingPanel homeId={home.id} />
 
       <Card>
         <CardTitle>Who works here</CardTitle>
