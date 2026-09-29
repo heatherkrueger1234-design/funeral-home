@@ -1434,6 +1434,27 @@ export interface TemplateSlot {
   maxLength: number | null;
 }
 
+export type PrintThemePhotoShape =
+  (typeof PrintThemePhotoShape)[keyof typeof PrintThemePhotoShape];
+
+export const PrintThemePhotoShape = {
+  rect: "rect",
+  arch: "arch",
+  oval: "oval",
+  circle: "circle",
+} as const;
+
+export interface PrintTheme {
+  key: string;
+  name: string;
+  description: string;
+  /** The theme's own colour; null follows the home's brand colour. */
+  accent: string | null;
+  paper: string;
+  ink: string;
+  photoShape: PrintThemePhotoShape;
+}
+
 export interface PrintTemplate {
   key: string;
   name: string;
@@ -1509,6 +1530,8 @@ export interface PrintItem {
   caseId: number;
   templateKey: string;
   templateName: string;
+  /** The look, from GET /print/themes. */
+  themeKey: string;
   title: string | null;
   photoId: number | null;
   photoUploadId: number | null;
@@ -1545,6 +1568,7 @@ export interface PrintChangesInput {
 
 export interface PrintItemInput {
   templateKey: string;
+  themeKey?: string;
   title?: string | null;
 }
 
@@ -1560,6 +1584,7 @@ export const PrintItemUpdateStatus = {
 } as const;
 
 export interface PrintItemUpdate {
+  themeKey?: string;
   title?: string | null;
   photoId?: number | null;
   values?: PrintItemUpdateValues;

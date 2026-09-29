@@ -5144,6 +5144,23 @@ export const GetPrintTemplatesResponse = zod.array(
 );
 
 /**
+ * @summary The looks a card or programme can take
+ */
+export const GetPrintThemesResponseItem = zod.object({
+  key: zod.string(),
+  name: zod.string(),
+  description: zod.string(),
+  accent: zod
+    .string()
+    .nullable()
+    .describe("The theme's own colour; null follows the home's brand colour."),
+  paper: zod.string(),
+  ink: zod.string(),
+  photoShape: zod.enum(["rect", "arch", "oval", "circle"]),
+});
+export const GetPrintThemesResponse = zod.array(GetPrintThemesResponseItem);
+
+/**
  * @summary The home's own verses, prayers and closing lines
  */
 export const GetSnippetsQueryParams = zod.object({
@@ -5223,6 +5240,7 @@ export const GetPrintItemsResponseItem = zod.object({
   caseId: zod.number(),
   templateKey: zod.string(),
   templateName: zod.string(),
+  themeKey: zod.string().describe("The look, from GET \/print\/themes."),
   title: zod.string().nullable(),
   photoId: zod.number().nullable(),
   photoUploadId: zod.number().nullable(),
@@ -5264,6 +5282,7 @@ export const CreatePrintItemParams = zod.object({
 
 export const CreatePrintItemBody = zod.object({
   templateKey: zod.string(),
+  themeKey: zod.string().optional(),
   title: zod.string().nullish(),
 });
 
@@ -5275,6 +5294,7 @@ export const UpdatePrintItemParams = zod.object({
 });
 
 export const UpdatePrintItemBody = zod.object({
+  themeKey: zod.string().optional(),
   title: zod.string().nullish(),
   photoId: zod.number().nullish(),
   values: zod.record(zod.string(), zod.string()).optional(),
@@ -5288,6 +5308,7 @@ export const UpdatePrintItemResponse = zod.object({
   caseId: zod.number(),
   templateKey: zod.string(),
   templateName: zod.string(),
+  themeKey: zod.string().describe("The look, from GET \/print\/themes."),
   title: zod.string().nullable(),
   photoId: zod.number().nullable(),
   photoUploadId: zod.number().nullable(),
@@ -5341,6 +5362,7 @@ export const GetFamilyPrintItemsResponseItem = zod.object({
   caseId: zod.number(),
   templateKey: zod.string(),
   templateName: zod.string(),
+  themeKey: zod.string().describe("The look, from GET \/print\/themes."),
   title: zod.string().nullable(),
   photoId: zod.number().nullable(),
   photoUploadId: zod.number().nullable(),
@@ -6663,6 +6685,7 @@ export const ApproveFamilyPrintItemResponse = zod.object({
   caseId: zod.number(),
   templateKey: zod.string(),
   templateName: zod.string(),
+  themeKey: zod.string().describe("The look, from GET \/print\/themes."),
   title: zod.string().nullable(),
   photoId: zod.number().nullable(),
   photoUploadId: zod.number().nullable(),
@@ -6720,6 +6743,7 @@ export const RequestFamilyPrintChangesResponse = zod.object({
   caseId: zod.number(),
   templateKey: zod.string(),
   templateName: zod.string(),
+  themeKey: zod.string().describe("The look, from GET \/print\/themes."),
   title: zod.string().nullable(),
   photoId: zod.number().nullable(),
   photoUploadId: zod.number().nullable(),

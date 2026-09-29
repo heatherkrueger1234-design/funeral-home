@@ -2650,6 +2650,21 @@ paths:
                 items:
                   $ref: "#/components/schemas/PrintTemplate"
 
+  /print/themes:
+    get:
+      operationId: getPrintThemes
+      tags: [print]
+      summary: The looks a card or programme can take
+      responses:
+        "200":
+          description: List
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/PrintTheme"
+
   /snippets:
     get:
       operationId: getSnippets
@@ -5713,6 +5728,28 @@ components:
           nullable: true
       required: [key, label, kind, hint, from, maxLength]
 
+    PrintTheme:
+      type: object
+      properties:
+        key:
+          type: string
+        name:
+          type: string
+        description:
+          type: string
+        accent:
+          type: string
+          nullable: true
+          description: The theme's own colour; null follows the home's brand colour.
+        paper:
+          type: string
+        ink:
+          type: string
+        photoShape:
+          type: string
+          enum: [rect, arch, oval, circle]
+      required: [key, name, description, accent, paper, ink, photoShape]
+
     PrintTemplate:
       type: object
       properties:
@@ -5787,6 +5824,9 @@ components:
           type: string
         templateName:
           type: string
+        themeKey:
+          type: string
+          description: The look, from GET /print/themes.
         title:
           type: string
           nullable: true
@@ -5848,6 +5888,7 @@ components:
           caseId,
           templateKey,
           templateName,
+          themeKey,
           title,
           photoId,
           photoUploadId,
@@ -5879,6 +5920,8 @@ components:
       properties:
         templateKey:
           type: string
+        themeKey:
+          type: string
         title:
           type: string
           nullable: true
@@ -5887,6 +5930,8 @@ components:
     PrintItemUpdate:
       type: object
       properties:
+        themeKey:
+          type: string
         title:
           type: string
           nullable: true

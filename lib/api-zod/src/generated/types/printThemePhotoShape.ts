@@ -18,8 +18,12 @@ Two audiences, two authentication schemes, and the split is load-bearing:
  * OpenAPI spec version: 0.1.0
  */
 
-export interface PrintItemInput {
-  templateKey: string;
-  themeKey?: string;
-  title?: string | null;
-}
+export type PrintThemePhotoShape =
+  (typeof PrintThemePhotoShape)[keyof typeof PrintThemePhotoShape];
+
+export const PrintThemePhotoShape = {
+  rect: "rect",
+  arch: "arch",
+  oval: "oval",
+  circle: "circle",
+} as const;

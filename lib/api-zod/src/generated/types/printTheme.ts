@@ -17,9 +17,15 @@ Two audiences, two authentication schemes, and the split is load-bearing:
 
  * OpenAPI spec version: 0.1.0
  */
+import type { PrintThemePhotoShape } from "./printThemePhotoShape";
 
-export interface PrintItemInput {
-  templateKey: string;
-  themeKey?: string;
-  title?: string | null;
+export interface PrintTheme {
+  key: string;
+  name: string;
+  description: string;
+  /** The theme's own colour; null follows the home's brand colour. */
+  accent: string | null;
+  paper: string;
+  ink: string;
+  photoShape: PrintThemePhotoShape;
 }

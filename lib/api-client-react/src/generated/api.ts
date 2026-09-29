@@ -131,6 +131,7 @@ import type {
   PrintItemInput,
   PrintItemUpdate,
   PrintTemplate,
+  PrintTheme,
   PublicFuneralHome,
   QuoteRequestInput,
   QuoteUpdate,
@@ -11389,6 +11390,81 @@ export function useGetPrintTemplates<
   request?: SecondParameter<typeof customFetch>;
 }): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
   const queryOptions = getGetPrintTemplatesQueryOptions(options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary The looks a card or programme can take
+ */
+export const getGetPrintThemesUrl = () => {
+  return `/api/print/themes`;
+};
+
+export const getPrintThemes = async (
+  options?: RequestInit,
+): Promise<PrintTheme[]> => {
+  return customFetch<PrintTheme[]>(getGetPrintThemesUrl(), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getGetPrintThemesQueryKey = () => {
+  return [`/api/print/themes`] as const;
+};
+
+export const getGetPrintThemesQueryOptions = <
+  TData = Awaited<ReturnType<typeof getPrintThemes>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof getPrintThemes>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getGetPrintThemesQueryKey();
+
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof getPrintThemes>>> = ({
+    signal,
+  }) => getPrintThemes({ signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof getPrintThemes>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type GetPrintThemesQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getPrintThemes>>
+>;
+export type GetPrintThemesQueryError = ErrorType<unknown>;
+
+/**
+ * @summary The looks a card or programme can take
+ */
+
+export function useGetPrintThemes<
+  TData = Awaited<ReturnType<typeof getPrintThemes>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof getPrintThemes>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getGetPrintThemesQueryOptions(options);
 
   const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
     queryKey: QueryKey;

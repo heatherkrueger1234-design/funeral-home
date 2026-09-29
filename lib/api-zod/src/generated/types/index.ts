@@ -198,6 +198,8 @@ export * from "./printItemUpdateStatus";
 export * from "./printItemUpdateValues";
 export * from "./printItemValues";
 export * from "./printTemplate";
+export * from "./printTheme";
+export * from "./printThemePhotoShape";
 export * from "./publicFuneralHome";
 export * from "./publicHomePolicy";
 export * from "./quoteRequestInput";
