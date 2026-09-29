@@ -32,6 +32,8 @@ import type {
   AcceptedIntake,
   AftercareConsentInput,
   AftercareEnrollment,
+  AftercareSettings,
+  AftercareSettingsInput,
   AftercareUnsubscribeParams,
   AftercareUnsubscribeState,
   AuthUser,
@@ -9179,6 +9181,168 @@ export function useGetAftercare<
 
   return { ...query, queryKey: queryOptions.queryKey };
 }
+
+/**
+ * @summary The notes this home sends, and which extra touchpoints it offers
+ */
+export const getGetAftercareSettingsUrl = () => {
+  return `/api/home/aftercare`;
+};
+
+export const getAftercareSettings = async (
+  options?: RequestInit,
+): Promise<AftercareSettings> => {
+  return customFetch<AftercareSettings>(getGetAftercareSettingsUrl(), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getGetAftercareSettingsQueryKey = () => {
+  return [`/api/home/aftercare`] as const;
+};
+
+export const getGetAftercareSettingsQueryOptions = <
+  TData = Awaited<ReturnType<typeof getAftercareSettings>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof getAftercareSettings>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getGetAftercareSettingsQueryKey();
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof getAftercareSettings>>
+  > = ({ signal }) => getAftercareSettings({ signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof getAftercareSettings>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type GetAftercareSettingsQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getAftercareSettings>>
+>;
+export type GetAftercareSettingsQueryError = ErrorType<unknown>;
+
+/**
+ * @summary The notes this home sends, and which extra touchpoints it offers
+ */
+
+export function useGetAftercareSettings<
+  TData = Awaited<ReturnType<typeof getAftercareSettings>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof getAftercareSettings>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getGetAftercareSettingsQueryOptions(options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary Change the wording of a note, or which touchpoints are offered
+ */
+export const getUpdateAftercareSettingsUrl = () => {
+  return `/api/home/aftercare`;
+};
+
+export const updateAftercareSettings = async (
+  aftercareSettingsInput: AftercareSettingsInput,
+  options?: RequestInit,
+): Promise<AftercareSettings> => {
+  return customFetch<AftercareSettings>(getUpdateAftercareSettingsUrl(), {
+    ...options,
+    method: "PUT",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(aftercareSettingsInput),
+  });
+};
+
+export const getUpdateAftercareSettingsMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof updateAftercareSettings>>,
+    TError,
+    { data: BodyType<AftercareSettingsInput> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof updateAftercareSettings>>,
+  TError,
+  { data: BodyType<AftercareSettingsInput> },
+  TContext
+> => {
+  const mutationKey = ["updateAftercareSettings"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof updateAftercareSettings>>,
+    { data: BodyType<AftercareSettingsInput> }
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return updateAftercareSettings(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type UpdateAftercareSettingsMutationResult = NonNullable<
+  Awaited<ReturnType<typeof updateAftercareSettings>>
+>;
+export type UpdateAftercareSettingsMutationBody =
+  BodyType<AftercareSettingsInput>;
+export type UpdateAftercareSettingsMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Change the wording of a note, or which touchpoints are offered
+ */
+export const useUpdateAftercareSettings = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof updateAftercareSettings>>,
+    TError,
+    { data: BodyType<AftercareSettingsInput> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof updateAftercareSettings>>,
+  TError,
+  { data: BodyType<AftercareSettingsInput> },
+  TContext
+> => {
+  return useMutation(getUpdateAftercareSettingsMutationOptions(options));
+};
 
 /**
  * Opens the book the first time anybody looks, so this never 404s for a

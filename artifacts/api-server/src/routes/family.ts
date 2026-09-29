@@ -51,7 +51,7 @@ import {
 } from "@workspace/api-zod";
 import { MailNotSentError, sendFamilyLinkEmail } from "@workspace/mailer";
 import { linkUrl, mintLink } from "../lib/family-link";
-import { normalisePhone } from "../lib/sms";
+import { isSmsConfigured, normalisePhone } from "../lib/sms";
 import {
   assertPhotoBelongs,
   bookIsOpen,
@@ -102,7 +102,13 @@ import {
 } from "../lib/media";
 import { buildThread, isThreadLocked, markRead } from "../lib/thread";
 import { isWithinOfficeHours } from "../lib/office-hours";
-import { aftercareForCase } from "../lib/aftercare";
+import {
+  aftercareForCase,
+  offeredTouchpoints,
+  scheduleTouchpoints,
+  toDeliveryJson,
+  touchpointDates,
+} from "../lib/aftercare";
 import { findVendors, locate, toVendorJson } from "../lib/vendors";
 import {
   encryptSsn,
@@ -240,7 +246,7 @@ router.get("/session", async (req, res) => {
         .select()
         .from(aftercareDeliveriesTable)
         .where(eq(aftercareDeliveriesTable.enrollmentId, aftercare[0].id))
-        .orderBy(asc(aftercareDeliveriesTable.dayOffset))
+        .orderBy(asc(aftercareDeliveriesTable.dueAt))
     : [];
 
   res.json({
@@ -270,13 +276,14 @@ router.get("/session", async (req, res) => {
           contactName: contact.name,
           // The family is shown when the check-ins would land, so they are
           // consenting to something specific rather than to "emails".
-          deliveries: deliveries.map((entry) => ({
-            id: entry.id,
-            dayOffset: entry.dayOffset,
-            dueAt: entry.dueAt,
-            sentAt: entry.sentAt,
-            failedAt: entry.failedAt,
-          })),
+          deliveries: deliveries.map(toDeliveryJson),
+          // The extra notes the home offers, with their dates, so opting in
+          // is to something specific too. Only while undecided.
+          touchpointsOffered:
+            aftercare[0].status === "pending"
+              ? touchpointDates(row, aftercare[0].startsAt, offeredTouchpoints(home))
+              : [],
+          smsAvailable: isSmsConfigured(),
         }
       : null,
   });
@@ -1469,33 +1476,56 @@ router.post("/aftercare", async (req, res) => {
    * address alongside the yes, and a yes without one is refused here.
    */
   const email = values.email?.trim() || null;
+  // A yes to texts is the family's own consent, with this number.
+  const wantsSms = values.consent && values.sms === true;
+  const rawPhone = values.phone?.trim() || found.phone || contact.phone || "";
+  const phone = wantsSms ? normalisePhone(rawPhone) : null;
 
   if (values.consent) {
     if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
       throw badRequest("That email address doesn't look quite right.");
     }
-    if (!email && !found.email) {
-      throw badRequest("Please add an email address for the notes to go to.");
+    if (wantsSms && !phone) {
+      throw badRequest("That mobile number doesn't look quite right.");
+    }
+    if (!email && !found.email && !wantsSms) {
+      throw badRequest("Please add an email address or a mobile number for the notes to go to.");
     }
   }
 
   const now = new Date();
 
-  const [updated] = await db
-    .update(aftercareEnrollmentsTable)
-    .set(
-      values.consent
-        ? {
-            status: "active",
-            consentedAt: now,
-            unsubscribedAt: null,
-            ...(email ? { email } : {}),
-            updatedAt: now,
-          }
-        : { status: "done", unsubscribedAt: now, updatedAt: now },
-    )
-    .where(eq(aftercareEnrollmentsTable.id, found.id))
-    .returning();
+  const updated = await db.transaction(async (tx) => {
+    const [saved] = await tx
+      .update(aftercareEnrollmentsTable)
+      .set(
+        values.consent
+          ? {
+              status: "active",
+              consentedAt: now,
+              unsubscribedAt: null,
+              ...(email ? { email } : {}),
+              ...(wantsSms ? { phone, smsConsentAt: now } : { smsConsentAt: null }),
+              touchpointsConsentAt: values.touchpoints === true ? now : null,
+              updatedAt: now,
+            }
+          : { status: "done", unsubscribedAt: now, updatedAt: now },
+      )
+      .where(eq(aftercareEnrollmentsTable.id, found.id))
+      .returning();
+
+    if (wantsSms && !contact.smsConsentAt) {
+      await tx
+        .update(familyContactsTable)
+        .set({ smsConsentAt: now, smsConsentSource: "family_portal", updatedAt: now })
+        .where(eq(familyContactsTable.id, contact.id));
+    }
+    return saved;
+  });
+
+  if (values.consent && values.touchpoints === true) {
+    await scheduleTouchpoints(updated!, row, familyHome(req));
+  }
 
   const all = await aftercareForCase(row.id, row.funeralHomeId);
   res.json(

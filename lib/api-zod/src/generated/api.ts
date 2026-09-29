@@ -4064,17 +4064,132 @@ export const GetAftercareResponseItem = zod.object({
   startsAt: zod.date(),
   consentedAt: zod.date().nullable(),
   unsubscribedAt: zod.date().nullable(),
+  smsConsentAt: zod.date().nullish(),
+  touchpointsConsentAt: zod.date().nullish(),
+  touchpointsOffered: zod
+    .array(
+      zod.object({
+        kind: zod.enum(["birthday", "holidays", "death_anniversary"]),
+        dueAt: zod.date(),
+      }),
+    )
+    .optional()
+    .describe(
+      "Extra notes the home offers and when they would land; only while the family has not answered, and only on the family's view.",
+    ),
+  smsAvailable: zod
+    .boolean()
+    .optional()
+    .describe(
+      "Whether texts can be sent on this deployment. Family view only.",
+    ),
   deliveries: zod.array(
     zod.object({
       id: zod.number(),
+      kind: zod.enum(["checkin", "birthday", "holidays", "death_anniversary"]),
       dayOffset: zod.number(),
       dueAt: zod.date(),
       sentAt: zod.date().nullable(),
       failedAt: zod.date().nullable(),
+      sentVia: zod
+        .string()
+        .nullable()
+        .describe(
+          "`email`, `sms`, `email,sms`, or `withdrawn` when consent lapsed before it was due.",
+        ),
     }),
   ),
 });
 export const GetAftercareResponse = zod.array(GetAftercareResponseItem);
+
+/**
+ * @summary The notes this home sends, and which extra touchpoints it offers
+ */
+export const GetAftercareSettingsResponse = zod.object({
+  touchpoints: zod.array(
+    zod.enum(["birthday", "holidays", "death_anniversary"]),
+  ),
+  messages: zod.array(
+    zod.object({
+      key: zod.enum([
+        "30",
+        "60",
+        "90",
+        "365",
+        "birthday",
+        "holidays",
+        "death_anniversary",
+      ]),
+      label: zod.string(),
+      subject: zod.string(),
+      body: zod.string().describe("`{name}` stands for the person who died."),
+      defaultSubject: zod.string(),
+      defaultBody: zod.string(),
+      custom: zod.boolean(),
+    }),
+  ),
+});
+
+/**
+ * @summary Change the wording of a note, or which touchpoints are offered
+ */
+export const updateAftercareSettingsBodyMessagesItemSubjectMax = 120;
+
+export const updateAftercareSettingsBodyMessagesItemBodyMax = 2000;
+
+export const UpdateAftercareSettingsBody = zod.object({
+  touchpoints: zod
+    .array(zod.enum(["birthday", "holidays", "death_anniversary"]))
+    .optional(),
+  messages: zod
+    .array(
+      zod.object({
+        key: zod.enum([
+          "30",
+          "60",
+          "90",
+          "365",
+          "birthday",
+          "holidays",
+          "death_anniversary",
+        ]),
+        subject: zod
+          .string()
+          .max(updateAftercareSettingsBodyMessagesItemSubjectMax)
+          .nullish(),
+        body: zod
+          .string()
+          .max(updateAftercareSettingsBodyMessagesItemBodyMax)
+          .nullish(),
+      }),
+    )
+    .optional(),
+});
+
+export const UpdateAftercareSettingsResponse = zod.object({
+  touchpoints: zod.array(
+    zod.enum(["birthday", "holidays", "death_anniversary"]),
+  ),
+  messages: zod.array(
+    zod.object({
+      key: zod.enum([
+        "30",
+        "60",
+        "90",
+        "365",
+        "birthday",
+        "holidays",
+        "death_anniversary",
+      ]),
+      label: zod.string(),
+      subject: zod.string(),
+      body: zod.string().describe("`{name}` stands for the person who died."),
+      defaultSubject: zod.string(),
+      defaultBody: zod.string(),
+      custom: zod.boolean(),
+    }),
+  ),
+});
 
 /**
  * Opens the book the first time anybody looks, so this never 404s for a
@@ -5441,13 +5556,44 @@ export const GetFamilySessionResponse = zod
         startsAt: zod.date(),
         consentedAt: zod.date().nullable(),
         unsubscribedAt: zod.date().nullable(),
+        smsConsentAt: zod.date().nullish(),
+        touchpointsConsentAt: zod.date().nullish(),
+        touchpointsOffered: zod
+          .array(
+            zod.object({
+              kind: zod.enum(["birthday", "holidays", "death_anniversary"]),
+              dueAt: zod.date(),
+            }),
+          )
+          .optional()
+          .describe(
+            "Extra notes the home offers and when they would land; only while the family has not answered, and only on the family's view.",
+          ),
+        smsAvailable: zod
+          .boolean()
+          .optional()
+          .describe(
+            "Whether texts can be sent on this deployment. Family view only.",
+          ),
         deliveries: zod.array(
           zod.object({
             id: zod.number(),
+            kind: zod.enum([
+              "checkin",
+              "birthday",
+              "holidays",
+              "death_anniversary",
+            ]),
             dayOffset: zod.number(),
             dueAt: zod.date(),
             sentAt: zod.date().nullable(),
             failedAt: zod.date().nullable(),
+            sentVia: zod
+              .string()
+              .nullable()
+              .describe(
+                "`email`, `sms`, `email,sms`, or `withdrawn` when consent lapsed before it was due.",
+              ),
           }),
         ),
       }),
@@ -6077,6 +6223,22 @@ export const CompleteFamilyDeadlineResponse = zod.object({
 export const SetFamilyAftercareConsentBody = zod.object({
   consent: zod.boolean(),
   email: zod.string().nullish(),
+  sms: zod
+    .boolean()
+    .optional()
+    .describe(
+      "Also send each note as a short text. This is the person's own consent to texts.",
+    ),
+  phone: zod
+    .string()
+    .nullish()
+    .describe("The mobile for the texts; defaults to the one the home has."),
+  touchpoints: zod
+    .boolean()
+    .optional()
+    .describe(
+      "Also send the extra notes the home offers (birthday, first holidays, anniversary of the death).",
+    ),
 });
 
 export const SetFamilyAftercareConsentResponse = zod.object({
@@ -6091,13 +6253,39 @@ export const SetFamilyAftercareConsentResponse = zod.object({
   startsAt: zod.date(),
   consentedAt: zod.date().nullable(),
   unsubscribedAt: zod.date().nullable(),
+  smsConsentAt: zod.date().nullish(),
+  touchpointsConsentAt: zod.date().nullish(),
+  touchpointsOffered: zod
+    .array(
+      zod.object({
+        kind: zod.enum(["birthday", "holidays", "death_anniversary"]),
+        dueAt: zod.date(),
+      }),
+    )
+    .optional()
+    .describe(
+      "Extra notes the home offers and when they would land; only while the family has not answered, and only on the family's view.",
+    ),
+  smsAvailable: zod
+    .boolean()
+    .optional()
+    .describe(
+      "Whether texts can be sent on this deployment. Family view only.",
+    ),
   deliveries: zod.array(
     zod.object({
       id: zod.number(),
+      kind: zod.enum(["checkin", "birthday", "holidays", "death_anniversary"]),
       dayOffset: zod.number(),
       dueAt: zod.date(),
       sentAt: zod.date().nullable(),
       failedAt: zod.date().nullable(),
+      sentVia: zod
+        .string()
+        .nullable()
+        .describe(
+          "`email`, `sms`, `email,sms`, or `withdrawn` when consent lapsed before it was due.",
+        ),
     }),
   ),
 });

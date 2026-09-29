@@ -5,6 +5,7 @@ import {
   integer,
   boolean,
   timestamp,
+  jsonb,
   uniqueIndex,
 } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
@@ -105,6 +106,13 @@ export const funeralHomesTable = pgTable(
      * family should read at the bottom of a check-in.
      */
     aftercareSenderName: text("aftercare_sender_name"),
+    /**
+     * The home's own wording for each note, keyed by `AFTERCARE_COPY_KEYS`.
+     * Missing keys use the defaults in `@workspace/mailer/aftercare`.
+     */
+    aftercareCopy: jsonb("aftercare_copy").$type<Record<string, { subject: string; body: string }>>(),
+    /** Comma-separated touchpoints the home offers; empty offers none. */
+    aftercareTouchpoints: text("aftercare_touchpoints").notNull().default(""),
 
     /* ------------------------------------------------------ texting */
 

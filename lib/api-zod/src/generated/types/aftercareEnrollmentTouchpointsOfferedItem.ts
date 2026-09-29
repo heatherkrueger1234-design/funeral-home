@@ -17,14 +17,9 @@ Two audiences, two authentication schemes, and the split is load-bearing:
 
  * OpenAPI spec version: 0.1.0
  */
+import type { AftercareEnrollmentTouchpointsOfferedItemKind } from "./aftercareEnrollmentTouchpointsOfferedItemKind";
 
-export interface AftercareConsentInput {
-  consent: boolean;
-  email?: string | null;
-  /** Also send each note as a short text. This is the person's own consent to texts. */
-  sms?: boolean;
-  /** The mobile for the texts; defaults to the one the home has. */
-  phone?: string | null;
-  /** Also send the extra notes the home offers (birthday, first holidays, anniversary of the death). */
-  touchpoints?: boolean;
-}
+export type AftercareEnrollmentTouchpointsOfferedItem = {
+  kind: AftercareEnrollmentTouchpointsOfferedItemKind;
+  dueAt: Date;
+};

@@ -17,6 +17,7 @@ import { StandardSchedule } from "@/components/StandardSchedule";
 import { BillingSection } from "@/components/BillingSection";
 import { SnippetLibrary } from "@/components/SnippetLibrary";
 import { StaffSection } from "@/components/StaffSection";
+import { AftercareNotes } from "@/components/AftercareNotes";
 import { LoadFailed, Loading, PageHeader } from "@/components/page";
 
 /** Every zone this browser can format in; the home's clock must be one. */
@@ -350,6 +351,8 @@ export default function Settings() {
             Leave blank to use the home's name.
           </p>
         </div>
+
+        {row.aftercareEnabled && <AftercareNotes readOnly={readOnly} />}
 
         {row.textingStatus && (
           <p className="text-sm leading-snug text-muted-foreground">

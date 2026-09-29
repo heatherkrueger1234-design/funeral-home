@@ -2097,6 +2097,36 @@ paths:
                 items:
                   $ref: "#/components/schemas/AftercareEnrollment"
 
+  /home/aftercare:
+    get:
+      operationId: getAftercareSettings
+      tags: [aftercare]
+      summary: The notes this home sends, and which extra touchpoints it offers
+      responses:
+        "200":
+          description: Settings
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AftercareSettings"
+    put:
+      operationId: updateAftercareSettings
+      tags: [aftercare]
+      summary: Change the wording of a note, or which touchpoints are offered
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AftercareSettingsInput"
+      responses:
+        "200":
+          description: Saved
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AftercareSettings"
+
   # --------------------------------------------------------- memory book --
 
   /cases/{caseId}/memory-book:
@@ -7116,6 +7146,30 @@ components:
           type: string
           format: date-time
           nullable: true
+        smsConsentAt:
+          type: string
+          format: date-time
+          nullable: true
+        touchpointsConsentAt:
+          type: string
+          format: date-time
+          nullable: true
+        touchpointsOffered:
+          type: array
+          description: Extra notes the home offers and when they would land; only while the family has not answered, and only on the family's view.
+          items:
+            type: object
+            properties:
+              kind:
+                type: string
+                enum: [birthday, holidays, death_anniversary]
+              dueAt:
+                type: string
+                format: date-time
+            required: [kind, dueAt]
+        smsAvailable:
+          type: boolean
+          description: Whether texts can be sent on this deployment. Family view only.
         deliveries:
           type: array
           items:
@@ -7141,6 +7195,9 @@ components:
       properties:
         id:
           type: integer
+        kind:
+          type: string
+          enum: [checkin, birthday, holidays, death_anniversary]
         dayOffset:
           type: integer
         dueAt:
@@ -7154,7 +7211,72 @@ components:
           type: string
           format: date-time
           nullable: true
-      required: [id, dayOffset, dueAt, sentAt, failedAt]
+        sentVia:
+          type: string
+          nullable: true
+          description: "`email`, `sms`, `email,sms`, or `withdrawn` when consent lapsed before it was due."
+      required: [id, kind, dayOffset, dueAt, sentAt, failedAt, sentVia]
+
+    AftercareMessage:
+      type: object
+      properties:
+        key:
+          type: string
+          enum: ["30", "60", "90", "365", birthday, holidays, death_anniversary]
+        label:
+          type: string
+        subject:
+          type: string
+        body:
+          type: string
+          description: "`{name}` stands for the person who died."
+        defaultSubject:
+          type: string
+        defaultBody:
+          type: string
+        custom:
+          type: boolean
+      required: [key, label, subject, body, defaultSubject, defaultBody, custom]
+
+    AftercareSettings:
+      type: object
+      properties:
+        touchpoints:
+          type: array
+          items:
+            type: string
+            enum: [birthday, holidays, death_anniversary]
+        messages:
+          type: array
+          items:
+            $ref: "#/components/schemas/AftercareMessage"
+      required: [touchpoints, messages]
+
+    AftercareSettingsInput:
+      type: object
+      properties:
+        touchpoints:
+          type: array
+          items:
+            type: string
+            enum: [birthday, holidays, death_anniversary]
+        messages:
+          type: array
+          items:
+            type: object
+            properties:
+              key:
+                type: string
+                enum: ["30", "60", "90", "365", birthday, holidays, death_anniversary]
+              subject:
+                type: string
+                nullable: true
+                maxLength: 120
+              body:
+                type: string
+                nullable: true
+                maxLength: 2000
+            required: [key]
 
     AftercareConsentInput:
       type: object
@@ -7164,6 +7286,16 @@ components:
         email:
           type: string
           nullable: true
+        sms:
+          type: boolean
+          description: Also send each note as a short text. This is the person's own consent to texts.
+        phone:
+          type: string
+          nullable: true
+          description: The mobile for the texts; defaults to the one the home has.
+        touchpoints:
+          type: boolean
+          description: Also send the extra notes the home offers (birthday, first holidays, anniversary of the death).
       required: [consent]
 
     # --------------------------------------------------------- memory book --

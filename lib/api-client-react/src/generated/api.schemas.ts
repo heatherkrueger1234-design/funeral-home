@@ -2312,12 +2312,39 @@ export const AftercareEnrollmentStatus = {
   done: "done",
 } as const;
 
+export type AftercareEnrollmentTouchpointsOfferedItemKind =
+  (typeof AftercareEnrollmentTouchpointsOfferedItemKind)[keyof typeof AftercareEnrollmentTouchpointsOfferedItemKind];
+
+export const AftercareEnrollmentTouchpointsOfferedItemKind = {
+  birthday: "birthday",
+  holidays: "holidays",
+  death_anniversary: "death_anniversary",
+} as const;
+
+export type AftercareEnrollmentTouchpointsOfferedItem = {
+  kind: AftercareEnrollmentTouchpointsOfferedItemKind;
+  dueAt: string;
+};
+
+export type AftercareDeliveryKind =
+  (typeof AftercareDeliveryKind)[keyof typeof AftercareDeliveryKind];
+
+export const AftercareDeliveryKind = {
+  checkin: "checkin",
+  birthday: "birthday",
+  holidays: "holidays",
+  death_anniversary: "death_anniversary",
+} as const;
+
 export interface AftercareDelivery {
   id: number;
+  kind: AftercareDeliveryKind;
   dayOffset: number;
   dueAt: string;
   sentAt: string | null;
   failedAt: string | null;
+  /** `email`, `sms`, `email,sms`, or `withdrawn` when consent lapsed before it was due. */
+  sentVia: string | null;
 }
 
 export interface AftercareEnrollment {
@@ -2332,12 +2359,97 @@ export interface AftercareEnrollment {
   startsAt: string;
   consentedAt: string | null;
   unsubscribedAt: string | null;
+  smsConsentAt?: string | null;
+  touchpointsConsentAt?: string | null;
+  /** Extra notes the home offers and when they would land; only while the family has not answered, and only on the family's view. */
+  touchpointsOffered?: AftercareEnrollmentTouchpointsOfferedItem[];
+  /** Whether texts can be sent on this deployment. Family view only. */
+  smsAvailable?: boolean;
   deliveries: AftercareDelivery[];
+}
+
+export type AftercareMessageKey =
+  (typeof AftercareMessageKey)[keyof typeof AftercareMessageKey];
+
+export const AftercareMessageKey = {
+  NUMBER_30: "30",
+  NUMBER_60: "60",
+  NUMBER_90: "90",
+  NUMBER_365: "365",
+  birthday: "birthday",
+  holidays: "holidays",
+  death_anniversary: "death_anniversary",
+} as const;
+
+export interface AftercareMessage {
+  key: AftercareMessageKey;
+  label: string;
+  subject: string;
+  /** `{name}` stands for the person who died. */
+  body: string;
+  defaultSubject: string;
+  defaultBody: string;
+  custom: boolean;
+}
+
+export type AftercareSettingsTouchpointsItem =
+  (typeof AftercareSettingsTouchpointsItem)[keyof typeof AftercareSettingsTouchpointsItem];
+
+export const AftercareSettingsTouchpointsItem = {
+  birthday: "birthday",
+  holidays: "holidays",
+  death_anniversary: "death_anniversary",
+} as const;
+
+export interface AftercareSettings {
+  touchpoints: AftercareSettingsTouchpointsItem[];
+  messages: AftercareMessage[];
+}
+
+export type AftercareSettingsInputTouchpointsItem =
+  (typeof AftercareSettingsInputTouchpointsItem)[keyof typeof AftercareSettingsInputTouchpointsItem];
+
+export const AftercareSettingsInputTouchpointsItem = {
+  birthday: "birthday",
+  holidays: "holidays",
+  death_anniversary: "death_anniversary",
+} as const;
+
+export type AftercareSettingsInputMessagesItemKey =
+  (typeof AftercareSettingsInputMessagesItemKey)[keyof typeof AftercareSettingsInputMessagesItemKey];
+
+export const AftercareSettingsInputMessagesItemKey = {
+  NUMBER_30: "30",
+  NUMBER_60: "60",
+  NUMBER_90: "90",
+  NUMBER_365: "365",
+  birthday: "birthday",
+  holidays: "holidays",
+  death_anniversary: "death_anniversary",
+} as const;
+
+export type AftercareSettingsInputMessagesItem = {
+  key: AftercareSettingsInputMessagesItemKey;
+  /** @maxLength 120 */
+  subject?: string | null;
+  /** @maxLength 2000 */
+  body?: string | null;
+};
+
+export interface AftercareSettingsInput {
+  touchpoints?: AftercareSettingsInputTouchpointsItem[];
+  messages?: AftercareSettingsInputMessagesItem[];
 }
 
 export interface AftercareConsentInput {
   consent: boolean;
   email?: string | null;
+  /** Also send each note as a short text. This is the person's own consent to texts. */
+  sms?: boolean;
+  /** The mobile for the texts; defaults to the one the home has. */
+  phone?: string | null;
+  /** Also send the extra notes the home offers (birthday, first holidays, anniversary of the death). */
+  touchpoints?: boolean;
 }
 
 /**

@@ -18,13 +18,15 @@ Two audiences, two authentication schemes, and the split is load-bearing:
  * OpenAPI spec version: 0.1.0
  */
 
-export interface AftercareConsentInput {
-  consent: boolean;
-  email?: string | null;
-  /** Also send each note as a short text. This is the person's own consent to texts. */
-  sms?: boolean;
-  /** The mobile for the texts; defaults to the one the home has. */
-  phone?: string | null;
-  /** Also send the extra notes the home offers (birthday, first holidays, anniversary of the death). */
-  touchpoints?: boolean;
-}
+export type AftercareSettingsInputMessagesItemKey =
+  (typeof AftercareSettingsInputMessagesItemKey)[keyof typeof AftercareSettingsInputMessagesItemKey];
+
+export const AftercareSettingsInputMessagesItemKey = {
+  NUMBER_30: "30",
+  NUMBER_60: "60",
+  NUMBER_90: "90",
+  NUMBER_365: "365",
+  birthday: "birthday",
+  holidays: "holidays",
+  death_anniversary: "death_anniversary",
+} as const;
