@@ -122,8 +122,8 @@ export default function Settings() {
             }}
           />
           <p className="text-sm leading-snug text-muted-foreground">
-            The person families reach for the practical questions. Heather
-            entered this when your home joined; keep it current.
+            Who we contact about your account — renewals, and anything we need
+            to ask the home. Families never see it.
           </p>
         </div>
 
