@@ -43,6 +43,8 @@ export const obituaryDraftsTable = pgTable(
     /* ------------------------------------------------------- the fields */
 
     fullName: text("full_name"),
+    /** `she`, `he` or `they`, as the family chose. Null uses their first name. */
+    pronouns: text("pronouns"),
     /** Free text, not a date. Families write "spring of 1931". */
     bornOn: text("born_on"),
     birthPlace: text("birth_place"),
@@ -76,6 +78,14 @@ export const obituaryDraftsTable = pgTable(
      * `approved`     — the director has signed it off for print.
      */
     status: text("status").notNull().default("family_draft"),
+
+    /**
+     * A suggested rewrite a director asked for (`obituary-ai.ts`). Beside the
+     * draft, never over it; staff-only; used only if a director takes it.
+     */
+    aiSuggestion: text("ai_suggestion"),
+    aiSuggestedAt: timestamp("ai_suggested_at"),
+    aiSuggestedByUserId: integer("ai_suggested_by_user_id"),
     submittedAt: timestamp("submitted_at"),
     approvedAt: timestamp("approved_at"),
     approvedByUserId: integer("approved_by_user_id"),
@@ -92,6 +102,8 @@ export const OBITUARY_STATUSES = [
   "approved",
 ] as const;
 export type ObituaryStatus = (typeof OBITUARY_STATUSES)[number];
+
+export const OBITUARY_PRONOUNS = ["she", "he", "they"] as const;
 
 export const insertObituaryDraftSchema = createInsertSchema(
   obituaryDraftsTable,

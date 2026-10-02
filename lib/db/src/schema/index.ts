@@ -23,6 +23,7 @@ export * from "./uploads";
 /* A death, and the family's way in. */
 export * from "./cases";
 export * from "./family-contacts";
+export * from "./sms";
 
 /* The two ways in that do not start with a director: a family who found the
  * home themselves, and someone arranging their own funeral in advance. */
@@ -38,6 +39,7 @@ export * from "./belongings";
 
 /* The paperwork that holds everything else up. */
 export * from "./vital-statistics";
+export * from "./certificates";
 
 /* What gets printed. */
 export * from "./print";

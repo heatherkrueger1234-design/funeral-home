@@ -13,7 +13,6 @@ import {
   obituaryDraftsTable,
   serviceSelectionsTable,
   uploadsTable,
-  vitalStatisticsTable,
   type Case,
 } from "@workspace/db";
 import { decryptBuffer } from "@workspace/db/crypto";

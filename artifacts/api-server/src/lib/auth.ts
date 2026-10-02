@@ -355,7 +355,7 @@ function cookieOptions(): CookieOptions {
  * proxy that is not forwarding the header, or TRUST_PROXY_HOPS set lower than
  * the number of proxies actually in front.
  */
-function warnIfCookieCannotReturn(req: Request, res: Response): void {
+function warnIfCookieCannotReturn(req: Request, _res: Response): void {
   if (!cookieOptions().secure || req.secure) return;
 
   logger.warn(

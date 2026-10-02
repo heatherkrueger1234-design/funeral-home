@@ -21,6 +21,7 @@ import type { PrintItemUpdateStatus } from "./printItemUpdateStatus";
 import type { PrintItemUpdateValues } from "./printItemUpdateValues";
 
 export interface PrintItemUpdate {
+  themeKey?: string;
   title?: string | null;
   photoId?: number | null;
   values?: PrintItemUpdateValues;

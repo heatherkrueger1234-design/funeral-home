@@ -9,11 +9,11 @@ import { twMerge } from "tailwind-merge";
  * expired: the plan was to split the spec into one file per domain first, and
  * that split was abandoned — the spec is still one 7,000-line file.
  *
- * So this stays hand-typed against `routes/admin.ts` until somebody adds the
+ * So this stays hand-typed against `routes/admin/` until somebody adds the
  * admin paths to the shared spec, which is a conflict-prone edit worth doing
  * deliberately rather than in passing. The types below are the contract that
  * generated client would have to produce, so the swap is mechanical when it
- * happens. Until then: change a type here and in `routes/admin.ts` together,
+ * happens. Until then: change a type here and in `routes/admin/` together,
  * because nothing checks that they agree.
  */
 
@@ -551,6 +551,7 @@ export const AUDIT_ACTION_LABELS: Record<string, string> = {
   "home.staff.reset": "Emailed a director a password reset",
   "home.owner.invite": "Invited an owner",
   "home.trial.extend": "Extended a trial",
+  "home.sms.update": "Changed a home's texting setup",
   "group.list": "Listed the groups",
   "group.create": "Created a group",
   "group.open": "Opened a group",

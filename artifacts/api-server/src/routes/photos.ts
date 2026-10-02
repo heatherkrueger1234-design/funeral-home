@@ -188,7 +188,6 @@ router.put("/cases/:caseId/photos/order", async (req, res) => {
 });
 
 router.patch("/photos/:photoId", async (req, res) => {
-  const home = tenant(req);
   const existing = await loadPhoto(req, req.params.photoId);
   // `takenYear` and `takenAtService` are parsed a second time by
   // `PhotoDatingBody`, which is the one that insists on a whole year.

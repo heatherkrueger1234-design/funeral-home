@@ -1,4 +1,5 @@
-import { findTemplate, type PrintTemplate } from "./print-templates";
+import { type PrintTemplate } from "./print-templates";
+import { findTheme, themeCss } from "./print-themes";
 import { decedentDisplayName, type Case, type FuneralHome } from "@workspace/db";
 
 /**
@@ -31,6 +32,10 @@ export type RenderInput = {
   /** Resolved server-side so the HTML is self-contained. */
   photoDataUri: string | null;
   logoDataUri: string | null;
+  /** The item's theme key; unknown or missing is Classic. */
+  themeKey?: string | null;
+  /** The case's obituary text, for a slot that draws on it. */
+  obituary?: string | null;
 };
 
 /** Escape for HTML. Everything here is typed by a person. */
@@ -48,6 +53,16 @@ function lines(value: string): string {
     .split(/\r?\n/)
     .map((line) => line.trim())
     .map((line) => (line === "" ? "<br>" : `<div>${line}</div>`))
+    .join("\n");
+}
+
+/** Prose, paragraph by paragraph, for the obituary. */
+function paragraphs(value: string): string {
+  return value
+    .split(/\n\s*\n/)
+    .map((para) => para.replace(/\s+/g, " ").trim())
+    .filter(Boolean)
+    .map((para) => `<p>${esc(para)}</p>`)
     .join("\n");
 }
 
@@ -124,6 +139,8 @@ export function resolveSlots(input: {
    * both of them come through here.
    */
   timeZone: string;
+  /** The case's obituary text, when a slot draws on it. */
+  obituary?: string | null;
 }): Record<string, string> {
   const resolved: Record<string, string> = {};
 
@@ -144,6 +161,9 @@ export function resolveSlots(input: {
         break;
       case "serviceLine":
         resolved[slot.key] = formatServiceLine(input.case, input.timeZone);
+        break;
+      case "obituary":
+        resolved[slot.key] = input.obituary?.trim() ?? "";
         break;
       default:
         resolved[slot.key] = "";
@@ -176,7 +196,10 @@ function photoBlock(dataUri: string | null, alt: string): string {
  */
 function body(input: RenderInput, slots: Record<string, string>): string {
   const name = esc(slots["name"] ?? "");
+  // The theme's ornament sits under the dates on every layout.
+  const ornament = findTheme(input.themeKey).ornament ?? "";
   const dates = esc(slots["dates"] ?? "");
+  const datesBlock = `<p class="dates">${dates}</p>${ornament}`;
   const photo = photoBlock(input.photoDataUri, slots["name"] ?? "");
 
   const homeMark = input.logoDataUri
@@ -187,7 +210,7 @@ function body(input: RenderInput, slots: Record<string, string>): string {
     case "prayer-card":
       return [
         panel(
-          `${photo}<h1>${name}</h1><p class="dates">${dates}</p>`,
+          `${photo}<h1>${name}</h1>${datesBlock}`,
           { className: "panel--front" },
         ),
         panel(
@@ -199,7 +222,7 @@ function body(input: RenderInput, slots: Record<string, string>): string {
 
     case "bookmark":
       return panel(
-        `${photo}<h1>${name}</h1><p class="dates">${dates}</p>` +
+        `${photo}<h1>${name}</h1>${datesBlock}` +
           `<div class="verse">${lines(slots["verse"] ?? "")}</div>${homeMark}`,
         { className: "panel--tall" },
       );
@@ -211,34 +234,54 @@ function body(input: RenderInput, slots: Record<string, string>): string {
       // wastes two hundred sheets.
       return [
         panel(
-          `${photo}<h1>${name}</h1><p class="dates">${dates}</p>` +
+          `${photo}<h1>${name}</h1>${datesBlock}` +
             `<p class="service">${lines(slots["serviceLine"] ?? "")}</p>`,
           { className: "panel--front" },
         ),
+        // Inside left: the obituary when there is one, else the bearers
+        // and thanks, so the folder never opens on a blank page.
+        slots["obituary"]
+          ? panel(
+              `<h2>In Loving Memory</h2><div class="obituary">${paragraphs(slots["obituary"])}</div>`,
+              { className: "panel--prose" },
+            )
+          : panel(
+              `${slots["bearers"] ? `<h2>Pallbearers</h2><div class="bearers">${lines(slots["bearers"])}</div>` : ""}` +
+                `${slots["thanks"] ? `<div class="thanks">${lines(slots["thanks"])}</div>` : ""}`,
+            ),
         panel(
           `<h2>Order of Service</h2><div class="order">${lines(slots["order"] ?? "")}</div>`,
         ),
         panel(
-          `${slots["bearers"] ? `<h2>Pallbearers</h2><div class="bearers">${lines(slots["bearers"])}</div>` : ""}` +
-            `${slots["thanks"] ? `<div class="thanks">${lines(slots["thanks"])}</div>` : ""}`,
-        ),
-        panel(
-          `${slots["reception"] ? `<p class="reception">${lines(slots["reception"])}</p>` : ""}${homeMark}`,
+          (slots["obituary"] && slots["bearers"]
+            ? `<h2>Pallbearers</h2><div class="bearers">${lines(slots["bearers"])}</div>`
+            : "") +
+            (slots["obituary"] && slots["thanks"]
+              ? `<div class="thanks">${lines(slots["thanks"])}</div>`
+              : "") +
+            `${slots["reception"] ? `<p class="reception">${lines(slots["reception"])}</p>` : ""}${homeMark}`,
           { className: "panel--back" },
         ),
       ].join("");
 
     case "program-single":
       return panel(
-        `${photo}<h1>${name}</h1><p class="dates">${dates}</p>` +
+        `${photo}<h1>${name}</h1>${datesBlock}` +
           `<p class="service">${lines(slots["serviceLine"] ?? "")}</p>` +
           `<h2>Order of Service</h2><div class="order">${lines(slots["order"] ?? "")}</div>` +
           homeMark,
       );
 
+    case "obituary-page":
+      return panel(
+        `<div class="obit-head">${photo}<div><h1>${name}</h1>${datesBlock}</div></div>` +
+          `<div class="obituary">${paragraphs(slots["obituary"] ?? "")}</div>${homeMark}`,
+        { className: "panel--page panel--prose" },
+      );
+
     case "register-page":
       return panel(
-        `${photo}<h1>${name}</h1><p class="dates">${dates}</p>` +
+        `${photo}<h1>${name}</h1>${datesBlock}` +
           `<p class="service">${lines(slots["serviceLine"] ?? "")}</p>` +
           `<p class="prompt">In loving memory</p>${homeMark}`,
         { className: "panel--page" },
@@ -255,20 +298,21 @@ function body(input: RenderInput, slots: Record<string, string>): string {
       ].join("");
 
     default:
-      return panel(`<h1>${name}</h1><p class="dates">${dates}</p>`);
+      return panel(`<h1>${name}</h1>${datesBlock}`);
   }
 }
 
 export function renderPrintItem(input: RenderInput): string {
   const { template } = input;
   const slots = resolveSlots({ ...input, timeZone: input.home.timezone });
+  const theme = findTheme(input.themeKey);
 
   const sheetWidth = template.width + BLEED * 2;
   const sheetHeight = template.height + BLEED * 2;
 
-  const accent = /^#[0-9a-fA-F]{6}$/.test(input.home.accentColor)
-    ? input.home.accentColor
-    : "#1f4e46";
+  const accent =
+    theme.accent ??
+    (/^#[0-9a-fA-F]{6}$/.test(input.home.accentColor) ? input.home.accentColor : "#1f4e46");
 
   return `<!doctype html>
 <html lang="en">
@@ -380,6 +424,17 @@ export function renderPrintItem(input: RenderInput): string {
   .panel--tall .verse { font-size: 8pt; }
   .panel--page h1 { font-size: 26pt; }
   .panel--page .photo { max-height: 45%; aspect-ratio: 1 / 1; width: 3.2in; }
+
+  .panel--prose { text-align: left; align-items: stretch; }
+  .panel--prose h2 { text-align: center; }
+  .obituary { font-size: 9pt; line-height: 1.5; hyphens: auto; }
+  .obituary p { margin: 0 0 .07in; text-indent: .18in; }
+  .obituary p:first-child { text-indent: 0; }
+  .panel--page .obituary { font-size: 11pt; column-count: 2; column-gap: .35in; margin-top: .2in; }
+  .obit-head { display: flex; gap: .3in; align-items: center; text-align: left; }
+  .obit-head .photo { width: 2.2in; max-height: none; flex: 0 0 2.2in; }
+  .panel--page.panel--prose h1 { font-size: 24pt; }
+  ${themeCss(theme)}
 
   @media print {
     body { background: #fff; }

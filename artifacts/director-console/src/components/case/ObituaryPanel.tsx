@@ -6,13 +6,16 @@ import {
   useComposeObituary,
   useApproveObituary,
   useReopenObituary,
+  useSuggestObituary,
+  useAcceptObituarySuggestion,
+  useDiscardObituarySuggestion,
   getGetObituaryQueryKey,
   getGetCaseQueryKey,
 } from "@workspace/api-client-react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
-import { Check, RefreshCw, Undo2 } from "lucide-react";
+import { Check, RefreshCw, Sparkles, Undo2 } from "lucide-react";
 import { Confirm, LoadFailed, Loading } from "@/components/page";
 
 /**
@@ -81,6 +84,27 @@ export function ObituaryPanel({ caseId }: { caseId: number }) {
     },
   });
 
+  const suggest = useSuggestObituary({
+    mutation: {
+      onSuccess: refresh,
+      onError: (error: unknown) =>
+        toast({
+          title: "No suggestion this time",
+          description: error instanceof Error ? error.message : undefined,
+          variant: "destructive",
+        }),
+    },
+  });
+  const accept = useAcceptObituarySuggestion({
+    mutation: {
+      onSuccess: () => {
+        setText(null);
+        refresh();
+      },
+    },
+  });
+  const discard = useDiscardObituarySuggestion({ mutation: { onSuccess: refresh } });
+
   if (obituary.isPending) {
     return <Loading />;
   }
@@ -115,8 +139,18 @@ export function ObituaryPanel({ caseId }: { caseId: number }) {
     approve.mutate({ caseId });
   };
 
+  const pronounLabel =
+    draft.pronouns === "she"
+      ? "She / her"
+      : draft.pronouns === "he"
+        ? "He / him"
+        : draft.pronouns === "they"
+          ? "They / them"
+          : "Not chosen — the draft uses their first name";
+
   const fields: Array<[string, string | null]> = [
     ["Full name", draft.fullName],
+    ["Refer to them as", pronounLabel],
     ["Born", [draft.bornOn, draft.birthPlace].filter(Boolean).join(", ") || null],
     ["Died", [draft.diedOn, draft.deathPlace].filter(Boolean).join(", ") || null],
     ["Life", draft.biography],
@@ -159,6 +193,38 @@ export function ObituaryPanel({ caseId }: { caseId: number }) {
             </div>
           ))}
         </dl>
+
+        {(draft.hints.bornOn || draft.hints.diedOn) && (
+          <p className="rounded-lg border border-[var(--notice)]/30 bg-[var(--notice-soft)] px-3 py-2.5 text-sm text-[var(--notice)]">
+            A date box holds a place. The draft reads it as a place; check it
+            with the family.
+          </p>
+        )}
+
+        {!approved && (
+          <label className="block text-sm">
+            <span className="text-xs uppercase tracking-wide text-muted-foreground">
+              Pronoun in the draft
+            </span>
+            <select
+              className="mt-1 block w-full rounded-md border border-border bg-card px-3 py-2"
+              value={draft.pronouns ?? ""}
+              onChange={(event) =>
+                update.mutate({
+                  caseId,
+                  data: {
+                    pronouns: (event.target.value || null) as "she" | "he" | "they" | null,
+                  },
+                })
+              }
+            >
+              <option value="">Their first name</option>
+              <option value="she">She / her</option>
+              <option value="he">He / him</option>
+              <option value="they">They / them</option>
+            </select>
+          </label>
+        )}
       </section>
 
       <section className="space-y-3">
@@ -196,6 +262,47 @@ export function ObituaryPanel({ caseId }: { caseId: number }) {
           onChange={(event) => setText(event.target.value)}
           onBlur={() => void saveText().catch(() => undefined)}
         />
+
+        {draft.aiAvailable && !approved && !draft.aiSuggestion && (
+          <Confirm
+            trigger={
+              <Button variant="outline" size="sm" disabled={suggest.isPending}>
+                <Sparkles className="size-4" />
+                {suggest.isPending ? "Asking…" : "Suggest a smoother draft"}
+              </Button>
+            }
+            title="Send the family's notes for a suggestion?"
+            description="The fields on the left are sent to an automated writing service, which suggests a smoother version. It can make mistakes: check every name, date and place. Nothing changes, and the family sees nothing, unless you choose to use it."
+            confirmLabel="Send for a suggestion"
+            onConfirm={() => suggest.mutate({ caseId, data: { confirm: true } })}
+          />
+        )}
+
+        {draft.aiSuggestion && (
+          <div className="space-y-2 rounded-xl border border-dashed border-[var(--accent)]/40 bg-[var(--accent-soft)] p-4">
+            <p className="text-xs font-semibold uppercase tracking-wide text-[var(--accent-deep)]">
+              Suggested by an automated writing service — check every fact
+            </p>
+            <p className="whitespace-pre-wrap text-sm">{draft.aiSuggestion}</p>
+            <div className="flex gap-2">
+              <Button
+                size="sm"
+                disabled={accept.isPending}
+                onClick={() => accept.mutate({ caseId })}
+              >
+                Use this as the draft
+              </Button>
+              <Button
+                size="sm"
+                variant="ghost"
+                disabled={discard.isPending}
+                onClick={() => discard.mutate({ caseId })}
+              >
+                Discard
+              </Button>
+            </div>
+          </div>
+        )}
 
         {approved ? (
           <div className="flex flex-wrap items-center gap-3">

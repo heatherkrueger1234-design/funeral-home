@@ -27,6 +27,7 @@ import {
 import { tenant } from "../middleware/require-auth";
 import { isThreadLocked } from "../lib/thread";
 import { casesAwaitingChoice } from "../lib/service-offers";
+import { certificatesRunning } from "./certificate";
 
 /**
  * The master page: one read for the screen a director opens first.
@@ -299,6 +300,8 @@ router.get("/home/dashboard", async (req, res) => {
     })),
     pendingRequests: pendingRequests[0]?.value ?? 0,
     offersAwaitingChoice: awaitingChoice.length,
+    // Colorado's 72-hour clocks still running, soonest first.
+    certificatesDue: await certificatesRunning(home.id, now),
     /*
      * Where this home stands on money is deliberately absent. `/billing`
      * answers that, the console's trial banner reads it from there, and a

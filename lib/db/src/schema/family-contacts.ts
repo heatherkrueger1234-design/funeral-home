@@ -62,6 +62,17 @@ export const familyContactsTable = pgTable(
     email: text("email"),
 
     /**
+     * Consent to be texted: when, and how it was given — `director`
+     * (recorded by staff at the arrangement), `family_portal` (ticked by
+     * the person themselves) or `reply_start` (texted START). No text is
+     * sent to a contact without it. `smsOptedOutAt` is set by a STOP reply
+     * and wins over any consent.
+     */
+    smsConsentAt: timestamp("sms_consent_at"),
+    smsConsentSource: text("sms_consent_source"),
+    smsOptedOutAt: timestamp("sms_opted_out_at"),
+
+    /**
      * `next_of_kin` is the person the deadlines belong to and the one the
      * director actually needs answers from. `contributor` is the cousin who
      * was forwarded the link to add photographs. Both can upload; only the
@@ -113,6 +124,9 @@ export const familyContactsTable = pgTable(
     index("family_contacts_funeral_home_id_idx").on(table.funeralHomeId),
   ],
 );
+
+export const SMS_CONSENT_SOURCES = ["director", "family_portal", "reply_start"] as const;
+export type SmsConsentSource = (typeof SMS_CONSENT_SOURCES)[number];
 
 export const FAMILY_ROLES = ["next_of_kin", "contributor"] as const;
 export type FamilyRole = (typeof FAMILY_ROLES)[number];

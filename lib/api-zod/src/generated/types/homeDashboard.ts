@@ -21,6 +21,7 @@ import type { DashboardCase } from "./dashboardCase";
 import type { DashboardDeadline } from "./dashboardDeadline";
 import type { DashboardQuoteRequest } from "./dashboardQuoteRequest";
 import type { DashboardService } from "./dashboardService";
+import type { HomeDashboardCertificatesDueItem } from "./homeDashboardCertificatesDueItem";
 
 /**
  * The landing screen, in one read. Counts and the few rows behind them -
@@ -62,4 +63,6 @@ the home has answered yet, across every open case.
   pendingRequests: number;
   /** Cases where the home has offered times and nobody has picked. */
   offersAwaitingChoice: number;
+  /** Colorado 72-hour certificate clocks still running, soonest first. */
+  certificatesDue: HomeDashboardCertificatesDueItem[];
 }

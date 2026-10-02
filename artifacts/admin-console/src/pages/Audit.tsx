@@ -19,22 +19,6 @@ import {
 
 const PAGE_SIZE = 100;
 
-/**
- * Every time anybody here looked across a tenant boundary.
- *
- * This page exists to be shown to a customer. A funeral home's insurer asks
- * what the software vendor can see about their families, and "almost nothing,
- * and here is the log of every time anyone looked" is an answer; "trust us"
- * is not. It is also how the person running the platform notices an odd
- * pattern of access, which nobody does if the log is only in the database.
- *
- * It used to show the newest hundred lines and nothing else, so "who looked
- * at Horan & McConaty in March" had no answer on screen. Now it pages back as
- * far as the log goes, and narrows to one home or one kind of action. The
- * filters live in the address, so a home's page can link straight to its own
- * history and the link can be sent to whoever asked.
- */
-const LIMIT = 100;
 
 /**
  * The actions whose missing home means "all of them" rather than "none". The
@@ -295,7 +279,9 @@ function Subject({ entry }: { entry: AuditEntry }) {
   // home" read as though every customer had been opened.
   return (
     <span className="text-[var(--muted-foreground)]">
-      {entry.action.startsWith("group.")
+      {ACROSS_EVERY_HOME.has(entry.action)
+        ? "Every home"
+        : entry.action.startsWith("group.")
         ? "A group"
         : entry.action.startsWith("platform.admin")
           ? "The access list"

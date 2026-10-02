@@ -17,12 +17,22 @@ Two audiences, two authentication schemes, and the split is load-bearing:
 
  * OpenAPI spec version: 0.1.0
  */
+import type { ObituaryDraftHints } from "./obituaryDraftHints";
+import type { ObituaryDraftPronouns } from "./obituaryDraftPronouns";
 import type { ObituaryDraftStatus } from "./obituaryDraftStatus";
 
 export interface ObituaryDraft {
   id: number;
   caseId: number;
   fullName: string | null;
+  pronouns: ObituaryDraftPronouns;
+  /** A gentle note under a date box that holds a place instead. */
+  hints: ObituaryDraftHints;
+  /** Staff only. Whether suggested rewrites are switched on. */
+  aiAvailable?: boolean;
+  /** Staff only. A suggested rewrite a director asked for. */
+  aiSuggestion?: string | null;
+  aiSuggestedAt?: Date | null;
   bornOn: string | null;
   birthPlace: string | null;
   diedOn: string | null;

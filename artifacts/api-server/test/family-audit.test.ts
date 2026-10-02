@@ -13,7 +13,7 @@ import {
   aftercareUnsubscribeUrl,
 } from "@workspace/mailer/aftercare";
 import app from "../src/app";
-import { logger } from "../src/lib/logger";
+import { smsLogger } from "../src/lib/sms";
 import {
   asFamily,
   createCase,
@@ -37,7 +37,7 @@ afterEach(() => {
 
 describe("the family's link is a credential, and stays out of the log", () => {
   it("masks the token when the text is logged instead of sent", async () => {
-    const warn = vi.spyOn(logger, "warn");
+    const warn = vi.spyOn(smsLogger, "warn");
     const staff = await signUpHome();
     const row = await createCase(staff);
     const contact = await staff.agent
@@ -47,6 +47,7 @@ describe("the family's link is a credential, and stays out of the log", () => {
 
     const sent = await staff.agent
       .post(`/api/contacts/${contact.body.id}/send-link`)
+      .send({ smsConsent: true })
       .expect(200);
 
     // The director is still handed the working link to paste...

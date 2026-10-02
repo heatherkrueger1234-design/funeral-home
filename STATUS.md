@@ -13,8 +13,9 @@ worse than none.
   `lib/db/crypto.ts` refuses in production, so the API could not boot and
   Playwright never ran a test. Worth knowing because it passed locally the
   whole time — nothing sets that variable there.
-- **The scheduled jobs fail every day**, because there is nowhere for them to
-  send their request yet. This is a settings problem, not a code problem.
+- **The scheduled jobs skip cleanly** until the repository has somewhere to
+  send their request (`API_URL`, `TASK_SECRET`). Set `REQUIRE_TASK_SECRETS`
+  once deployed so a missing secret fails the run again.
 - **There are two "main" branches.** Most of the recent confusion comes from
   this. A block of work from 14 September lives only on the old one.
 - **29 branches exist; 18 of them contain nothing main does not** and can be
@@ -22,37 +23,17 @@ worse than none.
 
 ---
 
-## Problem 1 — The red X on Actions every day
+## Problem 1 — The scheduled jobs have nowhere to send yet
 
-**What you see:** the *Aftercare* and *Trial reminders* workflows fail once a
-day. *Usage* has not run yet; its first run (02:00 UTC) will fail the same way.
-CI itself is fine.
+*Aftercare*, *Trial reminders* and *Usage* each send one authenticated request
+to the live server (`POST /api/tasks/…`). Until the repository secrets
+`API_URL` and `TASK_SECRET` are set, each run **skips with a notice** rather
+than failing, and says so in the run summary.
 
-**Why:** each of those jobs does one thing: send an authenticated request to the
-live server (`POST /api/tasks/…`) so it does the day's sending. They need two
-repository secrets to know where that server is, and neither is set:
-
-```
-API_URL and TASK_SECRET must be set as repository secrets.
-```
-
-The job fails on purpose when they are missing, so nobody believes the
-aftercare emails are going out when they are not.
-
-**Fix — pick one:**
-
-1. **Once the app is deployed:** in GitHub, *Settings → Secrets and variables →
-   Actions*, add
-   - `API_URL` — the deployed API's base address, e.g. `https://continuumaftercare.com`
-   - `TASK_SECRET` — the same value as `TASK_SECRET` on the server (see `.env.example`)
-
-   Then run each workflow once by hand with *dry run* ticked to confirm.
-2. **Until then:** in the *Actions* tab, open each of the three workflows and
-   choose *Disable workflow*. Turn them back on after doing step 1.
-
-Do not "fix" this by making the jobs pass when the secrets are missing. The
-day that hides a real misconfiguration, a family's check-in silently never goes
-out.
+**Once the app is deployed:** add both secrets (*Settings → Secrets and
+variables → Actions*), set the repository variable `REQUIRE_TASK_SECRETS=true`
+so a missing secret fails the run from then on, and run each workflow once by
+hand with *dry run* ticked. A manual run always fails without the secrets.
 
 ## Problem 2 — Two main branches
 
@@ -76,8 +57,8 @@ What is on the old branch and nowhere else:
 - **Storefront and catalogue** (`lib/db/src/schema/{storefront,catalogue}.ts`) —
   a home showing a family goods, itemised per the FTC Funeral Rule
 - **The itemised statement** and the handoff to the home's own payment page
-- **Forms and authorisations** on Colorado's 72-hour death-certificate clock
-  (this is also what open PR #8 adds)
+- **Forms and authorisations** (open PR #8). The 72-hour certificate clock
+  itself has since been ported on its own (`routes/certificate.ts`)
 - **Engagement scoring** (`lib/db/src/schema/engagement.ts`)
 
 Some of this main has since rebuilt differently (`policies.ts`, the admin
@@ -211,8 +192,7 @@ rather than a fix:
 
 ## What to do next, in order
 
-1. Disable or configure the three scheduled workflows (Problem 1). Five minutes,
-   and it is the only thing here that is currently failing daily.
+1. Once deployed, set the scheduled workflows' secrets (Problem 1).
 2. Delete the eighteen branches marked safe above.
 3. Decide keep-or-drop for each of the four old-branch features (Problem 2).
    This is the one that needs an owner, not an agent.

@@ -1,6 +1,6 @@
 import { Router, type IRouter } from "express";
 import express from "express";
-import { and, count, eq, gte, isNotNull, isNull, sql } from "drizzle-orm";
+import { and, count, eq, gte, sql } from "drizzle-orm";
 import { z } from "zod/v4";
 import {
   db,
@@ -25,6 +25,7 @@ import {
   applySubscription,
   createCheckoutSession,
   createPortalSession,
+  isAnnualConfigured,
   isBillingConfigured,
   startFreeTrial,
   verifyWebhook,
@@ -197,6 +198,7 @@ function toBillingJson(
     currentPeriodEndsAt: home.currentPeriodEndsAt,
     canOpenCases: canOpenCases(home),
     billingConfigured: isBillingConfigured(),
+    annualAvailable: isBillingConfigured() && isAnnualConfigured(),
     hasSubscription: home.stripeSubscriptionId !== null,
     onboarding,
     onboardingComplete: onboarding.every((step) => step.done),
@@ -255,6 +257,8 @@ function assertNotInGroup(home: FuneralHome): void {
 
 const AddOnSelection = z.object({
   addOns: z.array(z.string().refine(isAddOnKey)).optional(),
+  /** Annual is twelve months for the price of ten (PRICING.md). */
+  interval: z.enum(["month", "year"]).optional(),
 });
 
 router.post("/billing/checkout", async (req, res) => {
@@ -295,7 +299,10 @@ router.post("/billing/checkout", async (req, res) => {
   // malformed add-on list reached the error handler as a 500.
   const selection = AddOnSelection.safeParse(req.body ?? {});
   if (!selection.success) throw badRequest("That is not an add-on we offer.");
-  const { addOns } = selection.data;
+  const { addOns, interval } = selection.data;
+  if (interval === "year" && !isAnnualConfigured()) {
+    throw badRequest("Annual billing is not set up yet. Monthly is, and you can switch later.");
+  }
 
   res.json({
     url: await createCheckoutSession({
@@ -303,6 +310,7 @@ router.post("/billing/checkout", async (req, res) => {
       email: user.email,
       returnUrl,
       addOns: addOns as AddOnKey[] | undefined,
+      interval: interval ?? "month",
     }),
   });
 });

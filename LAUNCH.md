@@ -44,8 +44,9 @@ production esbuild bundle, through the real nginx config:
   containers restores and verifies. A full restart leaves the photograph
   byte-for-byte identical.
 
-350 tests, 6 projects typechecking, 5 apps building — from a clean
-tree, with no environment variables set.
+626 tests (549 API integration tests against real Postgres, 26 console, 45
+portal, 6 scripts), lint clean, every project typechecking and 5 apps
+building — from a clean tree, with no environment variables set.
 
 ## Lighthouse scores
 
@@ -108,11 +109,11 @@ What moved the numbers:
 | ~~The platform admin list was an environment variable, so revoking access needed a redeploy and left no trace.~~ **Done.** `platform_admins`, granted and revoked from the console, both audited. | Cleared | — |
 | ~~The vendor's own tenant was counted as a customer.~~ **Done.** `internalAccount` takes it out of the list, the counts and the engagement figures. | Cleared | — |
 | **No terms of service, no privacy policy, and no data-processing agreement.** `COLORADO.md` says we are the processor and the home the controller, and that "the data-processing agreement says so" — there is no such document. | **Blocking** | A lawyer. It is the thing a home's insurer asks for before the home's director does. |
-| **There is no price.** The Stripe plumbing is correct and `STRIPE_PRICE_ID` is unset; nothing anywhere says what this costs. | **Blocking** | A decision, then one test-mode charge. |
+| **Prices are set; Stripe is not live.** $169/location/month + $7/funeral, annual two months free, aftercare/SMS/email included (`PRICING.md`, `lib/db/src/price-book.ts`), shown on the website and in Settings. Every subscribe button starts the 30-day no-card trial until Stripe keys exist. | **Owner** | Run `stripe-setup -- --apply` with test keys, then one test-mode cycle. |
 | **No error tracking and no uptime monitoring.** When it breaks at 2am before an 11am funeral, we find out from the director. | **High** | Sentry and a check that pages a phone. |
-| **The Colorado 72-hour clock is documented, not built.** The licensure tracker exists; the death-certificate deadline and the statutory authorisation order (C.R.S. 15-19-106) do not. Components 5 and 6 never landed. | **High** | The sales story is currently larger than the product. |
+| **The Colorado 72-hour clock is built; forms and authorisations are not.** Custody, the EDRS request, the physician's clock and the director's filing record are on the Certificate tab and the dashboard (`routes/certificate.ts`). Home-authored forms and the statutory authorisation order (C.R.S. 15-19-106) from the old Component 5 branch are not ported. | **Medium** | Do not sell forms or authorisations until they land. |
 | **Stripe has never taken a real payment.** The webhook signature check is tested; a live charge is not. | **High** | Test-mode keys, one real subscription cycle. |
-| **No prices exist in Stripe.** The per-case meter, the aftercare add-on and the group contract are all built and tested against a stubbed Stripe; none of them has a price behind it. Until `STRIPE_PRICE_ID_CASE` and `STRIPE_CASE_METER_EVENT` are set, every home is invoiced for a flat subscription and nothing says so. | **High** | Five environment variables and one test-mode cycle. `PRICING.md` has the checklist. |
+| **No prices exist in Stripe yet.** `scripts/src/stripe-setup.ts` creates them from the price book by lookup key. Until `STRIPE_PRICE_ID_CASE` and `STRIPE_CASE_METER_EVENT` are set, a paying home is invoiced the flat rate only. | **Owner** | `PRICING.md`, "Before you charge a single home". |
 | **The usage reporter has never run on a schedule.** Same failure the aftercare job had for most of this product's life: the thing that turns work into revenue does nothing until something triggers it. | **High** | Set `TASK_SECRET` and schedule `usage.yml`. |
 | ~~**The memory book has no screens.**~~ **Done.** The family portal has a memory-book page (memories, a eulogy, life-story chapters, photo dating, a preview of the printed book) and the case page has a Memory book tab (typing up a card, leaving an entry out, ordering, the book's settings, closing it for the printer). Every memory-book route is now in `openapi.yaml`, so the contract check covers it. | Cleared | — |
 | ~~**Printed cards show the service time in the server's timezone.**~~ **Done.** `print-render.ts` takes the home's timezone and has no fallback to the host clock. | Cleared | — |

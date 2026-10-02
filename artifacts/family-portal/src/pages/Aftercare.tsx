@@ -55,6 +55,20 @@ const DESCRIPTIONS: Record<number, string> = {
   365: "The anniversary",
 };
 
+const TOUCHPOINTS: Record<string, string> = {
+  birthday: "Their birthday",
+  holidays: "Before the first holidays",
+  death_anniversary: "A year since they died",
+};
+
+function describe(delivery: { kind: string; dayOffset: number }): string {
+  return (
+    TOUCHPOINTS[delivery.kind] ??
+    DESCRIPTIONS[delivery.dayOffset] ??
+    `Day ${delivery.dayOffset}`
+  );
+}
+
 export default function Aftercare() {
   const queryClient = useQueryClient();
   const session = useGetFamilySession();
@@ -62,6 +76,11 @@ export default function Aftercare() {
     () => session.data?.aftercare?.email ?? session.data?.contact.email ?? "",
   );
   const [answer, setAnswer] = useState<"yes" | "no" | null>(null);
+  const [byText, setByText] = useState(false);
+  const [phone, setPhone] = useState<string>(
+    () => session.data?.aftercare?.phone ?? session.data?.contact.phone ?? "",
+  );
+  const [extras, setExtras] = useState(false);
 
   const respond = useSetFamilyAftercareConsent({
     mutation: {
@@ -96,19 +115,19 @@ export default function Aftercare() {
       <div className="space-y-6">
         <PageHeader title="Checking in">
           {home?.name} will write to you on the days below
-          {aftercare.email ? `, at ${aftercare.email}` : ""}. You can stop
-          them at any time.
+          {aftercare.email ? `, at ${aftercare.email}` : ""}
+          {aftercare.smsConsentAt ? ", with a short text too" : ""}. You can
+          stop them at any time.
         </PageHeader>
 
         <ul className="divide-y divide-border overflow-hidden rounded-xl border border-border bg-card shadow-[var(--elevation-1)]">
-          {aftercare.deliveries.map((delivery) => (
+          {aftercare.deliveries.filter((d) => d.sentVia !== "withdrawn").map((delivery) => (
             <li
               key={delivery.id}
               className="flex items-center gap-3 px-4 py-3.5"
             >
               <span className="flex-1 font-medium">
-                {DESCRIPTIONS[delivery.dayOffset] ??
-                  `Day ${delivery.dayOffset}`}
+                {describe(delivery)}
               </span>
               {delivery.sentAt ? (
                 <span className="inline-flex items-center gap-1 text-sm text-muted-foreground">
@@ -180,6 +199,13 @@ export default function Aftercare() {
 
   const address = email.trim();
   const addressLooksRight = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(address);
+  const phoneLooksRight = phone.replace(/\D/g, "").length >= 10;
+  // Email, or a text instead, or both.
+  const canSayYes =
+    (address.length === 0 || addressLooksRight) &&
+    (addressLooksRight || (byText && phoneLooksRight)) &&
+    (!byText || phoneLooksRight);
+  const offered = aftercare.touchpointsOffered ?? [];
 
   return (
     <div className="space-y-7">
@@ -196,7 +222,7 @@ export default function Aftercare() {
         {aftercare.deliveries.map((delivery) => (
           <li key={delivery.id} className="flex items-center gap-3 px-4 py-3.5">
             <span className="flex-1 font-medium">
-              {DESCRIPTIONS[delivery.dayOffset] ?? `Day ${delivery.dayOffset}`}
+              {describe(delivery)}
             </span>
             <span className="tabular text-sm text-muted-foreground">
               {formatWhen(delivery.dueAt)}
@@ -232,11 +258,64 @@ export default function Aftercare() {
         {!addressLooksRight && (
           <p className="mt-1.5 text-sm text-muted-foreground">
             {address.length === 0
-              ? "The notes come by email, so an address is needed to say yes."
+              ? byText
+                ? "Leave this empty to have the notes by text only."
+                : "The notes come by email, so an address is needed — or choose texts below."
               : "That doesn't look quite like an email address yet."}
           </p>
         )}
       </div>
+
+      {aftercare.smsAvailable && (
+        <div className="space-y-2 rounded-xl border border-border bg-card p-4">
+          <label className="flex items-start gap-3 text-sm">
+            <input
+              type="checkbox"
+              className="mt-1"
+              checked={byText}
+              onChange={(event) => setByText(event.target.checked)}
+            />
+            <span>
+              <span className="block font-medium">Also send a short text</span>
+              <span className="block text-muted-foreground">
+                One text on each of these days from {home?.name}. Message and
+                data rates may apply. Reply STOP at any time to stop them, or
+                HELP for help.
+              </span>
+            </span>
+          </label>
+          {byText && (
+            <Input
+              type="tel"
+              autoComplete="tel"
+              aria-label="Your mobile number"
+              value={phone}
+              placeholder="Your mobile number"
+              onChange={(event) => setPhone(event.target.value)}
+            />
+          )}
+        </div>
+      )}
+
+      {offered.length > 0 && (
+        <label className="flex items-start gap-3 rounded-xl border border-border bg-card p-4 text-sm">
+          <input
+            type="checkbox"
+            className="mt-1"
+            checked={extras}
+            onChange={(event) => setExtras(event.target.checked)}
+          />
+          <span>
+            <span className="block font-medium">And on the harder days</span>
+            <span className="block text-muted-foreground">
+              {offered
+                .map((t) => `${TOUCHPOINTS[t.kind] ?? t.kind} (${formatWhen(t.dueAt)})`)
+                .join(", ")}
+              . Only if you would like them.
+            </span>
+          </span>
+        </label>
+      )}
 
       {/*
         Equal weight, not small print — and that means the same button, not a
@@ -248,10 +327,18 @@ export default function Aftercare() {
           variant="outline"
           size="lg"
           className="w-full"
-          disabled={respond.isPending || !addressLooksRight}
+          disabled={respond.isPending || !canSayYes}
           onClick={() => {
             setAnswer("yes");
-            respond.mutate({ data: { consent: true, email: address } });
+            respond.mutate({
+              data: {
+                consent: true,
+                email: address || null,
+                sms: byText,
+                phone: byText ? phone.trim() : null,
+                touchpoints: extras,
+              },
+            });
           }}
         >
           {respond.isPending && answer === "yes" ? (

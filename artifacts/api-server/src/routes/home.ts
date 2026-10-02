@@ -34,6 +34,7 @@ import {
 import { sendStaffInviteEmail } from "@workspace/mailer";
 import { templateFor, toTemplateJson } from "../lib/timeline";
 import { markOnboarding } from "../lib/onboarding";
+import { describeSmsRoute } from "../lib/sms";
 
 const router: IRouter = Router();
 
@@ -64,7 +65,9 @@ function toDirectorHome(home: FuneralHome) {
 }
 
 router.get("/home", (req, res) => {
-  res.json(toDirectorHome(tenant(req)));
+  const home = tenant(req);
+  // Where the home's texts come from, in words (see `lib/sms.ts`).
+  res.json({ ...toDirectorHome(home), textingStatus: describeSmsRoute(home) });
 });
 
 router.put("/home", async (req, res) => {

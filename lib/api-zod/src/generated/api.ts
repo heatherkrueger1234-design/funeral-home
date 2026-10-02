@@ -235,6 +235,12 @@ export const LoginResponse = zod.object({
       ),
   }),
   home: zod.object({
+    textingStatus: zod
+      .string()
+      .optional()
+      .describe(
+        "Where this home's texts are sent from, in words. Only on GET \/home.",
+      ),
     id: zod.number(),
     name: zod.string(),
     slug: zod.string(),
@@ -322,6 +328,12 @@ export const GetCurrentUserResponse = zod.object({
       ),
   }),
   home: zod.object({
+    textingStatus: zod
+      .string()
+      .optional()
+      .describe(
+        "Where this home's texts are sent from, in words. Only on GET \/home.",
+      ),
     id: zod.number(),
     name: zod.string(),
     slug: zod.string(),
@@ -416,6 +428,12 @@ export const VerifyEmailBody = zod.object({
  * @summary The signed-in staff member's funeral home
  */
 export const GetHomeResponse = zod.object({
+  textingStatus: zod
+    .string()
+    .optional()
+    .describe(
+      "Where this home's texts are sent from, in words. Only on GET \/home.",
+    ),
   id: zod.number(),
   name: zod.string(),
   slug: zod.string(),
@@ -538,6 +556,12 @@ export const UpdateHomeBody = zod.object({
 });
 
 export const UpdateHomeResponse = zod.object({
+  textingStatus: zod
+    .string()
+    .optional()
+    .describe(
+      "Where this home's texts are sent from, in words. Only on GET \/home.",
+    ),
   id: zod.number(),
   name: zod.string(),
   slug: zod.string(),
@@ -614,6 +638,9 @@ export const GetBillingResponse = zod.object({
   billingConfigured: zod
     .boolean()
     .describe("False when this deployment has no Stripe keys."),
+  annualAvailable: zod
+    .boolean()
+    .describe("Whether checkout offers annual billing (two months free)."),
   hasSubscription: zod.boolean(),
   onboarding: zod.array(
     zod.object({
@@ -642,6 +669,10 @@ export const GetBillingResponse = zod.object({
  */
 export const StartCheckoutBody = zod.object({
   returnUrl: zod.string().describe("Where Stripe sends them back to."),
+  interval: zod
+    .enum(["month", "year"])
+    .optional()
+    .describe("Checkout only. Annual is twelve months for the price of ten."),
 });
 
 export const StartCheckoutResponse = zod.object({
@@ -659,6 +690,10 @@ export const StartCheckoutResponse = zod.object({
  */
 export const OpenBillingPortalBody = zod.object({
   returnUrl: zod.string().describe("Where Stripe sends them back to."),
+  interval: zod
+    .enum(["month", "year"])
+    .optional()
+    .describe("Checkout only. Annual is twelve months for the price of ten."),
 });
 
 export const OpenBillingPortalResponse = zod.object({
@@ -694,6 +729,9 @@ export const CompleteOnboardingStepResponse = zod.object({
   billingConfigured: zod
     .boolean()
     .describe("False when this deployment has no Stripe keys."),
+  annualAvailable: zod
+    .boolean()
+    .describe("Whether checkout offers annual billing (two months free)."),
   hasSubscription: zod.boolean(),
   onboarding: zod.array(
     zod.object({
@@ -1026,6 +1064,18 @@ export const GetHomeDashboardResponse = zod
       .number()
       .describe(
         "Cases where the home has offered times and nobody has picked.",
+      ),
+    certificatesDue: zod
+      .array(
+        zod.object({
+          caseId: zod.number(),
+          decedentName: zod.string(),
+          dueAt: zod.date(),
+          hoursRemaining: zod.number().describe("Negative once overdue."),
+        }),
+      )
+      .describe(
+        "Colorado 72-hour certificate clocks still running, soonest first.",
       ),
   })
   .describe(
@@ -1867,6 +1917,25 @@ export const GetCaseResponse = zod
             .describe(
               "Set when somebody on the family's side added this person, rather than the home.",
             ),
+          smsConsentAt: zod
+            .date()
+            .nullable()
+            .describe(
+              "When this person agreed to be texted. Nobody is texted without it.",
+            ),
+          smsConsentSource: zod
+            .union([
+              zod.literal("director"),
+              zod.literal("family_portal"),
+              zod.literal("reply_start"),
+              zod.literal(null),
+            ])
+            .nullable()
+            .describe("How the consent was given."),
+          smsOptedOutAt: zod
+            .date()
+            .nullable()
+            .describe("When they replied STOP. Wins over any consent."),
           createdAt: zod.date(),
         }),
       ),
@@ -2012,6 +2081,25 @@ export const CloseCaseResponse = zod
             .describe(
               "Set when somebody on the family's side added this person, rather than the home.",
             ),
+          smsConsentAt: zod
+            .date()
+            .nullable()
+            .describe(
+              "When this person agreed to be texted. Nobody is texted without it.",
+            ),
+          smsConsentSource: zod
+            .union([
+              zod.literal("director"),
+              zod.literal("family_portal"),
+              zod.literal("reply_start"),
+              zod.literal(null),
+            ])
+            .nullable()
+            .describe("How the consent was given."),
+          smsOptedOutAt: zod
+            .date()
+            .nullable()
+            .describe("When they replied STOP. Wins over any consent."),
           createdAt: zod.date(),
         }),
       ),
@@ -2044,6 +2132,25 @@ export const GetCaseContactsResponseItem = zod.object({
     .describe(
       "Set when somebody on the family's side added this person, rather than the home.",
     ),
+  smsConsentAt: zod
+    .date()
+    .nullable()
+    .describe(
+      "When this person agreed to be texted. Nobody is texted without it.",
+    ),
+  smsConsentSource: zod
+    .union([
+      zod.literal("director"),
+      zod.literal("family_portal"),
+      zod.literal("reply_start"),
+      zod.literal(null),
+    ])
+    .nullable()
+    .describe("How the consent was given."),
+  smsOptedOutAt: zod
+    .date()
+    .nullable()
+    .describe("When they replied STOP. Wins over any consent."),
   createdAt: zod.date(),
 });
 export const GetCaseContactsResponse = zod.array(GetCaseContactsResponseItem);
@@ -2066,6 +2173,12 @@ export const CreateCaseContactBody = zod.object({
   email: zod.string().nullish(),
   role: zod.enum(["next_of_kin", "contributor"]).optional(),
   canInvite: zod.boolean().optional(),
+  smsConsent: zod
+    .boolean()
+    .optional()
+    .describe(
+      "The director confirms this person agreed to be texted. Recorded\nwith the time and `director` as the source; false withdraws it.\n",
+    ),
 });
 
 /**
@@ -2082,6 +2195,12 @@ export const UpdateContactBody = zod.object({
   email: zod.string().nullish(),
   role: zod.enum(["next_of_kin", "contributor"]).optional(),
   canInvite: zod.boolean().optional(),
+  smsConsent: zod
+    .boolean()
+    .optional()
+    .describe(
+      "The director confirms this person agreed to be texted. Recorded\nwith the time and `director` as the source; false withdraws it.\n",
+    ),
 });
 
 export const UpdateContactResponse = zod.object({
@@ -2103,6 +2222,25 @@ export const UpdateContactResponse = zod.object({
     .describe(
       "Set when somebody on the family's side added this person, rather than the home.",
     ),
+  smsConsentAt: zod
+    .date()
+    .nullable()
+    .describe(
+      "When this person agreed to be texted. Nobody is texted without it.",
+    ),
+  smsConsentSource: zod
+    .union([
+      zod.literal("director"),
+      zod.literal("family_portal"),
+      zod.literal("reply_start"),
+      zod.literal(null),
+    ])
+    .nullable()
+    .describe("How the consent was given."),
+  smsOptedOutAt: zod
+    .date()
+    .nullable()
+    .describe("When they replied STOP. Wins over any consent."),
   createdAt: zod.date(),
 });
 
@@ -2116,13 +2254,22 @@ export const RevokeContactParams = zod.object({
 /**
  * Mints a new link and sends it, so the previous one stops working. The
 response says whether the text actually went; where the home has no
-SMS credentials it returns the link and `sent: false` so the director
-can send it themselves rather than being told nothing happened.
+SMS credentials, the person has not agreed to texts, or they replied
+STOP, it returns the link and `sent: false` with the reason.
 
  * @summary Text a fresh link to this person's mobile
  */
 export const SendContactLinkParams = zod.object({
   contactId: zod.coerce.number(),
+});
+
+export const SendContactLinkBody = zod.object({
+  smsConsent: zod
+    .boolean()
+    .optional()
+    .describe(
+      "The director confirms, now, that this person agreed to be texted.",
+    ),
 });
 
 export const SendContactLinkResponse = zod
@@ -2145,6 +2292,25 @@ export const SendContactLinkResponse = zod
       .describe(
         "Set when somebody on the family's side added this person, rather than the home.",
       ),
+    smsConsentAt: zod
+      .date()
+      .nullable()
+      .describe(
+        "When this person agreed to be texted. Nobody is texted without it.",
+      ),
+    smsConsentSource: zod
+      .union([
+        zod.literal("director"),
+        zod.literal("family_portal"),
+        zod.literal("reply_start"),
+        zod.literal(null),
+      ])
+      .nullable()
+      .describe("How the consent was given."),
+    smsOptedOutAt: zod
+      .date()
+      .nullable()
+      .describe("When they replied STOP. Wins over any consent."),
     createdAt: zod.date(),
   })
   .and(
@@ -2192,6 +2358,25 @@ export const ReissueContactLinkResponse = zod
       .describe(
         "Set when somebody on the family's side added this person, rather than the home.",
       ),
+    smsConsentAt: zod
+      .date()
+      .nullable()
+      .describe(
+        "When this person agreed to be texted. Nobody is texted without it.",
+      ),
+    smsConsentSource: zod
+      .union([
+        zod.literal("director"),
+        zod.literal("family_portal"),
+        zod.literal("reply_start"),
+        zod.literal(null),
+      ])
+      .nullable()
+      .describe("How the consent was given."),
+    smsOptedOutAt: zod
+      .date()
+      .nullable()
+      .describe("When they replied STOP. Wins over any consent."),
     createdAt: zod.date(),
   })
   .and(
@@ -2874,6 +3059,87 @@ export const UpdateFamilyPreparationResponse = zod.object({
 });
 
 /**
+ * @summary Colorado's 72-hour certificate clock for this case
+ */
+export const GetDeathCertificateParams = zod.object({
+  caseId: zod.coerce.number(),
+});
+
+export const GetDeathCertificateResponse = zod.object({
+  custodyTakenAt: zod.date().nullable(),
+  dueAt: zod.date().nullable().describe("72 hours after custody."),
+  hoursRemaining: zod
+    .number()
+    .nullable()
+    .describe(
+      "Until the filing is due; negative once overdue; null once filed.",
+    ),
+  edrsRequestedAt: zod.date().nullable(),
+  certificationDueAt: zod.date().nullable(),
+  certifyingProvider: zod.string().nullable(),
+  certifiedAt: zod.date().nullable(),
+  filedAt: zod.date().nullable(),
+  filedByName: zod.string().nullable(),
+  stateFileNumber: zod.string().nullable(),
+  notes: zod.string().nullable(),
+  missingVitals: zod.array(zod.string()).nullable(),
+  filingNotice: zod.string(),
+});
+
+/**
+ * @summary Record custody, the EDRS request, certification or the filing
+ */
+export const UpdateDeathCertificateParams = zod.object({
+  caseId: zod.coerce.number(),
+});
+
+export const updateDeathCertificateBodyCertifyingProviderMax = 160;
+
+export const updateDeathCertificateBodyStateFileNumberMax = 60;
+
+export const updateDeathCertificateBodyNotesMax = 2000;
+
+export const UpdateDeathCertificateBody = zod.object({
+  custodyTakenAt: zod.coerce.date().nullish(),
+  edrsRequestedAt: zod.coerce.date().nullish(),
+  certifiedAt: zod.coerce.date().nullish(),
+  certifyingProvider: zod
+    .string()
+    .max(updateDeathCertificateBodyCertifyingProviderMax)
+    .nullish(),
+  stateFileNumber: zod
+    .string()
+    .max(updateDeathCertificateBodyStateFileNumberMax)
+    .nullish(),
+  notes: zod.string().max(updateDeathCertificateBodyNotesMax).nullish(),
+  filed: zod
+    .boolean()
+    .optional()
+    .describe("The director filed it in EDRS themselves."),
+});
+
+export const UpdateDeathCertificateResponse = zod.object({
+  custodyTakenAt: zod.date().nullable(),
+  dueAt: zod.date().nullable().describe("72 hours after custody."),
+  hoursRemaining: zod
+    .number()
+    .nullable()
+    .describe(
+      "Until the filing is due; negative once overdue; null once filed.",
+    ),
+  edrsRequestedAt: zod.date().nullable(),
+  certificationDueAt: zod.date().nullable(),
+  certifyingProvider: zod.string().nullable(),
+  certifiedAt: zod.date().nullable(),
+  filedAt: zod.date().nullable(),
+  filedByName: zod.string().nullable(),
+  stateFileNumber: zod.string().nullable(),
+  notes: zod.string().nullable(),
+  missingVitals: zod.array(zod.string()).nullable(),
+  filingNotice: zod.string(),
+});
+
+/**
  * @summary The death certificate details collected so far
  */
 export const GetVitalsParams = zod.object({
@@ -3316,6 +3582,22 @@ export const GetObituaryResponse = zod.object({
   id: zod.number(),
   caseId: zod.number(),
   fullName: zod.string().nullable(),
+  pronouns: zod.enum(["she", "he", "they"]).nullable(),
+  hints: zod
+    .object({
+      bornOn: zod.string().nullable(),
+      diedOn: zod.string().nullable(),
+    })
+    .describe("A gentle note under a date box that holds a place instead."),
+  aiAvailable: zod
+    .boolean()
+    .optional()
+    .describe("Staff only. Whether suggested rewrites are switched on."),
+  aiSuggestion: zod
+    .string()
+    .nullish()
+    .describe("Staff only. A suggested rewrite a director asked for."),
+  aiSuggestedAt: zod.date().nullish(),
   bornOn: zod.string().nullable(),
   birthPlace: zod.string().nullable(),
   diedOn: zod.string().nullable(),
@@ -3343,6 +3625,7 @@ export const UpdateObituaryParams = zod.object({
 export const UpdateObituaryBody = zod
   .object({
     fullName: zod.string().nullish(),
+    pronouns: zod.enum(["she", "he", "they"]).nullish(),
     bornOn: zod.string().nullish(),
     birthPlace: zod.string().nullish(),
     diedOn: zod.string().nullish(),
@@ -3363,6 +3646,22 @@ export const UpdateObituaryResponse = zod.object({
   id: zod.number(),
   caseId: zod.number(),
   fullName: zod.string().nullable(),
+  pronouns: zod.enum(["she", "he", "they"]).nullable(),
+  hints: zod
+    .object({
+      bornOn: zod.string().nullable(),
+      diedOn: zod.string().nullable(),
+    })
+    .describe("A gentle note under a date box that holds a place instead."),
+  aiAvailable: zod
+    .boolean()
+    .optional()
+    .describe("Staff only. Whether suggested rewrites are switched on."),
+  aiSuggestion: zod
+    .string()
+    .nullish()
+    .describe("Staff only. A suggested rewrite a director asked for."),
+  aiSuggestedAt: zod.date().nullish(),
   bornOn: zod.string().nullable(),
   birthPlace: zod.string().nullable(),
   diedOn: zod.string().nullable(),
@@ -3402,6 +3701,22 @@ export const ComposeObituaryResponse = zod.object({
   id: zod.number(),
   caseId: zod.number(),
   fullName: zod.string().nullable(),
+  pronouns: zod.enum(["she", "he", "they"]).nullable(),
+  hints: zod
+    .object({
+      bornOn: zod.string().nullable(),
+      diedOn: zod.string().nullable(),
+    })
+    .describe("A gentle note under a date box that holds a place instead."),
+  aiAvailable: zod
+    .boolean()
+    .optional()
+    .describe("Staff only. Whether suggested rewrites are switched on."),
+  aiSuggestion: zod
+    .string()
+    .nullish()
+    .describe("Staff only. A suggested rewrite a director asked for."),
+  aiSuggestedAt: zod.date().nullish(),
   bornOn: zod.string().nullable(),
   birthPlace: zod.string().nullable(),
   diedOn: zod.string().nullable(),
@@ -3430,6 +3745,22 @@ export const ApproveObituaryResponse = zod.object({
   id: zod.number(),
   caseId: zod.number(),
   fullName: zod.string().nullable(),
+  pronouns: zod.enum(["she", "he", "they"]).nullable(),
+  hints: zod
+    .object({
+      bornOn: zod.string().nullable(),
+      diedOn: zod.string().nullable(),
+    })
+    .describe("A gentle note under a date box that holds a place instead."),
+  aiAvailable: zod
+    .boolean()
+    .optional()
+    .describe("Staff only. Whether suggested rewrites are switched on."),
+  aiSuggestion: zod
+    .string()
+    .nullish()
+    .describe("Staff only. A suggested rewrite a director asked for."),
+  aiSuggestedAt: zod.date().nullish(),
   bornOn: zod.string().nullable(),
   birthPlace: zod.string().nullable(),
   diedOn: zod.string().nullable(),
@@ -3463,6 +3794,164 @@ export const ReopenObituaryResponse = zod.object({
   id: zod.number(),
   caseId: zod.number(),
   fullName: zod.string().nullable(),
+  pronouns: zod.enum(["she", "he", "they"]).nullable(),
+  hints: zod
+    .object({
+      bornOn: zod.string().nullable(),
+      diedOn: zod.string().nullable(),
+    })
+    .describe("A gentle note under a date box that holds a place instead."),
+  aiAvailable: zod
+    .boolean()
+    .optional()
+    .describe("Staff only. Whether suggested rewrites are switched on."),
+  aiSuggestion: zod
+    .string()
+    .nullish()
+    .describe("Staff only. A suggested rewrite a director asked for."),
+  aiSuggestedAt: zod.date().nullish(),
+  bornOn: zod.string().nullable(),
+  birthPlace: zod.string().nullable(),
+  diedOn: zod.string().nullable(),
+  deathPlace: zod.string().nullable(),
+  survivedBy: zod.string().nullable(),
+  precededBy: zod.string().nullable(),
+  biography: zod.string().nullable(),
+  inLieuOfFlowers: zod.string().nullable(),
+  specialThanks: zod.string().nullable(),
+  draftText: zod.string().nullable(),
+  draftEditedByStaff: zod.date().nullable(),
+  status: zod.enum(["family_draft", "submitted", "approved"]),
+  submittedAt: zod.date().nullable(),
+  approvedAt: zod.date().nullable(),
+  updatedAt: zod.date(),
+});
+
+/**
+ * Off unless the deployment has a key. Sends the family's notes to the
+text provider only with `confirm: true`. The answer is stored beside
+the draft and never shown to the family unless a director accepts it.
+
+ * @summary Ask for a suggested rewrite (optional, staff only)
+ */
+export const SuggestObituaryParams = zod.object({
+  caseId: zod.coerce.number(),
+});
+
+export const SuggestObituaryBody = zod.object({
+  confirm: zod
+    .boolean()
+    .describe("The director agreed to send the family's notes out."),
+});
+
+export const SuggestObituaryResponse = zod.object({
+  id: zod.number(),
+  caseId: zod.number(),
+  fullName: zod.string().nullable(),
+  pronouns: zod.enum(["she", "he", "they"]).nullable(),
+  hints: zod
+    .object({
+      bornOn: zod.string().nullable(),
+      diedOn: zod.string().nullable(),
+    })
+    .describe("A gentle note under a date box that holds a place instead."),
+  aiAvailable: zod
+    .boolean()
+    .optional()
+    .describe("Staff only. Whether suggested rewrites are switched on."),
+  aiSuggestion: zod
+    .string()
+    .nullish()
+    .describe("Staff only. A suggested rewrite a director asked for."),
+  aiSuggestedAt: zod.date().nullish(),
+  bornOn: zod.string().nullable(),
+  birthPlace: zod.string().nullable(),
+  diedOn: zod.string().nullable(),
+  deathPlace: zod.string().nullable(),
+  survivedBy: zod.string().nullable(),
+  precededBy: zod.string().nullable(),
+  biography: zod.string().nullable(),
+  inLieuOfFlowers: zod.string().nullable(),
+  specialThanks: zod.string().nullable(),
+  draftText: zod.string().nullable(),
+  draftEditedByStaff: zod.date().nullable(),
+  status: zod.enum(["family_draft", "submitted", "approved"]),
+  submittedAt: zod.date().nullable(),
+  approvedAt: zod.date().nullable(),
+  updatedAt: zod.date(),
+});
+
+/**
+ * @summary Throw a suggestion away
+ */
+export const DiscardObituarySuggestionParams = zod.object({
+  caseId: zod.coerce.number(),
+});
+
+export const DiscardObituarySuggestionResponse = zod.object({
+  id: zod.number(),
+  caseId: zod.number(),
+  fullName: zod.string().nullable(),
+  pronouns: zod.enum(["she", "he", "they"]).nullable(),
+  hints: zod
+    .object({
+      bornOn: zod.string().nullable(),
+      diedOn: zod.string().nullable(),
+    })
+    .describe("A gentle note under a date box that holds a place instead."),
+  aiAvailable: zod
+    .boolean()
+    .optional()
+    .describe("Staff only. Whether suggested rewrites are switched on."),
+  aiSuggestion: zod
+    .string()
+    .nullish()
+    .describe("Staff only. A suggested rewrite a director asked for."),
+  aiSuggestedAt: zod.date().nullish(),
+  bornOn: zod.string().nullable(),
+  birthPlace: zod.string().nullable(),
+  diedOn: zod.string().nullable(),
+  deathPlace: zod.string().nullable(),
+  survivedBy: zod.string().nullable(),
+  precededBy: zod.string().nullable(),
+  biography: zod.string().nullable(),
+  inLieuOfFlowers: zod.string().nullable(),
+  specialThanks: zod.string().nullable(),
+  draftText: zod.string().nullable(),
+  draftEditedByStaff: zod.date().nullable(),
+  status: zod.enum(["family_draft", "submitted", "approved"]),
+  submittedAt: zod.date().nullable(),
+  approvedAt: zod.date().nullable(),
+  updatedAt: zod.date(),
+});
+
+/**
+ * @summary Use the suggestion as the draft
+ */
+export const AcceptObituarySuggestionParams = zod.object({
+  caseId: zod.coerce.number(),
+});
+
+export const AcceptObituarySuggestionResponse = zod.object({
+  id: zod.number(),
+  caseId: zod.number(),
+  fullName: zod.string().nullable(),
+  pronouns: zod.enum(["she", "he", "they"]).nullable(),
+  hints: zod
+    .object({
+      bornOn: zod.string().nullable(),
+      diedOn: zod.string().nullable(),
+    })
+    .describe("A gentle note under a date box that holds a place instead."),
+  aiAvailable: zod
+    .boolean()
+    .optional()
+    .describe("Staff only. Whether suggested rewrites are switched on."),
+  aiSuggestion: zod
+    .string()
+    .nullish()
+    .describe("Staff only. A suggested rewrite a director asked for."),
+  aiSuggestedAt: zod.date().nullish(),
   bornOn: zod.string().nullable(),
   birthPlace: zod.string().nullable(),
   diedOn: zod.string().nullable(),
@@ -3709,17 +4198,132 @@ export const GetAftercareResponseItem = zod.object({
   startsAt: zod.date(),
   consentedAt: zod.date().nullable(),
   unsubscribedAt: zod.date().nullable(),
+  smsConsentAt: zod.date().nullish(),
+  touchpointsConsentAt: zod.date().nullish(),
+  touchpointsOffered: zod
+    .array(
+      zod.object({
+        kind: zod.enum(["birthday", "holidays", "death_anniversary"]),
+        dueAt: zod.date(),
+      }),
+    )
+    .optional()
+    .describe(
+      "Extra notes the home offers and when they would land; only while the family has not answered, and only on the family's view.",
+    ),
+  smsAvailable: zod
+    .boolean()
+    .optional()
+    .describe(
+      "Whether texts can be sent on this deployment. Family view only.",
+    ),
   deliveries: zod.array(
     zod.object({
       id: zod.number(),
+      kind: zod.enum(["checkin", "birthday", "holidays", "death_anniversary"]),
       dayOffset: zod.number(),
       dueAt: zod.date(),
       sentAt: zod.date().nullable(),
       failedAt: zod.date().nullable(),
+      sentVia: zod
+        .string()
+        .nullable()
+        .describe(
+          "`email`, `sms`, `email,sms`, or `withdrawn` when consent lapsed before it was due.",
+        ),
     }),
   ),
 });
 export const GetAftercareResponse = zod.array(GetAftercareResponseItem);
+
+/**
+ * @summary The notes this home sends, and which extra touchpoints it offers
+ */
+export const GetAftercareSettingsResponse = zod.object({
+  touchpoints: zod.array(
+    zod.enum(["birthday", "holidays", "death_anniversary"]),
+  ),
+  messages: zod.array(
+    zod.object({
+      key: zod.enum([
+        "30",
+        "60",
+        "90",
+        "365",
+        "birthday",
+        "holidays",
+        "death_anniversary",
+      ]),
+      label: zod.string(),
+      subject: zod.string(),
+      body: zod.string().describe("`{name}` stands for the person who died."),
+      defaultSubject: zod.string(),
+      defaultBody: zod.string(),
+      custom: zod.boolean(),
+    }),
+  ),
+});
+
+/**
+ * @summary Change the wording of a note, or which touchpoints are offered
+ */
+export const updateAftercareSettingsBodyMessagesItemSubjectMax = 120;
+
+export const updateAftercareSettingsBodyMessagesItemBodyMax = 2000;
+
+export const UpdateAftercareSettingsBody = zod.object({
+  touchpoints: zod
+    .array(zod.enum(["birthday", "holidays", "death_anniversary"]))
+    .optional(),
+  messages: zod
+    .array(
+      zod.object({
+        key: zod.enum([
+          "30",
+          "60",
+          "90",
+          "365",
+          "birthday",
+          "holidays",
+          "death_anniversary",
+        ]),
+        subject: zod
+          .string()
+          .max(updateAftercareSettingsBodyMessagesItemSubjectMax)
+          .nullish(),
+        body: zod
+          .string()
+          .max(updateAftercareSettingsBodyMessagesItemBodyMax)
+          .nullish(),
+      }),
+    )
+    .optional(),
+});
+
+export const UpdateAftercareSettingsResponse = zod.object({
+  touchpoints: zod.array(
+    zod.enum(["birthday", "holidays", "death_anniversary"]),
+  ),
+  messages: zod.array(
+    zod.object({
+      key: zod.enum([
+        "30",
+        "60",
+        "90",
+        "365",
+        "birthday",
+        "holidays",
+        "death_anniversary",
+      ]),
+      label: zod.string(),
+      subject: zod.string(),
+      body: zod.string().describe("`{name}` stands for the person who died."),
+      defaultSubject: zod.string(),
+      defaultBody: zod.string(),
+      custom: zod.boolean(),
+    }),
+  ),
+});
 
 /**
  * Opens the book the first time anybody looks, so this never 404s for a
@@ -4674,6 +5278,23 @@ export const GetPrintTemplatesResponse = zod.array(
 );
 
 /**
+ * @summary The looks a card or programme can take
+ */
+export const GetPrintThemesResponseItem = zod.object({
+  key: zod.string(),
+  name: zod.string(),
+  description: zod.string(),
+  accent: zod
+    .string()
+    .nullable()
+    .describe("The theme's own colour; null follows the home's brand colour."),
+  paper: zod.string(),
+  ink: zod.string(),
+  photoShape: zod.enum(["rect", "arch", "oval", "circle"]),
+});
+export const GetPrintThemesResponse = zod.array(GetPrintThemesResponseItem);
+
+/**
  * @summary The home's own verses, prayers and closing lines
  */
 export const GetSnippetsQueryParams = zod.object({
@@ -4753,6 +5374,7 @@ export const GetPrintItemsResponseItem = zod.object({
   caseId: zod.number(),
   templateKey: zod.string(),
   templateName: zod.string(),
+  themeKey: zod.string().describe("The look, from GET \/print\/themes."),
   title: zod.string().nullable(),
   photoId: zod.number().nullable(),
   photoUploadId: zod.number().nullable(),
@@ -4794,6 +5416,7 @@ export const CreatePrintItemParams = zod.object({
 
 export const CreatePrintItemBody = zod.object({
   templateKey: zod.string(),
+  themeKey: zod.string().optional(),
   title: zod.string().nullish(),
 });
 
@@ -4805,6 +5428,7 @@ export const UpdatePrintItemParams = zod.object({
 });
 
 export const UpdatePrintItemBody = zod.object({
+  themeKey: zod.string().optional(),
   title: zod.string().nullish(),
   photoId: zod.number().nullish(),
   values: zod.record(zod.string(), zod.string()).optional(),
@@ -4818,6 +5442,7 @@ export const UpdatePrintItemResponse = zod.object({
   caseId: zod.number(),
   templateKey: zod.string(),
   templateName: zod.string(),
+  themeKey: zod.string().describe("The look, from GET \/print\/themes."),
   title: zod.string().nullable(),
   photoId: zod.number().nullable(),
   photoUploadId: zod.number().nullable(),
@@ -4871,6 +5496,7 @@ export const GetFamilyPrintItemsResponseItem = zod.object({
   caseId: zod.number(),
   templateKey: zod.string(),
   templateName: zod.string(),
+  themeKey: zod.string().describe("The look, from GET \/print\/themes."),
   title: zod.string().nullable(),
   photoId: zod.number().nullable(),
   photoUploadId: zod.number().nullable(),
@@ -4949,6 +5575,25 @@ export const GetFamilySessionResponse = zod
         .describe(
           "Set when somebody on the family's side added this person, rather than the home.",
         ),
+      smsConsentAt: zod
+        .date()
+        .nullable()
+        .describe(
+          "When this person agreed to be texted. Nobody is texted without it.",
+        ),
+      smsConsentSource: zod
+        .union([
+          zod.literal("director"),
+          zod.literal("family_portal"),
+          zod.literal("reply_start"),
+          zod.literal(null),
+        ])
+        .nullable()
+        .describe("How the consent was given."),
+      smsOptedOutAt: zod
+        .date()
+        .nullable()
+        .describe("When they replied STOP. Wins over any consent."),
       createdAt: zod.date(),
     }),
     home: zod
@@ -5067,13 +5712,44 @@ export const GetFamilySessionResponse = zod
         startsAt: zod.date(),
         consentedAt: zod.date().nullable(),
         unsubscribedAt: zod.date().nullable(),
+        smsConsentAt: zod.date().nullish(),
+        touchpointsConsentAt: zod.date().nullish(),
+        touchpointsOffered: zod
+          .array(
+            zod.object({
+              kind: zod.enum(["birthday", "holidays", "death_anniversary"]),
+              dueAt: zod.date(),
+            }),
+          )
+          .optional()
+          .describe(
+            "Extra notes the home offers and when they would land; only while the family has not answered, and only on the family's view.",
+          ),
+        smsAvailable: zod
+          .boolean()
+          .optional()
+          .describe(
+            "Whether texts can be sent on this deployment. Family view only.",
+          ),
         deliveries: zod.array(
           zod.object({
             id: zod.number(),
+            kind: zod.enum([
+              "checkin",
+              "birthday",
+              "holidays",
+              "death_anniversary",
+            ]),
             dayOffset: zod.number(),
             dueAt: zod.date(),
             sentAt: zod.date().nullable(),
             failedAt: zod.date().nullable(),
+            sentVia: zod
+              .string()
+              .nullable()
+              .describe(
+                "`email`, `sms`, `email,sms`, or `withdrawn` when consent lapsed before it was due.",
+              ),
           }),
         ),
       }),
@@ -5428,6 +6104,22 @@ export const GetFamilyObituaryResponse = zod.object({
   id: zod.number(),
   caseId: zod.number(),
   fullName: zod.string().nullable(),
+  pronouns: zod.enum(["she", "he", "they"]).nullable(),
+  hints: zod
+    .object({
+      bornOn: zod.string().nullable(),
+      diedOn: zod.string().nullable(),
+    })
+    .describe("A gentle note under a date box that holds a place instead."),
+  aiAvailable: zod
+    .boolean()
+    .optional()
+    .describe("Staff only. Whether suggested rewrites are switched on."),
+  aiSuggestion: zod
+    .string()
+    .nullish()
+    .describe("Staff only. A suggested rewrite a director asked for."),
+  aiSuggestedAt: zod.date().nullish(),
   bornOn: zod.string().nullable(),
   birthPlace: zod.string().nullable(),
   diedOn: zod.string().nullable(),
@@ -5454,6 +6146,7 @@ the printer.
  */
 export const UpdateFamilyObituaryBody = zod.object({
   fullName: zod.string().nullish(),
+  pronouns: zod.enum(["she", "he", "they"]).nullish(),
   bornOn: zod.string().nullish(),
   birthPlace: zod.string().nullish(),
   diedOn: zod.string().nullish(),
@@ -5469,6 +6162,22 @@ export const UpdateFamilyObituaryResponse = zod.object({
   id: zod.number(),
   caseId: zod.number(),
   fullName: zod.string().nullable(),
+  pronouns: zod.enum(["she", "he", "they"]).nullable(),
+  hints: zod
+    .object({
+      bornOn: zod.string().nullable(),
+      diedOn: zod.string().nullable(),
+    })
+    .describe("A gentle note under a date box that holds a place instead."),
+  aiAvailable: zod
+    .boolean()
+    .optional()
+    .describe("Staff only. Whether suggested rewrites are switched on."),
+  aiSuggestion: zod
+    .string()
+    .nullish()
+    .describe("Staff only. A suggested rewrite a director asked for."),
+  aiSuggestedAt: zod.date().nullish(),
   bornOn: zod.string().nullable(),
   birthPlace: zod.string().nullable(),
   diedOn: zod.string().nullable(),
@@ -5493,6 +6202,22 @@ export const SubmitFamilyObituaryResponse = zod.object({
   id: zod.number(),
   caseId: zod.number(),
   fullName: zod.string().nullable(),
+  pronouns: zod.enum(["she", "he", "they"]).nullable(),
+  hints: zod
+    .object({
+      bornOn: zod.string().nullable(),
+      diedOn: zod.string().nullable(),
+    })
+    .describe("A gentle note under a date box that holds a place instead."),
+  aiAvailable: zod
+    .boolean()
+    .optional()
+    .describe("Staff only. Whether suggested rewrites are switched on."),
+  aiSuggestion: zod
+    .string()
+    .nullish()
+    .describe("Staff only. A suggested rewrite a director asked for."),
+  aiSuggestedAt: zod.date().nullish(),
   bornOn: zod.string().nullable(),
   birthPlace: zod.string().nullable(),
   diedOn: zod.string().nullable(),
@@ -5654,6 +6379,22 @@ export const CompleteFamilyDeadlineResponse = zod.object({
 export const SetFamilyAftercareConsentBody = zod.object({
   consent: zod.boolean(),
   email: zod.string().nullish(),
+  sms: zod
+    .boolean()
+    .optional()
+    .describe(
+      "Also send each note as a short text. This is the person's own consent to texts.",
+    ),
+  phone: zod
+    .string()
+    .nullish()
+    .describe("The mobile for the texts; defaults to the one the home has."),
+  touchpoints: zod
+    .boolean()
+    .optional()
+    .describe(
+      "Also send the extra notes the home offers (birthday, first holidays, anniversary of the death).",
+    ),
 });
 
 export const SetFamilyAftercareConsentResponse = zod.object({
@@ -5668,13 +6409,39 @@ export const SetFamilyAftercareConsentResponse = zod.object({
   startsAt: zod.date(),
   consentedAt: zod.date().nullable(),
   unsubscribedAt: zod.date().nullable(),
+  smsConsentAt: zod.date().nullish(),
+  touchpointsConsentAt: zod.date().nullish(),
+  touchpointsOffered: zod
+    .array(
+      zod.object({
+        kind: zod.enum(["birthday", "holidays", "death_anniversary"]),
+        dueAt: zod.date(),
+      }),
+    )
+    .optional()
+    .describe(
+      "Extra notes the home offers and when they would land; only while the family has not answered, and only on the family's view.",
+    ),
+  smsAvailable: zod
+    .boolean()
+    .optional()
+    .describe(
+      "Whether texts can be sent on this deployment. Family view only.",
+    ),
   deliveries: zod.array(
     zod.object({
       id: zod.number(),
+      kind: zod.enum(["checkin", "birthday", "holidays", "death_anniversary"]),
       dayOffset: zod.number(),
       dueAt: zod.date(),
       sentAt: zod.date().nullable(),
       failedAt: zod.date().nullable(),
+      sentVia: zod
+        .string()
+        .nullable()
+        .describe(
+          "`email`, `sms`, `email,sms`, or `withdrawn` when consent lapsed before it was due.",
+        ),
     }),
   ),
 });
@@ -6052,6 +6819,7 @@ export const ApproveFamilyPrintItemResponse = zod.object({
   caseId: zod.number(),
   templateKey: zod.string(),
   templateName: zod.string(),
+  themeKey: zod.string().describe("The look, from GET \/print\/themes."),
   title: zod.string().nullable(),
   photoId: zod.number().nullable(),
   photoUploadId: zod.number().nullable(),
@@ -6109,6 +6877,7 @@ export const RequestFamilyPrintChangesResponse = zod.object({
   caseId: zod.number(),
   templateKey: zod.string(),
   templateName: zod.string(),
+  themeKey: zod.string().describe("The look, from GET \/print\/themes."),
   title: zod.string().nullable(),
   photoId: zod.number().nullable(),
   photoUploadId: zod.number().nullable(),

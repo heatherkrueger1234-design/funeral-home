@@ -79,6 +79,14 @@ const say = (message = "") => {
 
 const DAY = 24 * 60 * 60 * 1000;
 const now = Date.now();
+/** "September 25, 2026", the way the obituary form asks for it. */
+const obituaryDay = (moment: Date): string =>
+  moment.toLocaleDateString("en-US", {
+    month: "long",
+    day: "numeric",
+    year: "numeric",
+    timeZone: HOME_TIMEZONE,
+  });
 /**
  * `hour` o'clock in Denver, `offsetDays` from today. A moment today that has
  * not happened yet is pulled back to just before now, in the same order, so a
@@ -765,10 +773,11 @@ async function seedShowcaseCase(
     funeralHomeId: homeId,
     caseId,
     fullName: "Margaret Ellen Whitfield",
+    pronouns: "she",
     bornOn: "19 March 1941",
     birthPlace: "Pueblo, Colorado",
-    diedOn: "at home in Denver",
-    deathPlace: "Denver, Colorado",
+    diedOn: obituaryDay(at(-3, 6)),
+    deathPlace: "at home in Denver",
     survivedBy:
       "her daughter Anne, her son Robert, five grandchildren and one " +
       "great-granddaughter, Nell",
@@ -785,7 +794,7 @@ async function seedShowcaseCase(
       "Donations to the Denver Public Library Friends, where she volunteered " +
       "every Tuesday for eleven years.",
     specialThanks:
-      "To the district nurses, who were kind to her and to us, every single " +
+      "the district nurses, who were kind to her and to us, every single " +
       "day for five weeks.",
     status: "submitted",
     submittedAt: at(-1, 20),
@@ -1055,6 +1064,7 @@ async function seedAftercareCase(
     funeralHomeId: homeId,
     caseId,
     fullName: "Harold Chukwuemeka Nkemelu",
+    pronouns: "he",
     bornOn: "2 November 1949",
     birthPlace: "Enugu, Nigeria",
     survivedBy: "his wife Ngozi, his daughters Chiamaka and Adaeze, and four grandchildren",
@@ -1237,6 +1247,7 @@ async function seedPreNeedCase(homeId: number, ownerId: number): Promise<void> {
     funeralHomeId: homeId,
     caseId: row!.id,
     fullName: "Thomas Alan Brightwater",
+    pronouns: "he",
     bornOn: "8 July 1944",
     birthPlace: "Grand Junction, Colorado",
     biography:

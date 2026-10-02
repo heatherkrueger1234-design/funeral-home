@@ -142,7 +142,8 @@ export default function Dashboard() {
     data.pendingRequests === 0 &&
     data.quoteRequestsWaiting === 0 &&
     data.overdue.length === 0 &&
-    data.offersAwaitingChoice === 0;
+    data.offersAwaitingChoice === 0 &&
+    data.certificatesDue.length === 0;
 
   return (
     <div className="space-y-8">
@@ -238,6 +239,26 @@ export default function Dashboard() {
                   </span>
                   <span className="whitespace-nowrap text-xs text-muted-foreground">
                     asked {relative(row.requestedAt, zone)}
+                  </span>
+                </Link>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
+
+      {data.certificatesDue.length > 0 && (
+        <section className="space-y-3">
+          <Divider label="Death certificates to file" />
+          <ul className="space-y-2">
+            {data.certificatesDue.map((row) => (
+              <li key={row.caseId}>
+                <Link href={`/cases/${row.caseId}?tab=vitals`} className={ROW}>
+                  <span className="min-w-0 truncate">{row.decedentName}</span>
+                  <span className="whitespace-nowrap text-xs text-muted-foreground">
+                    {row.hoursRemaining >= 0
+                      ? `${Math.round(row.hoursRemaining)} h of 72 left`
+                      : `${Math.round(-row.hoursRemaining)} h past the 72`}
                   </span>
                 </Link>
               </li>

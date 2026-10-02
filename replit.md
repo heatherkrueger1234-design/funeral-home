@@ -77,14 +77,16 @@ frontends use, so a contract change cannot land on one side only. CI fails if
 the checked-in generated code drifts from the spec.
 
 ```
-lib/db              Drizzle schema. 28 tables, all reachable from funeral_homes.
+lib/db              Drizzle schema. 40 tables, all reachable from funeral_homes.
 lib/api-spec        openapi.yaml + orval config. The contract.
 lib/api-zod         Generated: zod validators (server-side).
 lib/api-client-react Generated: react-query hooks (+ hand-written multipart).
-lib/mailer          SMTP. Shared, because the aftercare worker sends mail too.
+lib/mailer          SMTP and SMS (Twilio). Shared, because the aftercare worker sends both.
 artifacts/api-server Express. Two auth surfaces; see below.
 artifacts/family-portal   What the family opens. Mobile-first, brandable.
 artifacts/director-console What the home works cases from, and its master page.
+artifacts/admin-console   The platform console: homes, licensure, texting setup, audit log.
+artifacts/website         The marketing site, with prices.
 scripts             Backups, and the aftercare sender.
 ```
 
@@ -150,7 +152,6 @@ by path instead of by subdomain (the Docker deployment gives each its own):
 | `/family` | family portal, where a texted link opens |
 | `/admin` | platform admin console |
 | `/api` | the API |
-| `/__mockup` | component preview sandbox, development only |
 
 The director console is at the root deliberately: it is the only screen that
 can sort out a director, a platform admin and a lost family member, so it is
@@ -330,7 +331,7 @@ Colorado this year — where each home stands with DORA.
 named in the `platform_admins` table. That is on purpose: one way to authenticate
 in this application means one cookie to protect, not two. Being on the list is
 an *additional* condition and never an alternative one, and an empty list
-means nobody. `routes/admin.ts` applies that check under `/admin`, below the
+means nobody. `routes/admin/` applies that check under `/admin`, below the
 ordinary session gate. The account's address must also be **confirmed**: the
 list names addresses and registration never checks them, so without that
 anybody could register under a listed address nobody had claimed yet (the
@@ -365,7 +366,7 @@ is no route that edits a case, an obituary, a photograph or a family contact,
 and there is not meant to be — Section 2 of `COLORADO.md` has the reason: we
 are the processor and the home is the controller.
 
-**Cross-tenant reads.** Every one goes through a helper in `routes/admin.ts`
+**Cross-tenant reads.** Every one goes through a helper in `routes/admin/`
 whose name begins with `platform`, and every one of those writes a row to
 `platform_audit` before returning. `tenant(req)` is never called in that file.
 The log is readable from the console's own Access log page, because a log

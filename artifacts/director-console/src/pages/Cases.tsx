@@ -259,6 +259,12 @@ export default function Cases() {
               {showClosed ? "Show open" : "Show closed"}
             </Button>
             <ImportCases />
+            {/* Every case as a CSV, for another case system or a spreadsheet. */}
+            <Button asChild variant="ghost" size="sm">
+              <a href="/api/export/cases.csv" download>
+                Export CSV
+              </a>
+            </Button>
             <NewCaseDialog />
           </>
         }

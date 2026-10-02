@@ -73,7 +73,6 @@ artifacts/
   family-portal/     What the family opens from their link   (served at /family)
   admin-console/     Our own platform console                (served at /admin)
   website/           The marketing site
-  mockup-sandbox/    Component previews, not shipped
   e2e-tests/         Playwright, against a real stack
 lib/
   api-spec/          openapi.yaml, the contract. Source of truth.
@@ -119,9 +118,11 @@ no mocks, and there are frontend and Playwright suites alongside it. What is
 - The legal documents need a lawyer.
 - No error tracking and no uptime monitoring. The first time production breaks,
   a customer tells us.
-- The three daily scheduled jobs fail every day for want of two repository
-  secrets. `STATUS.md`, problem 1.
-- Colorado's 72-hour filing clock is only partly built.
+- The three daily scheduled jobs skip until two repository secrets are set.
+  `STATUS.md`, problem 1.
+- Colorado's 72-hour filing clock is built (custody, EDRS request, filing,
+  dashboard); home-authored forms and the C.R.S. 15-19-106 authorisation
+  order are not.
 - A home cannot read the `platform_audit` log about itself. The DPA promises it
   "on request", which we can only honour by hand.
 

@@ -44,7 +44,7 @@ There is one definition of who a user is and what they may do, in
 to gate something and the check does not exist yet, add it there or leave a
 plain function call where it goes. **Do not invent a second role system.** The
 platform-admin list is deliberately one capability with no hierarchy for
-exactly this reason — `routes/admin.ts` explains why at length.
+exactly this reason — `routes/admin/` explains why at length.
 
 ## What this product is, and is not
 

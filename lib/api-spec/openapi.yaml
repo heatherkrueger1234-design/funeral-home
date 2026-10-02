@@ -932,6 +932,22 @@ paths:
 
   # ---------------------------------------------------------------- intake --
 
+  /export/cases.csv:
+    get:
+      operationId: exportCaseList
+      tags: [cases]
+      summary: Every case as one CSV, for another case system
+      description: |
+        One row per case, in columns our importer reads back. No social
+        security numbers, vital statistics or photographs.
+      responses:
+        "200":
+          description: The CSV
+          content:
+            text/csv:
+              schema:
+                type: string
+
   /cases/{caseId}/export:
     get:
       operationId: exportCase
@@ -1289,10 +1305,16 @@ paths:
       description: |
         Mints a new link and sends it, so the previous one stops working. The
         response says whether the text actually went; where the home has no
-        SMS credentials it returns the link and `sent: false` so the director
-        can send it themselves rather than being told nothing happened.
+        SMS credentials, the person has not agreed to texts, or they replied
+        STOP, it returns the link and `sent: false` with the reason.
       parameters:
         - $ref: "#/components/parameters/ContactId"
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SendLinkInput"
       responses:
         "200":
           description: Minted, and sent if possible
@@ -1680,6 +1702,40 @@ paths:
               schema:
                 $ref: "#/components/schemas/Preparation"
 
+  /cases/{caseId}/certificate:
+    get:
+      operationId: getDeathCertificate
+      tags: [vitals]
+      summary: Colorado's 72-hour certificate clock for this case
+      parameters:
+        - $ref: "#/components/parameters/CaseId"
+      responses:
+        "200":
+          description: The clock
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DeathCertificate"
+    put:
+      operationId: updateDeathCertificate
+      tags: [vitals]
+      summary: Record custody, the EDRS request, certification or the filing
+      parameters:
+        - $ref: "#/components/parameters/CaseId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/DeathCertificateInput"
+      responses:
+        "200":
+          description: Saved
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DeathCertificate"
+
   /cases/{caseId}/vitals:
     get:
       operationId: getVitals
@@ -1854,6 +1910,59 @@ paths:
                 $ref: "#/components/schemas/ObituaryDraft"
         "409":
           description: It was not approved, so there is nothing to reopen
+
+  /cases/{caseId}/obituary/suggestion:
+    post:
+      operationId: suggestObituary
+      tags: [obituary]
+      summary: Ask for a suggested rewrite (optional, staff only)
+      description: |
+        Off unless the deployment has a key. Sends the family's notes to the
+        text provider only with `confirm: true`. The answer is stored beside
+        the draft and never shown to the family unless a director accepts it.
+      parameters:
+        - $ref: "#/components/parameters/CaseId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ObituarySuggestionInput"
+      responses:
+        "200":
+          description: The draft, with the suggestion beside it
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ObituaryDraft"
+    delete:
+      operationId: discardObituarySuggestion
+      tags: [obituary]
+      summary: Throw a suggestion away
+      parameters:
+        - $ref: "#/components/parameters/CaseId"
+      responses:
+        "200":
+          description: Discarded
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ObituaryDraft"
+
+  /cases/{caseId}/obituary/suggestion/accept:
+    post:
+      operationId: acceptObituarySuggestion
+      tags: [obituary]
+      summary: Use the suggestion as the draft
+      parameters:
+        - $ref: "#/components/parameters/CaseId"
+      responses:
+        "200":
+          description: The suggestion is now the draft text
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ObituaryDraft"
 
   /cases/{caseId}/selections:
     get:
@@ -2037,6 +2146,36 @@ paths:
                 type: array
                 items:
                   $ref: "#/components/schemas/AftercareEnrollment"
+
+  /home/aftercare:
+    get:
+      operationId: getAftercareSettings
+      tags: [aftercare]
+      summary: The notes this home sends, and which extra touchpoints it offers
+      responses:
+        "200":
+          description: Settings
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AftercareSettings"
+    put:
+      operationId: updateAftercareSettings
+      tags: [aftercare]
+      summary: Change the wording of a note, or which touchpoints are offered
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AftercareSettingsInput"
+      responses:
+        "200":
+          description: Saved
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AftercareSettings"
 
   # --------------------------------------------------------- memory book --
 
@@ -2560,6 +2699,21 @@ paths:
                 type: array
                 items:
                   $ref: "#/components/schemas/PrintTemplate"
+
+  /print/themes:
+    get:
+      operationId: getPrintThemes
+      tags: [print]
+      summary: The looks a card or programme can take
+      responses:
+        "200":
+          description: List
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/PrintTheme"
 
   /snippets:
     get:
@@ -3712,6 +3866,9 @@ components:
         billingConfigured:
           type: boolean
           description: False when this deployment has no Stripe keys.
+        annualAvailable:
+          type: boolean
+          description: Whether checkout offers annual billing (two months free).
         hasSubscription:
           type: boolean
         onboarding:
@@ -3746,6 +3903,7 @@ components:
           currentPeriodEndsAt,
           canOpenCases,
           billingConfigured,
+          annualAvailable,
           hasSubscription,
           onboarding,
           onboardingComplete,
@@ -3757,6 +3915,10 @@ components:
         returnUrl:
           type: string
           description: Where Stripe sends them back to.
+        interval:
+          type: string
+          enum: [month, year]
+          description: Checkout only. Annual is twelve months for the price of ten.
       required: [returnUrl]
 
     BillingRedirect:
@@ -3855,6 +4017,9 @@ components:
     FuneralHome:
       type: object
       properties:
+        textingStatus:
+          type: string
+          description: Where this home's texts are sent from, in words. Only on GET /home.
         id:
           type: integer
         name:
@@ -4191,6 +4356,23 @@ components:
         offersAwaitingChoice:
           type: integer
           description: Cases where the home has offered times and nobody has picked.
+        certificatesDue:
+          type: array
+          description: Colorado 72-hour certificate clocks still running, soonest first.
+          items:
+            type: object
+            properties:
+              caseId:
+                type: integer
+              decedentName:
+                type: string
+              dueAt:
+                type: string
+                format: date-time
+              hoursRemaining:
+                type: number
+                description: Negative once overdue.
+            required: [caseId, decedentName, dueAt, hoursRemaining]
       required:
         [
           homeName,
@@ -4205,7 +4387,107 @@ components:
           quoteRequests,
           pendingRequests,
           offersAwaitingChoice,
+          certificatesDue,
         ]
+
+    DeathCertificate:
+      type: object
+      properties:
+        custodyTakenAt:
+          type: string
+          format: date-time
+          nullable: true
+        dueAt:
+          type: string
+          format: date-time
+          nullable: true
+          description: 72 hours after custody.
+        hoursRemaining:
+          type: number
+          nullable: true
+          description: Until the filing is due; negative once overdue; null once filed.
+        edrsRequestedAt:
+          type: string
+          format: date-time
+          nullable: true
+        certificationDueAt:
+          type: string
+          format: date-time
+          nullable: true
+        certifyingProvider:
+          type: string
+          nullable: true
+        certifiedAt:
+          type: string
+          format: date-time
+          nullable: true
+        filedAt:
+          type: string
+          format: date-time
+          nullable: true
+        filedByName:
+          type: string
+          nullable: true
+        stateFileNumber:
+          type: string
+          nullable: true
+        notes:
+          type: string
+          nullable: true
+        missingVitals:
+          type: array
+          nullable: true
+          items:
+            type: string
+        filingNotice:
+          type: string
+      required:
+        [
+          custodyTakenAt,
+          dueAt,
+          hoursRemaining,
+          edrsRequestedAt,
+          certificationDueAt,
+          certifyingProvider,
+          certifiedAt,
+          filedAt,
+          filedByName,
+          stateFileNumber,
+          notes,
+          missingVitals,
+          filingNotice,
+        ]
+
+    DeathCertificateInput:
+      type: object
+      properties:
+        custodyTakenAt:
+          type: string
+          format: date-time
+          nullable: true
+        edrsRequestedAt:
+          type: string
+          format: date-time
+          nullable: true
+        certifiedAt:
+          type: string
+          format: date-time
+          nullable: true
+        certifyingProvider:
+          type: string
+          nullable: true
+          maxLength: 160
+        stateFileNumber:
+          type: string
+          nullable: true
+          maxLength: 60
+        notes:
+          type: string
+          nullable: true
+          maxLength: 2000
+        filed:
+          type: boolean
+          description: The director filed it in EDRS themselves.
 
     DashboardQuoteRequest:
       type: object
@@ -5061,6 +5343,21 @@ components:
           type: integer
           nullable: true
           description: Set when somebody on the family's side added this person, rather than the home.
+        smsConsentAt:
+          type: string
+          format: date-time
+          nullable: true
+          description: When this person agreed to be texted. Nobody is texted without it.
+        smsConsentSource:
+          type: string
+          nullable: true
+          enum: [director, family_portal, reply_start, null]
+          description: How the consent was given.
+        smsOptedOutAt:
+          type: string
+          format: date-time
+          nullable: true
+          description: When they replied STOP. Wins over any consent.
         createdAt:
           type: string
           format: date-time
@@ -5079,6 +5376,9 @@ components:
           firstSeenAt,
           lastSeenAt,
           invitedByContactId,
+          smsConsentAt,
+          smsConsentSource,
+          smsOptedOutAt,
           createdAt,
         ]
 
@@ -5182,6 +5482,13 @@ components:
               type: string
           required: [link]
 
+    SendLinkInput:
+      type: object
+      properties:
+        smsConsent:
+          type: boolean
+          description: The director confirms, now, that this person agreed to be texted.
+
     SentLink:
       allOf:
         - $ref: "#/components/schemas/FamilyContactWithLink"
@@ -5215,6 +5522,11 @@ components:
           enum: [next_of_kin, contributor]
         canInvite:
           type: boolean
+        smsConsent:
+          type: boolean
+          description: |
+            The director confirms this person agreed to be texted. Recorded
+            with the time and `director` as the source; false withdraws it.
       required: [name]
 
     FamilyContactUpdate:
@@ -5237,6 +5549,11 @@ components:
           enum: [next_of_kin, contributor]
         canInvite:
           type: boolean
+        smsConsent:
+          type: boolean
+          description: |
+            The director confirms this person agreed to be texted. Recorded
+            with the time and `director` as the source; false withdraws it.
 
     # -------------------------------------------------------------- photos --
 
@@ -5597,6 +5914,28 @@ components:
           nullable: true
       required: [key, label, kind, hint, from, maxLength]
 
+    PrintTheme:
+      type: object
+      properties:
+        key:
+          type: string
+        name:
+          type: string
+        description:
+          type: string
+        accent:
+          type: string
+          nullable: true
+          description: The theme's own colour; null follows the home's brand colour.
+        paper:
+          type: string
+        ink:
+          type: string
+        photoShape:
+          type: string
+          enum: [rect, arch, oval, circle]
+      required: [key, name, description, accent, paper, ink, photoShape]
+
     PrintTemplate:
       type: object
       properties:
@@ -5671,6 +6010,9 @@ components:
           type: string
         templateName:
           type: string
+        themeKey:
+          type: string
+          description: The look, from GET /print/themes.
         title:
           type: string
           nullable: true
@@ -5732,6 +6074,7 @@ components:
           caseId,
           templateKey,
           templateName,
+          themeKey,
           title,
           photoId,
           photoUploadId,
@@ -5763,6 +6106,8 @@ components:
       properties:
         templateKey:
           type: string
+        themeKey:
+          type: string
         title:
           type: string
           nullable: true
@@ -5771,6 +6116,8 @@ components:
     PrintItemUpdate:
       type: object
       properties:
+        themeKey:
+          type: string
         title:
           type: string
           nullable: true
@@ -6599,6 +6946,32 @@ components:
         fullName:
           type: string
           nullable: true
+        pronouns:
+          type: string
+          enum: [she, he, they]
+          nullable: true
+        hints:
+          type: object
+          description: A gentle note under a date box that holds a place instead.
+          properties:
+            bornOn:
+              type: string
+              nullable: true
+            diedOn:
+              type: string
+              nullable: true
+          required: [bornOn, diedOn]
+        aiAvailable:
+          type: boolean
+          description: Staff only. Whether suggested rewrites are switched on.
+        aiSuggestion:
+          type: string
+          nullable: true
+          description: Staff only. A suggested rewrite a director asked for.
+        aiSuggestedAt:
+          type: string
+          format: date-time
+          nullable: true
         bornOn:
           type: string
           nullable: true
@@ -6652,6 +7025,8 @@ components:
           id,
           caseId,
           fullName,
+          pronouns,
+          hints,
           bornOn,
           birthPlace,
           diedOn,
@@ -6674,6 +7049,10 @@ components:
       properties:
         fullName:
           type: string
+          nullable: true
+        pronouns:
+          type: string
+          enum: [she, he, they]
           nullable: true
         bornOn:
           type: string
@@ -6711,6 +7090,14 @@ components:
             draftText:
               type: string
               nullable: true
+
+    ObituarySuggestionInput:
+      type: object
+      properties:
+        confirm:
+          type: boolean
+          description: The director agreed to send the family's notes out.
+      required: [confirm]
 
     ComposeObituaryInput:
       type: object
@@ -6990,6 +7377,30 @@ components:
           type: string
           format: date-time
           nullable: true
+        smsConsentAt:
+          type: string
+          format: date-time
+          nullable: true
+        touchpointsConsentAt:
+          type: string
+          format: date-time
+          nullable: true
+        touchpointsOffered:
+          type: array
+          description: Extra notes the home offers and when they would land; only while the family has not answered, and only on the family's view.
+          items:
+            type: object
+            properties:
+              kind:
+                type: string
+                enum: [birthday, holidays, death_anniversary]
+              dueAt:
+                type: string
+                format: date-time
+            required: [kind, dueAt]
+        smsAvailable:
+          type: boolean
+          description: Whether texts can be sent on this deployment. Family view only.
         deliveries:
           type: array
           items:
@@ -7015,6 +7426,9 @@ components:
       properties:
         id:
           type: integer
+        kind:
+          type: string
+          enum: [checkin, birthday, holidays, death_anniversary]
         dayOffset:
           type: integer
         dueAt:
@@ -7028,7 +7442,72 @@ components:
           type: string
           format: date-time
           nullable: true
-      required: [id, dayOffset, dueAt, sentAt, failedAt]
+        sentVia:
+          type: string
+          nullable: true
+          description: "`email`, `sms`, `email,sms`, or `withdrawn` when consent lapsed before it was due."
+      required: [id, kind, dayOffset, dueAt, sentAt, failedAt, sentVia]
+
+    AftercareMessage:
+      type: object
+      properties:
+        key:
+          type: string
+          enum: ["30", "60", "90", "365", birthday, holidays, death_anniversary]
+        label:
+          type: string
+        subject:
+          type: string
+        body:
+          type: string
+          description: "`{name}` stands for the person who died."
+        defaultSubject:
+          type: string
+        defaultBody:
+          type: string
+        custom:
+          type: boolean
+      required: [key, label, subject, body, defaultSubject, defaultBody, custom]
+
+    AftercareSettings:
+      type: object
+      properties:
+        touchpoints:
+          type: array
+          items:
+            type: string
+            enum: [birthday, holidays, death_anniversary]
+        messages:
+          type: array
+          items:
+            $ref: "#/components/schemas/AftercareMessage"
+      required: [touchpoints, messages]
+
+    AftercareSettingsInput:
+      type: object
+      properties:
+        touchpoints:
+          type: array
+          items:
+            type: string
+            enum: [birthday, holidays, death_anniversary]
+        messages:
+          type: array
+          items:
+            type: object
+            properties:
+              key:
+                type: string
+                enum: ["30", "60", "90", "365", birthday, holidays, death_anniversary]
+              subject:
+                type: string
+                nullable: true
+                maxLength: 120
+              body:
+                type: string
+                nullable: true
+                maxLength: 2000
+            required: [key]
 
     AftercareConsentInput:
       type: object
@@ -7038,6 +7517,16 @@ components:
         email:
           type: string
           nullable: true
+        sms:
+          type: boolean
+          description: Also send each note as a short text. This is the person's own consent to texts.
+        phone:
+          type: string
+          nullable: true
+          description: The mobile for the texts; defaults to the one the home has.
+        touchpoints:
+          type: boolean
+          description: Also send the extra notes the home offers (birthday, first holidays, anniversary of the death).
       required: [consent]
 
     # --------------------------------------------------------- memory book --

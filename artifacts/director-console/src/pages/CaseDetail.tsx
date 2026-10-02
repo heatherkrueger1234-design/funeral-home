@@ -30,12 +30,15 @@ import { ServicePanel } from "@/components/case/ServicePanel";
 import { TimelinePanel } from "@/components/case/TimelinePanel";
 import { MessagesPanel } from "@/components/case/MessagesPanel";
 import { BelongingsPanel } from "@/components/case/BelongingsPanel";
+import { CertificateClock } from "@/components/case/CertificateClock";
 import { VitalsPanel } from "@/components/case/VitalsPanel";
 import { PrintPanel } from "@/components/case/PrintPanel";
 import { MemoryBookPanel } from "@/components/case/MemoryBookPanel";
 import { DetailsPanel } from "@/components/case/DetailsPanel";
 import { CaseData } from "@/components/CaseData";
 import { CaseGlance } from "@/components/case/CaseGlance";
+import { FirstCaseGuide } from "@/components/case/FirstCaseGuide";
+import { SECTIONS, TABS, TAB_LABELS, type Tab } from "@/lib/case-sections";
 import { Empty, LoadFailed, Loading } from "@/components/page";
 import { formatAtHome, lockWindow } from "@/lib/utils";
 import { useHomeZone, useSession } from "@/lib/session";
@@ -66,23 +69,6 @@ function serviceLabel(value: string | Date, zone: string | undefined): string {
  * land on the thread, a reload keeps the director where they were, and
  * moving from one case to the next does not carry the last case's tab along.
  */
-const TABS = [
-  "family",
-  "photos",
-  "vitals",
-  "belongings",
-  "obituary",
-  "service",
-  "print",
-  "book",
-  "timeline",
-  "messages",
-  "details",
-  "data",
-] as const;
-
-type Tab = (typeof TABS)[number];
-
 const isTab = (value: string | null): value is Tab =>
   value !== null && (TABS as readonly string[]).includes(value);
 
@@ -190,6 +176,11 @@ export default function CaseDetail() {
     (contact) =>
       contact.role === "next_of_kin" && contact.revokedAt === null && contact.phone,
   );
+
+  // Not on a pre-need file: a memory book is about somebody who has died.
+  const sections = SECTIONS.filter((section) => detail.kind !== "pre_need" || section.key !== "after");
+  const current: Tab = detail.kind === "pre_need" && tab === "book" ? "family" : tab;
+  const currentSection = sections.find((section) => section.tabs.includes(current)) ?? sections[0]!;
 
   return (
     <div className="space-y-6">
@@ -351,55 +342,76 @@ export default function CaseDetail() {
         onOpen={setTab}
       />
 
+      {!closed && <FirstCaseGuide detail={detail} onOpen={setTab} />}
+
       <Tabs
         // A pre-need file has no memory book, so a link to one opens the family.
-        value={detail.kind === "pre_need" && tab === "book" ? "family" : tab}
+        value={current}
         onValueChange={setTab}
       >
-        <TabsList>
-          <TabsTrigger value="family">Family</TabsTrigger>
-          <TabsTrigger value="photos">Photos ({detail.photoCount})</TabsTrigger>
-          <TabsTrigger value="vitals">Certificate</TabsTrigger>
-          <TabsTrigger value="belongings">Belongings</TabsTrigger>
-          <TabsTrigger value="obituary">Obituary</TabsTrigger>
-          <TabsTrigger value="service">Service</TabsTrigger>
-          <TabsTrigger value="print">Print</TabsTrigger>
-          {/* Not on a pre-need file: a memory book is about somebody who has died. */}
-          {detail.kind !== "pre_need" && (
-            <TabsTrigger value="book">Memory book</TabsTrigger>
-          )}
-          <TabsTrigger value="timeline">
-            Timeline
-            {detail.outstandingDeadlines > 0 && (
-              <span className="tabular rounded-full bg-[var(--muted)] px-1.5 py-0.5 text-xs font-semibold text-muted-foreground">
-                {detail.outstandingDeadlines}
-              </span>
-            )}
-          </TabsTrigger>
-          <TabsTrigger value="messages">
-            Messages
-            {detail.unreadFamilyMessages > 0 && (
-              <span className="tabular rounded-full bg-[var(--accent)] px-1.5 py-0.5 text-xs font-semibold text-white">
-                {detail.unreadFamilyMessages}
-              </span>
-            )}
-          </TabsTrigger>
-          <TabsTrigger value="details">Details</TabsTrigger>
-          <TabsTrigger value="data">Data</TabsTrigger>
-        </TabsList>
+        <nav
+          aria-label="Parts of this case"
+          className="flex gap-1 overflow-x-auto rounded-xl border border-border bg-card p-1 shadow-[var(--elevation-1)]"
+        >
+          {sections.map((section) => {
+            const active = section.tabs.includes(current);
+            const badge =
+              section.key === "family"
+                ? detail.unreadFamilyMessages
+                : 0;
+            return (
+              <button
+                key={section.key}
+                type="button"
+                aria-current={active ? "true" : undefined}
+                onClick={() => setTab(section.tabs[0]!)}
+                className={`inline-flex min-h-9 flex-1 items-center justify-center gap-1.5 whitespace-nowrap rounded-lg px-3 text-sm font-medium transition-colors ${
+                  active
+                    ? "bg-[var(--accent-deep)] text-white"
+                    : "text-muted-foreground hover:bg-[var(--muted)] hover:text-foreground"
+                }`}
+              >
+                {section.label}
+                {badge > 0 && (
+                  <span className="tabular rounded-full bg-[var(--accent)] px-1.5 text-xs font-semibold text-white">
+                    {badge}
+                  </span>
+                )}
+              </button>
+            );
+          })}
+        </nav>
+
+        {currentSection.tabs.length > 1 && (
+          <TabsList className="mt-3">
+            {currentSection.tabs.map((key) => (
+              <TabsTrigger key={key} value={key}>
+                {TAB_LABELS[key]}
+                {key === "photos" && ` (${detail.photoCount})`}
+                {key === "timeline" && detail.outstandingDeadlines > 0 && (
+                  <span className="tabular rounded-full bg-[var(--muted)] px-1.5 py-0.5 text-xs font-semibold text-muted-foreground">
+                    {detail.outstandingDeadlines}
+                  </span>
+                )}
+                {key === "messages" && detail.unreadFamilyMessages > 0 && (
+                  <span className="tabular rounded-full bg-[var(--accent)] px-1.5 py-0.5 text-xs font-semibold text-white">
+                    {detail.unreadFamilyMessages}
+                  </span>
+                )}
+              </TabsTrigger>
+            ))}
+          </TabsList>
+        )}
 
         <div className="mt-6">
           <TabsContent value="family">
             <FamilyPanel caseId={caseId} contacts={detail.contacts} />
           </TabsContent>
           <TabsContent value="photos">
-            <PhotosPanel
-              caseId={caseId}
-              portraitPhotoId={detail.portraitPhotoId}
-              referencePhotoId={detail.referencePhotoId}
-            />
+            <PhotosPanel caseId={caseId} />
           </TabsContent>
-          <TabsContent value="vitals">
+          <TabsContent value="vitals" className="space-y-6">
+            {detail.kind !== "pre_need" && <CertificateClock caseId={caseId} />}
             <VitalsPanel
               caseId={caseId}
               fromCase={{

@@ -336,9 +336,6 @@ type PractitionerValues = Omit<Practitioner, "id">;
  */
 function PractitionersCard({ home }: { home: AdminHomeDetail }) {
   const [adding, setAdding] = useState(false);
-  // Which row is asking "are you sure". Removing somebody is the one thing on
-  // this card that cannot be put back by choosing a different option.
-  const [removing, setRemoving] = useState<number | null>(null);
   const refresh = useRefreshAfterLicensure(home.id);
 
   const add = useMutation({

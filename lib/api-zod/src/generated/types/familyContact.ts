@@ -18,6 +18,7 @@ Two audiences, two authentication schemes, and the split is load-bearing:
  * OpenAPI spec version: 0.1.0
  */
 import type { FamilyContactRole } from "./familyContactRole";
+import type { FamilyContactSmsConsentSource } from "./familyContactSmsConsentSource";
 
 export interface FamilyContact {
   id: number;
@@ -34,5 +35,11 @@ export interface FamilyContact {
   lastSeenAt: Date | null;
   /** Set when somebody on the family's side added this person, rather than the home. */
   invitedByContactId: number | null;
+  /** When this person agreed to be texted. Nobody is texted without it. */
+  smsConsentAt: Date | null;
+  /** How the consent was given. */
+  smsConsentSource: FamilyContactSmsConsentSource;
+  /** When they replied STOP. Wins over any consent. */
+  smsOptedOutAt: Date | null;
   createdAt: Date;
 }

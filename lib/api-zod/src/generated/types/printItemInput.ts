@@ -20,5 +20,6 @@ Two audiences, two authentication schemes, and the split is load-bearing:
 
 export interface PrintItemInput {
   templateKey: string;
+  themeKey?: string;
   title?: string | null;
 }

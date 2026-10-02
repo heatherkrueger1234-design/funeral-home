@@ -72,6 +72,10 @@ export const aftercareEnrollmentsTable = pgTable(
     startsAt: timestamp("starts_at").notNull(),
     consentedAt: timestamp("consented_at"),
     unsubscribedAt: timestamp("unsubscribed_at"),
+    /** When the family also asked for the notes by text. Re-checked at send. */
+    smsConsentAt: timestamp("sms_consent_at"),
+    /** When they opted in to the birthday/holiday/death-anniversary notes. */
+    touchpointsConsentAt: timestamp("touchpoints_consent_at"),
 
     createdAt: timestamp("created_at").notNull().defaultNow(),
     updatedAt: timestamp("updated_at").notNull().defaultNow(),
@@ -100,6 +104,11 @@ export const aftercareDeliveriesTable = pgTable(
       .notNull()
       .references(() => aftercareEnrollmentsTable.id, { onDelete: "cascade" }),
 
+    /**
+     * `checkin` (30/60/90/365 days after the service) or an opt-in
+     * touchpoint: `birthday`, `holidays`, `death_anniversary`.
+     */
+    kind: text("kind").notNull().default("checkin"),
     /** Days after `startsAt`. 30, 60, 90 — and the anniversary at 365. */
     dayOffset: integer("day_offset").notNull(),
     dueAt: timestamp("due_at").notNull(),
@@ -107,12 +116,15 @@ export const aftercareDeliveriesTable = pgTable(
     /** Set when a send failed, so a human can see it rather than a silence. */
     failedAt: timestamp("failed_at"),
     failureReason: text("failure_reason"),
+    /** `email`, `sms`, `email,sms`, or `withdrawn` when consent lapsed. */
+    sentVia: text("sent_via"),
 
     createdAt: timestamp("created_at").notNull().defaultNow(),
   },
   (table) => [
-    uniqueIndex("aftercare_deliveries_enrollment_offset_unique").on(
+    uniqueIndex("aftercare_deliveries_enrollment_kind_offset_unique").on(
       table.enrollmentId,
+      table.kind,
       table.dayOffset,
     ),
     index("aftercare_deliveries_due_idx").on(table.dueAt, table.sentAt),
@@ -131,6 +143,19 @@ export type AftercareStatus = (typeof AFTERCARE_STATUSES)[number];
  * because it is the day the family is most certain nobody remembers.
  */
 export const AFTERCARE_OFFSETS_DAYS = [30, 60, 90, 365] as const;
+
+/**
+ * Extra notes a home may offer and a family may opt in to, each once in the
+ * first year: the person's birthday, the first holiday season, and the
+ * anniversary of the death itself.
+ */
+export const AFTERCARE_TOUCHPOINTS = ["birthday", "holidays", "death_anniversary"] as const;
+export type AftercareTouchpoint = (typeof AFTERCARE_TOUCHPOINTS)[number];
+
+/** Keys for a home's own wording: the check-in offsets and the touchpoints. */
+export const AFTERCARE_COPY_KEYS = ["30", "60", "90", "365", ...AFTERCARE_TOUCHPOINTS] as const;
+export type AftercareCopyKey = (typeof AFTERCARE_COPY_KEYS)[number];
+export type AftercareCopy = Partial<Record<AftercareCopyKey, { subject: string; body: string }>>;
 
 export const insertAftercareEnrollmentSchema = createInsertSchema(
   aftercareEnrollmentsTable,

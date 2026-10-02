@@ -222,13 +222,12 @@ export function ConsoleShell({ children }: { children: ReactNode }) {
   return (
     <div className="flex min-h-dvh flex-col bg-background">
       <header className="sticky top-0 z-30 border-b border-border bg-card/95 shadow-[0_1px_0_rgb(255_255_255/0.8),0_8px_24px_-20px_rgb(40_34_24/0.35)] backdrop-blur-md supports-[backdrop-filter]:bg-card/80">
-        {/* Two rows on a phone: the home's full name, then the places. One
-            row squeezed the name down to "C." at exactly the width a director
-            uses between services. */}
-        <div className="mx-auto flex w-full max-w-5xl flex-wrap items-center gap-x-3 gap-y-2 px-4 py-3 sm:flex-nowrap sm:px-5">
+        {/* Two rows below desktop width: the home's full name, then the
+            places. One row squeezed the name to "C." on phones and tablets. */}
+        <div className="mx-auto flex w-full max-w-5xl flex-wrap items-center gap-x-3 gap-y-2 px-4 py-3 sm:px-5 lg:flex-nowrap">
           <Link
             href="/"
-            className="flex min-w-0 basis-full items-center gap-2.5 font-display text-lg leading-tight no-underline sm:basis-auto"
+            className="flex min-w-0 basis-full items-center gap-2.5 font-display text-lg leading-tight no-underline lg:basis-auto lg:min-w-[11rem] lg:max-w-[18rem]"
           >
             {/*
               The home's initial in a fine brass ring: the blind-stamped
@@ -244,20 +243,20 @@ export function ConsoleShell({ children }: { children: ReactNode }) {
             >
               {monogram(session?.home.name ?? "")}
             </span>
-            <span className="line-clamp-2 sm:truncate" title={session?.home.name}>
+            <span className="line-clamp-2 lg:line-clamp-1" title={session?.home.name}>
               {session?.home.name ?? "Console"}
             </span>
           </Link>
 
           {/* A hairline between whose console this is and what is in it. */}
-          <span className="hidden h-5 w-px shrink-0 bg-border sm:block" aria-hidden />
+          <span className="hidden h-5 w-px shrink-0 bg-border lg:block" aria-hidden />
 
-          <span className="ml-auto hidden sm:block" />
+          <span className="ml-auto hidden lg:block" />
           <SaveStatus />
 
           <nav
             aria-label="Sections"
-            className="flex w-full items-center justify-between gap-1 sm:w-auto sm:justify-start"
+            className="flex w-full items-center justify-between gap-1 lg:w-auto lg:justify-start"
           >
             {PLACES.map((place) => (
               <NavLink
