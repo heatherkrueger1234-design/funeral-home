@@ -410,12 +410,9 @@ function PractitionerRow({
   homeId: number;
   person: Practitioner;
 }) {
-  const queryClient = useQueryClient();
   const [editing, setEditing] = useState(false);
   const [confirming, setConfirming] = useState(false);
-
-  const refresh = () =>
-    queryClient.invalidateQueries({ queryKey: ["home", homeId] });
+  const refresh = useRefreshAfterLicensure(homeId);
 
   const update = useMutation({
     mutationFn: ({ id, ...values }: Practitioner) =>

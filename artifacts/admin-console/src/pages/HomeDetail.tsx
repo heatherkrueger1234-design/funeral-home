@@ -287,6 +287,7 @@ function CommercialCard({ home }: { home: AdminHomeDetail }) {
       void queryClient.invalidateQueries({ queryKey: ["home", home.id] });
       void queryClient.invalidateQueries({ queryKey: ["homes"] });
       void queryClient.invalidateQueries({ queryKey: ["financials"] });
+      void queryClient.invalidateQueries({ queryKey: ["audit"] });
     },
   });
 
@@ -1014,6 +1015,7 @@ function GroupCard({ home }: { home: AdminHomeDetail }) {
       void queryClient.invalidateQueries({ queryKey: ["groups"] });
       void queryClient.invalidateQueries({ queryKey: ["group"] });
       void queryClient.invalidateQueries({ queryKey: ["overview"] });
+      void queryClient.invalidateQueries({ queryKey: ["audit"] });
     },
   });
 
