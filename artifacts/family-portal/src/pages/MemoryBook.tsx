@@ -312,6 +312,11 @@ function PhotoYears({ photos, open }: { photos: CasePhoto[]; open: boolean }) {
   });
 
   const chosen = photos.filter((photo) => photo.selected);
+  // "The photograph chosen", not "The 1 photographs chosen".
+  const theChosen =
+    chosen.length === 1
+      ? "The photograph chosen"
+      : `The ${chosen.length} photographs chosen`;
 
   if (chosen.length === 0) {
     return (
@@ -325,7 +330,8 @@ function PhotoYears({ photos, open }: { photos: CasePhoto[]; open: boolean }) {
   if (!open) {
     return (
       <p className="text-sm leading-relaxed text-muted-foreground">
-        The {chosen.length} photographs chosen for the service are in the book.
+        {theChosen} for the service {chosen.length === 1 ? "is" : "are"} in
+        the book.
       </p>
     );
   }
@@ -334,9 +340,10 @@ function PhotoYears({ photos, open }: { photos: CasePhoto[]; open: boolean }) {
     return (
       <div className="space-y-3">
         <p className="text-sm leading-relaxed text-muted-foreground">
-          The {chosen.length} photographs chosen for the service go into the
-          book. If you know roughly when they were taken, the book can show
-          them in that order.
+          {theChosen} for the service{" "}
+          {chosen.length === 1 ? "goes" : "go"} into the book. If you know
+          roughly when {chosen.length === 1 ? "it was" : "they were"} taken,
+          the book can show {chosen.length === 1 ? "it in its place" : "them in that order"}.
         </p>
         <Button type="button" variant="outline" onClick={() => setShown(true)}>
           Add the years
