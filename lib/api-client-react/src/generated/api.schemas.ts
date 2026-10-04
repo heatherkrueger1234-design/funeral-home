@@ -2007,6 +2007,27 @@ daughter.
 }
 
 /**
+ * One line of the platform's access log about this home.
+ */
+export interface HomeAccessEntry {
+  id: number;
+  at: string;
+  /** The platform admin, by the address they signed in with. */
+  who: string;
+  /** The stable code, e.g. `home.open`. */
+  action: string;
+  /** The same, in plain words. */
+  what: string;
+  detail: string | null;
+}
+
+export interface HomeAccessLog {
+  entries: HomeAccessEntry[];
+  /** Pass as `before` for older lines; null when there are none. */
+  nextBefore: number | null;
+}
+
+/**
  * Where it stands now. `not_applicable` is a pre-need file;
 `no_custody` means the clock cannot be known until custody is
 recorded; `open` is either within the window or in a state with
@@ -2804,6 +2825,19 @@ export type AftercareUnsubscribeParams = {
 export type RegisterHome202 = {
   checkEmail: boolean;
   message: string;
+};
+
+export type GetHomeAccessLogParams = {
+  /**
+   * Only lines older than this one, for the next page.
+   * @minimum 1
+   */
+  before?: number;
+  /**
+   * @minimum 1
+   * @maximum 100
+   */
+  limit?: number;
 };
 
 export type GetIntakeRequestsParams = {

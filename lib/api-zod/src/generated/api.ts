@@ -717,6 +717,53 @@ export const CompleteOnboardingStepResponse = zod.object({
 });
 
 /**
+ * The home's own lines from the platform's access log, newest first.
+Owner only (403 otherwise): it is the home's evidence about its
+vendor, for whoever answers to the home's insurer. Looking at a
+list of every customer is logged without naming a home, so it is
+not here; opening this home, or changing anything on it, is.
+
+ * @summary Every time anyone at the platform opened or changed this home
+ */
+
+export const getHomeAccessLogQueryLimitDefault = 50;
+export const getHomeAccessLogQueryLimitMax = 100;
+
+export const GetHomeAccessLogQueryParams = zod.object({
+  before: zod.coerce
+    .number()
+    .min(1)
+    .optional()
+    .describe("Only lines older than this one, for the next page."),
+  limit: zod.coerce
+    .number()
+    .min(1)
+    .max(getHomeAccessLogQueryLimitMax)
+    .default(getHomeAccessLogQueryLimitDefault),
+});
+
+export const GetHomeAccessLogResponse = zod.object({
+  entries: zod.array(
+    zod
+      .object({
+        id: zod.number(),
+        at: zod.date(),
+        who: zod
+          .string()
+          .describe("The platform admin, by the address they signed in with."),
+        action: zod.string().describe("The stable code, e.g. `home.open`."),
+        what: zod.string().describe("The same, in plain words."),
+        detail: zod.string().nullable(),
+      })
+      .describe("One line of the platform's access log about this home."),
+  ),
+  nextBefore: zod
+    .number()
+    .nullable()
+    .describe("Pass as `before` for older lines; null when there are none."),
+});
+
+/**
  * @summary Everyone who works cases at this home
  */
 export const GetStaffResponseItem = zod.object({

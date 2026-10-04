@@ -438,6 +438,41 @@ paths:
               schema:
                 $ref: "#/components/schemas/Billing"
 
+  /home/access-log:
+    get:
+      operationId: getHomeAccessLog
+      tags: [home]
+      summary: Every time anyone at the platform opened or changed this home
+      description: |
+        The home's own lines from the platform's access log, newest first.
+        Owner only (403 otherwise): it is the home's evidence about its
+        vendor, for whoever answers to the home's insurer. Looking at a
+        list of every customer is logged without naming a home, so it is
+        not here; opening this home, or changing anything on it, is.
+      parameters:
+        - name: before
+          in: query
+          required: false
+          description: Only lines older than this one, for the next page.
+          schema:
+            type: integer
+            minimum: 1
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 50
+      responses:
+        "200":
+          description: A page of the log
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HomeAccessLog"
+
   /home/staff:
     get:
       operationId: getStaff
@@ -6506,6 +6541,42 @@ components:
             type: string
       required:
         [caseId, socialSecurityNumberMasked, hasSocialSecurityNumber, status, submittedAt, verifiedAt, verifiedByName, staffNotes, missingForFiling]
+
+    HomeAccessLog:
+      type: object
+      properties:
+        entries:
+          type: array
+          items:
+            $ref: "#/components/schemas/HomeAccessEntry"
+        nextBefore:
+          type: integer
+          nullable: true
+          description: Pass as `before` for older lines; null when there are none.
+      required: [entries, nextBefore]
+
+    HomeAccessEntry:
+      type: object
+      description: One line of the platform's access log about this home.
+      properties:
+        id:
+          type: integer
+        at:
+          type: string
+          format: date-time
+        who:
+          type: string
+          description: The platform admin, by the address they signed in with.
+        action:
+          type: string
+          description: The stable code, e.g. `home.open`.
+        what:
+          type: string
+          description: The same, in plain words.
+        detail:
+          type: string
+          nullable: true
+      required: [id, at, who, action, what, detail]
 
     CertificateFiling:
       type: object

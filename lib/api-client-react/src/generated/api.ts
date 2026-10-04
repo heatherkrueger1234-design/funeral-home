@@ -82,10 +82,12 @@ import type {
   GetAftercareUnsubscribeParams,
   GetCasesParams,
   GetFamilyVendorsParams,
+  GetHomeAccessLogParams,
   GetIntakeRequestsParams,
   GetSnippetsParams,
   GetVendorsParams,
   HealthStatus,
+  HomeAccessLog,
   HomeDashboard,
   HomePolicy,
   HomePolicyInput,
@@ -1793,6 +1795,109 @@ export const useCompleteOnboardingStep = <
 > => {
   return useMutation(getCompleteOnboardingStepMutationOptions(options));
 };
+
+/**
+ * The home's own lines from the platform's access log, newest first.
+Owner only (403 otherwise): it is the home's evidence about its
+vendor, for whoever answers to the home's insurer. Looking at a
+list of every customer is logged without naming a home, so it is
+not here; opening this home, or changing anything on it, is.
+
+ * @summary Every time anyone at the platform opened or changed this home
+ */
+export const getGetHomeAccessLogUrl = (params?: GetHomeAccessLogParams) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? "null" : value.toString());
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0
+    ? `/api/home/access-log?${stringifiedParams}`
+    : `/api/home/access-log`;
+};
+
+export const getHomeAccessLog = async (
+  params?: GetHomeAccessLogParams,
+  options?: RequestInit,
+): Promise<HomeAccessLog> => {
+  return customFetch<HomeAccessLog>(getGetHomeAccessLogUrl(params), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getGetHomeAccessLogQueryKey = (
+  params?: GetHomeAccessLogParams,
+) => {
+  return [`/api/home/access-log`, ...(params ? [params] : [])] as const;
+};
+
+export const getGetHomeAccessLogQueryOptions = <
+  TData = Awaited<ReturnType<typeof getHomeAccessLog>>,
+  TError = ErrorType<unknown>,
+>(
+  params?: GetHomeAccessLogParams,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getHomeAccessLog>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey =
+    queryOptions?.queryKey ?? getGetHomeAccessLogQueryKey(params);
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof getHomeAccessLog>>
+  > = ({ signal }) => getHomeAccessLog(params, { signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof getHomeAccessLog>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type GetHomeAccessLogQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getHomeAccessLog>>
+>;
+export type GetHomeAccessLogQueryError = ErrorType<unknown>;
+
+/**
+ * @summary Every time anyone at the platform opened or changed this home
+ */
+
+export function useGetHomeAccessLog<
+  TData = Awaited<ReturnType<typeof getHomeAccessLog>>,
+  TError = ErrorType<unknown>,
+>(
+  params?: GetHomeAccessLogParams,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getHomeAccessLog>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getGetHomeAccessLogQueryOptions(params, options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
 
 /**
  * @summary Everyone who works cases at this home
