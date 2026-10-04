@@ -107,7 +107,7 @@ export default function Timeline() {
                   row.isEvent
                     ? "border-[var(--accent)]/30 bg-[var(--accent-soft)] pl-5"
                     : late
-                      ? "border-[var(--accent)]/40 bg-card pl-5"
+                      ? "border-[var(--notice)]/35 bg-card pl-5"
                       : "border-border bg-card",
                   // No fading on a finished row: the strike-through says it
                   // is done, and dimming grey text on grey took it below
@@ -116,10 +116,18 @@ export default function Timeline() {
                   .filter(Boolean)
                   .join(" ")}
               >
+                {/*
+                  The home's colour down the edge is the funeral's alone. A
+                  date that has gone by gets the notice colour, as overdue
+                  work does in the director's console: worth a look, and not
+                  to be mistaken for the one row that is not a chore.
+                */}
                 {(row.isEvent || late) && (
                   <span
                     aria-hidden
-                    className="absolute inset-y-0 left-0 w-1 bg-[var(--accent)]"
+                    className={`absolute inset-y-0 left-0 w-1 ${
+                      row.isEvent ? "bg-[var(--accent)]" : "bg-[var(--notice)]"
+                    }`}
                   />
                 )}
 
@@ -177,7 +185,7 @@ export default function Timeline() {
                       accurate and read as a mark against somebody.
                     */}
                     {late && (
-                      <p className="mt-0.5 text-sm font-semibold text-[var(--accent-deep)]">
+                      <p className="mt-0.5 text-sm font-semibold text-[var(--notice)]">
                         The date has passed, and it can move.
                       </p>
                     )}

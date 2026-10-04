@@ -24,8 +24,9 @@ function InputGroup({ className, ...props }: React.ComponentProps<"div">) {
         // Focus state.
         "has-[[data-slot=input-group-control]:focus-visible]:ring-ring has-[[data-slot=input-group-control]:focus-visible]:ring-1",
 
-        // Error state.
-        "has-[[data-slot][aria-invalid=true]]:ring-destructive/20 has-[[data-slot][aria-invalid=true]]:border-destructive dark:has-[[data-slot][aria-invalid=true]]:ring-destructive/40",
+        // Error state: the notice colour, never red. No dark-mode shade of it,
+        // because the family portal has no dark mode.
+        "has-[[data-slot][aria-invalid=true]]:ring-[var(--notice)]/20 has-[[data-slot][aria-invalid=true]]:border-[var(--notice)]",
 
         className
       )}

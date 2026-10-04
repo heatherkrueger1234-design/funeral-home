@@ -9,8 +9,11 @@ const alertVariants = cva(
     variants: {
       variant: {
         default: "bg-background text-foreground",
-        destructive:
-          "border-destructive/50 text-destructive dark:border-destructive [&>svg]:text-destructive",
+        // Something that needs attention: the notice colour on its tint, with
+        // the words in the ordinary ink so they stay easy to read. No red —
+        // CRAFT.md keeps it out of the family portal.
+        notice:
+          "border-[var(--notice)]/30 bg-[var(--notice-soft)] text-foreground [&>svg]:text-[var(--notice)]",
       },
     },
     defaultVariants: {

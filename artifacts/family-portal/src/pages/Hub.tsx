@@ -374,7 +374,7 @@ export default function Hub() {
       )}
 
       <div className="space-y-7">
-        <Group label={voice.preNeed ? "About you" : "About them"}>
+        <Group label={`About ${voice.them}`}>
           <Card
             href="/photos"
             icon={Images}
@@ -476,7 +476,13 @@ export default function Hub() {
             href="/certificate"
             icon={ClipboardList}
             title="Details for the certificate"
-            detail="What the state needs before it can be issued"
+            detail={
+              // Nothing is being issued for somebody who is alive. What is
+              // worth saying is why to do it now.
+              voice.preNeed
+                ? "Written down now, so your family won't have to search for them"
+                : "What the state needs before it can be issued"
+            }
           />
           <Card
             href="/timeline"

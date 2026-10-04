@@ -347,7 +347,7 @@ export default function Proofs() {
             </AlertDialogDescription>
           </AlertDialogHeader>
           {failure && (
-            <p role="alert" className="text-sm text-[var(--destructive)]">
+            <p role="alert" className="text-sm text-[var(--notice)]">
               {plainError(failure)}
             </p>
           )}
@@ -397,7 +397,7 @@ export default function Proofs() {
               autoFocus
             />
             {failure && (
-              <p role="alert" className="text-sm text-[var(--destructive)]">
+              <p role="alert" className="text-sm text-[var(--notice)]">
                 {plainError(failure)}
               </p>
             )}

@@ -16,6 +16,7 @@ import { Label } from "@/components/ui/label";
 import { Divider, Empty, LoadFailed, Loading, PageHeader, Panel } from "@/components/page";
 import { useToast } from "@/hooks/use-toast";
 import { plainError } from "@/lib/memory-book";
+import { voiceFor } from "@/lib/voice";
 
 /**
  * Passing the link on.
@@ -72,7 +73,7 @@ function LinkOnce({ result }: { result: FamilyRelativeInvited }) {
               toast({
                 title: "Couldn't copy that",
                 description: "Press and hold the link to copy it instead.",
-                variant: "destructive",
+                variant: "notice",
               });
             }
           }}
@@ -164,6 +165,7 @@ export default function Family() {
 
   const data = relatives.data;
   const homeName = session.data?.home.name ?? "The funeral home";
+  const voice = voiceFor(session.data?.case.kind);
 
   if (!data?.canInvite) {
     return (
@@ -191,10 +193,11 @@ export default function Family() {
 
   return (
     <div className="space-y-6">
+      {/* No memories on a plan: the memory book is not offered on one. */}
       <PageHeader title="Family">
         Anyone you add gets their own private link to this page, so they can
-        add photographs and memories under their own name. {homeName} will see
-        who you've added.
+        add {voice.preNeed ? "photographs" : "photographs and memories"} under
+        their own name. {homeName} will see who you've added.
       </PageHeader>
 
       {result?.link && <LinkOnce result={result} />}
@@ -313,7 +316,7 @@ export default function Family() {
             </div>
 
             {problem && (
-              <p role="alert" className="text-sm font-medium text-[var(--accent-deep)]">
+              <p role="alert" className="text-sm font-medium text-[var(--notice)]">
                 {problem}
               </p>
             )}

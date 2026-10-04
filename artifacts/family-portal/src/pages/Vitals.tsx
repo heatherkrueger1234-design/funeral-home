@@ -14,6 +14,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { useToast } from "@/hooks/use-toast";
 import { Check, Lock, ShieldCheck } from "lucide-react";
 import { LoadFailed, Loading, PageHeader } from "@/components/page";
+import { voiceFor, type CaseVoice } from "@/lib/voice";
 
 /**
  * The death certificate questions.
@@ -36,118 +37,162 @@ type Field = {
   type?: "text" | "date" | "tel" | "checkbox";
 };
 
-const SECTIONS: Array<{ title: string; blurb?: string; fields: Field[] }> = [
-  {
-    title: "Their details",
-    fields: [
-      { name: "legalFirstName", label: "First name" },
-      { name: "legalMiddleName", label: "Middle name" },
-      { name: "legalLastName", label: "Last name" },
-      { name: "suffix", label: "Suffix", hint: "Jr., Sr., III — only if they used one." },
-      {
-        name: "nameAtBirth",
-        label: "Name at birth",
-        hint: "If it was different — a maiden name, or a name that changed.",
-      },
-      { name: "dateOfBirth", label: "Date of birth", type: "date" },
-      { name: "birthCity", label: "Town or city of birth" },
-      { name: "birthState", label: "State of birth" },
-      {
-        name: "birthCountry",
-        label: "Country of birth",
-        hint: "Only if they were born outside the United States.",
-      },
-      { name: "sex", label: "Sex as recorded" },
-    ],
-  },
-  {
-    title: "Their parents",
-    blurb:
-      "Both parents are asked for, however long ago they died. The mother's name before marriage is the one that most often holds a certificate up.",
-    fields: [
-      { name: "fatherFirstName", label: "Father's first name" },
-      { name: "fatherMiddleName", label: "Father's middle name" },
-      { name: "fatherLastName", label: "Father's last name" },
-      { name: "motherFirstName", label: "Mother's first name" },
-      { name: "motherMiddleName", label: "Mother's middle name" },
-      {
-        name: "motherMaidenName",
-        label: "Mother's last name before she married",
-        hint: "Her maiden name. Worth a phone call to an aunt if nobody is sure.",
-      },
-    ],
-  },
-  {
-    title: "Marriage",
-    fields: [
-      {
-        name: "maritalStatus",
-        label: "Married, widowed, divorced, or never married",
-      },
-      { name: "spouseName", label: "Husband or wife's name" },
-      {
-        name: "spouseNameAtBirth",
-        label: "Their name before marriage",
-        hint: "If it changed.",
-      },
-    ],
-  },
-  {
-    title: "Work and schooling",
-    blurb: "Their usual work over most of their life, not their last job.",
-    fields: [
-      { name: "occupation", label: "Usual occupation" },
-      {
-        name: "industry",
-        label: "Kind of business",
-        hint: "Teaching, farming, the railways.",
-      },
-      { name: "educationLevel", label: "Highest level of schooling" },
-      { name: "raceEthnicity", label: "Race or ethnicity" },
-      { name: "hispanicOrigin", label: "Hispanic origin, if any" },
-    ],
-  },
-  {
-    title: "Where they lived",
-    fields: [
-      { name: "residenceLine1", label: "Address" },
-      { name: "residenceCity", label: "Town or city" },
-      { name: "residenceCounty", label: "County" },
-      { name: "residenceState", label: "State" },
-      { name: "residencePostalCode", label: "ZIP" },
-      {
-        name: "residenceInsideCityLimits",
-        label: "The address is inside the city or town limits",
-        type: "checkbox",
-      },
-    ],
-  },
-  {
-    title: "Military service",
-    blurb:
-      "Worth answering even if you are not sure. A veteran is entitled to a flag, a headstone and burial in a national cemetery, and families often do not know.",
-    fields: [
-      { name: "veteran", label: "They served in the armed forces", type: "checkbox" },
-      { name: "veteranBranch", label: "Which branch" },
-      { name: "veteranServiceDates", label: "Roughly when" },
-      {
-        name: "veteranDischargeDocument",
-        label: "Discharge papers",
-        hint: "A DD-214, if you can find one. Tell us where it is and we'll take it from there.",
-      },
-    ],
-  },
-  {
-    title: "About you",
-    blurb:
-      "So the registrar knows who supplied these details. Filled in from what the funeral home has for you — change anything that isn't right.",
-    fields: [
-      { name: "informantName", label: "Your name" },
-      { name: "informantRelationship", label: "Your relationship to them" },
-      { name: "informantPhone", label: "Your phone number", type: "tel" },
-    ],
-  },
-];
+type Section = { title: string; blurb?: string; fields: Field[] };
+
+/**
+ * The sections, in the voice this file needs.
+ *
+ * On a plan every fact here is the reader's own: the labels say "your", the
+ * present is the present ("Where you live"), and the reason to answer is
+ * that a family will not have to hunt for it later, rather than that a
+ * certificate is waiting on it.
+ */
+function sectionsFor(voice: CaseVoice): Section[] {
+  const { preNeed } = voice;
+
+  const sections: Section[] = [
+    {
+      title: `${voice.Their} details`,
+      fields: [
+        { name: "legalFirstName", label: "First name" },
+        { name: "legalMiddleName", label: "Middle name" },
+        { name: "legalLastName", label: "Last name" },
+        {
+          name: "suffix",
+          label: "Suffix",
+          hint: preNeed
+            ? "Jr., Sr., III — only if you use one."
+            : "Jr., Sr., III — only if they used one.",
+        },
+        {
+          name: "nameAtBirth",
+          label: preNeed ? "Your name at birth" : "Name at birth",
+          hint: "If it was different — a maiden name, or a name that changed.",
+        },
+        { name: "dateOfBirth", label: "Date of birth", type: "date" },
+        { name: "birthCity", label: "Town or city of birth" },
+        { name: "birthState", label: "State of birth" },
+        {
+          name: "birthCountry",
+          label: "Country of birth",
+          hint: `Only if ${voice.they} were born outside the United States.`,
+        },
+        { name: "sex", label: "Sex as recorded" },
+      ],
+    },
+    {
+      title: `${voice.Their} parents`,
+      blurb: preNeed
+        ? "Both parents are asked for. Your mother's name before she married is the one a family most often has to hunt for."
+        : "Both parents are asked for, however long ago they died. The mother's name before marriage is the one that most often holds a certificate up.",
+      fields: [
+        { name: "fatherFirstName", label: "Father's first name" },
+        { name: "fatherMiddleName", label: "Father's middle name" },
+        { name: "fatherLastName", label: "Father's last name" },
+        { name: "motherFirstName", label: "Mother's first name" },
+        { name: "motherMiddleName", label: "Mother's middle name" },
+        {
+          name: "motherMaidenName",
+          label: "Mother's last name before she married",
+          hint: preNeed
+            ? "Her maiden name."
+            : "Her maiden name. Worth a phone call to an aunt if nobody is sure.",
+        },
+      ],
+    },
+    {
+      title: "Marriage",
+      fields: [
+        {
+          name: "maritalStatus",
+          label: "Married, widowed, divorced, or never married",
+        },
+        { name: "spouseName", label: "Husband or wife's name" },
+        {
+          name: "spouseNameAtBirth",
+          label: "Their name before marriage",
+          hint: "If it changed.",
+        },
+      ],
+    },
+    {
+      title: "Work and schooling",
+      blurb: `${voice.Their} usual work over most of ${voice.their} life, not ${voice.their} last job.`,
+      fields: [
+        { name: "occupation", label: "Usual occupation" },
+        {
+          name: "industry",
+          label: "Kind of business",
+          hint: "Teaching, farming, the railways.",
+        },
+        { name: "educationLevel", label: "Highest level of schooling" },
+        { name: "raceEthnicity", label: "Race or ethnicity" },
+        { name: "hispanicOrigin", label: "Hispanic origin, if any" },
+      ],
+    },
+    {
+      title: preNeed ? "Where you live" : "Where they lived",
+      fields: [
+        { name: "residenceLine1", label: "Address" },
+        { name: "residenceCity", label: "Town or city" },
+        { name: "residenceCounty", label: "County" },
+        { name: "residenceState", label: "State" },
+        { name: "residencePostalCode", label: "ZIP" },
+        {
+          name: "residenceInsideCityLimits",
+          label: "The address is inside the city or town limits",
+          type: "checkbox",
+        },
+      ],
+    },
+    {
+      title: "Military service",
+      blurb: preNeed
+        ? "A veteran is entitled to a flag, a headstone and burial in a national cemetery. Families often do not know to ask, so it is worth noting here."
+        : "Worth answering even if you are not sure. A veteran is entitled to a flag, a headstone and burial in a national cemetery, and families often do not know.",
+      fields: [
+        {
+          name: "veteran",
+          label: `${voice.They} served in the armed forces`,
+          type: "checkbox",
+        },
+        { name: "veteranBranch", label: "Which branch" },
+        { name: "veteranServiceDates", label: "Roughly when" },
+        {
+          name: "veteranDischargeDocument",
+          label: "Discharge papers",
+          hint: preNeed
+            ? "A DD-214, if you have one. Say where it is kept, so your family can find it."
+            : "A DD-214, if you can find one. Tell us where it is and we'll take it from there.",
+        },
+      ],
+    },
+  ];
+
+  /*
+   * "About you" — the informant — is not asked on a plan. The informant is
+   * whoever gives these facts to the registrar after a death, and the
+   * person the registrar rings with a question. Somebody reading their own
+   * plan is the person the facts are about, so cannot be that, and who it
+   * will be is not known yet; asking them to name who will report their
+   * death would be the one question on this page about their death rather
+   * than their life. When the file becomes at-need, whoever opens this page
+   * then is asked, with their own details already filled in.
+   */
+  return preNeed ? sections : [...sections, INFORMANT];
+}
+
+/** Who supplied the details. Asked only on an at-need file: see `sectionsFor`. */
+const INFORMANT: Section = {
+  title: "About you",
+  blurb:
+    "So the registrar knows who supplied these details. Filled in from what the funeral home has for you — change anything that isn't right.",
+  fields: [
+    { name: "informantName", label: "Your name" },
+    { name: "informantRelationship", label: "Your relationship to them" },
+    { name: "informantPhone", label: "Your phone number", type: "tel" },
+  ],
+};
 
 export default function Vitals() {
   const { toast } = useToast();
@@ -155,7 +200,10 @@ export default function Vitals() {
   const vitals = useGetFamilyVitals();
   const [savedAt, setSavedAt] = useState<number | null>(null);
   const [ssn, setSsn] = useState("");
-  const contact = useGetFamilySession().data?.contact;
+  const session = useGetFamilySession();
+  const contact = session.data?.contact;
+  const voice = voiceFor(session.data?.case.kind);
+  const sections = sectionsFor(voice);
 
   /*
    * "About you" arrives filled from the family contact the home already
@@ -164,12 +212,19 @@ export default function Vitals() {
    * What is shown but was never typed over is written to the record when
    * they say they have finished; a box they emptied on purpose is left
    * empty (`touched`).
+   *
+   * Nothing is suggested on a plan, which does not ask the question at all
+   * (see `sectionsFor`). It used to be filled from the reader's own contact
+   * there too, and sending the page wrote it to the record: the reader
+   * named as the informant on their own certificate.
    */
-  const suggested: Record<string, string | null | undefined> = {
-    informantName: contact?.name,
-    informantRelationship: contact?.relationship,
-    informantPhone: contact?.phone,
-  };
+  const suggested: Record<string, string | null | undefined> = voice.preNeed
+    ? {}
+    : {
+        informantName: contact?.name,
+        informantRelationship: contact?.relationship,
+        informantPhone: contact?.phone,
+      };
   const touched = useRef(new Set<string>());
 
   const refresh = () =>
@@ -221,10 +276,14 @@ export default function Vitals() {
 
   return (
     <div className="space-y-6 pb-16">
+      {/*
+        On a plan nothing is waiting to be issued. What is true, and worth
+        saying, is why it helps to answer now.
+      */}
       <PageHeader title="Details for the certificate">
-        The state asks for these before a death certificate can be issued,
-        and almost none of it is anything we would know. Answer what you can
-        — it saves as you go, and you can stop and come back.
+        {voice.preNeed
+          ? "The state will ask for these one day, and they are the details a family most often has to hunt for. Anything you can put down now spares them the search — it saves as you go, and you can stop and come back."
+          : "The state asks for these before a death certificate can be issued, and almost none of it is anything we would know. Answer what you can — it saves as you go, and you can stop and come back."}
       </PageHeader>
 
       {locked && (
@@ -245,7 +304,7 @@ export default function Vitals() {
         </p>
       )}
 
-      {SECTIONS.map((section) => (
+      {sections.map((section) => (
         <section
           key={section.title}
           className="rounded-xl border border-border bg-card p-5 shadow-[var(--elevation-1)]"
@@ -327,16 +386,21 @@ export default function Vitals() {
           Social security number
         </h2>
         <p className="text-sm leading-relaxed text-muted-foreground">
-          Required on the certificate. It is stored encrypted, and once you
-          save it nobody — including you on this page — can read it back; the
-          funeral home sees only the last four digits to check it against
-          their paperwork. That means it cannot be read off this page if your
-          phone is left on a table.
+          Required on the certificate. It is stored encrypted, and once it is
+          saved this page will only ever say that one is on file: nobody,
+          including you, can read it back here. The funeral home sees just the
+          last four digits, to check it against their paperwork. That means it
+          cannot be read off this page if your phone is left on a table.
         </p>
 
+        {/*
+          Whether one is on file, and none of its digits: a family's link
+          gets forwarded, so even the last four are for the funeral home
+          alone.
+        */}
         {vitals.data.hasSocialSecurityNumber ? (
-          <p className="tabular text-sm font-medium">
-            On file, ending {vitals.data.socialSecurityNumberMasked?.slice(-4)}.
+          <p className="text-sm font-medium">
+            {voice.preNeed ? "Yours is on file." : "One is on file."}
             {!locked && " Type a new one below to replace it."}
           </p>
         ) : null}
