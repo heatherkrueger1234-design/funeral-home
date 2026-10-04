@@ -21,6 +21,10 @@ import {
   type PlatformPlan,
 } from "@/lib/api";
 import {
+  customerRecordForm,
+  customerRecordToSave,
+} from "@/lib/customer-record";
+import {
   Button,
   Card,
   CardTitle,
@@ -250,25 +254,7 @@ export function HomeDetail({ homeId }: { homeId: number }) {
 function CommercialCard({ home }: { home: AdminHomeDetail }) {
   const queryClient = useQueryClient();
   const [editing, setEditing] = useState(false);
-  const [form, setForm] = useState({
-    contactName: home.contactName ?? "",
-    subscriptionPlan: home.subscriptionPlan ?? "",
-    subscriptionStatus: home.subscriptionStatus,
-    billingPeriod: home.billingPeriod ?? "",
-    billingAmount:
-      home.billingAmountCents == null
-        ? ""
-        : String(home.billingAmountCents / 100),
-    billingStartDate: home.billingStartDate
-      ? home.billingStartDate.slice(0, 10)
-      : "",
-    subscriptionDueDate: home.subscriptionDueDate
-      ? home.subscriptionDueDate.slice(0, 10)
-      : "",
-    discount: home.discount ?? "",
-    howHeardAboutUs: home.howHeardAboutUs ?? "",
-    adminNotes: home.adminNotes ?? "",
-  });
+  const [form, setForm] = useState(() => customerRecordForm(home));
 
   // The configured price list, so the plan options show both prices rather
   // than making Heather remember them.
@@ -291,28 +277,11 @@ function CommercialCard({ home }: { home: AdminHomeDetail }) {
       setForm((current) => ({ ...current, [key]: event.target.value }));
 
   const save = useMutation({
-    mutationFn: () => {
-      const amount = form.billingAmount.trim();
-      return api.put<AdminHomeDetail>(`/admin/homes/${home.id}/crm`, {
-        contactName: form.contactName.trim(),
-        subscriptionPlan: form.subscriptionPlan.trim(),
-        // Suspension is managed from the account section, not here: sending
-        // "suspended" would be refused, and silently rewriting it to "trial"
-        // would unsuspend a home by accident.
-        ...(form.subscriptionStatus === "suspended"
-          ? {}
-          : { subscriptionStatus: form.subscriptionStatus }),
-        billingPeriod: form.billingPeriod || null,
-        billingAmountCents: amount
-          ? Math.round(parseFloat(amount) * 100)
-          : null,
-        billingStartDate: form.billingStartDate || null,
-        subscriptionDueDate: form.subscriptionDueDate || null,
-        discount: form.discount.trim(),
-        howHeardAboutUs: form.howHeardAboutUs.trim(),
-        adminNotes: form.adminNotes.trim(),
-      });
-    },
+    mutationFn: () =>
+      api.put<AdminHomeDetail>(
+        `/admin/homes/${home.id}/crm`,
+        customerRecordToSave(form),
+      ),
     onSuccess: () => {
       setEditing(false);
       void queryClient.invalidateQueries({ queryKey: ["home", home.id] });

@@ -118,6 +118,15 @@ export function isForbidden(error: unknown): boolean {
   return error instanceof ApiError && error.status === 403;
 }
 
+/**
+ * Whether a failed read is worth asking for once more. A 401 or a 403 is an
+ * answer, not a failure. Retrying either just makes the sign-in page take
+ * four seconds to appear.
+ */
+export function worthRetrying(failureCount: number, error: unknown): boolean {
+  return !isUnauthorized(error) && !isForbidden(error) && failureCount < 1;
+}
+
 /* ------------------------------------------------------------- the shapes */
 
 export type Engagement = {
@@ -218,6 +227,22 @@ export function formatMoney(cents: number | null | undefined): string {
     currency: "USD",
     maximumFractionDigits: cents % 100 === 0 ? 0 : 2,
   });
+}
+
+/**
+ * Dollars as typed into a form, to the cents the API stores.
+ *
+ * Rounded, not truncated, because the arithmetic is binary: 19.99 times 100
+ * is 1998.9999999999998, and cutting that down would take a cent off every
+ * price that ends in .99.
+ */
+export function toCents(dollars: string): number {
+  return Math.round(parseFloat(dollars) * 100);
+}
+
+/** Cents back to the dollars a form shows: 4900 is "49", 1999 is "19.99". */
+export function toDollars(cents: number): string {
+  return String(cents / 100);
 }
 
 /**

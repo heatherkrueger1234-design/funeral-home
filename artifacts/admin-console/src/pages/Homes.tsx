@@ -15,6 +15,8 @@ import {
   HOME_STATUS_LABELS,
   HOME_STATUSES,
   plural,
+  toCents,
+  toDollars,
   type AdminHome,
   type FinancialHome,
   type Financials as FinancialsData,
@@ -22,6 +24,7 @@ import {
   type RunningCost,
   type PlatformPlan,
 } from "@/lib/api";
+import { amountForPlan, HOME_SORTS, homesQuery, pageSpan } from "@/lib/homes";
 import {
   Button,
   Card,
@@ -34,8 +37,6 @@ import {
   Swatch,
   usePageTitle,
 } from "@/components/ui";
-
-const PAGE_SIZE = 25;
 
 type HomesPage = { total: number; homes: AdminHome[] };
 
@@ -87,21 +88,10 @@ export function Homes() {
 
   const query = useQuery({
     queryKey: ["homes", { term, page, status, includeInternal, sort }],
-    queryFn: () => {
-      const params = new URLSearchParams({
-        limit: String(PAGE_SIZE),
-        offset: String(page * PAGE_SIZE),
-      });
-      if (term) params.set("search", term);
-      if (status) params.set("status", status);
-      if (includeInternal) params.set("includeInternal", "true");
-      if (sort) {
-        const [column, direction] = sort.split("-");
-        params.set("sort", column!);
-        params.set("order", direction!);
-      }
-      return api.get<HomesPage>(`/admin/homes?${params.toString()}`);
-    },
+    queryFn: () =>
+      api.get<HomesPage>(
+        `/admin/homes?${homesQuery({ term, page, status, includeInternal, sort })}`,
+      ),
     // The last answer stays on screen while the next one loads, rather than
     // the table collapsing to a skeleton on every search and every page.
     placeholderData: keepPreviousData,
@@ -162,13 +152,11 @@ export function Homes() {
               setPage(0);
             }}
           >
-            <option value="">Name (A–Z)</option>
-            <option value="name-desc">Name (Z–A)</option>
-            <option value="plan-asc">Plan (A–Z)</option>
-            <option value="amount-desc">Amount (highest first)</option>
-            <option value="amount-asc">Amount (lowest first)</option>
-            <option value="dueDate-asc">Next due (soonest first)</option>
-            <option value="dueDate-desc">Next due (latest first)</option>
+            {HOME_SORTS.map(({ value, label }) => (
+              <option key={value} value={value}>
+                {label}
+              </option>
+            ))}
           </Select>
         </div>
         <div className="w-56">
@@ -440,7 +428,7 @@ function RunningCosts({
     mutationFn: () => {
       const body = {
         name: name.trim(),
-        monthlyAmountCents: Math.round(parseFloat(amount) * 100),
+        monthlyAmountCents: toCents(amount),
         ...(notes.trim() ? { notes: notes.trim() } : {}),
       };
       return editingId === null
@@ -514,7 +502,7 @@ function RunningCosts({
                     setAdding(true);
                     setEditingId(cost.id);
                     setName(cost.name);
-                    setAmount(String(cost.monthlyAmountCents / 100));
+                    setAmount(toDollars(cost.monthlyAmountCents));
                     setNotes(cost.notes ?? "");
                   }}
                 >
@@ -788,21 +776,20 @@ function Pager({
   showing: number;
   onPage: (page: number) => void;
 }) {
-  const first = page * PAGE_SIZE + 1;
-  const last = page * PAGE_SIZE + showing;
+  const span = pageSpan(page, total, showing);
 
-  if (total <= PAGE_SIZE) return null;
+  if (!span) return null;
 
   return (
     <div className="flex flex-wrap items-center justify-between gap-4">
       <p className="tabular text-sm text-[var(--muted-foreground)]">
-        {first}–{last} of {total}
+        {span.first}–{span.last} of {total}
       </p>
       <div className="flex gap-2">
-        <Button disabled={page === 0} onClick={() => onPage(page - 1)}>
+        <Button disabled={!span.previous} onClick={() => onPage(page - 1)}>
           Previous
         </Button>
-        <Button disabled={last >= total} onClick={() => onPage(page + 1)}>
+        <Button disabled={!span.next} onClick={() => onPage(page + 1)}>
           Next
         </Button>
       </div>
@@ -889,28 +876,17 @@ function CreateHome({
     ) =>
       setForm((current) => ({ ...current, [key]: event.target.value }));
 
-  /**
-   * Choosing a plan fills in its price for the chosen cadence — a starting
-   * point, not a lock. A hand-edited amount is left alone when the cadence
-   * changes afterwards; clearing the field and re-picking brings the price
-   * back.
-   */
   const pickPlan = (planName: string, period: string) => {
-    const plan = plans.find((p) => p.name === planName);
-    const price =
-      plan == null
-        ? null
-        : period === "annual"
-          ? plan.annualAmountCents
-          : plan.monthlyAmountCents;
     setForm((current) => ({
       ...current,
       planName,
       billingPeriod: period,
-      billingAmount:
-        price !== null && current.billingAmount.trim() === ""
-          ? String(price / 100)
-          : current.billingAmount,
+      billingAmount: amountForPlan(
+        plans,
+        planName,
+        period,
+        current.billingAmount,
+      ),
     }));
   };
   const create = useMutation({
@@ -939,9 +915,7 @@ function CreateHome({
           ? { subscriptionPlan: form.planName.trim() }
           : {}),
         ...(commercial ? { billingPeriod: form.billingPeriod } : {}),
-        ...(amount
-          ? { billingAmountCents: Math.round(parseFloat(amount) * 100) }
-          : {}),
+        ...(amount ? { billingAmountCents: toCents(amount) } : {}),
         ...(form.billingStartDate
           ? { billingStartDate: form.billingStartDate }
           : {}),

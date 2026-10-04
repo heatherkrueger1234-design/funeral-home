@@ -13,6 +13,7 @@ import {
   type Practitioner,
   type PractitionerRole,
 } from "@/lib/api";
+import { registrationForm, registrationToSave } from "@/lib/licensure";
 import { Button, Card, CardTitle, EmptyState, Field, Select } from "./ui";
 import { Reminders } from "./Reminders";
 
@@ -25,13 +26,6 @@ import { Reminders } from "./Reminders";
  * at the top of `lib/db/src/schema/licensure.ts` for where that line is and
  * why it is drawn there.
  */
-
-function splitServices(value: string): string[] {
-  return value
-    .split(",")
-    .map((entry) => entry.trim())
-    .filter(Boolean);
-}
 
 /**
  * Everything a licensure change can make stale: this home, the overview's
@@ -195,17 +189,7 @@ function RegistrationForm({
   problem: string | null;
   onSave: (values: Partial<HomeLicensure>) => void;
 }) {
-  const [form, setForm] = useState({
-    doraRegistrationNumber: licensure?.doraRegistrationNumber ?? "",
-    registeredServices: (licensure?.registeredServices ?? []).join(", "),
-    designeeName: licensure?.designeeName ?? "",
-    designeeTitle: licensure?.designeeTitle ?? "",
-    beganBusinessOn: licensure?.beganBusinessOn ?? "",
-    registrationRenewsOn: licensure?.registrationRenewsOn ?? "",
-    servicesChangedOn: licensure?.servicesChangedOn ?? "",
-    amendmentFiledOn: licensure?.amendmentFiledOn ?? "",
-    notes: licensure?.notes ?? "",
-  });
+  const [form, setForm] = useState(() => registrationForm(licensure));
 
   const set = (key: keyof typeof form) => (value: string) =>
     setForm((current) => ({ ...current, [key]: value }));
@@ -215,17 +199,7 @@ function RegistrationForm({
       className="flex flex-col gap-5"
       onSubmit={(event) => {
         event.preventDefault();
-        onSave({
-          doraRegistrationNumber: form.doraRegistrationNumber.trim() || null,
-          registeredServices: splitServices(form.registeredServices),
-          designeeName: form.designeeName.trim() || null,
-          designeeTitle: form.designeeTitle.trim() || null,
-          beganBusinessOn: form.beganBusinessOn || null,
-          registrationRenewsOn: form.registrationRenewsOn || null,
-          servicesChangedOn: form.servicesChangedOn || null,
-          amendmentFiledOn: form.amendmentFiledOn || null,
-          notes: form.notes.trim() || null,
-        });
+        onSave(registrationToSave(form));
       }}
     >
       <div className="grid gap-5 sm:grid-cols-2">
