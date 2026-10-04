@@ -135,7 +135,20 @@ export function missingForFiling(row: VitalStatistics): string[] {
   });
 }
 
-export async function toVitalsJson(row: VitalStatistics) {
+/**
+ * The record as one side may see it.
+ *
+ * `side` is required rather than defaulting to the fuller view. Both sides
+ * used to share one shape, and with it the family received the home's own
+ * notes ("what the registrar queried") and the last four digits of the
+ * number -- to anybody holding the link, which a family forwards. A caller
+ * now has to say which side it is answering, and the family's answer has
+ * neither.
+ */
+export async function toVitalsJson(
+  row: VitalStatistics,
+  side: "staff" | "family",
+) {
   const ssn = readSsn(row.socialSecurityNumber);
 
   let verifiedByName: string | null = null;
@@ -167,10 +180,11 @@ export async function toVitalsJson(row: VitalStatistics) {
 
   return {
     ...rest,
-    // Never the number itself, to either side.
-    socialSecurityNumberMasked: maskSsn(ssn),
+    // Never the number itself, to either side; the last four to staff only.
+    socialSecurityNumberMasked: side === "staff" ? maskSsn(ssn) : null,
     hasSocialSecurityNumber: ssn !== null,
     verifiedByName,
+    staffNotes: side === "staff" ? row.staffNotes : null,
     missingForFiling: missingForFiling(row),
   };
 }

@@ -33,6 +33,12 @@ describe("vital statistics", () => {
 
     // Staff get the last four, which is all anybody needs to confirm it.
     expect(staffView.body.socialSecurityNumberMasked).toBe("•••-••-6789");
+    // The family gets only that one is on file. Their link is forwarded to
+    // cousins, and the last four digits beside a name and a date of birth
+    // from the obituary are most of what a stranger needs to open an
+    // account in a dead woman's name.
+    expect(familyView.body.socialSecurityNumberMasked).toBeNull();
+    expect(JSON.stringify(familyView.body)).not.toContain("6789");
 
     // And it is ciphertext at rest, not the digits.
     const [stored] = await db
@@ -42,6 +48,38 @@ describe("vital statistics", () => {
 
     expect(stored!.socialSecurityNumber).not.toBeNull();
     expect(stored!.socialSecurityNumber).not.toContain("123456789");
+  });
+
+  it("never shows the family the home's own notes", async () => {
+    const staff = await signUpHome();
+    const row = await createCase(staff);
+    const { token } = await inviteFamily(staff, row.id);
+
+    await staff.agent
+      .put(`/api/cases/${row.id}/vitals`)
+      .send({ staffNotes: "Registrar queried the father's surname. Son disputes it." })
+      .expect(200);
+
+    const staffView = await staff.agent
+      .get(`/api/cases/${row.id}/vitals`)
+      .expect(200);
+    expect(staffView.body.staffNotes).toContain("Registrar queried");
+
+    // Every response the family can get from this record, not only the read:
+    // a save and a submit answer with the record too.
+    const read = await asFamily(token).get("/api/family/vitals").expect(200);
+    const saved = await asFamily(token)
+      .put("/api/family/vitals")
+      .send({ legalFirstName: "Margaret" })
+      .expect(200);
+    const submitted = await asFamily(token)
+      .post("/api/family/vitals/submit")
+      .expect(200);
+
+    for (const view of [read.body, saved.body, submitted.body]) {
+      expect(view.staffNotes).toBeNull();
+      expect(JSON.stringify(view)).not.toContain("Registrar");
+    }
   });
 
   it("rejects a number that is not nine digits", async () => {

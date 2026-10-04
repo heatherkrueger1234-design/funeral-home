@@ -6422,8 +6422,10 @@ components:
           type: string
           nullable: true
           description: |
-            Last four digits only. The number itself is encrypted at rest and
-            is never returned by the API, to either side.
+            Last four digits only, and to staff only. The number itself is
+            encrypted at rest and never returned to either side; the family
+            is told only whether one is on file (`hasSocialSecurityNumber`),
+            and gets null here, because their link can be forwarded.
         hasSocialSecurityNumber:
           type: boolean
         status:
@@ -6443,6 +6445,10 @@ components:
         staffNotes:
           type: string
           nullable: true
+          description: |
+            The home's own notes on the record. Always null to the family:
+            "what the registrar queried" is written to colleagues, not to a
+            daughter.
         missingForFiling:
           type: array
           description: Fields still needed before a certificate can be filed.

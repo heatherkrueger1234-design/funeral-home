@@ -17,7 +17,7 @@ const router: IRouter = Router();
 router.get("/cases/:caseId/vitals", async (req, res) => {
   const home = tenant(req);
   const row = await loadCase(req, req.params.caseId);
-  res.json(await toVitalsJson(await vitalsForCase(row.id, home.id)));
+  res.json(await toVitalsJson(await vitalsForCase(row.id, home.id), "staff"));
 });
 
 router.put("/cases/:caseId/vitals", async (req, res) => {
@@ -59,7 +59,7 @@ router.put("/cases/:caseId/vitals", async (req, res) => {
     .where(eq(vitalStatisticsTable.id, existing.id))
     .returning();
 
-  res.json(await toVitalsJson(updated!));
+  res.json(await toVitalsJson(updated!, "staff"));
 });
 
 export default router;

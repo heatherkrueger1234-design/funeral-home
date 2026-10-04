@@ -2926,14 +2926,19 @@ export const GetVitalsResponse = zod
       .string()
       .nullable()
       .describe(
-        "Last four digits only. The number itself is encrypted at rest and\nis never returned by the API, to either side.\n",
+        "Last four digits only, and to staff only. The number itself is\nencrypted at rest and never returned to either side; the family\nis told only whether one is on file (`hasSocialSecurityNumber`),\nand gets null here, because their link can be forwarded.\n",
       ),
     hasSocialSecurityNumber: zod.boolean(),
     status: zod.enum(["collecting", "submitted", "verified"]),
     submittedAt: zod.date().nullable(),
     verifiedAt: zod.date().nullable(),
     verifiedByName: zod.string().nullable(),
-    staffNotes: zod.string().nullable(),
+    staffNotes: zod
+      .string()
+      .nullable()
+      .describe(
+        'The home\'s own notes on the record. Always null to the family:\n\"what the registrar queried\" is written to colleagues, not to a\ndaughter.\n',
+      ),
     missingForFiling: zod
       .array(zod.string())
       .describe("Fields still needed before a certificate can be filed."),
@@ -3048,14 +3053,19 @@ export const UpdateVitalsResponse = zod
       .string()
       .nullable()
       .describe(
-        "Last four digits only. The number itself is encrypted at rest and\nis never returned by the API, to either side.\n",
+        "Last four digits only, and to staff only. The number itself is\nencrypted at rest and never returned to either side; the family\nis told only whether one is on file (`hasSocialSecurityNumber`),\nand gets null here, because their link can be forwarded.\n",
       ),
     hasSocialSecurityNumber: zod.boolean(),
     status: zod.enum(["collecting", "submitted", "verified"]),
     submittedAt: zod.date().nullable(),
     verifiedAt: zod.date().nullable(),
     verifiedByName: zod.string().nullable(),
-    staffNotes: zod.string().nullable(),
+    staffNotes: zod
+      .string()
+      .nullable()
+      .describe(
+        'The home\'s own notes on the record. Always null to the family:\n\"what the registrar queried\" is written to colleagues, not to a\ndaughter.\n',
+      ),
     missingForFiling: zod
       .array(zod.string())
       .describe("Fields still needed before a certificate can be filed."),
@@ -3113,14 +3123,19 @@ export const GetFamilyVitalsResponse = zod
       .string()
       .nullable()
       .describe(
-        "Last four digits only. The number itself is encrypted at rest and\nis never returned by the API, to either side.\n",
+        "Last four digits only, and to staff only. The number itself is\nencrypted at rest and never returned to either side; the family\nis told only whether one is on file (`hasSocialSecurityNumber`),\nand gets null here, because their link can be forwarded.\n",
       ),
     hasSocialSecurityNumber: zod.boolean(),
     status: zod.enum(["collecting", "submitted", "verified"]),
     submittedAt: zod.date().nullable(),
     verifiedAt: zod.date().nullable(),
     verifiedByName: zod.string().nullable(),
-    staffNotes: zod.string().nullable(),
+    staffNotes: zod
+      .string()
+      .nullable()
+      .describe(
+        'The home\'s own notes on the record. Always null to the family:\n\"what the registrar queried\" is written to colleagues, not to a\ndaughter.\n',
+      ),
     missingForFiling: zod
       .array(zod.string())
       .describe("Fields still needed before a certificate can be filed."),
@@ -3224,14 +3239,19 @@ export const UpdateFamilyVitalsResponse = zod
       .string()
       .nullable()
       .describe(
-        "Last four digits only. The number itself is encrypted at rest and\nis never returned by the API, to either side.\n",
+        "Last four digits only, and to staff only. The number itself is\nencrypted at rest and never returned to either side; the family\nis told only whether one is on file (`hasSocialSecurityNumber`),\nand gets null here, because their link can be forwarded.\n",
       ),
     hasSocialSecurityNumber: zod.boolean(),
     status: zod.enum(["collecting", "submitted", "verified"]),
     submittedAt: zod.date().nullable(),
     verifiedAt: zod.date().nullable(),
     verifiedByName: zod.string().nullable(),
-    staffNotes: zod.string().nullable(),
+    staffNotes: zod
+      .string()
+      .nullable()
+      .describe(
+        'The home\'s own notes on the record. Always null to the family:\n\"what the registrar queried\" is written to colleagues, not to a\ndaughter.\n',
+      ),
     missingForFiling: zod
       .array(zod.string())
       .describe("Fields still needed before a certificate can be filed."),
@@ -3289,14 +3309,19 @@ export const SubmitFamilyVitalsResponse = zod
       .string()
       .nullable()
       .describe(
-        "Last four digits only. The number itself is encrypted at rest and\nis never returned by the API, to either side.\n",
+        "Last four digits only, and to staff only. The number itself is\nencrypted at rest and never returned to either side; the family\nis told only whether one is on file (`hasSocialSecurityNumber`),\nand gets null here, because their link can be forwarded.\n",
       ),
     hasSocialSecurityNumber: zod.boolean(),
     status: zod.enum(["collecting", "submitted", "verified"]),
     submittedAt: zod.date().nullable(),
     verifiedAt: zod.date().nullable(),
     verifiedByName: zod.string().nullable(),
-    staffNotes: zod.string().nullable(),
+    staffNotes: zod
+      .string()
+      .nullable()
+      .describe(
+        'The home\'s own notes on the record. Always null to the family:\n\"what the registrar queried\" is written to colleagues, not to a\ndaughter.\n',
+      ),
     missingForFiling: zod
       .array(zod.string())
       .describe("Fields still needed before a certificate can be filed."),
