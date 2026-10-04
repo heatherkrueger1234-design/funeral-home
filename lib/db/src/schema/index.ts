@@ -36,8 +36,9 @@ export * from "./selections";
 /* What the family brings in, and how they should look. */
 export * from "./belongings";
 
-/* The paperwork that holds everything else up. */
+/* The paperwork that holds everything else up, and the clock it is on. */
 export * from "./vital-statistics";
+export * from "./death-certificates";
 
 /* What gets printed. */
 export * from "./print";

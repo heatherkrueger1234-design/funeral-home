@@ -50,6 +50,8 @@ import type {
   CasePhotoUploadInput,
   CaseSummary,
   CaseUpdate,
+  CertificateFiling,
+  CertificateFilingUpdate,
   ChosenService,
   CompleteDeadlineInput,
   ComposeObituaryInput,
@@ -7283,6 +7285,191 @@ export const useUpdateVitals = <
   TContext
 > => {
   return useMutation(getUpdateVitalsMutationOptions(options));
+};
+
+/**
+ * Staff only, and never offered to the family. We do not integrate
+with EDRS and file nothing: custody, the physician's request and the
+filing itself are all typed by someone at the home.
+
+ * @summary The death certificate's clock, and the home's record of filing it
+ */
+export const getGetCertificateFilingUrl = (caseId: number) => {
+  return `/api/cases/${caseId}/certificate-filing`;
+};
+
+export const getCertificateFiling = async (
+  caseId: number,
+  options?: RequestInit,
+): Promise<CertificateFiling> => {
+  return customFetch<CertificateFiling>(getGetCertificateFilingUrl(caseId), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getGetCertificateFilingQueryKey = (caseId: number) => {
+  return [`/api/cases/${caseId}/certificate-filing`] as const;
+};
+
+export const getGetCertificateFilingQueryOptions = <
+  TData = Awaited<ReturnType<typeof getCertificateFiling>>,
+  TError = ErrorType<unknown>,
+>(
+  caseId: number,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getCertificateFiling>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey =
+    queryOptions?.queryKey ?? getGetCertificateFilingQueryKey(caseId);
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof getCertificateFiling>>
+  > = ({ signal }) =>
+    getCertificateFiling(caseId, { signal, ...requestOptions });
+
+  return {
+    queryKey,
+    queryFn,
+    enabled: !!caseId,
+    ...queryOptions,
+  } as UseQueryOptions<
+    Awaited<ReturnType<typeof getCertificateFiling>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type GetCertificateFilingQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getCertificateFiling>>
+>;
+export type GetCertificateFilingQueryError = ErrorType<unknown>;
+
+/**
+ * @summary The death certificate's clock, and the home's record of filing it
+ */
+
+export function useGetCertificateFiling<
+  TData = Awaited<ReturnType<typeof getCertificateFiling>>,
+  TError = ErrorType<unknown>,
+>(
+  caseId: number,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getCertificateFiling>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getGetCertificateFilingQueryOptions(caseId, options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * Refused with 409 on a pre-need file: nobody has died, so there is no
+certificate and no clock. Times may not be in the future, because a
+custody time mistyped a day ahead is a deadline a day late.
+
+ * @summary Record custody, the physician's request, or the filing
+ */
+export const getUpdateCertificateFilingUrl = (caseId: number) => {
+  return `/api/cases/${caseId}/certificate-filing`;
+};
+
+export const updateCertificateFiling = async (
+  caseId: number,
+  certificateFilingUpdate: CertificateFilingUpdate,
+  options?: RequestInit,
+): Promise<CertificateFiling> => {
+  return customFetch<CertificateFiling>(getUpdateCertificateFilingUrl(caseId), {
+    ...options,
+    method: "PUT",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(certificateFilingUpdate),
+  });
+};
+
+export const getUpdateCertificateFilingMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof updateCertificateFiling>>,
+    TError,
+    { caseId: number; data: BodyType<CertificateFilingUpdate> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof updateCertificateFiling>>,
+  TError,
+  { caseId: number; data: BodyType<CertificateFilingUpdate> },
+  TContext
+> => {
+  const mutationKey = ["updateCertificateFiling"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof updateCertificateFiling>>,
+    { caseId: number; data: BodyType<CertificateFilingUpdate> }
+  > = (props) => {
+    const { caseId, data } = props ?? {};
+
+    return updateCertificateFiling(caseId, data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type UpdateCertificateFilingMutationResult = NonNullable<
+  Awaited<ReturnType<typeof updateCertificateFiling>>
+>;
+export type UpdateCertificateFilingMutationBody =
+  BodyType<CertificateFilingUpdate>;
+export type UpdateCertificateFilingMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Record custody, the physician's request, or the filing
+ */
+export const useUpdateCertificateFiling = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof updateCertificateFiling>>,
+    TError,
+    { caseId: number; data: BodyType<CertificateFilingUpdate> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof updateCertificateFiling>>,
+  TError,
+  { caseId: number; data: BodyType<CertificateFilingUpdate> },
+  TContext
+> => {
+  return useMutation(getUpdateCertificateFilingMutationOptions(options));
 };
 
 /**

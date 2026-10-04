@@ -18,6 +18,7 @@ Two audiences, two authentication schemes, and the split is load-bearing:
  * OpenAPI spec version: 0.1.0
  */
 import type { DashboardCase } from "./dashboardCase";
+import type { DashboardCertificate } from "./dashboardCertificate";
 import type { DashboardDeadline } from "./dashboardDeadline";
 import type { DashboardQuoteRequest } from "./dashboardQuoteRequest";
 import type { DashboardService } from "./dashboardService";
@@ -62,4 +63,8 @@ the home has answered yet, across every open case.
   pendingRequests: number;
   /** Cases where the home has offered times and nobody has picked. */
   offersAwaitingChoice: number;
+  /** Death certificates not yet recorded as filed, on open cases where
+custody is recorded. Soonest due first, capped for the screen.
+ */
+  certificatesToFile: DashboardCertificate[];
 }

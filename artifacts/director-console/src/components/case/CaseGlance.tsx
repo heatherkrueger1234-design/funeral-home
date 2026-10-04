@@ -1,11 +1,15 @@
 import type { ComponentType } from "react";
 import {
   useGetCasePhotos,
+  useGetCertificateFiling,
   useGetDeadlines,
   useGetObituary,
   useGetPrintItems,
   useGetVitals,
+  getGetCertificateFilingQueryKey,
 } from "@workspace/api-client-react";
+import { useHomeZone } from "@/lib/session";
+import { formatAtHome } from "@/lib/utils";
 import {
   CalendarClock,
   ClipboardList,
@@ -18,7 +22,7 @@ import {
 /**
  * Where a case stands, before any tab is opened.
  *
- * A case has eleven tabs, and the question a director opens it with is
+ * A case has a dozen tabs, and the question a director opens it with is
  * nearly always the same: what is waiting on me, and what is waiting on the
  * family? Answering it used to mean clicking through every one of them. This
  * is that answer in one row, each tile saying the state in words and opening
@@ -49,18 +53,31 @@ function toneClasses(tone: Tone): string {
     : "border-border bg-card";
 }
 
+/** Inside this many hours, an open certificate is the director's to act on. */
+const CERTIFICATE_SOON_HOURS = 24;
+
 export function CaseGlance({
   caseId,
+  kind,
   unreadFamilyMessages,
   onOpen,
 }: {
   caseId: number;
+  kind: string;
   unreadFamilyMessages: number;
   onOpen: (tab: string) => void;
 }) {
+  const zone = useHomeZone();
   const photos = useGetCasePhotos(caseId);
   const obituary = useGetObituary(caseId);
   const vitals = useGetVitals(caseId);
+  // Not asked on a pre-need file: nobody has died, so there is no clock.
+  const filing = useGetCertificateFiling(caseId, {
+    query: {
+      queryKey: getGetCertificateFilingQueryKey(caseId),
+      enabled: kind !== "pre_need",
+    },
+  });
   const print = useGetPrintItems(caseId);
   const deadlines = useGetDeadlines(caseId);
 
@@ -104,27 +121,60 @@ export function CaseGlance({
   {
     const data = vitals.data;
     const missing = data?.missingForFiling?.length ?? 0;
+    const clock = filing.data;
+
+    /*
+     * The clock speaks first once it is running, because "file by Wednesday"
+     * is the one thing on this tile with a law behind it. Until custody is
+     * recorded there is no clock, and the tile says what the family's half
+     * says, as it always has.
+     */
+    const details =
+      data?.status === "verified"
+        ? "Checked and ready to file"
+        : data?.status === "submitted"
+          ? missing > 0
+            ? `Sent · ${missing} still missing`
+            : "Sent by the family — check it"
+          : missing > 0
+            ? `${missing} still missing`
+            : "Being filled in";
+    const dueSoon =
+      clock?.standing === "open" &&
+      clock.dueAt !== null &&
+      new Date(clock.dueAt).getTime() - Date.now() <
+        CERTIFICATE_SOON_HOURS * 60 * 60 * 1000;
+
     tiles.push({
       tab: "vitals",
       icon: ClipboardList,
       label: "Certificate",
-      state: vitals.isPending
-        ? "…"
-        : data?.status === "verified"
-          ? "Checked and ready to file"
-          : data?.status === "submitted"
-            ? missing > 0
-              ? `Sent · ${missing} still missing`
-              : "Sent by the family — check it"
-            : missing > 0
-              ? `${missing} still missing`
-              : "Being filled in",
+      state:
+        vitals.isPending || (kind !== "pre_need" && filing.isPending)
+          ? "…"
+          : clock?.standing === "filed"
+            ? "Filed"
+            : clock?.standing === "past_due"
+              ? `The ${clock.filingWindowHours} hours have passed — not filed`
+              : clock?.standing === "open" && clock.dueAt
+                ? // A tile is a glance: the day and the hour, and the full
+                  // date is one click away on the tab.
+                  `File by ${formatAtHome(clock.dueAt, zone, {
+                    weekday: "short",
+                    hour: "numeric",
+                    minute: "2-digit",
+                  })}${missing > 0 ? ` · ${missing} missing` : ""}`
+                : details,
       tone:
-        data?.status === "submitted"
-          ? "yours"
-          : data?.status === "verified"
-            ? "done"
-            : "plain",
+        clock?.standing === "filed"
+          ? "done"
+          : clock?.standing === "past_due" || dueSoon
+            ? "yours"
+            : data?.status === "submitted"
+              ? "yours"
+              : data?.status === "verified"
+                ? "done"
+                : "plain",
     });
   }
 

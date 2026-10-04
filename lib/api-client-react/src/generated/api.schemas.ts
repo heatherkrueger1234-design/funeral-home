@@ -498,6 +498,19 @@ export interface DashboardQuoteRequest {
 }
 
 /**
+ * A death certificate the home has not recorded as filed, on a case
+where custody is recorded. Soonest due first.
+
+ */
+export interface DashboardCertificate {
+  caseId: number;
+  decedentName: string;
+  custodyTakenAt: string;
+  /** Null in a state whose filing window we have not checked. */
+  dueAt: string | null;
+}
+
+/**
  * The landing screen, in one read. Counts and the few rows behind them -
 never the whole case list, because a home three years in has hundreds
 and a dashboard that loads them all stops being a dashboard.
@@ -537,6 +550,10 @@ the home has answered yet, across every open case.
   pendingRequests: number;
   /** Cases where the home has offered times and nobody has picked. */
   offersAwaitingChoice: number;
+  /** Death certificates not yet recorded as filed, on open cases where
+custody is recorded. Soonest due first, capped for the screen.
+ */
+  certificatesToFile: DashboardCertificate[];
 }
 
 export type InboxEntryKind =
@@ -1987,6 +2004,75 @@ daughter.
   staffNotes: string | null;
   /** Fields still needed before a certificate can be filed. */
   missingForFiling: string[];
+}
+
+/**
+ * Where it stands now. `not_applicable` is a pre-need file;
+`no_custody` means the clock cannot be known until custody is
+recorded; `open` is either within the window or in a state with
+no window we know.
+
+ */
+export type CertificateFilingStanding =
+  (typeof CertificateFilingStanding)[keyof typeof CertificateFilingStanding];
+
+export const CertificateFilingStanding = {
+  not_applicable: "not_applicable",
+  no_custody: "no_custody",
+  open: "open",
+  past_due: "past_due",
+  filed: "filed",
+} as const;
+
+/**
+ * Colorado's death certificate clock (SB 23-020: within 72 hours of
+taking custody, and before disposition), as the home's own record.
+Staff only. We file nothing and are told nothing by the state:
+every time here was typed by someone at the home.
+
+ */
+export interface CertificateFiling {
+  caseId: number;
+  /** The home's state as read for the deadline, e.g. "CO". */
+  stateCode: string;
+  /** 72 in Colorado. Null in any state whose statute has not been
+checked, rather than a guess a director would trust.
+ */
+  filingWindowHours: number | null;
+  /** When the home took custody. The clock starts here, not at the death. */
+  custodyTakenAt: string | null;
+  /** Custody plus the filing window, or null while either is unknown. */
+  dueAt: string | null;
+  physicianRequestedAt: string | null;
+  /** The certifying physician's own 72 hours, from the EDRS request. */
+  physicianDueAt: string | null;
+  certifyingPhysician: string | null;
+  /** When the home filed it, as they recorded it. */
+  filedAt: string | null;
+  filedByName: string | null;
+  stateFileNumber: string | null;
+  /** Where it stands now. `not_applicable` is a pre-need file;
+`no_custody` means the clock cannot be known until custody is
+recorded; `open` is either within the window or in a state with
+no window we know.
+ */
+  standing: CertificateFilingStanding;
+}
+
+/**
+ * Any subset. Null clears a field; an absent key leaves it alone.
+ */
+export interface CertificateFilingUpdate {
+  custodyTakenAt?: string | null;
+  physicianRequestedAt?: string | null;
+  /** @maxLength 200 */
+  certifyingPhysician?: string | null;
+  /** When the home filed it. Recording it notes who did; clearing it
+reopens the clock.
+ */
+  filedAt?: string | null;
+  /** @maxLength 80 */
+  stateFileNumber?: string | null;
 }
 
 export interface VitalsFamilyUpdate {

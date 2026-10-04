@@ -1027,6 +1027,27 @@ export const GetHomeDashboardResponse = zod
       .describe(
         "Cases where the home has offered times and nobody has picked.",
       ),
+    certificatesToFile: zod
+      .array(
+        zod
+          .object({
+            caseId: zod.number(),
+            decedentName: zod.string(),
+            custodyTakenAt: zod.date(),
+            dueAt: zod
+              .date()
+              .nullable()
+              .describe(
+                "Null in a state whose filing window we have not checked.",
+              ),
+          })
+          .describe(
+            "A death certificate the home has not recorded as filed, on a case\nwhere custody is recorded. Soonest due first.\n",
+          ),
+      )
+      .describe(
+        "Death certificates not yet recorded as filed, on open cases where\ncustody is recorded. Soonest due first, capped for the screen.\n",
+      ),
   })
   .describe(
     "The landing screen, in one read. Counts and the few rows behind them -\nnever the whole case list, because a home three years in has hundreds\nand a dashboard that loads them all stops being a dashboard.\n",
@@ -3072,6 +3093,149 @@ export const UpdateVitalsResponse = zod
   })
   .describe(
     "Everything the death certificate asks for. Free text throughout,\nbecause the fields vary across more than fifty registration\njurisdictions and a dropdown missing the true answer produces a\nconfident wrong one.\n",
+  );
+
+/**
+ * Staff only, and never offered to the family. We do not integrate
+with EDRS and file nothing: custody, the physician's request and the
+filing itself are all typed by someone at the home.
+
+ * @summary The death certificate's clock, and the home's record of filing it
+ */
+export const GetCertificateFilingParams = zod.object({
+  caseId: zod.coerce.number(),
+});
+
+export const GetCertificateFilingResponse = zod
+  .object({
+    caseId: zod.number(),
+    stateCode: zod
+      .string()
+      .describe('The home\'s state as read for the deadline, e.g. \"CO\".'),
+    filingWindowHours: zod
+      .number()
+      .nullable()
+      .describe(
+        "72 in Colorado. Null in any state whose statute has not been\nchecked, rather than a guess a director would trust.\n",
+      ),
+    custodyTakenAt: zod
+      .date()
+      .nullable()
+      .describe(
+        "When the home took custody. The clock starts here, not at the death.",
+      ),
+    dueAt: zod
+      .date()
+      .nullable()
+      .describe(
+        "Custody plus the filing window, or null while either is unknown.",
+      ),
+    physicianRequestedAt: zod.date().nullable(),
+    physicianDueAt: zod
+      .date()
+      .nullable()
+      .describe(
+        "The certifying physician's own 72 hours, from the EDRS request.",
+      ),
+    certifyingPhysician: zod.string().nullable(),
+    filedAt: zod
+      .date()
+      .nullable()
+      .describe("When the home filed it, as they recorded it."),
+    filedByName: zod.string().nullable(),
+    stateFileNumber: zod.string().nullable(),
+    standing: zod
+      .enum(["not_applicable", "no_custody", "open", "past_due", "filed"])
+      .describe(
+        "Where it stands now. `not_applicable` is a pre-need file;\n`no_custody` means the clock cannot be known until custody is\nrecorded; `open` is either within the window or in a state with\nno window we know.\n",
+      ),
+  })
+  .describe(
+    "Colorado's death certificate clock (SB 23-020: within 72 hours of\ntaking custody, and before disposition), as the home's own record.\nStaff only. We file nothing and are told nothing by the state:\nevery time here was typed by someone at the home.\n",
+  );
+
+/**
+ * Refused with 409 on a pre-need file: nobody has died, so there is no
+certificate and no clock. Times may not be in the future, because a
+custody time mistyped a day ahead is a deadline a day late.
+
+ * @summary Record custody, the physician's request, or the filing
+ */
+export const UpdateCertificateFilingParams = zod.object({
+  caseId: zod.coerce.number(),
+});
+
+export const updateCertificateFilingBodyCertifyingPhysicianMax = 200;
+
+export const updateCertificateFilingBodyStateFileNumberMax = 80;
+
+export const UpdateCertificateFilingBody = zod
+  .object({
+    custodyTakenAt: zod.coerce.date().nullish(),
+    physicianRequestedAt: zod.coerce.date().nullish(),
+    certifyingPhysician: zod
+      .string()
+      .max(updateCertificateFilingBodyCertifyingPhysicianMax)
+      .nullish(),
+    filedAt: zod.coerce
+      .date()
+      .nullish()
+      .describe(
+        "When the home filed it. Recording it notes who did; clearing it\nreopens the clock.\n",
+      ),
+    stateFileNumber: zod
+      .string()
+      .max(updateCertificateFilingBodyStateFileNumberMax)
+      .nullish(),
+  })
+  .describe("Any subset. Null clears a field; an absent key leaves it alone.");
+
+export const UpdateCertificateFilingResponse = zod
+  .object({
+    caseId: zod.number(),
+    stateCode: zod
+      .string()
+      .describe('The home\'s state as read for the deadline, e.g. \"CO\".'),
+    filingWindowHours: zod
+      .number()
+      .nullable()
+      .describe(
+        "72 in Colorado. Null in any state whose statute has not been\nchecked, rather than a guess a director would trust.\n",
+      ),
+    custodyTakenAt: zod
+      .date()
+      .nullable()
+      .describe(
+        "When the home took custody. The clock starts here, not at the death.",
+      ),
+    dueAt: zod
+      .date()
+      .nullable()
+      .describe(
+        "Custody plus the filing window, or null while either is unknown.",
+      ),
+    physicianRequestedAt: zod.date().nullable(),
+    physicianDueAt: zod
+      .date()
+      .nullable()
+      .describe(
+        "The certifying physician's own 72 hours, from the EDRS request.",
+      ),
+    certifyingPhysician: zod.string().nullable(),
+    filedAt: zod
+      .date()
+      .nullable()
+      .describe("When the home filed it, as they recorded it."),
+    filedByName: zod.string().nullable(),
+    stateFileNumber: zod.string().nullable(),
+    standing: zod
+      .enum(["not_applicable", "no_custody", "open", "past_due", "filed"])
+      .describe(
+        "Where it stands now. `not_applicable` is a pre-need file;\n`no_custody` means the clock cannot be known until custody is\nrecorded; `open` is either within the window or in a state with\nno window we know.\n",
+      ),
+  })
+  .describe(
+    "Colorado's death certificate clock (SB 23-020: within 72 hours of\ntaking custody, and before disposition), as the home's own record.\nStaff only. We file nothing and are told nothing by the state:\nevery time here was typed by someone at the home.\n",
   );
 
 /**

@@ -47,6 +47,7 @@ import {
   caseBelongingsTable,
   serviceSelectionsTable,
   vitalStatisticsTable,
+  deathCertificateFilingsTable,
   homePoliciesTable,
   homePriceItemsTable,
   homeLicensureTable,
@@ -910,6 +911,20 @@ async function seedShowcaseCase(
     submittedAt: at(-1, 17),
   });
 
+  /*
+   * The certificate on its clock, and not filed yet: due tomorrow afternoon,
+   * so the master page's "Death certificates to file" has something in it.
+   * Custody the day after she died, which is what a coroner's release looks
+   * like -- and the reason the clock runs from custody, not from the death.
+   */
+  await db.insert(deathCertificateFilingsTable).values({
+    funeralHomeId: homeId,
+    caseId,
+    custodyTakenAt: at(-2, 15),
+    physicianRequestedAt: at(-2, 16),
+    certifyingPhysician: "Dr. Lena Ortiz, Denver Health",
+  });
+
   await db.insert(casePrintItemsTable).values([
     {
       funeralHomeId: homeId,
@@ -998,6 +1013,58 @@ async function seedAftercareCase(
     .returning();
 
   const caseId = row!.id;
+
+  // Filed the morning after custody, and recorded as such: the case closed
+  // weeks ago and its certificate has long since stopped being anyone's worry.
+  await db.insert(deathCertificateFilingsTable).values({
+    funeralHomeId: homeId,
+    caseId,
+    custodyTakenAt: at(-74, 9),
+    physicianRequestedAt: at(-74, 11),
+    certifyingPhysician: "Dr. Samuel Achebe",
+    filedAt: at(-73, 10),
+    filedByUserId: directorId,
+    stateFileNumber: "2026-031407",
+  });
+
+  // What was filed: checked against his papers and verified, so the tab
+  // reads as finished rather than as a filing nobody had details for.
+  await db.insert(vitalStatisticsTable).values({
+    funeralHomeId: homeId,
+    caseId,
+    legalFirstName: "Harold",
+    legalMiddleName: "Chukwuemeka",
+    legalLastName: "Nkemelu",
+    dateOfBirth: "1949-11-02",
+    birthCity: "Enugu",
+    birthState: "Enugu State",
+    birthCountry: "Nigeria",
+    sex: "Male",
+    socialSecurityNumber: encrypt("498330211"),
+    maritalStatus: "Married",
+    spouseName: "Ngozi Nkemelu",
+    fatherFirstName: "Okafor",
+    fatherLastName: "Nkemelu",
+    motherFirstName: "Adaeze",
+    motherMaidenName: "Eze",
+    occupation: "Civil engineer",
+    industry: "Water utilities",
+    educationLevel: "Master's degree",
+    residenceLine1: "1880 Holly Street",
+    residenceCity: "Denver",
+    residenceCounty: "Denver",
+    residenceState: "CO",
+    residencePostalCode: "80220",
+    residenceInsideCityLimits: true,
+    veteran: false,
+    informantName: "Chiamaka Nkemelu",
+    informantRelationship: "Daughter",
+    informantPhone: "(555) 018-3388",
+    status: "verified",
+    submittedAt: at(-74, 20),
+    verifiedAt: at(-73, 9),
+    verifiedByUserId: directorId,
+  });
   const link = mintToken();
 
   const [contact] = await db
@@ -1176,6 +1243,14 @@ async function seedUndatedCase(
     })
     .returning();
 
+  // Custody yesterday morning, a few hours after she died at home. Nothing
+  // filed yet, and no physician asked: the 72 hours are still mostly ahead.
+  await db.insert(deathCertificateFilingsTable).values({
+    funeralHomeId: homeId,
+    caseId: row!.id,
+    custodyTakenAt: at(-1, 7),
+  });
+
   const link = mintToken();
 
   await db.insert(familyContactsTable).values({
@@ -1320,13 +1395,16 @@ async function main(): Promise<void> {
   say("                                   5 chosen, obituary submitted, an");
   say("                                   unanswered family message, order of");
   say("                                   service approved, prayer card out");
-  say("                                   for proof, vitals ready for EDRS.");
+  say("                                   for proof, vitals ready for EDRS,");
+  say("                                   death certificate due tomorrow.");
   say("       Harold \"Harry\" Nkemelu      closed 10 weeks ago. Aftercare");
   say("                                   consented, 30- and 60-day check-ins");
   say("                                   sent, 90-day due in 3 weeks, memory");
-  say("                                   book open with 4 entries.");
+  say("                                   book open with 4 entries. Its");
+  say("                                   certificate is recorded as filed.");
   say("       Eleanor Vance               opened today, no service date — the");
-  say("                                   empty-timeline bucket.");
+  say("                                   empty-timeline bucket. Certificate");
+  say("                                   on its 72 hours, due in two days.");
   say("       Thomas Brightwater          a pre-need file. Closed, and");
   say("                                   deliberately NOT in aftercare:");
   say("                                   nobody has died.");

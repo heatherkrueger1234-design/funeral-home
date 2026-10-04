@@ -1714,6 +1714,48 @@ paths:
               schema:
                 $ref: "#/components/schemas/VitalStatistics"
 
+  /cases/{caseId}/certificate-filing:
+    get:
+      operationId: getCertificateFiling
+      tags: [vitals]
+      summary: The death certificate's clock, and the home's record of filing it
+      description: |
+        Staff only, and never offered to the family. We do not integrate
+        with EDRS and file nothing: custody, the physician's request and the
+        filing itself are all typed by someone at the home.
+      parameters:
+        - $ref: "#/components/parameters/CaseId"
+      responses:
+        "200":
+          description: The record, created empty on first read
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CertificateFiling"
+    put:
+      operationId: updateCertificateFiling
+      tags: [vitals]
+      summary: Record custody, the physician's request, or the filing
+      description: |
+        Refused with 409 on a pre-need file: nobody has died, so there is no
+        certificate and no clock. Times may not be in the future, because a
+        custody time mistyped a day ahead is a deadline a day late.
+      parameters:
+        - $ref: "#/components/parameters/CaseId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CertificateFilingUpdate"
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CertificateFiling"
+
   /family/vitals:
     get:
       operationId: getFamilyVitals
@@ -4191,6 +4233,13 @@ components:
         offersAwaitingChoice:
           type: integer
           description: Cases where the home has offered times and nobody has picked.
+        certificatesToFile:
+          type: array
+          description: |
+            Death certificates not yet recorded as filed, on open cases where
+            custody is recorded. Soonest due first, capped for the screen.
+          items:
+            $ref: "#/components/schemas/DashboardCertificate"
       required:
         [
           homeName,
@@ -4205,6 +4254,7 @@ components:
           quoteRequests,
           pendingRequests,
           offersAwaitingChoice,
+          certificatesToFile,
         ]
 
     DashboardQuoteRequest:
@@ -6456,6 +6506,130 @@ components:
             type: string
       required:
         [caseId, socialSecurityNumberMasked, hasSocialSecurityNumber, status, submittedAt, verifiedAt, verifiedByName, staffNotes, missingForFiling]
+
+    CertificateFiling:
+      type: object
+      description: |
+        Colorado's death certificate clock (SB 23-020: within 72 hours of
+        taking custody, and before disposition), as the home's own record.
+        Staff only. We file nothing and are told nothing by the state:
+        every time here was typed by someone at the home.
+      properties:
+        caseId:
+          type: integer
+        stateCode:
+          type: string
+          description: The home's state as read for the deadline, e.g. "CO".
+        filingWindowHours:
+          type: integer
+          nullable: true
+          description: |
+            72 in Colorado. Null in any state whose statute has not been
+            checked, rather than a guess a director would trust.
+        custodyTakenAt:
+          type: string
+          format: date-time
+          nullable: true
+          description: When the home took custody. The clock starts here, not at the death.
+        dueAt:
+          type: string
+          format: date-time
+          nullable: true
+          description: Custody plus the filing window, or null while either is unknown.
+        physicianRequestedAt:
+          type: string
+          format: date-time
+          nullable: true
+        physicianDueAt:
+          type: string
+          format: date-time
+          nullable: true
+          description: The certifying physician's own 72 hours, from the EDRS request.
+        certifyingPhysician:
+          type: string
+          nullable: true
+        filedAt:
+          type: string
+          format: date-time
+          nullable: true
+          description: When the home filed it, as they recorded it.
+        filedByName:
+          type: string
+          nullable: true
+        stateFileNumber:
+          type: string
+          nullable: true
+        standing:
+          type: string
+          enum: [not_applicable, no_custody, open, past_due, filed]
+          description: |
+            Where it stands now. `not_applicable` is a pre-need file;
+            `no_custody` means the clock cannot be known until custody is
+            recorded; `open` is either within the window or in a state with
+            no window we know.
+      required:
+        [
+          caseId,
+          stateCode,
+          filingWindowHours,
+          custodyTakenAt,
+          dueAt,
+          physicianRequestedAt,
+          physicianDueAt,
+          certifyingPhysician,
+          filedAt,
+          filedByName,
+          stateFileNumber,
+          standing,
+        ]
+
+    CertificateFilingUpdate:
+      type: object
+      description: Any subset. Null clears a field; an absent key leaves it alone.
+      properties:
+        custodyTakenAt:
+          type: string
+          format: date-time
+          nullable: true
+        physicianRequestedAt:
+          type: string
+          format: date-time
+          nullable: true
+        certifyingPhysician:
+          type: string
+          nullable: true
+          maxLength: 200
+        filedAt:
+          type: string
+          format: date-time
+          nullable: true
+          description: |
+            When the home filed it. Recording it notes who did; clearing it
+            reopens the clock.
+        stateFileNumber:
+          type: string
+          nullable: true
+          maxLength: 80
+
+    DashboardCertificate:
+      type: object
+      description: |
+        A death certificate the home has not recorded as filed, on a case
+        where custody is recorded. Soonest due first.
+      properties:
+        caseId:
+          type: integer
+        decedentName:
+          type: string
+        custodyTakenAt:
+          type: string
+          format: date-time
+        dueAt:
+          type: string
+          format: date-time
+          nullable: true
+          description: Null in a state whose filing window we have not checked.
+      required: [caseId, decedentName, custodyTakenAt, dueAt]
 
     VitalsFamilyUpdate:
       type: object

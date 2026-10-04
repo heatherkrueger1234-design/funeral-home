@@ -31,6 +31,7 @@ import { TimelinePanel } from "@/components/case/TimelinePanel";
 import { MessagesPanel } from "@/components/case/MessagesPanel";
 import { BelongingsPanel } from "@/components/case/BelongingsPanel";
 import { VitalsPanel } from "@/components/case/VitalsPanel";
+import { CertificateClock } from "@/components/case/CertificateClock";
 import { PrintPanel } from "@/components/case/PrintPanel";
 import { MemoryBookPanel } from "@/components/case/MemoryBookPanel";
 import { DetailsPanel } from "@/components/case/DetailsPanel";
@@ -347,6 +348,7 @@ export default function CaseDetail() {
 
       <CaseGlance
         caseId={caseId}
+        kind={detail.kind}
         unreadFamilyMessages={detail.unreadFamilyMessages}
         onOpen={setTab}
       />
@@ -399,7 +401,9 @@ export default function CaseDetail() {
               referencePhotoId={detail.referencePhotoId}
             />
           </TabsContent>
-          <TabsContent value="vitals">
+          <TabsContent value="vitals" className="space-y-6">
+            {/* Nobody has died on a pre-need file, so there is no clock. */}
+            {detail.kind !== "pre_need" && <CertificateClock caseId={caseId} />}
             <VitalsPanel
               caseId={caseId}
               fromCase={{
