@@ -119,7 +119,7 @@ function Studio({
         toast({
           title: "That didn't save",
           description: error instanceof Error ? error.message : undefined,
-          variant: "destructive",
+          variant: "notice",
         }),
     },
   });

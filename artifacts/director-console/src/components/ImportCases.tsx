@@ -80,7 +80,7 @@ export function ImportCases() {
       toast({
         title: "Couldn't read that file",
         description: error instanceof Error ? error.message : undefined,
-        variant: "destructive",
+        variant: "notice",
       });
       reset();
     } finally {
@@ -114,7 +114,7 @@ export function ImportCases() {
       toast({
         title: "The import failed",
         description: error instanceof Error ? error.message : undefined,
-        variant: "destructive",
+        variant: "notice",
       });
     } finally {
       setBusy(false);

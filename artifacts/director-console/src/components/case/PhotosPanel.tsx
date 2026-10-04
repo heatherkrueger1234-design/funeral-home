@@ -65,7 +65,7 @@ function useAddPhotos(caseId: number, onDone: () => void) {
         toast({
           title: `"${file.name}" is too large`,
           description: `Photographs need to be under ${Math.floor(MAX_UPLOAD_BYTES / (1024 * 1024))} MB.`,
-          variant: "destructive",
+          variant: "notice",
         });
       } else {
         try {
@@ -75,7 +75,7 @@ function useAddPhotos(caseId: number, onDone: () => void) {
             title: `Couldn't add "${file.name}"`,
             description:
               error instanceof Error ? error.message : "Please try that one again.",
-            variant: "destructive",
+            variant: "notice",
           });
         }
       }

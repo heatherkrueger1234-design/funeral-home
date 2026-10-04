@@ -472,7 +472,7 @@ function NewEntryForm({
         />
         <p
           id="new-entry-count"
-          className={`tabular text-right text-xs ${tooLong ? "font-semibold text-[var(--destructive)]" : "text-muted-foreground"}`}
+          className={`tabular text-right text-xs ${tooLong ? "font-semibold text-[var(--notice)]" : "text-muted-foreground"}`}
         >
           {body.trim().length.toLocaleString()} of {limit.toLocaleString()}
           {tooLong && kind === "memory" ? " — a eulogy can be longer" : ""}
@@ -633,7 +633,7 @@ function ChapterEditor({
       )}
       <PhotoSelect id={`${id}-photo`} photos={photos} value={photoId} onChange={setPhotoId} />
       {problem && (
-        <p role="alert" className="text-sm text-[var(--destructive)]">
+        <p role="alert" className="text-sm text-[var(--notice)]">
           {problem}
         </p>
       )}

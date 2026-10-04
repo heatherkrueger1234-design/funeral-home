@@ -28,7 +28,7 @@ const Textarea = React.forwardRef<
         "hover:border-[color-mix(in_oklab,var(--accent)_35%,var(--border-strong))]",
         "focus-visible:outline-none focus-visible:border-[var(--accent)]",
         "focus-visible:shadow-[0_0_0_3px_color-mix(in_oklab,var(--accent)_16%,transparent)]",
-        "aria-invalid:border-[var(--destructive)]",
+        "aria-invalid:border-[var(--notice)]",
         "disabled:cursor-not-allowed disabled:opacity-50 disabled:bg-[var(--muted)]",
         className
       )}

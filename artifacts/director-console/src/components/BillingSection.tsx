@@ -64,7 +64,7 @@ export function useBillingHandoff() {
       toast({
         title: "Couldn't open billing",
         description: error instanceof Error ? error.message : undefined,
-        variant: "destructive",
+        variant: "notice",
       });
       setBusy(false);
     }

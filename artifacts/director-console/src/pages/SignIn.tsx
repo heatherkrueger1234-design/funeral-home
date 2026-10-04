@@ -95,7 +95,7 @@ export default function SignIn() {
       title: mode === "signIn" ? "Couldn't sign in" : "Couldn't open the account",
       description:
         error instanceof Error ? error.message : "Please try that again.",
-      variant: "destructive",
+      variant: "notice",
     });
   };
 

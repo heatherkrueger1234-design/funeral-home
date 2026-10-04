@@ -74,7 +74,7 @@ const queryClient = new QueryClient({
       toast({
         title: "Couldn't load that",
         description: describeError(error),
-        variant: "destructive",
+        variant: "notice",
       });
     },
   }),
@@ -90,7 +90,7 @@ const queryClient = new QueryClient({
       toast({
         title: "That didn't save",
         description: describeError(error),
-        variant: "destructive",
+        variant: "notice",
       });
     },
   }),

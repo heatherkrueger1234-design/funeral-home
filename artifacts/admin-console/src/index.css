@@ -110,8 +110,21 @@
   --radius: 0.75rem;
 }
 
-* {
-  border-color: var(--border);
+/*
+ * The default border colour, in the base layer where it belongs.
+ *
+ * It used to sit outside any layer, and an unlayered rule outranks every
+ * layered one whatever its specificity -- so it beat every Tailwind border
+ * utility in the app. Every border written as the notice colour or the
+ * home's own colour (a past-due row, a tile that needs the director, the
+ * outline on a hovered card, an invalid field) quietly drew as this grey
+ * instead. In `@layer base`, after Tailwind's preflight, it is the default
+ * it was meant to be and nothing more. The website already did this.
+ */
+@layer base {
+  * {
+    border-color: var(--border);
+  }
 }
 
 body {
