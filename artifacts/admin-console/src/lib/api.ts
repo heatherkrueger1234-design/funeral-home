@@ -457,6 +457,10 @@ export type AuditEntry = {
  * parsed as one: `new Date("2027-06-30")` is midnight UTC, which in Denver is
  * the evening of the 29th, and a renewal date that renders a day early is a
  * phone call nobody wants to have.
+ *
+ * A day typed into a date input and kept in a timestamp column -- a billing
+ * date -- comes back as that same midnight, `2026-10-01T00:00:00.000Z`, and
+ * is still a calendar date: it goes through here too, not `formatDay`.
  */
 export function formatDate(value: string | null | undefined): string {
   if (!value) return "—";
@@ -533,10 +537,10 @@ export function describeContract(
   const status = describeSubscription(group.subscriptionStatus);
 
   if (group.subscriptionStatus === "trial" && group.trialEndsAt) {
-    return `${status} until ${formatDate(group.trialEndsAt)}`;
+    return `${status} until ${formatDay(group.trialEndsAt)}`;
   }
   if (group.subscriptionStatus === "active" && group.currentPeriodEndsAt) {
-    return `${status}, renews ${formatDate(group.currentPeriodEndsAt)}`;
+    return `${status}, renews ${formatDay(group.currentPeriodEndsAt)}`;
   }
   return status;
 }

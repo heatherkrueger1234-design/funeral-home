@@ -1,6 +1,6 @@
 import {
-  formatDate,
   formatDateTime,
+  formatDay,
   type PlatformOverview,
 } from "@/lib/api";
 
@@ -38,8 +38,8 @@ export function deliveryProblems(
 /** A trial worth a call: when it ends, or that it ended and nobody subscribed. */
 export function trialSentence(trialEndsAt: string, now: number): string {
   return new Date(trialEndsAt).getTime() <= now
-    ? `Trial ended ${formatDate(trialEndsAt)}, not subscribed.`
-    : `Trial ends ${formatDate(trialEndsAt)}.`;
+    ? `Trial ended ${formatDay(trialEndsAt)}, not subscribed.`
+    : `Trial ends ${formatDay(trialEndsAt)}.`;
 }
 
 /**
@@ -48,7 +48,7 @@ export function trialSentence(trialEndsAt: string, now: number): string {
  * is a month without a case.
  */
 export function quietSentence(reason: string, lastCaseAt: string | null): string {
-  return lastCaseAt ? `${reason} The last was ${formatDate(lastCaseAt)}.` : reason;
+  return lastCaseAt ? `${reason} The last was ${formatDay(lastCaseAt)}.` : reason;
 }
 
 /**

@@ -117,7 +117,7 @@ export function HomeDetail({ homeId }: { homeId: number }) {
           {[
             describeAccount(home),
             [home.city, home.region].filter(Boolean).join(", "),
-            `Joined ${formatDate(home.createdAt)}`,
+            `Joined ${formatDay(home.createdAt)}`,
           ]
             .filter(Boolean)
             .join(" · ")}
@@ -309,11 +309,11 @@ function CommercialCard({ home }: { home: AdminHomeDetail }) {
     ["Amount charged", formatMoney(home.billingAmountCents)],
     [
       "Billing started",
-      home.billingStartDate ? formatDay(home.billingStartDate) : "—",
+      home.billingStartDate ? formatDate(home.billingStartDate) : "—",
     ],
     [
       "Next due date",
-      home.subscriptionDueDate ? formatDay(home.subscriptionDueDate) : "—",
+      home.subscriptionDueDate ? formatDate(home.subscriptionDueDate) : "—",
     ],
     ["Discount", home.discount ?? "—"],
     ["How they heard about us", home.howHeardAboutUs ?? "—"],

@@ -64,6 +64,23 @@ describe("who is worth a call", () => {
     );
   });
 
+  it("dates a trial's end and the last case by the evening they fell on here", () => {
+    // Nine in the evening in Denver is already the next day in Greenwich,
+    // and the home's own page, which reads it here, says the earlier day.
+    expect(trialSentence("2026-10-09T03:00:00.000Z", now)).toBe(
+      "Trial ends October 8, 2026.",
+    );
+    expect(trialSentence("2026-10-01T03:00:00.000Z", now)).toBe(
+      "Trial ended September 30, 2026, not subscribed.",
+    );
+    expect(
+      quietSentence(
+        "No case opened in the last thirty days.",
+        "2026-08-04T02:30:00.000Z",
+      ),
+    ).toBe("No case opened in the last thirty days. The last was August 3, 2026.");
+  });
+
   it("names the last case only when the reason is about cases", () => {
     expect(quietSentence("Family links sent, and none opened yet.", null)).toBe(
       "Family links sent, and none opened yet.",

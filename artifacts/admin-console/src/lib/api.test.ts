@@ -3,6 +3,7 @@ import {
   api,
   ApiError,
   describeAccount,
+  describeContract,
   formatDate,
   formatDay,
   formatMoney,
@@ -195,6 +196,25 @@ describe("dates", () => {
     // A trial that ends at nine in the evening in Denver on 30 September.
     expect(formatDay("2026-10-01T03:00:00.000Z")).toBe("September 30, 2026");
     expect(formatDay(null)).toBe("—");
+  });
+
+  it("dates a group's trial and renewal by the reader's day, not the next morning in Greenwich", () => {
+    // Both are moments: a trial set up at nine in the evening ends at nine in
+    // the evening, and Stripe's period ends when it ends.
+    expect(
+      describeContract({
+        subscriptionStatus: "trial",
+        trialEndsAt: "2026-10-01T03:00:00.000Z",
+        currentPeriodEndsAt: null,
+      }),
+    ).toBe("On trial until September 30, 2026");
+    expect(
+      describeContract({
+        subscriptionStatus: "active",
+        trialEndsAt: null,
+        currentPeriodEndsAt: "2026-11-04T02:00:00.000Z",
+      }),
+    ).toBe("Subscribed, renews November 3, 2026");
   });
 });
 

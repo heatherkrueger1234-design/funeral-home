@@ -388,7 +388,7 @@ function FinancialsTable({ homes }: { homes: FinancialHome[] }) {
                 )}
               </td>
               <td className="tabular whitespace-nowrap px-4 py-3 text-sm">
-                {home.nextDueDate ? formatDay(home.nextDueDate) : "—"}
+                {home.nextDueDate ? formatDate(home.nextDueDate) : "—"}
               </td>
               <td className="max-w-[12rem] break-words px-4 py-3 text-sm">
                 {home.discount ?? "—"}
@@ -728,7 +728,7 @@ function HomesTable({ homes }: { homes: AdminHome[] }) {
               </td>
               <td className="tabular hidden whitespace-nowrap px-4 py-3 text-sm md:table-cell">
                 {home.subscriptionDueDate ? (
-                  formatDay(home.subscriptionDueDate)
+                  formatDate(home.subscriptionDueDate)
                 ) : (
                   <span className="text-[var(--muted-foreground)]">—</span>
                 )}
@@ -755,7 +755,7 @@ function HomesTable({ homes }: { homes: AdminHome[] }) {
                 {home.engagement.photographs}
               </td>
               <td className="tabular hidden whitespace-nowrap px-4 py-3 text-right text-sm text-[var(--muted-foreground)] md:table-cell">
-                {formatDate(home.createdAt)}
+                {formatDay(home.createdAt)}
               </td>
             </tr>
           ))}
