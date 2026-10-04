@@ -116,14 +116,17 @@ The product works and is tested — the API suite runs against real Postgres wit
 no mocks, and there are frontend and Playwright suites alongside it. What is
 *not* done, so nobody is surprised:
 
+- **The work is spread across branches.** Main, the 4 October fixes, and an
+  unmerged twelve-commit branch from 2 October (the price book, SMS consent,
+  ESLint, its own 72-hour clock) overlap. `STATUS.md`, problem 1, has the
+  order to bring them together.
 - The legal documents need a lawyer.
-- No error tracking and no uptime monitoring. The first time production breaks,
-  a customer tells us.
-- The three daily scheduled jobs fail every day for want of two repository
-  secrets. `STATUS.md`, problem 1.
-- Colorado's 72-hour filing clock is only partly built.
-- A home cannot read the `platform_audit` log about itself. The DPA promises it
-  "on request", which we can only honour by hand.
+- Error tracking and uptime checks are built but switched off until a Sentry
+  project and a paging monitor exist (`DEPLOY.md`, "Knowing when it breaks").
+- The three daily scheduled jobs skip with a notice until two repository
+  secrets are set. `STATUS.md`, problem 2.
+- Colorado's 72-hour certificate clock is built; the statutory authorisation
+  order and forms are not, and wait on a lawyer.
 
 [`STATUS.md`](./STATUS.md) and [`LAUNCH.md`](./LAUNCH.md) are the fuller
 versions of this list.
