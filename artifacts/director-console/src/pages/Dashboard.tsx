@@ -18,7 +18,7 @@ import type {
 import { SetupChecklist } from "@/components/SetupChecklist";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Divider, Empty, LoadFailed, Loading, PageHeader } from "@/components/page";
-import { cn } from "@/lib/utils";
+import { cn, formatAtHome } from "@/lib/utils";
 import { relative, whenLabel } from "@/lib/when";
 import { useHomeZone } from "@/lib/session";
 import {
@@ -93,7 +93,19 @@ export default function Dashboard() {
 
   return (
     <div className="space-y-8">
-      <PageHeader title={data.homeName}>
+      {/*
+        "Today", not the home's name: the name is already in the bar across
+        the top, and saying it twice put the one thing every director knows
+        in the largest type on the page. The date is the home's, so a
+        director checking in from another time zone reads the home's day.
+      */}
+      <PageHeader title="Today">
+        {formatAtHome(new Date(), zone, {
+          weekday: "long",
+          month: "long",
+          day: "numeric",
+        })}
+        {" · "}
         {data.openCases === 0
           ? "No open cases."
           : `${data.openCases} open ${data.openCases === 1 ? "case" : "cases"}.`}
