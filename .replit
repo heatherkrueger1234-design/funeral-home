@@ -1,4 +1,4 @@
-modules = ["nodejs-24"]
+modules = ["nodejs-20", "web"]
 
 [[artifacts]]
 id = "artifacts/api-server"
@@ -30,3 +30,6 @@ expertMode = true
 [postMerge]
 path = "scripts/post-merge.sh"
 timeoutMs = 20000
+
+[nix]
+channel = "stable-25_05"
