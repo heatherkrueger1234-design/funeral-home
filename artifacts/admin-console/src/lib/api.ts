@@ -576,6 +576,7 @@ export const AUDIT_ACTION_LABELS: Record<string, string> = {
   "home.staff.reset": "Emailed a director a password reset",
   "home.owner.invite": "Invited an owner",
   "home.trial.extend": "Extended a trial",
+  "home.crm.update": "Updated a home's customer record",
   "group.list": "Listed the groups",
   "group.create": "Created a group",
   "group.open": "Opened a group",
@@ -583,4 +584,10 @@ export const AUDIT_ACTION_LABELS: Record<string, string> = {
   "platform.admins.list": "Looked at who has access",
   "platform.admin.grant": "Gave someone access",
   "platform.admin.revoke": "Took someone's access away",
+  "plan.create": "Added a plan",
+  "plan.update": "Changed a plan",
+  "plan.delete": "Removed a plan",
+  "running-cost.create": "Added a running cost",
+  "running-cost.update": "Changed a running cost",
+  "running-cost.delete": "Removed a running cost",
 };

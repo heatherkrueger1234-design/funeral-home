@@ -1,5 +1,7 @@
+import { readFileSync } from "node:fs";
+import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
-import type { AuditEntry } from "./api";
+import { AUDIT_ACTION_LABELS, type AuditEntry } from "./api";
 import {
   AUDIT_PAGE_SIZE,
   auditFilterHref,
@@ -91,6 +93,33 @@ describe("the log's filters, kept in the address", () => {
 });
 
 describe("what the log names", () => {
+  it("has words for every action the server can write, and for no other", () => {
+    /*
+     * A line whose action has no label here shows its raw key -- "plan.delete"
+     * -- on the page shown to an insurer, and cannot be chosen in the filter;
+     * a label for an action the server does not know is a filter the API
+     * refuses. Nothing else checks that the two lists agree, so this reads
+     * the server's own: the closed list in `routes/admin.ts`.
+     */
+    const source = readFileSync(
+      fileURLToPath(
+        new URL("../../../api-server/src/routes/admin.ts", import.meta.url),
+      ),
+      "utf8",
+    );
+    const list = /const AUDIT_ACTIONS = \[([^\]]*)\] as const;/.exec(source);
+    expect(
+      list,
+      "AUDIT_ACTIONS has moved out of routes/admin.ts; point this test at it",
+    ).not.toBeNull();
+    const actions = [...list![1]!.matchAll(/"([^"]+)"/g)].map(
+      (match) => match[1],
+    );
+
+    expect(actions.length).toBeGreaterThan(20);
+    expect(Object.keys(AUDIT_ACTION_LABELS).sort()).toEqual(actions.sort());
+  });
+
   it("offers the homes the log mentions, once each, by name, and the one being looked at", () => {
     const entries = [
       line(4, { subjectHomeId: 4, subjectHomeName: "Willow Creek" }),
