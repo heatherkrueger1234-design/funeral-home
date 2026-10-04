@@ -881,12 +881,7 @@ function CreateHome({
       ...current,
       planName,
       billingPeriod: period,
-      billingAmount: amountForPlan(
-        plans,
-        planName,
-        period,
-        current.billingAmount,
-      ),
+      billingAmount: amountForPlan(plans, current, planName, period),
     }));
   };
   const create = useMutation({

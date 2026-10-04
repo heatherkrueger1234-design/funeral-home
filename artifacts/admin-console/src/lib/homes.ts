@@ -73,28 +73,46 @@ export function pageSpan(
   return { first, last, previous: page !== 0, next: last < total };
 }
 
+/** What the add-a-home form says about the plan before a new choice. */
+export type PlanChoice = {
+  planName: string;
+  billingPeriod: string;
+  billingAmount: string;
+};
+
+/** A plan's price at one cadence, in cents; null without a plan. */
+function priceOf(
+  plans: readonly PlatformPlan[],
+  planName: string,
+  period: string,
+): number | null {
+  const plan = plans.find((p) => p.name === planName);
+  if (plan == null) return null;
+  return period === "annual" ? plan.annualAmountCents : plan.monthlyAmountCents;
+}
+
 /**
  * The amount on the add-a-home form once a plan and a billing period are
  * chosen.
  *
  * Choosing a plan fills in its price for the chosen cadence -- a starting
- * point, not a lock. A hand-edited amount is left alone when the cadence
- * changes afterwards; clearing the field and re-picking brings the price
- * back.
+ * point, not a lock. An amount still exactly as the last choice filled it in
+ * follows the next one, so picking the plan and then "Annual" ends on the
+ * yearly price rather than the monthly one under "Dollars per year". An
+ * amount somebody has edited is left alone; clearing the field and re-picking
+ * brings the price back.
  */
 export function amountForPlan(
   plans: readonly PlatformPlan[],
+  was: PlanChoice,
   planName: string,
   period: string,
-  amount: string,
 ): string {
-  const plan = plans.find((p) => p.name === planName);
-  const price =
-    plan == null
-      ? null
-      : period === "annual"
-        ? plan.annualAmountCents
-        : plan.monthlyAmountCents;
+  const filledIn = priceOf(plans, was.planName, was.billingPeriod);
+  const untouched =
+    was.billingAmount.trim() === "" ||
+    (filledIn !== null && was.billingAmount === toDollars(filledIn));
+  const price = priceOf(plans, planName, period);
 
-  return price !== null && amount.trim() === "" ? toDollars(price) : amount;
+  return price !== null && untouched ? toDollars(price) : was.billingAmount;
 }
