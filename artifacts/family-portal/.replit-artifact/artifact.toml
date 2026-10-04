@@ -38,7 +38,7 @@ BASE_PATH = "/family"
 # [services.env] below, which is not guaranteed to reach it. Without them a
 # platform admin is not forwarded to /admin on sign-in, and the pointers
 # between the three apps are left out of the bundle.
-VITE_CONSOLE_URL = "https://continuumaftercare.com"
+VITE_CONSOLE_URL = "https://funeral-home.replit.app"
 
 [[services.production.rewrites]]
 from = "/*"
@@ -47,4 +47,4 @@ to = "/index.html"
 [services.env]
 PORT = "21792"
 BASE_PATH = "/family"
-VITE_CONSOLE_URL = "https://continuumaftercare.com"
+VITE_CONSOLE_URL = "https://funeral-home.replit.app"
