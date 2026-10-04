@@ -94,6 +94,26 @@ paths:
               schema:
                 $ref: "#/components/schemas/HealthStatus"
 
+  /client-errors:
+    post:
+      operationId: reportClientError
+      tags: [health]
+      summary: A screen crashed in someone's browser
+      description: |
+        Write-only and unauthenticated, because a screen can fail before
+        anybody is signed in. Nothing is stored: the report is scrubbed of
+        addresses, tokens and numbers, written to the log, and passed to the
+        error tracker when one is configured. Limited per address.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ClientErrorReport"
+      responses:
+        "204":
+          description: Received
+
   # ---------------------------------------------------------------- public --
 
   /public/homes/{slug}:
@@ -6541,6 +6561,31 @@ components:
             type: string
       required:
         [caseId, socialSecurityNumberMasked, hasSocialSecurityNumber, status, submittedAt, verifiedAt, verifiedByName, staffNotes, missingForFiling]
+
+    ClientErrorReport:
+      type: object
+      properties:
+        app:
+          type: string
+          enum: [family, console, admin]
+        kind:
+          type: string
+          enum: [render, error, rejection]
+          description: |
+            `render` is a screen that failed to draw (caught by the app's
+            error boundary); the other two are uncaught errors and promises.
+        message:
+          type: string
+          maxLength: 1000
+        stack:
+          type: string
+          nullable: true
+          maxLength: 8000
+        path:
+          type: string
+          maxLength: 500
+          description: The page's path, with a family link's token already removed.
+      required: [app, kind, message, path]
 
     HomeAccessLog:
       type: object

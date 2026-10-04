@@ -1,6 +1,11 @@
 import { createRoot } from "react-dom/client";
 import App from "./App";
+import { CrashBoundary } from "./components/CrashBoundary";
+import { installCrashReporting } from "./lib/crash-report";
 import "./index.css";
+
+// First, so a failure anywhere after this line is heard about.
+installCrashReporting("family");
 
 /*
  * Screens past the first are separate files with hashed names, and a deploy
@@ -24,4 +29,8 @@ window.addEventListener("vite:preloadError", (event) => {
   window.location.reload();
 });
 
-createRoot(document.getElementById("root")!).render(<App />);
+createRoot(document.getElementById("root")!).render(
+  <CrashBoundary>
+    <App />
+  </CrashBoundary>,
+);

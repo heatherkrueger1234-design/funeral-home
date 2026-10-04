@@ -1,5 +1,6 @@
 import type { ErrorRequestHandler, RequestHandler } from "express";
 import type { ZodTypeAny, z } from "zod";
+import { reportError, scrubPath } from "./error-tracking";
 
 /**
  * An error carrying the HTTP status it should be reported with. Anything else
@@ -217,6 +218,17 @@ export const errorHandler: ErrorRequestHandler = (err, req, res, next) => {
 
   if (status >= 500) {
     req.log.error({ err }, "Unhandled error");
+    // The route as declared ("/api/cases/:caseId"), never the URL, which on
+    // the family surface carries nothing, and elsewhere carries ids nobody
+    // outside the home needs. Unmatched paths fall back to a scrubbed path.
+    reportError(err, {
+      source: "api",
+      method: req.method,
+      status,
+      route: req.route?.path
+        ? `${req.baseUrl}${String(req.route.path)}`
+        : scrubPath(req.originalUrl),
+    });
   } else {
     req.log.warn({ err: { message: err?.message } }, "Request rejected");
   }

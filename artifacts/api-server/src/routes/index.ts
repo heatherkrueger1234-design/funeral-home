@@ -1,8 +1,13 @@
 import { Router, type IRouter } from "express";
 import { requireAuth } from "../middleware/require-auth";
 import { requireFamilyLink } from "../middleware/require-family";
-import { familyRateLimit, publicRateLimit } from "../middleware/rate-limit";
+import {
+  clientErrorRateLimit,
+  familyRateLimit,
+  publicRateLimit,
+} from "../middleware/rate-limit";
 import healthRouter from "./health";
+import clientErrorsRouter from "./client-errors";
 import authRouter from "./auth";
 import tasksRouter from "./tasks";
 import billingRouter from "./billing";
@@ -70,6 +75,15 @@ router.use(authRouter);
  * every director in every home.
  */
 router.use("/public", publicRateLimit, publicRouter);
+
+/**
+ * Crash reports from the three front ends. Above every gate, because a
+ * screen can fail before anybody is signed in -- the sign-in page itself, or
+ * a family link that will not open -- and safe there because it is
+ * write-only: it stores nothing, answers with nothing, scrubs what it is
+ * sent, and is limited per address. See `client-errors.ts`.
+ */
+router.use("/client-errors", clientErrorRateLimit, clientErrorsRouter);
 
 /**
  * Scheduled work. Above the session gate because a scheduler has no cookie,

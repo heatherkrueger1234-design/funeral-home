@@ -1,0 +1,86 @@
+# Is it up? Asked every fifteen minutes, from outside.
+#
+# LAUNCH.md: "When it breaks at 2am before an 11am funeral, we find out from
+# the director." This is the backstop that tells us first. It asks the API's
+# health check -- which really checks the database, not merely that the
+# process is listening -- and, when FAMILY_PORTAL_URL and CONSOLE_URL are set
+# as repository variables, that the two front ends answer too.
+#
+# It is a backstop, not the pager. GitHub delays scheduled runs under load and
+# only emails whoever last edited this file's schedule when one fails. A
+# phone-paging monitor (DEPLOY.md, "Knowing when it breaks") is the real
+# answer; this one costs nothing and catches the outage that monitor was
+# never set up for.
+name: Uptime
+
+on:
+  schedule:
+    - cron: "*/15 * * * *"
+  workflow_dispatch:
+
+concurrency:
+  group: uptime
+  cancel-in-progress: true
+
+# Reads nothing in this repository. One unauthenticated request per address.
+permissions: {}
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      # The same rule as the other scheduled jobs: before there is a server,
+      # skip with a notice rather than going red every fifteen minutes and
+      # teaching everyone to ignore the colour.
+      - name: Check there is a server to ask
+        id: config
+        env:
+          API_URL: ${{ secrets.API_URL }}
+          REQUIRED: ${{ github.event_name == 'workflow_dispatch' || vars.REQUIRE_TASK_SECRETS == 'true' }}
+        run: |
+          if [ -n "$API_URL" ]; then
+            echo "ready=true" >> "$GITHUB_OUTPUT"
+          elif [ "$REQUIRED" = "true" ]; then
+            echo "::error::API_URL must be set as a repository secret."
+            exit 1
+          else
+            echo "ready=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::Skipped: API_URL is not set yet."
+            echo "Skipped: no server configured yet (API_URL unset)." >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+      - name: Ask the API, and the two front ends
+        if: steps.config.outputs.ready == 'true'
+        env:
+          API_URL: ${{ secrets.API_URL }}
+          FAMILY_PORTAL_URL: ${{ vars.FAMILY_PORTAL_URL }}
+          CONSOLE_URL: ${{ vars.CONSOLE_URL }}
+        run: |
+          # Three tries, a minute apart, before calling it down: one dropped
+          # packet is not an outage, and a false alarm at 3am is how a pager
+          # ends up muted.
+          check() {
+            local name="$1" url="$2"
+            for attempt in 1 2 3; do
+              if curl --fail --silent --show-error --max-time 20 --output /dev/null "$url"; then
+                echo "$name is up"
+                return 0
+              fi
+              [ "$attempt" -lt 3 ] && sleep 60
+            done
+            echo "::error::$name did not answer at $url"
+            return 1
+          }
+
+          failed=0
+          # The health check returns 503 when the database is unreachable,
+          # which --fail counts as down: listening is not the same as working.
+          check "The API" "${API_URL%/}/api/healthz" || failed=1
+          if [ -n "$FAMILY_PORTAL_URL" ]; then
+            check "The family portal" "${FAMILY_PORTAL_URL%/}/" || failed=1
+          fi
+          if [ -n "$CONSOLE_URL" ]; then
+            check "The director console" "${CONSOLE_URL%/}/" || failed=1
+          fi
+          exit "$failed"

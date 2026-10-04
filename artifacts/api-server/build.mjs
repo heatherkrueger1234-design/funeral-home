@@ -80,6 +80,10 @@ async function buildAll() {
       "firebase-admin",
       "@parcel/watcher",
       "@sentry/profiling-node",
+      // Resolved from this package's own node_modules at runtime, like
+      // nodemailer: it reaches for its own dependencies by name, and
+      // `pnpm deploy` puts them beside it rather than inside this bundle.
+      "@sentry/node",
       "@tree-sitter/*",
       "aws-sdk",
       "classic-level",

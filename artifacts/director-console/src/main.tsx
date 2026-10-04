@@ -1,6 +1,11 @@
 import { createRoot } from "react-dom/client";
 import App from "./App";
+import { CrashBoundary } from "./components/CrashBoundary";
+import { installCrashReporting } from "./lib/crash-report";
 import "./index.css";
+
+// First, so a failure anywhere after this line is heard about.
+installCrashReporting("console");
 
 /*
  * Screens past the first are separate files with hashed names, and a deploy
@@ -43,5 +48,9 @@ const { pathname, search, hash } = window.location;
 if (familyPortalUrl && /^\/(f|start)\/[^/]/.test(pathname)) {
   window.location.replace(`${familyPortalUrl}${pathname}${search}${hash}`);
 } else {
-  createRoot(document.getElementById("root")!).render(<App />);
+  createRoot(document.getElementById("root")!).render(
+    <CrashBoundary whole>
+      <App />
+    </CrashBoundary>,
+  );
 }

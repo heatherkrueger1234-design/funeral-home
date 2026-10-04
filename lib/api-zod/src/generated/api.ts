@@ -38,6 +38,35 @@ export const GetHealthResponse = zod
   );
 
 /**
+ * Write-only and unauthenticated, because a screen can fail before
+anybody is signed in. Nothing is stored: the report is scrubbed of
+addresses, tokens and numbers, written to the log, and passed to the
+error tracker when one is configured. Limited per address.
+
+ * @summary A screen crashed in someone's browser
+ */
+export const reportClientErrorBodyMessageMax = 1000;
+
+export const reportClientErrorBodyStackMax = 8000;
+
+export const reportClientErrorBodyPathMax = 500;
+
+export const ReportClientErrorBody = zod.object({
+  app: zod.enum(["family", "console", "admin"]),
+  kind: zod
+    .enum(["render", "error", "rejection"])
+    .describe(
+      "`render` is a screen that failed to draw (caught by the app's\nerror boundary); the other two are uncaught errors and promises.\n",
+    ),
+  message: zod.string().max(reportClientErrorBodyMessageMax),
+  stack: zod.string().max(reportClientErrorBodyStackMax).nullish(),
+  path: zod
+    .string()
+    .max(reportClientErrorBodyPathMax)
+    .describe("The page's path, with a family link's token already removed."),
+});
+
+/**
  * Unauthenticated. Enough to recognise the home and to reach it by
 telephone, and nothing about its account. `intakeEnabled` false means
 the home would rather the first contact were a phone call: show the

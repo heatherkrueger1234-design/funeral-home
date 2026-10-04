@@ -2006,6 +2006,46 @@ daughter.
   missingForFiling: string[];
 }
 
+export type ClientErrorReportApp =
+  (typeof ClientErrorReportApp)[keyof typeof ClientErrorReportApp];
+
+export const ClientErrorReportApp = {
+  family: "family",
+  console: "console",
+  admin: "admin",
+} as const;
+
+/**
+ * `render` is a screen that failed to draw (caught by the app's
+error boundary); the other two are uncaught errors and promises.
+
+ */
+export type ClientErrorReportKind =
+  (typeof ClientErrorReportKind)[keyof typeof ClientErrorReportKind];
+
+export const ClientErrorReportKind = {
+  render: "render",
+  error: "error",
+  rejection: "rejection",
+} as const;
+
+export interface ClientErrorReport {
+  app: ClientErrorReportApp;
+  /** `render` is a screen that failed to draw (caught by the app's
+error boundary); the other two are uncaught errors and promises.
+ */
+  kind: ClientErrorReportKind;
+  /** @maxLength 1000 */
+  message: string;
+  /** @maxLength 8000 */
+  stack?: string | null;
+  /**
+   * The page's path, with a family link's token already removed.
+   * @maxLength 500
+   */
+  path: string;
+}
+
 /**
  * One line of the platform's access log about this home.
  */

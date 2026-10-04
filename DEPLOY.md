@@ -318,6 +318,38 @@ should: it sells to funeral homes, and a family should never be routed to it.
   load balancer. Mail and SMS are reported but never fail the check: a home
   without Twilio is degraded, not down.
 
+## Knowing when it breaks
+
+Two things, and the second is the one that wakes somebody up.
+
+**Errors.** Set `SENTRY_DSN` to a Sentry project's DSN and the API reports
+every server error, and every crash the three apps send back from a browser,
+to it. Leave it empty and both are written to the API's log only — which is
+the same as nobody being told. What leaves the server is deliberately thin: no
+request bodies, headers, cookies, query strings or user records, no
+breadcrumbs, the route pattern rather than the URL (a family's URL is their
+credential), and every message scrubbed of email addresses, tokens, nine-digit
+numbers and phone numbers. `error-tracking.test.ts` reads what would actually
+have been sent. The browsers never talk to Sentry themselves: they report to
+`POST /api/client-errors` on their own origin, which keeps the CSP unchanged
+and keeps every family's IP address off a third party's servers.
+
+Sentry is a sub-processor once this is on. Add it to the DPA's list before you
+set the variable, not after.
+
+**Is it up.** Point a monitor that pages a phone at `GET /api/healthz` — the
+check that really asks the database (see *Health checks*). UptimeRobot and
+Better Stack both do this on a free plan; one check every five minutes, alert
+by SMS or push to whoever is on call. Add a second check on the family portal's
+`/healthz` if you want to know nginx is serving.
+
+`.github/workflows/uptime.yml` asks the same question every fifteen minutes
+from GitHub, as a backstop. It skips with a notice until the `API_URL`
+repository secret is set, and also checks the front ends when the
+`FAMILY_PORTAL_URL` and `CONSOLE_URL` repository variables are. It is not the
+pager: GitHub delays scheduled runs under load, and a failed run only emails
+whoever last edited the file.
+
 ## What this is not
 
 One Postgres, one API, no replication, no object storage, backups on the same

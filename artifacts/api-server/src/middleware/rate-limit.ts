@@ -160,3 +160,17 @@ export const publicRateLimit: RateLimiter = rateLimit({
     "That was a lot at once. Please wait a moment — and if this cannot wait, " +
     "telephone the funeral home.",
 });
+
+/**
+ * Crash reports from the browser.
+ *
+ * A screen that fails in a loop -- a render that throws on every retry --
+ * would otherwise send a report per frame. Twenty a minute from one address
+ * is more than any person meets, and keeps one broken tab from filling the
+ * log or the error tracker's quota.
+ */
+export const clientErrorRateLimit: RateLimiter = rateLimit({
+  windowMs: 60_000,
+  max: 20,
+  message: "Too many reports at once.",
+});

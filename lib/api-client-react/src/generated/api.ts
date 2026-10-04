@@ -53,6 +53,7 @@ import type {
   CertificateFiling,
   CertificateFilingUpdate,
   ChosenService,
+  ClientErrorReport,
   CompleteDeadlineInput,
   ComposeObituaryInput,
   ConvertToAtNeedInput,
@@ -245,6 +246,97 @@ export function useGetHealth<
 
   return { ...query, queryKey: queryOptions.queryKey };
 }
+
+/**
+ * Write-only and unauthenticated, because a screen can fail before
+anybody is signed in. Nothing is stored: the report is scrubbed of
+addresses, tokens and numbers, written to the log, and passed to the
+error tracker when one is configured. Limited per address.
+
+ * @summary A screen crashed in someone's browser
+ */
+export const getReportClientErrorUrl = () => {
+  return `/api/client-errors`;
+};
+
+export const reportClientError = async (
+  clientErrorReport: ClientErrorReport,
+  options?: RequestInit,
+): Promise<void> => {
+  return customFetch<void>(getReportClientErrorUrl(), {
+    ...options,
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(clientErrorReport),
+  });
+};
+
+export const getReportClientErrorMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof reportClientError>>,
+    TError,
+    { data: BodyType<ClientErrorReport> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof reportClientError>>,
+  TError,
+  { data: BodyType<ClientErrorReport> },
+  TContext
+> => {
+  const mutationKey = ["reportClientError"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof reportClientError>>,
+    { data: BodyType<ClientErrorReport> }
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return reportClientError(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type ReportClientErrorMutationResult = NonNullable<
+  Awaited<ReturnType<typeof reportClientError>>
+>;
+export type ReportClientErrorMutationBody = BodyType<ClientErrorReport>;
+export type ReportClientErrorMutationError = ErrorType<unknown>;
+
+/**
+ * @summary A screen crashed in someone's browser
+ */
+export const useReportClientError = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof reportClientError>>,
+    TError,
+    { data: BodyType<ClientErrorReport> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof reportClientError>>,
+  TError,
+  { data: BodyType<ClientErrorReport> },
+  TContext
+> => {
+  return useMutation(getReportClientErrorMutationOptions(options));
+};
 
 /**
  * Unauthenticated. Enough to recognise the home and to reach it by
