@@ -229,7 +229,7 @@ export default function Photos() {
       toast({
         title: "That didn't save",
         description: "Please check your connection and try again.",
-        variant: "destructive",
+        variant: "notice",
       });
     } finally {
       setReading(false);
@@ -256,7 +256,7 @@ export default function Photos() {
         toast({
           title: `"${file.name}" is too large`,
           description: `Photographs need to be under ${Math.floor(MAX_UPLOAD_BYTES / (1024 * 1024))} MB.`,
-          variant: "destructive",
+          variant: "notice",
         });
       } else {
         try {
@@ -271,7 +271,7 @@ export default function Photos() {
           toast({
             title: `Couldn't add "${file.name}"`,
             description: uploadProblem(error),
-            variant: "destructive",
+            variant: "notice",
           });
         }
       }
@@ -602,13 +602,16 @@ export default function Photos() {
                       tried; this one throws it away. Distance and a plainer
                       voice are the whole of the protection a list like this
                       needs, and more than a confirmation dialog on every tap
-                      would be worth.
+                      would be worth. So under the cursor it darkens to ink,
+                      as any quiet link here does, rather than turning a
+                      warning colour: taking back a photograph you added is a
+                      choice, not a hazard.
                     */}
                     {photo.uploadedByContactId === session.data?.contact.id && (
                       <button
                         type="button"
                         className="-mr-2 inline-flex min-h-11 shrink-0 items-center gap-1.5 rounded-md px-2 text-sm
-                                   text-muted-foreground transition-gentle hover:text-[var(--destructive)]
+                                   text-muted-foreground transition-gentle hover:text-foreground
                                    disabled:opacity-45"
                         // A second tap on a slow connection would otherwise
                         // ask to remove a photograph already gone, and be

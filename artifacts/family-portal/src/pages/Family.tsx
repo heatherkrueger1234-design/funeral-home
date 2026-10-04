@@ -72,7 +72,7 @@ function LinkOnce({ result }: { result: FamilyRelativeInvited }) {
               toast({
                 title: "Couldn't copy that",
                 description: "Press and hold the link to copy it instead.",
-                variant: "destructive",
+                variant: "notice",
               });
             }
           }}
@@ -313,7 +313,7 @@ export default function Family() {
             </div>
 
             {problem && (
-              <p role="alert" className="text-sm font-medium text-[var(--accent-deep)]">
+              <p role="alert" className="text-sm font-medium text-[var(--notice)]">
                 {problem}
               </p>
             )}

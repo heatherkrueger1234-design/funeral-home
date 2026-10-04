@@ -393,7 +393,7 @@ function PhotoYears({ photos, open }: { photos: CasePhoto[]; open: boolean }) {
                 }}
               />
               {problem && (
-                <p id={`${inputId}-problem`} className="mt-1 text-sm font-medium text-[var(--accent-deep)]">
+                <p id={`${inputId}-problem`} className="mt-1 text-sm font-medium text-[var(--notice)]">
                   {problem}
                 </p>
               )}

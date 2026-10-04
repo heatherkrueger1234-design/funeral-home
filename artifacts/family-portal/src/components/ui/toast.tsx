@@ -28,8 +28,15 @@ const toastVariants = cva(
     variants: {
       variant: {
         default: "border-[var(--border)] bg-[var(--card)] text-foreground",
-        destructive:
-          "destructive group border-[var(--destructive)] bg-[var(--destructive)] text-white",
+        /*
+         * Something that did not work. The same card as any other toast,
+         * with a rule in the notice colour down its edge, the way the hub
+         * marks a card worth looking at; never a filled slab of colour,
+         * which is what an alarm looks like. The words say what happened
+         * and what to do next.
+         */
+        notice:
+          "border-[var(--border)] bg-[var(--card)] pl-5 text-foreground before:absolute before:inset-y-0 before:left-0 before:w-1 before:bg-[var(--notice)]",
       },
     },
     defaultVariants: {
@@ -60,7 +67,7 @@ const ToastAction = React.forwardRef<
   <ToastPrimitives.Action
     ref={ref}
     className={cn(
-      "inline-flex h-8 shrink-0 items-center justify-center rounded-md border bg-transparent px-3 text-sm font-medium ring-offset-background transition-colors hover:bg-secondary focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 group-[.destructive]:border-muted/40 group-[.destructive]:hover:border-destructive/30 group-[.destructive]:hover:bg-destructive group-[.destructive]:hover:text-destructive-foreground group-[.destructive]:focus:ring-destructive",
+      "inline-flex h-8 shrink-0 items-center justify-center rounded-md border bg-transparent px-3 text-sm font-medium ring-offset-background transition-colors hover:bg-secondary focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:pointer-events-none disabled:opacity-50",
       className
     )}
     {...props}
@@ -78,7 +85,7 @@ const ToastClose = React.forwardRef<
       // Always visible and a full 44px to aim at. It used to appear only on
       // hover, which a phone never has, and to be drawn in raw reds that are
       // not the product's tokens.
-      "absolute right-0 top-0 grid size-11 place-items-center rounded-md text-foreground/60 transition-colors hover:text-foreground group-[.destructive]:text-white/80 group-[.destructive]:hover:text-white",
+      "absolute right-0 top-0 grid size-11 place-items-center rounded-md text-foreground/60 transition-colors hover:text-foreground",
       className
     )}
     toast-close=""

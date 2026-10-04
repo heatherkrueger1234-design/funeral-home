@@ -56,8 +56,8 @@ const Stop = lazy(() => import("@/pages/Stop"));
  * a background refresh nobody asked about.
  *
  * A 401 means the link has stopped working. The shell replaces the whole
- * screen with an explanation in that case, and a red error box on top of it
- * would only add noise.
+ * screen with an explanation in that case, and a toast on top of it would
+ * only add noise.
  */
 const queryClient = new QueryClient({
   queryCache: new QueryCache({
@@ -81,12 +81,12 @@ const queryClient = new QueryClient({
       if (isUnauthorized(error)) return;
       // A form that shows its own refusal beside the field it is about says
       // so with `meta: { inlineErrors: true }`; the same words again in a
-      // red box at the top of the screen is the form shouting twice.
+      // toast at the top of the screen is the form shouting twice.
       if (mutation.meta?.["inlineErrors"]) return;
       toast({
         title: "That didn't save",
         description: describeError(error),
-        variant: "destructive",
+        variant: "notice",
       });
     },
   }),
