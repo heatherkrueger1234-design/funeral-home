@@ -198,6 +198,14 @@ export default function Photos() {
   const portrait = photos.data?.find((photo) => photo.isPortrait) ?? null;
   const framingPhoto = photos.data?.find((photo) => photo.id === framing) ?? null;
 
+  /*
+   * The third switch, named the same in the key above the list and under
+   * every photograph. On a plan it is the reader's own face, in the present
+   * tense: "How they looked" would be said about somebody who has died.
+   */
+  const voice = voiceFor(session.data?.case.kind);
+  const lookLabel = voice.preNeed ? "How you look" : "How they looked";
+
   /**
    * Selection is expressed as the whole list, so a tap has to rebuild it.
    * Toggling on appends, which puts a newly chosen photograph at the end of
@@ -488,9 +496,9 @@ export default function Photos() {
             <dd className="inline"> — the one on the printed cards. Just one.</dd>
           </div>
           <div>
-            <dt className="inline font-semibold text-foreground">How they looked</dt>
+            <dt className="inline font-semibold text-foreground">{lookLabel}</dt>
             <dd className="inline">
-              {voiceFor(session.data?.case.kind).preNeed
+              {voice.preNeed
                 ? " — a recent, clear one of you, so the funeral home knows how you like to look. Just one."
                 : " — a recent, clear one, so the funeral home can prepare them as you remember them. Just one."}
             </dd>
@@ -675,7 +683,7 @@ export default function Photos() {
                 */}
                 <PhotoToggle
                   icon={Eye}
-                  label="How they looked"
+                  label={lookLabel}
                   on={photo.isReference}
                   // One photograph holds this at a time, like the main one,
                   // so tapping the one that already has it changes nothing.

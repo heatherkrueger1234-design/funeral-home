@@ -33,6 +33,8 @@ import {
   type EntryValues,
 } from "@/components/memory-book";
 import { isClosedBook, parseYear, yearsLabel } from "@/lib/memory-book";
+import { voiceFor } from "@/lib/voice";
+import NotFound from "@/pages/NotFound";
 
 /**
  * The memory book, from the family's side.
@@ -424,7 +426,17 @@ export default function MemoryBook() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const session = useGetFamilySession();
-  const book = useGetFamilyMemoryBook();
+  /*
+   * Not offered on a plan, and the hub has no way here on one: a book of
+   * memories is written about somebody who has died, and the person reading
+   * a plan is alive and arranging their own funeral. Somebody who arrives
+   * by the address is told the page is not here, and the book is never
+   * asked for, because asking for it is what makes one.
+   */
+  const preNeed = voiceFor(session.data?.case.kind).preNeed;
+  const book = useGetFamilyMemoryBook({
+    query: { queryKey: getGetFamilyMemoryBookQueryKey(), enabled: !preNeed },
+  });
   const photos = useGetFamilyPhotos();
 
   const [editingEntry, setEditingEntry] = useState<number | null>(null);
@@ -453,6 +465,8 @@ export default function MemoryBook() {
   const createChapter = useCreateFamilyLifeChapter({ mutation: { onError } });
   const updateChapter = useUpdateFamilyLifeChapter({ mutation: { onError } });
   const deleteChapter = useDeleteFamilyLifeChapter({ mutation: { onSuccess: refresh } });
+
+  if (preNeed) return <NotFound />;
 
   if (book.isPending || session.isPending) {
     return (

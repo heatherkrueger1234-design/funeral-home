@@ -7,6 +7,7 @@ import {
   useDeleteFamilyBelonging,
   useGetFamilyPreparation,
   useUpdateFamilyPreparation,
+  useGetFamilySession,
   getGetFamilyBelongingsQueryKey,
   getGetFamilyPreparationQueryKey,
 } from "@workspace/api-client-react";
@@ -23,6 +24,7 @@ import {
 } from "@/components/ui/select";
 import { Check, Lock, Plus, Shirt, X } from "lucide-react";
 import { Divider, Empty, LoadFailed, Loading, PageHeader } from "@/components/page";
+import { voiceFor } from "@/lib/voice";
 
 /**
  * What to bring in, and how they should look.
@@ -38,27 +40,51 @@ import { Divider, Empty, LoadFailed, Loading, PageHeader } from "@/components/pa
  * the item in.
  */
 
-const DISPOSITIONS = [
-  { value: "undecided", label: "Not decided yet" },
-  { value: "with_deceased", label: "Stays with them" },
-  { value: "return_to_family", label: "Comes back to us" },
-];
+/*
+ * The choices are the reader's own answer, so they are in the reader's own
+ * voice: a family says "Comes back to us", and somebody planning their own
+ * funeral says "Goes to my family".
+ */
+function dispositionsFor(preNeed: boolean) {
+  return [
+    { value: "undecided", label: "Not decided yet" },
+    { value: "with_deceased", label: preNeed ? "Stays with me" : "Stays with them" },
+    {
+      value: "return_to_family",
+      label: preNeed ? "Goes to my family" : "Comes back to us",
+    },
+  ];
+}
 
-const KINDS = [
-  { value: "clothing", label: "Clothing" },
-  { value: "undergarments", label: "Undergarments" },
-  { value: "shoes", label: "Shoes" },
-  // The stored value keeps the schema's spelling; the family reads US English.
-  { value: "jewellery", label: "Jewelry" },
-  { value: "glasses", label: "Glasses" },
-  { value: "keepsake", label: "Something to go with them" },
-  { value: "other", label: "Something else" },
-];
+function kindsFor(preNeed: boolean) {
+  return [
+    { value: "clothing", label: "Clothing" },
+    { value: "undergarments", label: "Undergarments" },
+    { value: "shoes", label: "Shoes" },
+    // The stored value keeps the schema's spelling; the family reads US English.
+    { value: "jewellery", label: "Jewelry" },
+    { value: "glasses", label: "Glasses" },
+    {
+      value: "keepsake",
+      label: preNeed ? "Something to go with me" : "Something to go with them",
+    },
+    { value: "other", label: "Something else" },
+  ];
+}
 
 export default function Belongings() {
   const queryClient = useQueryClient();
   const items = useGetFamilyBelongings();
   const preparation = useGetFamilyPreparation();
+  const session = useGetFamilySession();
+  /*
+   * On a plan the person reading is the person this page is about, so it
+   * asks how they like to look, in the present tense and in their own
+   * words — never how they looked.
+   */
+  const voice = voiceFor(session.data?.case.kind);
+  const dispositions = dispositionsFor(voice.preNeed);
+  const kinds = kindsFor(voice.preNeed);
 
   const [description, setDescription] = useState("");
   const [kind, setKind] = useState("keepsake");
@@ -137,12 +163,19 @@ export default function Belongings() {
       </PageHeader>
 
       <section className="space-y-3">
-        <Divider label="What they'll wear, and what to keep" />
+        <Divider
+          label={
+            voice.preNeed
+              ? "What to wear, and what to keep"
+              : "What they'll wear, and what to keep"
+          }
+        />
 
         {rows.length === 0 && (
           <Empty icon={Shirt} title="Nothing listed yet">
-            Add a suit, a dress, a ring — anything you would like them to have
-            with them, or anything you want back afterwards.
+            {voice.preNeed
+              ? "Add a suit, a dress, a ring — anything you would like to have with you, or anything your family should keep afterwards."
+              : "Add a suit, a dress, a ring — anything you would like them to have with them, or anything you want back afterwards."}
           </Empty>
         )}
 
@@ -172,7 +205,7 @@ export default function Belongings() {
                         <Lock className="size-3" />
                         The funeral home has it
                       </span>
-                      {DISPOSITIONS.find((entry) => entry.value === item.disposition)?.label}
+                      {dispositions.find((entry) => entry.value === item.disposition)?.label}
                     </p>
                   </div>
                 ) : (
@@ -210,7 +243,7 @@ export default function Belongings() {
                             <SelectValue />
                           </SelectTrigger>
                           <SelectContent>
-                            {DISPOSITIONS.map((entry) => (
+                            {dispositions.map((entry) => (
                               <SelectItem key={entry.value} value={entry.value}>
                                 {entry.label}
                               </SelectItem>
@@ -252,7 +285,7 @@ export default function Belongings() {
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              {KINDS.map((entry) => (
+              {kinds.map((entry) => (
                 <SelectItem key={entry.value} value={entry.value}>
                   {entry.label}
                 </SelectItem>
@@ -286,10 +319,11 @@ export default function Belongings() {
       </section>
 
       <section className="space-y-5">
-        <Divider label="How they looked" />
+        <Divider label={voice.preNeed ? "How you like to look" : "How they looked"} />
 
         <p className="text-muted-foreground">
-          Whatever you can tell us helps. Even "she never wore makeup" is
+          Whatever you can tell us helps. Even{" "}
+          {voice.preNeed ? '"I never wear makeup"' : '"she never wore makeup"'} is
           exactly the sort of thing we need to know.
         </p>
 
@@ -301,11 +335,15 @@ export default function Belongings() {
         )}
 
         <div className="space-y-2">
-          <Label htmlFor="hair">Their hair</Label>
+          <Label htmlFor="hair">{voice.Their} hair</Label>
           <Textarea
             id="hair"
             rows={3}
-            placeholder="How it was parted, whether it was set, who used to do it."
+            placeholder={
+              voice.preNeed
+                ? "How you part it, whether you have it set, who does it."
+                : "How it was parted, whether it was set, who used to do it."
+            }
             key={prep?.hairNotes ?? ""}
             {...noteProps("hairNotes")}
           />
@@ -316,18 +354,27 @@ export default function Belongings() {
           <Textarea
             id="cosmetics"
             rows={3}
-            placeholder="How much, and what they wore. Or that they never wore any."
+            placeholder={
+              voice.preNeed
+                ? "How much, and what you wear. Or that you never wear any."
+                : "How much, and what they wore. Or that they never wore any."
+            }
             key={prep?.cosmeticsNotes ?? ""}
             {...noteProps("cosmeticsNotes")}
           />
         </div>
 
         <div className="space-y-2">
-          <Label htmlFor="jewellery">Jewelry they should be wearing</Label>
+          <Label htmlFor="jewellery">
+            {voice.preNeed ? "Jewelry you'd like to wear" : "Jewelry they should be wearing"}
+          </Label>
           <Textarea
             id="jewellery"
             rows={2}
-            placeholder="Her wedding ring, left hand."
+            // An example of an answer, so in the words of whoever is answering.
+            placeholder={
+              voice.preNeed ? "My wedding ring, left hand." : "Her wedding ring, left hand."
+            }
             key={prep?.jewelleryNotes ?? ""}
             {...noteProps("jewelleryNotes")}
           />
@@ -338,15 +385,22 @@ export default function Belongings() {
           <Textarea
             id="other"
             rows={3}
-            placeholder="A scarf she always wore. Glasses on or off. Anything at all."
+            placeholder={
+              voice.preNeed
+                ? "A scarf I always wear. Glasses on or off. Anything at all."
+                : "A scarf she always wore. Glasses on or off. Anything at all."
+            }
             key={prep?.otherNotes ?? ""}
             {...noteProps("otherNotes")}
           />
         </div>
 
+        {/* On a plan, the switch is quoted by the name it has under each
+            photograph there, so it can be found. */}
         <p className="border-l-2 border-[var(--accent)]/30 pl-4 text-sm leading-relaxed text-muted-foreground">
-          It also helps enormously to mark a recent photograph as “this is how
-          they looked” on the photographs page.
+          It also helps enormously to mark a recent photograph as{" "}
+          {voice.preNeed ? "“How you look”" : "“this is how they looked”"} on
+          the photographs page.
         </p>
       </section>
     </div>
