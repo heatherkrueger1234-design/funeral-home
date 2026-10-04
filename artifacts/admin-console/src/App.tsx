@@ -6,7 +6,8 @@ import {
   useQuery,
   useQueryClient,
 } from "@tanstack/react-query";
-import { api, isForbidden, isUnauthorized } from "@/lib/api";
+import { api, worthRetrying } from "@/lib/api";
+import { gateScreen, type Session } from "@/lib/gate";
 import { Shell } from "@/components/Shell";
 import { Button, Card, ErrorState, Missing, usePageTitle } from "@/components/ui";
 import { SignIn } from "@/pages/SignIn";
@@ -23,10 +24,7 @@ import { BASE_PATH } from "@/lib/base";
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
-      // A 401 or a 403 is an answer, not a failure. Retrying either just
-      // makes the sign-in page take four seconds to appear.
-      retry: (count, error) =>
-        !isUnauthorized(error) && !isForbidden(error) && count < 1,
+      retry: worthRetrying,
       /*
        * Off, because nearly every read in this console is an audited read.
        * Switching back to this tab used to re-open the home on screen, and
@@ -40,8 +38,6 @@ const queryClient = new QueryClient({
     },
   },
 });
-
-type Session = { user: { email: string; emailVerified: boolean } };
 
 /**
  * The gate, and the two things that can be wrong.
@@ -85,15 +81,11 @@ function Gate() {
     void queryClient.resetQueries();
   }, [queryClient]);
 
-  if (session.isPending) return null;
+  const gate = gateScreen(session, access);
 
-  /*
-   * Only a 401 means "signed out". Anything else -- the API restarting, a
-   * 500, the network dropping -- used to fall through to the sign-in form,
-   * which told a signed-in admin their session was gone and invited them to
-   * type their password into a page whose server was not answering.
-   */
-  if (session.error && !isUnauthorized(session.error)) {
+  if (gate.screen === "nothing") return null;
+
+  if (gate.screen === "error") {
     return (
       <main className="mx-auto grid min-h-dvh max-w-md place-items-center px-6 py-12">
         <div className="w-full">
@@ -107,19 +99,13 @@ function Gate() {
     );
   }
 
-  if (!session.data) {
-    return <SignIn onSignedIn={refresh} />;
-  }
+  if (gate.screen === "sign-in") return <SignIn onSignedIn={refresh} />;
 
-  if (access.isPending) return null;
-
-  if (isUnauthorized(access.error)) return <SignIn onSignedIn={refresh} />;
-
-  if (access.error) {
+  if (gate.screen === "not-for-you") {
     return (
       <NotForYou
-        unconfirmed={!session.data.user.emailVerified}
-        forbidden={isForbidden(access.error)}
+        unconfirmed={gate.unconfirmed}
+        forbidden={gate.forbidden}
         onRetry={() => void access.refetch()}
         onSignedOut={signedOut}
       />
@@ -127,7 +113,7 @@ function Gate() {
   }
 
   return (
-    <Shell signedInAs={session.data.user.email} onSignedOut={signedOut}>
+    <Shell signedInAs={gate.signedInAs} onSignedOut={signedOut}>
       <Switch>
         <Route path="/" component={Overview} />
         <Route path="/homes" component={Homes} />
