@@ -1,5 +1,5 @@
 import { useCallback, useState } from "react";
-import { Route, Router, Switch, useParams } from "wouter";
+import { Route, Router, Switch, useLocation, useParams } from "wouter";
 import {
   QueryClient,
   QueryClientProvider,
@@ -9,6 +9,7 @@ import {
 import { api, worthRetrying } from "@/lib/api";
 import { gateScreen, type Session } from "@/lib/gate";
 import { Shell } from "@/components/Shell";
+import { CrashBoundary } from "@/components/CrashBoundary";
 import { Button, Card, ErrorState, Missing, usePageTitle } from "@/components/ui";
 import { SignIn } from "@/pages/SignIn";
 import { Overview } from "@/pages/Overview";
@@ -49,6 +50,7 @@ const queryClient = new QueryClient({
  */
 function Gate() {
   const queryClient = useQueryClient();
+  const [location] = useLocation();
 
   const session = useQuery({
     queryKey: ["session"],
@@ -114,17 +116,21 @@ function Gate() {
 
   return (
     <Shell signedInAs={gate.signedInAs} onSignedOut={signedOut}>
-      <Switch>
-        <Route path="/" component={Overview} />
-        <Route path="/homes" component={Homes} />
-        <Route path="/homes/:homeId" component={HomeRoute} />
-        <Route path="/groups" component={Groups} />
-        <Route path="/groups/:groupId" component={GroupRoute} />
-        <Route path="/audit" component={Audit} />
-        <Route path="/admins" component={Admins} />
-        <Route path="/plans" component={Plans} />
-        <Route component={NotFound} />
-      </Switch>
+      {/* Keyed on the address, so the next screen clears a failed one and
+          the navigation never goes with it. */}
+      <CrashBoundary key={location}>
+        <Switch>
+          <Route path="/" component={Overview} />
+          <Route path="/homes" component={Homes} />
+          <Route path="/homes/:homeId" component={HomeRoute} />
+          <Route path="/groups" component={Groups} />
+          <Route path="/groups/:groupId" component={GroupRoute} />
+          <Route path="/audit" component={Audit} />
+          <Route path="/admins" component={Admins} />
+          <Route path="/plans" component={Plans} />
+          <Route component={NotFound} />
+        </Switch>
+      </CrashBoundary>
     </Shell>
   );
 }
