@@ -89,6 +89,7 @@ export function BillingSection({ readOnly }: { readOnly: boolean }) {
     hasSubscription,
     freeTrialDays,
     trialEnded,
+    trialEndsAt,
     annualAvailable,
   } = billing.data;
   const canStartTrial = !billingConfigured && freeTrialDays > 0;
@@ -106,6 +107,13 @@ export function BillingSection({ readOnly }: { readOnly: boolean }) {
       default:
         if (trialEnded) {
           return "Your free trial has ended. Everything already here stays available; new cases are paused until you start again.";
+        }
+        if (hasSubscription) {
+          // Subscribed during the trial; Stripe takes the first payment when
+          // the free days are over.
+          return trialDaysLeft && trialEndsAt
+            ? `Subscribed. Free until ${new Date(trialEndsAt).toLocaleDateString()}, when the first payment is taken.`
+            : "Subscribed. Your free trial is over and the first payment is being taken.";
         }
         return trialDaysLeft === null
           ? "On a free trial."

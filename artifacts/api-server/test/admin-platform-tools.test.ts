@@ -134,6 +134,38 @@ describe("groups from the console", () => {
     expect(log.map((row) => row.detail)).toContain('Moved into "Front Range Group"');
   });
 
+  it("takes in a home whose own subscription has ended, and refuses one still running", async () => {
+    const admin = await signInAdmin();
+    const ended = await signUpHome("Horan & McConaty");
+    const running = await signUpHome("Aspen & Vale");
+    await db
+      .update(funeralHomesTable)
+      .set({ subscriptionStatus: "canceled", stripeSubscriptionId: "sub_ended" })
+      .where(eq(funeralHomesTable.id, ended.homeId));
+    await db
+      .update(funeralHomesTable)
+      .set({ subscriptionStatus: "trial", stripeSubscriptionId: "sub_trialing" })
+      .where(eq(funeralHomesTable.id, running.homeId));
+
+    const group = await admin.agent
+      .post("/api/admin/groups")
+      .send({ name: "Front Range Group" })
+      .expect(201);
+
+    // A subscription that has ended charges nobody, so there is nothing
+    // to be charged for twice.
+    await admin.agent
+      .put(`/api/admin/homes/${ended.homeId}/group`)
+      .send({ groupId: group.body.id })
+      .expect(200);
+
+    // A trial Stripe holds becomes a charge by itself.
+    await admin.agent
+      .put(`/api/admin/homes/${running.homeId}/group`)
+      .send({ groupId: group.body.id })
+      .expect(409);
+  });
+
   it("refuses a group that does not exist without logging a move", async () => {
     const admin = await signInAdmin();
     const home = await signUpHome("Horan & McConaty");

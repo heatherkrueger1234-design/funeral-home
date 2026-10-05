@@ -12,8 +12,10 @@ import {
   canOpenCases,
   freeTrialDays,
   hasAddOn,
+  hasLiveSubscription,
   isAddOnKey,
   trialDaysLeft,
+  trialHasEnded,
   type AddOnKey,
   type FuneralHome,
 } from "@workspace/db";
@@ -193,15 +195,16 @@ function toBillingJson(
     /** Days a subscribe button gives, with no card. 0 when switched off. */
     freeTrialDays: freeTrialDays(),
     /** The trial ran out and nothing has replaced it: new cases are paused. */
-    trialEnded:
-      home.subscriptionStatus === "trial" &&
-      home.trialEndsAt !== null &&
-      home.trialEndsAt <= new Date(),
+    trialEnded: trialHasEnded(home),
     currentPeriodEndsAt: home.currentPeriodEndsAt,
     canOpenCases: canOpenCases(home),
     billingConfigured: isBillingConfigured(),
     annualAvailable: isBillingConfigured() && isAnnualConfigured(),
-    hasSubscription: home.stripeSubscriptionId !== null,
+    /**
+     * A subscription that has not ended, trial included: the portal is the
+     * place for it. False after one ends, so the console offers a new one.
+     */
+    hasSubscription: hasLiveSubscription(home),
     onboarding,
     onboardingComplete: onboarding.every((step) => step.done),
   };

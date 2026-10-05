@@ -181,6 +181,7 @@ export function TrialBanner() {
     freeTrialDays,
     trialEnded,
     trialEndsAt,
+    hasSubscription,
   } = billing.data;
   // The server lets only an owner start a subscription; anybody else is told
   // who can, rather than handed a button that fails.
@@ -189,6 +190,33 @@ export function TrialBanner() {
   const canceled = subscriptionStatus === "canceled";
   const onTrial = subscriptionStatus === "trial" && !trialEnded;
   if (!canceled && !trialEnded && !onTrial) return null;
+
+  /*
+   * Subscribed before the free days ran out: Stripe holds the rest of the
+   * trial and starts the subscription when it ends. A line saying when, and
+   * no button -- the one this banner otherwise offers is the subscription
+   * they already have.
+   */
+  if (onTrial && hasSubscription) {
+    return (
+      <div
+        role="status"
+        className="mb-6 rounded-xl border border-border bg-card px-4 py-2.5 text-sm leading-relaxed"
+      >
+        {trialDaysLeft && trialEndsAt ? (
+          <>
+            <strong className="tabular">
+              {trialDaysLeft} day{trialDaysLeft === 1 ? "" : "s"} left
+            </strong>{" "}
+            on your free trial. Your subscription starts on{" "}
+            {new Date(trialEndsAt).toLocaleDateString(undefined, { day: "numeric", month: "long" })}.
+          </>
+        ) : (
+          "Your free trial is over, and your subscription is starting."
+        )}
+      </div>
+    );
+  }
 
   const closing = onTrial && (trialDaysLeft ?? 99) <= 7;
   const ended = canceled || trialEnded;

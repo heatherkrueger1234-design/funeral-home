@@ -261,6 +261,10 @@ export async function startFreeTrial(
       trialEndsAt,
       // A new trial earns its own reminders.
       trialRemindersSent: "",
+      // This trial is ours. Left pointing at a subscription that has ended,
+      // it read as one Stripe was holding: no reminders, and an end that
+      // waited on a webhook that was never coming (`trialHasEnded`).
+      stripeSubscriptionId: null,
       updatedAt: now,
     })
     .where(eq(funeralHomesTable.id, home.id))
@@ -276,6 +280,7 @@ type StripeSubscription = {
   id: string;
   status: string;
   current_period_end?: number;
+  trial_end?: number | null;
   metadata?: { funeralHomeId?: string; homeGroupId?: string };
   customer?: string;
   items?: { data?: Array<{ price?: { id?: string } }> };
@@ -305,9 +310,17 @@ function entitlementsFrom(subscription: StripeSubscription): string {
 /**
  * Map Stripe's subscription states onto the two questions this app asks.
  *
- * Stripe has more states than the product needs. `trialing` and `active` are
- * both "paying customer"; `past_due` and `unpaid` mean Stripe is chasing,
- * which is not a reason to lock a director out mid-funeral.
+ * Stripe has more states than the product needs. `active` is a paying
+ * customer; `past_due` and `unpaid` mean Stripe is chasing, which is not a
+ * reason to lock a director out mid-funeral.
+ *
+ * `trialing` is a trial, held by Stripe rather than by us: a home that
+ * subscribed before its free days ran out, which Stripe will charge when
+ * they do. It was "active", and that was wrong three ways. The console said
+ * "Active, renewing" about a home that had paid nothing; the funerals it
+ * served in its free days were counted as billable rather than waived, as
+ * the price list promises; and the end of the trial was nowhere the app
+ * could see it. As a trial, `trial_end` becomes the home's trial end.
  *
  * `incomplete` is a first payment still going through, and
  * `incomplete_expired` one that never did. Neither says anything about the
@@ -323,8 +336,9 @@ function entitlementsFrom(subscription: StripeSubscription): string {
 function mapStatus(stripeStatus: string): string | null {
   switch (stripeStatus) {
     case "active":
-    case "trialing":
       return "active";
+    case "trialing":
+      return "trial";
     case "past_due":
     case "unpaid":
       return "past_due";
@@ -338,7 +352,14 @@ function mapStatus(stripeStatus: string): string | null {
 
 function isLive(subscription: StripeSubscription): boolean {
   const status = mapStatus(subscription.status);
-  return status === "active" || status === "past_due";
+  return status !== null && status !== "canceled";
+}
+
+/** Stripe's trial end for a trial it holds; otherwise the one already set. */
+function trialEndOf(subscription: StripeSubscription, current: Date | null): Date | null {
+  return mapStatus(subscription.status) === "trial" && subscription.trial_end
+    ? new Date(subscription.trial_end * 1000)
+    : current;
 }
 
 /** Either the pool or the transaction holding a customer's turn. */
@@ -455,6 +476,7 @@ export async function applySubscription(
     .set({
       subscriptionStatus: mapStatus(subscription.status)!,
       stripeSubscriptionId: subscription.id,
+      trialEndsAt: trialEndOf(subscription, home.trialEndsAt),
       currentPeriodEndsAt: subscription.current_period_end
         ? new Date(subscription.current_period_end * 1000)
         : null,
@@ -534,6 +556,7 @@ async function applyGroupSubscription(
 
   const status = mapStatus(subscription.status)!;
   const entitlements = entitlementsFrom(subscription);
+  const trialEndsAt = trialEndOf(subscription, group.trialEndsAt);
   const periodEnd = subscription.current_period_end
     ? new Date(subscription.current_period_end * 1000)
     : null;
@@ -546,6 +569,7 @@ async function applyGroupSubscription(
       .set({
         subscriptionStatus: status,
         stripeSubscriptionId: subscription.id,
+        trialEndsAt,
         currentPeriodEndsAt: periodEnd,
         entitlements,
         stripeEventCreatedAt: stamped,
@@ -558,7 +582,7 @@ async function applyGroupSubscription(
       .set({
         subscriptionStatus: status,
         currentPeriodEndsAt: periodEnd,
-        trialEndsAt: group.trialEndsAt,
+        trialEndsAt,
         entitlements,
         // Stamped on the locations too, so each row records which event
         // shaped it and a later home-level event cannot be mistaken for an

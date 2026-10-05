@@ -152,6 +152,24 @@ describe("when a reminder is due", () => {
     expect(await remindersSent(staff)).toBe("");
   });
 
+  it("says nothing to a home that subscribed during its trial", async () => {
+    const staff = await signUpHome("Aspen & Vale");
+    await trialEndsIn(staff, 1);
+
+    // Still on its free days, but Stripe holds them now, with a card, and
+    // turns them into a subscription by itself. "Set up a subscription
+    // before then" is not a sentence to send somebody who already has.
+    await db
+      .update(funeralHomesTable)
+      .set({ stripeSubscriptionId: "sub_held" })
+      .where(eq(funeralHomesTable.id, staff.homeId));
+
+    const result = await runTrialReminders();
+
+    expect(result.due).toBe(0);
+    expect(await remindersSent(staff)).toBe("");
+  });
+
   it("says nothing to a suspended home, or to one of ours", async () => {
     const suspended = await signUpHome("Oakwood Chapel");
     await trialEndsIn(suspended, 1);

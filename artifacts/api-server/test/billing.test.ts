@@ -3,7 +3,7 @@ import request from "supertest";
 import { createHmac } from "node:crypto";
 import { eq, sql } from "drizzle-orm";
 import app from "../src/app";
-import { db, funeralHomesTable } from "@workspace/db";
+import { db, billableCasesTable, funeralHomesTable } from "@workspace/db";
 import { createCase, signUpHome } from "./helpers";
 
 const DAY = 24 * 60 * 60 * 1000;
@@ -121,6 +121,48 @@ describe("trials and subscriptions", () => {
       .post("/api/cases")
       .send({ decedentFirstName: "No", decedentLastName: "More" })
       .expect(402);
+  });
+
+  it("does not cut off a home while Stripe turns its trial into a subscription", async () => {
+    const staff = await signUpHome();
+    // Subscribed during the trial; Stripe holds the trial and ends it, and
+    // says within minutes how it ended.
+    await db
+      .update(funeralHomesTable)
+      .set({ stripeSubscriptionId: "sub_held", trialEndsAt: new Date(Date.now() - 60 * 60 * 1000) })
+      .where(eq(funeralHomesTable.id, staff.homeId));
+
+    const waiting = await staff.agent.get("/api/billing").expect(200);
+    expect(waiting.body.trialEnded).toBe(false);
+    expect(waiting.body.canOpenCases).toBe(true);
+    await staff.agent
+      .post("/api/cases")
+      .send({ decedentFirstName: "Opened", decedentLastName: "Anyway" })
+      .expect(201);
+
+    // Not for ever: past the days Stripe goes on retrying a webhook, its
+    // silence is an answer.
+    await db
+      .update(funeralHomesTable)
+      .set({ trialEndsAt: new Date(Date.now() - 4 * DAY) })
+      .where(eq(funeralHomesTable.id, staff.homeId));
+    const silent = await staff.agent.get("/api/billing").expect(200);
+    expect(silent.body.trialEnded).toBe(true);
+    await staff.agent
+      .post("/api/cases")
+      .send({ decedentFirstName: "Not", decedentLastName: "Now" })
+      .expect(402);
+  });
+
+  it("offers a home whose subscription ended a new one, not the old one's portal", async () => {
+    const staff = await signUpHome();
+    await db
+      .update(funeralHomesTable)
+      .set({ subscriptionStatus: "canceled", stripeSubscriptionId: "sub_ended" })
+      .where(eq(funeralHomesTable.id, staff.homeId));
+
+    const billing = await staff.agent.get("/api/billing").expect(200);
+    expect(billing.body.hasSubscription).toBe(false);
   });
 
   it("says plainly when the deployment has no Stripe keys", async () => {
@@ -379,6 +421,7 @@ describe("the Stripe webhook, asking Stripe", () => {
     status: string;
     customer: string;
     metadata: { funeralHomeId: string };
+    trial_end?: number;
   };
 
   /**
@@ -544,6 +587,33 @@ describe("the Stripe webhook, asking Stripe", () => {
     ).expect(200);
 
     expect((await homeRow(staff.homeId)).subscriptionStatus).toBe("canceled");
+  });
+
+  it("keeps a home that subscribed during its trial on a trial, until Stripe's ends", async () => {
+    const staff = await signUpHome();
+    const trialEnd = Math.floor((Date.now() + 20 * DAY) / 1000);
+    const held = { ...subscriptionOf(staff.homeId, "sub_held", "trialing"), trial_end: trialEnd };
+    stripeHas([held]);
+
+    await deliver("customer.subscription.created", held).expect(200);
+
+    // Not "active, renewing": nothing has been paid, and nothing will be
+    // until the free days are over.
+    const billing = await staff.agent.get("/api/billing").expect(200);
+    expect(billing.body.subscriptionStatus).toBe("trial");
+    expect(new Date(billing.body.trialEndsAt).getTime()).toBe(trialEnd * 1000);
+    expect(billing.body.trialDaysLeft).toBe(20);
+    expect(billing.body.trialEnded).toBe(false);
+    expect(billing.body.hasSubscription).toBe(true);
+
+    // And a funeral in those days is a trial funeral, counted and waived,
+    // as the price list promises.
+    const row = await createCase(staff);
+    const [counted] = await db
+      .select()
+      .from(billableCasesTable)
+      .where(eq(billableCasesTable.caseId, row.id));
+    expect(counted!.waivedReason).toBe("trial");
   });
 
   it("asks Stripe to send the event again when Stripe cannot be reached", async () => {

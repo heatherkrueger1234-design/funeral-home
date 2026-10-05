@@ -9,6 +9,7 @@ import {
   homeLicensureTable,
   platformAuditTable,
   practitionerLicencesTable,
+  hasLiveSubscription,
   trialDaysLeft,
   usersTable,
   type FuneralHome,
@@ -675,6 +676,9 @@ export function toAdminHome(home: FuneralHome) {
     accentColor: home.accentColor,
     subscriptionStatus: home.subscriptionStatus,
     trialDaysLeft: trialDaysLeft(home),
+    // Whether Stripe holds a subscription that has not ended -- the one fact
+    // that tells a home on trial that has given a card from one that has not.
+    hasSubscription: hasLiveSubscription(home),
     // The dates behind the status. "On trial, 3 days left" answers the
     // question on the day; the date is what goes in the follow-up email, and
     // a renewal date is the only way to tell "subscribed" from "subscribed

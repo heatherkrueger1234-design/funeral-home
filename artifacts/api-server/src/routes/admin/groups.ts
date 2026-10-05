@@ -3,6 +3,7 @@ import {
   db,
   freeTrialEndsAt,
   funeralHomesTable,
+  hasLiveSubscription,
   homeGroupsTable,
   isAddOnKey,
   type AddOnKey,
@@ -88,7 +89,7 @@ function toAdminGroup(group: HomeGroup, locations: number) {
     subscriptionStatus: group.subscriptionStatus,
     trialEndsAt: group.trialEndsAt,
     currentPeriodEndsAt: group.currentPeriodEndsAt,
-    hasSubscription: group.stripeSubscriptionId !== null,
+    hasSubscription: hasLiveSubscription(group),
     entitlements: group.entitlements
       .split(",")
       .map((entry) => entry.trim())
@@ -294,7 +295,9 @@ router.put("/admin/homes/:homeId/group", async (req, res) => {
     return;
   }
 
-  if (home.stripeSubscriptionId !== null && home.groupId === null) {
+  // A subscription that has ended charges nobody; one still running, a
+  // trial Stripe holds included, would be charged alongside the group's.
+  if (hasLiveSubscription(home) && home.groupId === null) {
     throw new HttpError(
       409,
       "This home has its own subscription. Cancel it in Stripe first, or " +

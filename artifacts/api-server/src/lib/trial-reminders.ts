@@ -129,7 +129,11 @@ export async function runTrialReminders(
    *
    * `subscriptionStatus = 'trial'` excludes a home that has already
    * subscribed, which is the whole point — nobody who has paid should ever
-   * receive a message about their trial ending. Internal accounts are
+   * receive a message about their trial ending. Nor should a home that
+   * subscribed during its trial: that trial is Stripe's now, with a card
+   * behind it, and "set up a subscription before then" would be asking
+   * them to do it twice. Stripe's own reminder before a trial it holds
+   * ends is switched on in its settings (DEPLOY.md). Internal accounts are
    * excluded because emailing ourselves about our own trial is noise, and
    * suspended homes because a reminder to subscribe is not the conversation
    * that needs having with a home somebody switched off on purpose.
@@ -151,6 +155,7 @@ export async function runTrialReminders(
     .where(
       and(
         eq(funeralHomesTable.subscriptionStatus, "trial"),
+        isNull(funeralHomesTable.stripeSubscriptionId),
         isNotNull(funeralHomesTable.trialEndsAt),
         eq(funeralHomesTable.internalAccount, false),
         isNull(funeralHomesTable.suspendedAt),

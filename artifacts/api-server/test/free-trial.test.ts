@@ -52,6 +52,30 @@ describe("the free trial behind every subscribe button", () => {
       .expect(201);
   });
 
+  it("gives a home whose subscription ended a trial of its own, not Stripe's", async () => {
+    const staff = await signUpHome();
+    await db
+      .update(funeralHomesTable)
+      .set({ subscriptionStatus: "canceled", stripeSubscriptionId: "sub_ended" })
+      .where(eq(funeralHomesTable.id, staff.homeId));
+
+    await staff.agent
+      .post("/api/billing/checkout")
+      .send({ returnUrl: "https://example.com/settings" })
+      .expect(200);
+
+    // Left pointing at the old subscription, this trial looked like one
+    // Stripe was holding: no reminders before it ended, and no end on time.
+    const [home] = await db
+      .select()
+      .from(funeralHomesTable)
+      .where(eq(funeralHomesTable.id, staff.homeId));
+    expect(home!.subscriptionStatus).toBe("trial");
+    expect(home!.stripeSubscriptionId).toBeNull();
+    const billing = await staff.agent.get("/api/billing").expect(200);
+    expect(billing.body.hasSubscription).toBe(false);
+  });
+
   it("never shortens a trial already running", async () => {
     const staff = await signUpHome();
     const long = new Date(Date.now() + 60 * DAY);
