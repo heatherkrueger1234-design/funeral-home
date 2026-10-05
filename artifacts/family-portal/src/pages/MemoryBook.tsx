@@ -33,6 +33,8 @@ import {
   type EntryValues,
 } from "@/components/memory-book";
 import { isClosedBook, parseYear, yearsLabel } from "@/lib/memory-book";
+import { voiceFor } from "@/lib/voice";
+import NotFound from "@/pages/NotFound";
 
 /**
  * The memory book, from the family's side.
@@ -310,6 +312,11 @@ function PhotoYears({ photos, open }: { photos: CasePhoto[]; open: boolean }) {
   });
 
   const chosen = photos.filter((photo) => photo.selected);
+  // "The photograph chosen", not "The 1 photographs chosen".
+  const theChosen =
+    chosen.length === 1
+      ? "The photograph chosen"
+      : `The ${chosen.length} photographs chosen`;
 
   if (chosen.length === 0) {
     return (
@@ -323,7 +330,8 @@ function PhotoYears({ photos, open }: { photos: CasePhoto[]; open: boolean }) {
   if (!open) {
     return (
       <p className="text-sm leading-relaxed text-muted-foreground">
-        The {chosen.length} photographs chosen for the service are in the book.
+        {theChosen} for the service {chosen.length === 1 ? "is" : "are"} in
+        the book.
       </p>
     );
   }
@@ -332,9 +340,10 @@ function PhotoYears({ photos, open }: { photos: CasePhoto[]; open: boolean }) {
     return (
       <div className="space-y-3">
         <p className="text-sm leading-relaxed text-muted-foreground">
-          The {chosen.length} photographs chosen for the service go into the
-          book. If you know roughly when they were taken, the book can show
-          them in that order.
+          {theChosen} for the service{" "}
+          {chosen.length === 1 ? "goes" : "go"} into the book. If you know
+          roughly when {chosen.length === 1 ? "it was" : "they were"} taken,
+          the book can show {chosen.length === 1 ? "it in its place" : "them in that order"}.
         </p>
         <Button type="button" variant="outline" onClick={() => setShown(true)}>
           Add the years
@@ -393,7 +402,7 @@ function PhotoYears({ photos, open }: { photos: CasePhoto[]; open: boolean }) {
                 }}
               />
               {problem && (
-                <p id={`${inputId}-problem`} className="mt-1 text-sm font-medium text-[var(--accent-deep)]">
+                <p id={`${inputId}-problem`} className="mt-1 text-sm font-medium text-[var(--notice)]">
                   {problem}
                 </p>
               )}
@@ -424,7 +433,17 @@ export default function MemoryBook() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const session = useGetFamilySession();
-  const book = useGetFamilyMemoryBook();
+  /*
+   * Not offered on a plan, and the hub has no way here on one: a book of
+   * memories is written about somebody who has died, and the person reading
+   * a plan is alive and arranging their own funeral. Somebody who arrives
+   * by the address is told the page is not here, and the book is never
+   * asked for, because asking for it is what makes one.
+   */
+  const preNeed = voiceFor(session.data?.case.kind).preNeed;
+  const book = useGetFamilyMemoryBook({
+    query: { queryKey: getGetFamilyMemoryBookQueryKey(), enabled: !preNeed },
+  });
   const photos = useGetFamilyPhotos();
 
   const [editingEntry, setEditingEntry] = useState<number | null>(null);
@@ -453,6 +472,8 @@ export default function MemoryBook() {
   const createChapter = useCreateFamilyLifeChapter({ mutation: { onError } });
   const updateChapter = useUpdateFamilyLifeChapter({ mutation: { onError } });
   const deleteChapter = useDeleteFamilyLifeChapter({ mutation: { onSuccess: refresh } });
+
+  if (preNeed) return <NotFound />;
 
   if (book.isPending || session.isPending) {
     return (

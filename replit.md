@@ -582,3 +582,48 @@ configurable part.
 `subscription_due_date`, `discount`, `how_heard_about_us`, `admin_notes`).
 Deploys with the repo-standard `pnpm --filter @workspace/db run push`; there
 are no checked-in SQL migrations.
+
+## The 4 October pass: the clock, the log, and knowing when it breaks
+
+What was built on `ccr-7f48fd16-gacxdi`, and where to look. `STATUS.md` has
+how this branch relates to the others.
+
+**Colorado's 72-hour death-certificate clock.** `death_certificate_filings`
+(`lib/db/src/schema/death-certificates.ts`), one staff-only row per case:
+when the home took custody, when the physician was asked through EDRS (their
+own 72 hours), and when the home filed, with the state file number. The
+window comes from the home's state — Colorado's 72 hours is the only one
+built in, and a blank state reads as Colorado, like the default
+`America/Denver` timezone; anywhere else records the times with no due date.
+`GET/PUT /cases/:caseId/certificate-filing`; the Certificate tab leads with
+it; the master page lists "Death certificates to file". A pre-need file gets
+a 409, a time in the future a 400. We file nothing, and every surface says
+so. No family surface shows a clock.
+
+**The access log a home can read.** `GET /home/access-log`, owner only: the
+home's own lines from `platform_audit`, newest first, paged by id, in plain
+words. Settings shows it. Settings also edits the home's address now; the
+state on it sets the certificate deadline.
+
+**Errors and crashes.** `artifacts/api-server/src/lib/error-tracking.ts`.
+Sentry, off unless `SENTRY_DSN` is set (optionally `SENTRY_ENVIRONMENT`,
+`SENTRY_RELEASE`): every 5xx, plus every crash the three apps report to
+`POST /api/client-errors` on their own origin. Nothing personal is sent —
+every data-collection category off, no breadcrumbs, the route pattern rather
+than the URL, and messages scrubbed of addresses, tokens and numbers;
+`error-tracking.test.ts` reads the envelopes. Each app has a `CrashBoundary`
+and `lib/crash-report.ts`. `.github/workflows/uptime.yml` asks
+`/api/healthz` every fifteen minutes once `API_URL` is set. Add Sentry to the
+DPA's sub-processors before setting the DSN.
+
+**Colour.** No red anywhere in the family portal, and in the console only to
+confirm something destructive: errors use `--notice` in all three apps. The
+default border colour moved into `@layer base`; outside a layer it had been
+beating every Tailwind border colour in every app.
+
+**Smaller things.** The family's certificate responses no longer carry the
+home's notes or the last four of the SSN. Pre-need files speak to the living
+person on every page (`lib/voice.ts`) and no longer name the planner as the
+informant. The master page is headed "Today". The platform console has a
+test suite (`artifacts/admin-console/src/lib/*.test.ts`, run on a Denver
+clock).

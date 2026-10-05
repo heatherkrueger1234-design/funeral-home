@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import {
   useGetFamilyObituary,
+  useGetFamilySession,
   useUpdateFamilyObituary,
   useSubmitFamilyObituary,
   getGetFamilyObituaryQueryKey,
@@ -14,6 +15,7 @@ import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
 import { Check, Lock } from "lucide-react";
 import { Divider, LoadFailed, Loading, PageHeader } from "@/components/page";
+import { voiceFor } from "@/lib/voice";
 
 /**
  * The obituary, as a form rather than a blank page.
@@ -86,6 +88,9 @@ export default function Obituary() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const obituary = useGetFamilyObituary();
+  const session = useGetFamilySession();
+  // On a plan this is somebody writing their own, about a life still going.
+  const voice = voiceFor(session.data?.case.kind);
   const [savedAt, setSavedAt] = useState<number | null>(null);
 
   const refresh = () => {
@@ -160,11 +165,11 @@ export default function Obituary() {
       )}
 
       <div className="space-y-5">
-        <Divider label="Their name and dates" />
+        <Divider label={`${voice.Their} name and dates`} />
 
         <Field
           id="fullName"
-          label="Their full name"
+          label={`${voice.Their} full name`}
           hint="As it should be printed."
           value={draft.fullName}
           disabled={locked}
@@ -187,31 +192,43 @@ export default function Obituary() {
             onSave={save("birthPlace")}
           />
         </div>
-        <div className="grid gap-5 sm:grid-cols-2">
-          <Field
-            id="diedOn"
-            label="Died"
-            value={draft.diedOn}
-            disabled={locked}
-            onSave={save("diedOn")}
-          />
-          <Field
-            id="deathPlace"
-            label="Died at"
-            value={draft.deathPlace}
-            disabled={locked}
-            onSave={save("deathPlace")}
-          />
-        </div>
+        {/*
+          Never asked of somebody writing their own. When the file becomes
+          at-need, the date the home records is written in here by the
+          server (`prefillObituaryDates`), and these two lines appear for the
+          family then.
+        */}
+        {!voice.preNeed && (
+          <div className="grid gap-5 sm:grid-cols-2">
+            <Field
+              id="diedOn"
+              label="Died"
+              value={draft.diedOn}
+              disabled={locked}
+              onSave={save("diedOn")}
+            />
+            <Field
+              id="deathPlace"
+              label="Died at"
+              value={draft.deathPlace}
+              disabled={locked}
+              onSave={save("deathPlace")}
+            />
+          </div>
+        )}
 
         <div className="pt-2">
-          <Divider label="Their life" />
+          <Divider label={`${voice.Their} life`} />
         </div>
 
         <Field
           id="biography"
-          label="Their life"
-          hint="Work, where they lived, what they loved, what they were like. A few sentences is plenty."
+          label={`${voice.Their} life`}
+          hint={
+            voice.preNeed
+              ? "Work, where you've lived, what you love, what matters to you. A few sentences is plenty."
+              : "Work, where they lived, what they loved, what they were like. A few sentences is plenty."
+          }
           value={draft.biography}
           multiline
           disabled={locked}
@@ -222,10 +239,21 @@ export default function Obituary() {
           <Divider label="Family" />
         </div>
 
+        {/*
+          "Survived by" and "Preceded in death by" are the obituary's own
+          words, and both are counted from the death of the person it is
+          about. On a plan the same two lists are just the family: the people
+          in it, and the people who have died. They go into the same fields,
+          and read as the obituary's once the file is at-need.
+        */}
         <Field
           id="survivedBy"
-          label="Survived by"
-          hint="Names, and how they were related. Take your time over the spellings."
+          label={voice.preNeed ? "Your family" : "Survived by"}
+          hint={
+            voice.preNeed
+              ? "Names, and how each of them is related to you. Take your time over the spellings."
+              : "Names, and how they were related. Take your time over the spellings."
+          }
           value={draft.survivedBy}
           multiline
           disabled={locked}
@@ -234,7 +262,7 @@ export default function Obituary() {
 
         <Field
           id="precededBy"
-          label="Preceded in death by"
+          label={voice.preNeed ? "Family who have died" : "Preceded in death by"}
           value={draft.precededBy}
           disabled={locked}
           onSave={save("precededBy")}
@@ -256,7 +284,12 @@ export default function Obituary() {
         <Field
           id="specialThanks"
           label="Anyone to thank"
-          hint="Caregivers, a hospice, the nurses on a ward."
+          // The care at the end of a life has not happened on a plan.
+          hint={
+            voice.preNeed
+              ? "Friends, neighbors, anyone you would like thanked by name."
+              : "Caregivers, a hospice, the nurses on a ward."
+          }
           value={draft.specialThanks}
           multiline
           disabled={locked}

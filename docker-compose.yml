@@ -78,6 +78,10 @@ services:
       STRIPE_WEBHOOK_SECRET: ${STRIPE_WEBHOOK_SECRET:-}
       GOOGLE_PLACES_API_KEY: ${GOOGLE_PLACES_API_KEY:-}
       TASK_SECRET: ${TASK_SECRET:-}
+      # Error tracking. Off when empty; see DEPLOY.md, "Knowing when it breaks".
+      SENTRY_DSN: ${SENTRY_DSN:-}
+      SENTRY_ENVIRONMENT: ${SENTRY_ENVIRONMENT:-production}
+      SENTRY_RELEASE: ${SENTRY_RELEASE:-}
     # Not published either: the only way in is through one of the two nginx
     # containers, which is what makes the cookie same-origin.
 

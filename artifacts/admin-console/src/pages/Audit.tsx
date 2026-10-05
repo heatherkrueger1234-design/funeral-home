@@ -8,6 +8,14 @@ import {
   type AuditEntry,
 } from "@/lib/api";
 import {
+  auditFilterHref,
+  auditFilters,
+  auditQuery,
+  homesInLog,
+  olderThan,
+  platformSubject,
+} from "@/lib/audit";
+import {
   Button,
   Card,
   EmptyState,
@@ -16,8 +24,6 @@ import {
   Select,
   usePageTitle,
 } from "@/components/ui";
-
-const PAGE_SIZE = 100;
 
 /**
  * Every time anybody here looked across a tenant boundary.
@@ -34,51 +40,24 @@ const PAGE_SIZE = 100;
  * filters live in the address, so a home's page can link straight to its own
  * history and the link can be sent to whoever asked.
  */
-const LIMIT = 100;
-
-/**
- * The actions whose missing home means "all of them" rather than "none". The
- * rest -- granting access, groups -- are about no home, and used to be
- * labelled "Every home" as well, which on a page shown to an insurer reads as
- * a far larger read than it was.
- */
-const ACROSS_EVERY_HOME = new Set(["homes.list", "platform.overview"]);
-
 export function Audit() {
   usePageTitle("Access log");
 
   const search = useSearch();
   const [, navigate] = useLocation();
-  const params = new URLSearchParams(search);
-  // `?home=` is accepted as well as `?homeId=`, so a link written either way
-  // -- the home's page has used both -- lands on the same filtered log.
-  const homeId =
-    Number(params.get("homeId")) || Number(params.get("home")) || null;
-  const action = params.get("action") ?? "";
+  const { homeId, action } = auditFilters(search);
 
-  const setFilter = (key: "homeId" | "action", value: string) => {
-    const next = new URLSearchParams(search);
-    if (key === "homeId") next.delete("home");
-    if (value) next.set(key, value);
-    else next.delete(key);
-    const query = next.toString();
-    navigate(query ? `/audit?${query}` : "/audit", { replace: true });
-  };
+  const setFilter = (key: "homeId" | "action", value: string) =>
+    navigate(auditFilterHref(search, key, value), { replace: true });
 
   const query = useInfiniteQuery({
     queryKey: ["audit", { homeId, action }],
     initialPageParam: null as number | null,
-    queryFn: ({ pageParam }) => {
-      const qs = new URLSearchParams({ limit: String(PAGE_SIZE) });
-      if (homeId) qs.set("homeId", String(homeId));
-      if (action) qs.set("action", action);
-      if (pageParam) qs.set("before", String(pageParam));
-      return api.get<AuditEntry[]>(`/admin/audit?${qs.toString()}`);
-    },
-    // A short page is the last one. Asking once more to find an empty page
-    // would work too, but it is a button that does nothing when pressed.
-    getNextPageParam: (last) =>
-      last.length < PAGE_SIZE ? null : (last[last.length - 1]?.id ?? null),
+    queryFn: ({ pageParam }) =>
+      api.get<AuditEntry[]>(
+        `/admin/audit?${auditQuery({ homeId, action }, pageParam)}`,
+      ),
+    getNextPageParam: olderThan,
   });
 
   const entries = useMemo(
@@ -86,26 +65,7 @@ export function Audit() {
     [query.data],
   );
 
-  /*
-   * The homes to filter by are the homes this log mentions, not the homes
-   * list. Fetching that list to fill a dropdown would itself be an audited
-   * read -- the log growing a line because somebody opened the log.
-   */
-  const homes = useMemo(() => {
-    const seen = new Map<number, string>();
-    for (const entry of entries) {
-      if (entry.subjectHomeId !== null && !seen.has(entry.subjectHomeId)) {
-        seen.set(
-          entry.subjectHomeId,
-          entry.subjectHomeName ?? `Home #${entry.subjectHomeId}`,
-        );
-      }
-    }
-    if (homeId !== null && !seen.has(homeId)) {
-      seen.set(homeId, `Home #${homeId}`);
-    }
-    return [...seen.entries()].sort((a, b) => a[1].localeCompare(b[1]));
-  }, [entries, homeId]);
+  const homes = useMemo(() => homesInLog(entries, homeId), [entries, homeId]);
 
   const filtered = homeId !== null || action !== "";
 
@@ -290,16 +250,9 @@ function Subject({ entry }: { entry: AuditEntry }) {
     );
   }
 
-  // Not "every home": a line with no home is about the platform itself --
-  // a group, the list of who has access, the overview -- and saying "every
-  // home" read as though every customer had been opened.
   return (
     <span className="text-[var(--muted-foreground)]">
-      {entry.action.startsWith("group.")
-        ? "A group"
-        : entry.action.startsWith("platform.admin")
-          ? "The access list"
-          : "Platform"}
+      {platformSubject(entry.action)}
     </span>
   );
 }

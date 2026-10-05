@@ -72,7 +72,7 @@ function LinkOnce({
               toast({
                 title: "Couldn't copy that",
                 description: "Select the link and copy it by hand.",
-                variant: "destructive",
+                variant: "notice",
               });
             }
           }}

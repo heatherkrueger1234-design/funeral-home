@@ -44,8 +44,10 @@ production esbuild bundle, through the real nginx config:
   containers restores and verifies. A full restart leaves the photograph
   byte-for-byte identical.
 
-350 tests, 6 projects typechecking, 5 apps building — from a clean
-tree, with no environment variables set.
+682 unit and integration tests (545 API against real Postgres, 60 platform
+console, 53 family portal, 24 director console) and 7 Playwright browser
+tests, every project typechecking and every app building — as of 4 October,
+on `ccr-7f48fd16-gacxdi`. `STATUS.md` says which branch holds what.
 
 ## Lighthouse scores
 
@@ -99,7 +101,7 @@ What moved the numbers:
 | Gap | Severity | What it would take |
 | --- | --- | --- |
 | ~~The container images have never been built or run.~~ **Done.** All four build; the stack comes up healthy, migrates, serves, backs up and restores. Two real bugs were found doing it. | Cleared | — |
-| **No production deployment exists.** Nothing is running anywhere. TLS is now built into the stack (Caddy, automatic Let's Encrypt), and the proxy chain was tested end to end. | **Blocking** | A host, three DNS records, `docker compose up`. An hour or two. |
+| **No production deployment of current code exists.** A Replit publish on 4 October (`demo/2026-10-04`) was built from 28 September's main, before everything since. TLS is built into the Docker stack (Caddy, automatic Let's Encrypt), and the proxy chain was tested end to end. | **Blocking** | A host, DNS for five names, `docker compose up` (`DEPLOY.md`). An hour or two. |
 | **No real family has ever used the family portal.** Every test is synthetic. | **High** | One pilot home, one real case, watch what happens. |
 | **Email and SMS are unconfigured.** Password resets, address confirmations, staff invitations, trial reminders, aftercare and intake alerts are written to the log instead of sent. The email side is ready and tested against a real SMTP server; it needs an account. | **High** | A mail provider account, its DNS records, and `send-test-email` landing in an inbox rather than spam (DEPLOY.md, "Email"). A Twilio number. |
 | ~~Nothing ever told a home its trial was ending.~~ **Done.** A week before, the day before, and on the day, claimed before sending so nobody gets it twice. `trial-reminders.yml` fires it daily. | Cleared | — |
@@ -109,14 +111,14 @@ What moved the numbers:
 | ~~The vendor's own tenant was counted as a customer.~~ **Done.** `internalAccount` takes it out of the list, the counts and the engagement figures. | Cleared | — |
 | **No terms of service, no privacy policy, and no data-processing agreement.** `COLORADO.md` says we are the processor and the home the controller, and that "the data-processing agreement says so" — there is no such document. | **Blocking** | A lawyer. It is the thing a home's insurer asks for before the home's director does. |
 | **There is no price.** The Stripe plumbing is correct and `STRIPE_PRICE_ID` is unset; nothing anywhere says what this costs. | **Blocking** | A decision, then one test-mode charge. |
-| **No error tracking and no uptime monitoring.** When it breaks at 2am before an 11am funeral, we find out from the director. | **High** | Sentry and a check that pages a phone. |
-| **The Colorado 72-hour clock is documented, not built.** The licensure tracker exists; the death-certificate deadline and the statutory authorisation order (C.R.S. 15-19-106) do not. Components 5 and 6 never landed. | **High** | The sales story is currently larger than the product. |
+| ~~**No error tracking and no uptime monitoring.**~~ **Built, waiting on two accounts.** Server errors and every app's crashes go to Sentry once `SENTRY_DSN` is set, scrubbed of anything personal; every app has an error boundary; `uptime.yml` asks the health check every fifteen minutes. | High until switched on | A Sentry project, a phone-paging monitor on `/api/healthz`, and the `API_URL` secret. `DEPLOY.md`, "Knowing when it breaks". |
+| ~~**The Colorado 72-hour clock is documented, not built.**~~ **The clock is built**: custody, the physician's EDRS request and the home's own filing, on the Certificate tab and the master page. **The statutory authorisation order (C.R.S. 15-19-106) and the forms are not.** | **High** | A lawyer first: they record legal authorisations (`COLORADO.md`). PR #8 holds the old attempt. |
 | **Stripe has never taken a real payment.** The webhook signature check is tested; a live charge is not. | **High** | Test-mode keys, one real subscription cycle. |
 | **No prices exist in Stripe.** The per-case meter, the aftercare add-on and the group contract are all built and tested against a stubbed Stripe; none of them has a price behind it. Until `STRIPE_PRICE_ID_CASE` and `STRIPE_CASE_METER_EVENT` are set, every home is invoiced for a flat subscription and nothing says so. | **High** | Five environment variables and one test-mode cycle. `PRICING.md` has the checklist. |
 | **The usage reporter has never run on a schedule.** Same failure the aftercare job had for most of this product's life: the thing that turns work into revenue does nothing until something triggers it. | **High** | Set `TASK_SECRET` and schedule `usage.yml`. |
 | ~~**The memory book has no screens.**~~ **Done.** The family portal has a memory-book page (memories, a eulogy, life-story chapters, photo dating, a preview of the printed book) and the case page has a Memory book tab (typing up a card, leaving an entry out, ordering, the book's settings, closing it for the printer). Every memory-book route is now in `openapi.yaml`, so the contract check covers it. | Cleared | — |
 | ~~**Printed cards show the service time in the server's timezone.**~~ **Done.** `print-render.ts` takes the home's timezone and has no fallback to the host clock. | Cleared | — |
-| **Groups have no console.** The API is complete — create, move locations, consolidated checkout, all audited — but the admin console has no screen for it, so a group is set up with curl. | Medium | A page in Component 2. Fine for the first one or two groups, which will be set up by hand anyway. |
+| ~~**Groups have no console.**~~ **Done.** The platform console has Groups and a group's own page: create, move locations, consolidated checkout, all audited. | Cleared | — |
 | **One API instance, one Postgres, no replication.** | Medium | Fine for a pilot. Not fine at fifty homes. |
 | **Uploads live in Postgres.** Encrypted, correct, and the wrong long-term home for gigabytes of photographs. | Medium | Object storage, when a home's database gets uncomfortable. |
 | **Backups land on the same host** until somebody copies them off. | Medium | An offsite copy job. `DEPLOY.md` has the command. |

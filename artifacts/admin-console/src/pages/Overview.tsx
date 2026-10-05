@@ -2,12 +2,16 @@ import { useQuery } from "@tanstack/react-query";
 import { Link } from "wouter";
 import {
   api,
-  formatDate,
-  formatDateTime,
   plural,
   type AdminHomeSummary,
   type PlatformOverview,
 } from "@/lib/api";
+import {
+  deliveryProblems,
+  quietSentence,
+  splitAttention,
+  trialSentence,
+} from "@/lib/overview";
 import {
   Card,
   CardTitle,
@@ -106,25 +110,7 @@ export function Overview() {
  * trains the eye to skip the card on the day it matters.
  */
 function Delivery({ delivery }: { delivery: PlatformOverview["delivery"] }) {
-  const problems: string[] = [];
-
-  if (!delivery.mailConfigured) {
-    problems.push(
-      "Mail is not set up on this deployment. Aftercare check-ins, trial reminders and password resets are being written to the server log instead of sent.",
-    );
-  }
-
-  if (delivery.aftercareFailedLast30Days > 0) {
-    problems.push(
-      `${delivery.aftercareFailedLast30Days} aftercare ${delivery.aftercareFailedLast30Days === 1 ? "check-in" : "check-ins"} at ${delivery.homesWithFailures} ${delivery.homesWithFailures === 1 ? "home" : "homes"} could not be sent in the last thirty days, most recently ${formatDateTime(delivery.lastFailureAt)}.`,
-    );
-  }
-
-  if (!delivery.smsConfigured) {
-    problems.push(
-      "Text messages are not set up, so directors are handed each family link to send themselves.",
-    );
-  }
+  const problems = deliveryProblems(delivery);
 
   if (problems.length === 0) {
     return (
@@ -186,10 +172,7 @@ function WorthACall({
           empty="No trial ends in the next fortnight."
           rows={trials.map(({ home, trialEndsAt }) => ({
             home,
-            sentence:
-              new Date(trialEndsAt).getTime() <= now
-                ? `Trial ended ${formatDate(trialEndsAt)}, not subscribed.`
-                : `Trial ends ${formatDate(trialEndsAt)}.`,
+            sentence: trialSentence(trialEndsAt, now),
           }))}
         />
         <CallList
@@ -197,9 +180,7 @@ function WorthACall({
           empty="Every home has opened a case in the last thirty days."
           rows={quiet.map(({ home, reason, lastCaseAt }) => ({
             home,
-            sentence: lastCaseAt
-              ? `${reason} The last was ${formatDate(lastCaseAt)}.`
-              : reason,
+            sentence: quietSentence(reason, lastCaseAt),
           }))}
         />
       </div>
@@ -263,12 +244,7 @@ function Attention({
   attention: PlatformOverview["attention"];
   anyHomes: boolean;
 }) {
-  const running = attention.filter((entry) =>
-    entry.reminders.some((reminder) => reminder.key !== "deadline-nobody-listed"),
-  );
-  const notStarted = attention.filter((entry) =>
-    entry.reminders.every((reminder) => reminder.key === "deadline-nobody-listed"),
-  );
+  const { running, notStarted } = splitAttention(attention);
 
   return (
     <section>

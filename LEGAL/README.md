@@ -112,3 +112,11 @@ that was never made.
    weaker than it needs to be. A read-only endpoint scoped to the requesting
    home's own rows would let the clause say "visible to you, whenever you
    like", and that is a different sentence in a sales conversation.
+
+   **Fixed.** `GET /home/access-log` returns the requesting home's own lines,
+   newest first, to its owner only, and Settings in the director console shows
+   them. Lines that name no home (paging through the customer list) are not
+   shown, because the log never recorded them against one. `DPA.md` Section 4
+   now says "visible to your account's owner, whenever they like", and its
+   list of what the console can change now includes the four writes it had
+   left out. Tested in `home-access-log.test.ts`.

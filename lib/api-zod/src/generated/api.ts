@@ -38,6 +38,35 @@ export const GetHealthResponse = zod
   );
 
 /**
+ * Write-only and unauthenticated, because a screen can fail before
+anybody is signed in. Nothing is stored: the report is scrubbed of
+addresses, tokens and numbers, written to the log, and passed to the
+error tracker when one is configured. Limited per address.
+
+ * @summary A screen crashed in someone's browser
+ */
+export const reportClientErrorBodyMessageMax = 1000;
+
+export const reportClientErrorBodyStackMax = 8000;
+
+export const reportClientErrorBodyPathMax = 500;
+
+export const ReportClientErrorBody = zod.object({
+  app: zod.enum(["family", "console", "admin"]),
+  kind: zod
+    .enum(["render", "error", "rejection"])
+    .describe(
+      "`render` is a screen that failed to draw (caught by the app's\nerror boundary); the other two are uncaught errors and promises.\n",
+    ),
+  message: zod.string().max(reportClientErrorBodyMessageMax),
+  stack: zod.string().max(reportClientErrorBodyStackMax).nullish(),
+  path: zod
+    .string()
+    .max(reportClientErrorBodyPathMax)
+    .describe("The page's path, with a family link's token already removed."),
+});
+
+/**
  * Unauthenticated. Enough to recognise the home and to reach it by
 telephone, and nothing about its account. `intakeEnabled` false means
 the home would rather the first contact were a phone call: show the
@@ -717,6 +746,53 @@ export const CompleteOnboardingStepResponse = zod.object({
 });
 
 /**
+ * The home's own lines from the platform's access log, newest first.
+Owner only (403 otherwise): it is the home's evidence about its
+vendor, for whoever answers to the home's insurer. Looking at a
+list of every customer is logged without naming a home, so it is
+not here; opening this home, or changing anything on it, is.
+
+ * @summary Every time anyone at the platform opened or changed this home
+ */
+
+export const getHomeAccessLogQueryLimitDefault = 50;
+export const getHomeAccessLogQueryLimitMax = 100;
+
+export const GetHomeAccessLogQueryParams = zod.object({
+  before: zod.coerce
+    .number()
+    .min(1)
+    .optional()
+    .describe("Only lines older than this one, for the next page."),
+  limit: zod.coerce
+    .number()
+    .min(1)
+    .max(getHomeAccessLogQueryLimitMax)
+    .default(getHomeAccessLogQueryLimitDefault),
+});
+
+export const GetHomeAccessLogResponse = zod.object({
+  entries: zod.array(
+    zod
+      .object({
+        id: zod.number(),
+        at: zod.date(),
+        who: zod
+          .string()
+          .describe("The platform admin, by the address they signed in with."),
+        action: zod.string().describe("The stable code, e.g. `home.open`."),
+        what: zod.string().describe("The same, in plain words."),
+        detail: zod.string().nullable(),
+      })
+      .describe("One line of the platform's access log about this home."),
+  ),
+  nextBefore: zod
+    .number()
+    .nullable()
+    .describe("Pass as `before` for older lines; null when there are none."),
+});
+
+/**
  * @summary Everyone who works cases at this home
  */
 export const GetStaffResponseItem = zod.object({
@@ -1026,6 +1102,27 @@ export const GetHomeDashboardResponse = zod
       .number()
       .describe(
         "Cases where the home has offered times and nobody has picked.",
+      ),
+    certificatesToFile: zod
+      .array(
+        zod
+          .object({
+            caseId: zod.number(),
+            decedentName: zod.string(),
+            custodyTakenAt: zod.date(),
+            dueAt: zod
+              .date()
+              .nullable()
+              .describe(
+                "Null in a state whose filing window we have not checked.",
+              ),
+          })
+          .describe(
+            "A death certificate the home has not recorded as filed, on a case\nwhere custody is recorded. Soonest due first.\n",
+          ),
+      )
+      .describe(
+        "Death certificates not yet recorded as filed, on open cases where\ncustody is recorded. Soonest due first, capped for the screen.\n",
       ),
   })
   .describe(
@@ -2926,14 +3023,19 @@ export const GetVitalsResponse = zod
       .string()
       .nullable()
       .describe(
-        "Last four digits only. The number itself is encrypted at rest and\nis never returned by the API, to either side.\n",
+        "Last four digits only, and to staff only. The number itself is\nencrypted at rest and never returned to either side; the family\nis told only whether one is on file (`hasSocialSecurityNumber`),\nand gets null here, because their link can be forwarded.\n",
       ),
     hasSocialSecurityNumber: zod.boolean(),
     status: zod.enum(["collecting", "submitted", "verified"]),
     submittedAt: zod.date().nullable(),
     verifiedAt: zod.date().nullable(),
     verifiedByName: zod.string().nullable(),
-    staffNotes: zod.string().nullable(),
+    staffNotes: zod
+      .string()
+      .nullable()
+      .describe(
+        'The home\'s own notes on the record. Always null to the family:\n\"what the registrar queried\" is written to colleagues, not to a\ndaughter.\n',
+      ),
     missingForFiling: zod
       .array(zod.string())
       .describe("Fields still needed before a certificate can be filed."),
@@ -3048,20 +3150,168 @@ export const UpdateVitalsResponse = zod
       .string()
       .nullable()
       .describe(
-        "Last four digits only. The number itself is encrypted at rest and\nis never returned by the API, to either side.\n",
+        "Last four digits only, and to staff only. The number itself is\nencrypted at rest and never returned to either side; the family\nis told only whether one is on file (`hasSocialSecurityNumber`),\nand gets null here, because their link can be forwarded.\n",
       ),
     hasSocialSecurityNumber: zod.boolean(),
     status: zod.enum(["collecting", "submitted", "verified"]),
     submittedAt: zod.date().nullable(),
     verifiedAt: zod.date().nullable(),
     verifiedByName: zod.string().nullable(),
-    staffNotes: zod.string().nullable(),
+    staffNotes: zod
+      .string()
+      .nullable()
+      .describe(
+        'The home\'s own notes on the record. Always null to the family:\n\"what the registrar queried\" is written to colleagues, not to a\ndaughter.\n',
+      ),
     missingForFiling: zod
       .array(zod.string())
       .describe("Fields still needed before a certificate can be filed."),
   })
   .describe(
     "Everything the death certificate asks for. Free text throughout,\nbecause the fields vary across more than fifty registration\njurisdictions and a dropdown missing the true answer produces a\nconfident wrong one.\n",
+  );
+
+/**
+ * Staff only, and never offered to the family. We do not integrate
+with EDRS and file nothing: custody, the physician's request and the
+filing itself are all typed by someone at the home.
+
+ * @summary The death certificate's clock, and the home's record of filing it
+ */
+export const GetCertificateFilingParams = zod.object({
+  caseId: zod.coerce.number(),
+});
+
+export const GetCertificateFilingResponse = zod
+  .object({
+    caseId: zod.number(),
+    stateCode: zod
+      .string()
+      .describe('The home\'s state as read for the deadline, e.g. \"CO\".'),
+    filingWindowHours: zod
+      .number()
+      .nullable()
+      .describe(
+        "72 in Colorado. Null in any state whose statute has not been\nchecked, rather than a guess a director would trust.\n",
+      ),
+    custodyTakenAt: zod
+      .date()
+      .nullable()
+      .describe(
+        "When the home took custody. The clock starts here, not at the death.",
+      ),
+    dueAt: zod
+      .date()
+      .nullable()
+      .describe(
+        "Custody plus the filing window, or null while either is unknown.",
+      ),
+    physicianRequestedAt: zod.date().nullable(),
+    physicianDueAt: zod
+      .date()
+      .nullable()
+      .describe(
+        "The certifying physician's own 72 hours, from the EDRS request.",
+      ),
+    certifyingPhysician: zod.string().nullable(),
+    filedAt: zod
+      .date()
+      .nullable()
+      .describe("When the home filed it, as they recorded it."),
+    filedByName: zod.string().nullable(),
+    stateFileNumber: zod.string().nullable(),
+    standing: zod
+      .enum(["not_applicable", "no_custody", "open", "past_due", "filed"])
+      .describe(
+        "Where it stands now. `not_applicable` is a pre-need file;\n`no_custody` means the clock cannot be known until custody is\nrecorded; `open` is either within the window or in a state with\nno window we know.\n",
+      ),
+  })
+  .describe(
+    "Colorado's death certificate clock (SB 23-020: within 72 hours of\ntaking custody, and before disposition), as the home's own record.\nStaff only. We file nothing and are told nothing by the state:\nevery time here was typed by someone at the home.\n",
+  );
+
+/**
+ * Refused with 409 on a pre-need file: nobody has died, so there is no
+certificate and no clock. Times may not be in the future, because a
+custody time mistyped a day ahead is a deadline a day late.
+
+ * @summary Record custody, the physician's request, or the filing
+ */
+export const UpdateCertificateFilingParams = zod.object({
+  caseId: zod.coerce.number(),
+});
+
+export const updateCertificateFilingBodyCertifyingPhysicianMax = 200;
+
+export const updateCertificateFilingBodyStateFileNumberMax = 80;
+
+export const UpdateCertificateFilingBody = zod
+  .object({
+    custodyTakenAt: zod.coerce.date().nullish(),
+    physicianRequestedAt: zod.coerce.date().nullish(),
+    certifyingPhysician: zod
+      .string()
+      .max(updateCertificateFilingBodyCertifyingPhysicianMax)
+      .nullish(),
+    filedAt: zod.coerce
+      .date()
+      .nullish()
+      .describe(
+        "When the home filed it. Recording it notes who did; clearing it\nreopens the clock.\n",
+      ),
+    stateFileNumber: zod
+      .string()
+      .max(updateCertificateFilingBodyStateFileNumberMax)
+      .nullish(),
+  })
+  .describe("Any subset. Null clears a field; an absent key leaves it alone.");
+
+export const UpdateCertificateFilingResponse = zod
+  .object({
+    caseId: zod.number(),
+    stateCode: zod
+      .string()
+      .describe('The home\'s state as read for the deadline, e.g. \"CO\".'),
+    filingWindowHours: zod
+      .number()
+      .nullable()
+      .describe(
+        "72 in Colorado. Null in any state whose statute has not been\nchecked, rather than a guess a director would trust.\n",
+      ),
+    custodyTakenAt: zod
+      .date()
+      .nullable()
+      .describe(
+        "When the home took custody. The clock starts here, not at the death.",
+      ),
+    dueAt: zod
+      .date()
+      .nullable()
+      .describe(
+        "Custody plus the filing window, or null while either is unknown.",
+      ),
+    physicianRequestedAt: zod.date().nullable(),
+    physicianDueAt: zod
+      .date()
+      .nullable()
+      .describe(
+        "The certifying physician's own 72 hours, from the EDRS request.",
+      ),
+    certifyingPhysician: zod.string().nullable(),
+    filedAt: zod
+      .date()
+      .nullable()
+      .describe("When the home filed it, as they recorded it."),
+    filedByName: zod.string().nullable(),
+    stateFileNumber: zod.string().nullable(),
+    standing: zod
+      .enum(["not_applicable", "no_custody", "open", "past_due", "filed"])
+      .describe(
+        "Where it stands now. `not_applicable` is a pre-need file;\n`no_custody` means the clock cannot be known until custody is\nrecorded; `open` is either within the window or in a state with\nno window we know.\n",
+      ),
+  })
+  .describe(
+    "Colorado's death certificate clock (SB 23-020: within 72 hours of\ntaking custody, and before disposition), as the home's own record.\nStaff only. We file nothing and are told nothing by the state:\nevery time here was typed by someone at the home.\n",
   );
 
 /**
@@ -3113,14 +3363,19 @@ export const GetFamilyVitalsResponse = zod
       .string()
       .nullable()
       .describe(
-        "Last four digits only. The number itself is encrypted at rest and\nis never returned by the API, to either side.\n",
+        "Last four digits only, and to staff only. The number itself is\nencrypted at rest and never returned to either side; the family\nis told only whether one is on file (`hasSocialSecurityNumber`),\nand gets null here, because their link can be forwarded.\n",
       ),
     hasSocialSecurityNumber: zod.boolean(),
     status: zod.enum(["collecting", "submitted", "verified"]),
     submittedAt: zod.date().nullable(),
     verifiedAt: zod.date().nullable(),
     verifiedByName: zod.string().nullable(),
-    staffNotes: zod.string().nullable(),
+    staffNotes: zod
+      .string()
+      .nullable()
+      .describe(
+        'The home\'s own notes on the record. Always null to the family:\n\"what the registrar queried\" is written to colleagues, not to a\ndaughter.\n',
+      ),
     missingForFiling: zod
       .array(zod.string())
       .describe("Fields still needed before a certificate can be filed."),
@@ -3224,14 +3479,19 @@ export const UpdateFamilyVitalsResponse = zod
       .string()
       .nullable()
       .describe(
-        "Last four digits only. The number itself is encrypted at rest and\nis never returned by the API, to either side.\n",
+        "Last four digits only, and to staff only. The number itself is\nencrypted at rest and never returned to either side; the family\nis told only whether one is on file (`hasSocialSecurityNumber`),\nand gets null here, because their link can be forwarded.\n",
       ),
     hasSocialSecurityNumber: zod.boolean(),
     status: zod.enum(["collecting", "submitted", "verified"]),
     submittedAt: zod.date().nullable(),
     verifiedAt: zod.date().nullable(),
     verifiedByName: zod.string().nullable(),
-    staffNotes: zod.string().nullable(),
+    staffNotes: zod
+      .string()
+      .nullable()
+      .describe(
+        'The home\'s own notes on the record. Always null to the family:\n\"what the registrar queried\" is written to colleagues, not to a\ndaughter.\n',
+      ),
     missingForFiling: zod
       .array(zod.string())
       .describe("Fields still needed before a certificate can be filed."),
@@ -3289,14 +3549,19 @@ export const SubmitFamilyVitalsResponse = zod
       .string()
       .nullable()
       .describe(
-        "Last four digits only. The number itself is encrypted at rest and\nis never returned by the API, to either side.\n",
+        "Last four digits only, and to staff only. The number itself is\nencrypted at rest and never returned to either side; the family\nis told only whether one is on file (`hasSocialSecurityNumber`),\nand gets null here, because their link can be forwarded.\n",
       ),
     hasSocialSecurityNumber: zod.boolean(),
     status: zod.enum(["collecting", "submitted", "verified"]),
     submittedAt: zod.date().nullable(),
     verifiedAt: zod.date().nullable(),
     verifiedByName: zod.string().nullable(),
-    staffNotes: zod.string().nullable(),
+    staffNotes: zod
+      .string()
+      .nullable()
+      .describe(
+        'The home\'s own notes on the record. Always null to the family:\n\"what the registrar queried\" is written to colleagues, not to a\ndaughter.\n',
+      ),
     missingForFiling: zod
       .array(zod.string())
       .describe("Fields still needed before a certificate can be filed."),

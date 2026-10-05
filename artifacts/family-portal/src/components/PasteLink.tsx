@@ -58,7 +58,7 @@ export function PasteLink({ label = "Or paste your link here" }: { label?: strin
         </Button>
       </div>
       {invalid && (
-        <p id="pasted-link-error" className="text-sm font-medium text-[var(--accent-deep)]">
+        <p id="pasted-link-error" className="text-sm font-medium text-[var(--notice)]">
           That does not look like one of the funeral home's links. It should
           have <span className="whitespace-nowrap">/f/</span> in it, followed
           by a long run of letters and numbers.

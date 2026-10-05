@@ -67,8 +67,10 @@ export interface VitalStatistics {
   informantPhone?: string | null;
   residenceInsideCityLimits?: boolean | null;
   veteran?: boolean | null;
-  /** Last four digits only. The number itself is encrypted at rest and
-is never returned by the API, to either side.
+  /** Last four digits only, and to staff only. The number itself is
+encrypted at rest and never returned to either side; the family
+is told only whether one is on file (`hasSocialSecurityNumber`),
+and gets null here, because their link can be forwarded.
  */
   socialSecurityNumberMasked: string | null;
   hasSocialSecurityNumber: boolean;
@@ -76,6 +78,10 @@ is never returned by the API, to either side.
   submittedAt: Date | null;
   verifiedAt: Date | null;
   verifiedByName: string | null;
+  /** The home's own notes on the record. Always null to the family:
+"what the registrar queried" is written to colleagues, not to a
+daughter.
+ */
   staffNotes: string | null;
   /** Fields still needed before a certificate can be filed. */
   missingForFiling: string[];

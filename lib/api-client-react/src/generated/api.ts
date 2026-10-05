@@ -50,7 +50,10 @@ import type {
   CasePhotoUploadInput,
   CaseSummary,
   CaseUpdate,
+  CertificateFiling,
+  CertificateFilingUpdate,
   ChosenService,
+  ClientErrorReport,
   CompleteDeadlineInput,
   ComposeObituaryInput,
   ConvertToAtNeedInput,
@@ -80,10 +83,12 @@ import type {
   GetAftercareUnsubscribeParams,
   GetCasesParams,
   GetFamilyVendorsParams,
+  GetHomeAccessLogParams,
   GetIntakeRequestsParams,
   GetSnippetsParams,
   GetVendorsParams,
   HealthStatus,
+  HomeAccessLog,
   HomeDashboard,
   HomePolicy,
   HomePolicyInput,
@@ -241,6 +246,97 @@ export function useGetHealth<
 
   return { ...query, queryKey: queryOptions.queryKey };
 }
+
+/**
+ * Write-only and unauthenticated, because a screen can fail before
+anybody is signed in. Nothing is stored: the report is scrubbed of
+addresses, tokens and numbers, written to the log, and passed to the
+error tracker when one is configured. Limited per address.
+
+ * @summary A screen crashed in someone's browser
+ */
+export const getReportClientErrorUrl = () => {
+  return `/api/client-errors`;
+};
+
+export const reportClientError = async (
+  clientErrorReport: ClientErrorReport,
+  options?: RequestInit,
+): Promise<void> => {
+  return customFetch<void>(getReportClientErrorUrl(), {
+    ...options,
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(clientErrorReport),
+  });
+};
+
+export const getReportClientErrorMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof reportClientError>>,
+    TError,
+    { data: BodyType<ClientErrorReport> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof reportClientError>>,
+  TError,
+  { data: BodyType<ClientErrorReport> },
+  TContext
+> => {
+  const mutationKey = ["reportClientError"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof reportClientError>>,
+    { data: BodyType<ClientErrorReport> }
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return reportClientError(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type ReportClientErrorMutationResult = NonNullable<
+  Awaited<ReturnType<typeof reportClientError>>
+>;
+export type ReportClientErrorMutationBody = BodyType<ClientErrorReport>;
+export type ReportClientErrorMutationError = ErrorType<unknown>;
+
+/**
+ * @summary A screen crashed in someone's browser
+ */
+export const useReportClientError = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof reportClientError>>,
+    TError,
+    { data: BodyType<ClientErrorReport> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof reportClientError>>,
+  TError,
+  { data: BodyType<ClientErrorReport> },
+  TContext
+> => {
+  return useMutation(getReportClientErrorMutationOptions(options));
+};
 
 /**
  * Unauthenticated. Enough to recognise the home and to reach it by
@@ -1791,6 +1887,109 @@ export const useCompleteOnboardingStep = <
 > => {
   return useMutation(getCompleteOnboardingStepMutationOptions(options));
 };
+
+/**
+ * The home's own lines from the platform's access log, newest first.
+Owner only (403 otherwise): it is the home's evidence about its
+vendor, for whoever answers to the home's insurer. Looking at a
+list of every customer is logged without naming a home, so it is
+not here; opening this home, or changing anything on it, is.
+
+ * @summary Every time anyone at the platform opened or changed this home
+ */
+export const getGetHomeAccessLogUrl = (params?: GetHomeAccessLogParams) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? "null" : value.toString());
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0
+    ? `/api/home/access-log?${stringifiedParams}`
+    : `/api/home/access-log`;
+};
+
+export const getHomeAccessLog = async (
+  params?: GetHomeAccessLogParams,
+  options?: RequestInit,
+): Promise<HomeAccessLog> => {
+  return customFetch<HomeAccessLog>(getGetHomeAccessLogUrl(params), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getGetHomeAccessLogQueryKey = (
+  params?: GetHomeAccessLogParams,
+) => {
+  return [`/api/home/access-log`, ...(params ? [params] : [])] as const;
+};
+
+export const getGetHomeAccessLogQueryOptions = <
+  TData = Awaited<ReturnType<typeof getHomeAccessLog>>,
+  TError = ErrorType<unknown>,
+>(
+  params?: GetHomeAccessLogParams,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getHomeAccessLog>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey =
+    queryOptions?.queryKey ?? getGetHomeAccessLogQueryKey(params);
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof getHomeAccessLog>>
+  > = ({ signal }) => getHomeAccessLog(params, { signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof getHomeAccessLog>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type GetHomeAccessLogQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getHomeAccessLog>>
+>;
+export type GetHomeAccessLogQueryError = ErrorType<unknown>;
+
+/**
+ * @summary Every time anyone at the platform opened or changed this home
+ */
+
+export function useGetHomeAccessLog<
+  TData = Awaited<ReturnType<typeof getHomeAccessLog>>,
+  TError = ErrorType<unknown>,
+>(
+  params?: GetHomeAccessLogParams,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getHomeAccessLog>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getGetHomeAccessLogQueryOptions(params, options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
 
 /**
  * @summary Everyone who works cases at this home
@@ -7283,6 +7482,191 @@ export const useUpdateVitals = <
   TContext
 > => {
   return useMutation(getUpdateVitalsMutationOptions(options));
+};
+
+/**
+ * Staff only, and never offered to the family. We do not integrate
+with EDRS and file nothing: custody, the physician's request and the
+filing itself are all typed by someone at the home.
+
+ * @summary The death certificate's clock, and the home's record of filing it
+ */
+export const getGetCertificateFilingUrl = (caseId: number) => {
+  return `/api/cases/${caseId}/certificate-filing`;
+};
+
+export const getCertificateFiling = async (
+  caseId: number,
+  options?: RequestInit,
+): Promise<CertificateFiling> => {
+  return customFetch<CertificateFiling>(getGetCertificateFilingUrl(caseId), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getGetCertificateFilingQueryKey = (caseId: number) => {
+  return [`/api/cases/${caseId}/certificate-filing`] as const;
+};
+
+export const getGetCertificateFilingQueryOptions = <
+  TData = Awaited<ReturnType<typeof getCertificateFiling>>,
+  TError = ErrorType<unknown>,
+>(
+  caseId: number,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getCertificateFiling>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey =
+    queryOptions?.queryKey ?? getGetCertificateFilingQueryKey(caseId);
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof getCertificateFiling>>
+  > = ({ signal }) =>
+    getCertificateFiling(caseId, { signal, ...requestOptions });
+
+  return {
+    queryKey,
+    queryFn,
+    enabled: !!caseId,
+    ...queryOptions,
+  } as UseQueryOptions<
+    Awaited<ReturnType<typeof getCertificateFiling>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type GetCertificateFilingQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getCertificateFiling>>
+>;
+export type GetCertificateFilingQueryError = ErrorType<unknown>;
+
+/**
+ * @summary The death certificate's clock, and the home's record of filing it
+ */
+
+export function useGetCertificateFiling<
+  TData = Awaited<ReturnType<typeof getCertificateFiling>>,
+  TError = ErrorType<unknown>,
+>(
+  caseId: number,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getCertificateFiling>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getGetCertificateFilingQueryOptions(caseId, options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * Refused with 409 on a pre-need file: nobody has died, so there is no
+certificate and no clock. Times may not be in the future, because a
+custody time mistyped a day ahead is a deadline a day late.
+
+ * @summary Record custody, the physician's request, or the filing
+ */
+export const getUpdateCertificateFilingUrl = (caseId: number) => {
+  return `/api/cases/${caseId}/certificate-filing`;
+};
+
+export const updateCertificateFiling = async (
+  caseId: number,
+  certificateFilingUpdate: CertificateFilingUpdate,
+  options?: RequestInit,
+): Promise<CertificateFiling> => {
+  return customFetch<CertificateFiling>(getUpdateCertificateFilingUrl(caseId), {
+    ...options,
+    method: "PUT",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(certificateFilingUpdate),
+  });
+};
+
+export const getUpdateCertificateFilingMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof updateCertificateFiling>>,
+    TError,
+    { caseId: number; data: BodyType<CertificateFilingUpdate> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof updateCertificateFiling>>,
+  TError,
+  { caseId: number; data: BodyType<CertificateFilingUpdate> },
+  TContext
+> => {
+  const mutationKey = ["updateCertificateFiling"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof updateCertificateFiling>>,
+    { caseId: number; data: BodyType<CertificateFilingUpdate> }
+  > = (props) => {
+    const { caseId, data } = props ?? {};
+
+    return updateCertificateFiling(caseId, data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type UpdateCertificateFilingMutationResult = NonNullable<
+  Awaited<ReturnType<typeof updateCertificateFiling>>
+>;
+export type UpdateCertificateFilingMutationBody =
+  BodyType<CertificateFilingUpdate>;
+export type UpdateCertificateFilingMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Record custody, the physician's request, or the filing
+ */
+export const useUpdateCertificateFiling = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof updateCertificateFiling>>,
+    TError,
+    { caseId: number; data: BodyType<CertificateFilingUpdate> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof updateCertificateFiling>>,
+  TError,
+  { caseId: number; data: BodyType<CertificateFilingUpdate> },
+  TContext
+> => {
+  return useMutation(getUpdateCertificateFilingMutationOptions(options));
 };
 
 /**

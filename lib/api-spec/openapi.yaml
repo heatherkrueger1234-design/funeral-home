@@ -94,6 +94,26 @@ paths:
               schema:
                 $ref: "#/components/schemas/HealthStatus"
 
+  /client-errors:
+    post:
+      operationId: reportClientError
+      tags: [health]
+      summary: A screen crashed in someone's browser
+      description: |
+        Write-only and unauthenticated, because a screen can fail before
+        anybody is signed in. Nothing is stored: the report is scrubbed of
+        addresses, tokens and numbers, written to the log, and passed to the
+        error tracker when one is configured. Limited per address.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ClientErrorReport"
+      responses:
+        "204":
+          description: Received
+
   # ---------------------------------------------------------------- public --
 
   /public/homes/{slug}:
@@ -437,6 +457,41 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Billing"
+
+  /home/access-log:
+    get:
+      operationId: getHomeAccessLog
+      tags: [home]
+      summary: Every time anyone at the platform opened or changed this home
+      description: |
+        The home's own lines from the platform's access log, newest first.
+        Owner only (403 otherwise): it is the home's evidence about its
+        vendor, for whoever answers to the home's insurer. Looking at a
+        list of every customer is logged without naming a home, so it is
+        not here; opening this home, or changing anything on it, is.
+      parameters:
+        - name: before
+          in: query
+          required: false
+          description: Only lines older than this one, for the next page.
+          schema:
+            type: integer
+            minimum: 1
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 50
+      responses:
+        "200":
+          description: A page of the log
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HomeAccessLog"
 
   /home/staff:
     get:
@@ -1713,6 +1768,48 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/VitalStatistics"
+
+  /cases/{caseId}/certificate-filing:
+    get:
+      operationId: getCertificateFiling
+      tags: [vitals]
+      summary: The death certificate's clock, and the home's record of filing it
+      description: |
+        Staff only, and never offered to the family. We do not integrate
+        with EDRS and file nothing: custody, the physician's request and the
+        filing itself are all typed by someone at the home.
+      parameters:
+        - $ref: "#/components/parameters/CaseId"
+      responses:
+        "200":
+          description: The record, created empty on first read
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CertificateFiling"
+    put:
+      operationId: updateCertificateFiling
+      tags: [vitals]
+      summary: Record custody, the physician's request, or the filing
+      description: |
+        Refused with 409 on a pre-need file: nobody has died, so there is no
+        certificate and no clock. Times may not be in the future, because a
+        custody time mistyped a day ahead is a deadline a day late.
+      parameters:
+        - $ref: "#/components/parameters/CaseId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CertificateFilingUpdate"
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CertificateFiling"
 
   /family/vitals:
     get:
@@ -4191,6 +4288,13 @@ components:
         offersAwaitingChoice:
           type: integer
           description: Cases where the home has offered times and nobody has picked.
+        certificatesToFile:
+          type: array
+          description: |
+            Death certificates not yet recorded as filed, on open cases where
+            custody is recorded. Soonest due first, capped for the screen.
+          items:
+            $ref: "#/components/schemas/DashboardCertificate"
       required:
         [
           homeName,
@@ -4205,6 +4309,7 @@ components:
           quoteRequests,
           pendingRequests,
           offersAwaitingChoice,
+          certificatesToFile,
         ]
 
     DashboardQuoteRequest:
@@ -6422,8 +6527,10 @@ components:
           type: string
           nullable: true
           description: |
-            Last four digits only. The number itself is encrypted at rest and
-            is never returned by the API, to either side.
+            Last four digits only, and to staff only. The number itself is
+            encrypted at rest and never returned to either side; the family
+            is told only whether one is on file (`hasSocialSecurityNumber`),
+            and gets null here, because their link can be forwarded.
         hasSocialSecurityNumber:
           type: boolean
         status:
@@ -6443,6 +6550,10 @@ components:
         staffNotes:
           type: string
           nullable: true
+          description: |
+            The home's own notes on the record. Always null to the family:
+            "what the registrar queried" is written to colleagues, not to a
+            daughter.
         missingForFiling:
           type: array
           description: Fields still needed before a certificate can be filed.
@@ -6450,6 +6561,191 @@ components:
             type: string
       required:
         [caseId, socialSecurityNumberMasked, hasSocialSecurityNumber, status, submittedAt, verifiedAt, verifiedByName, staffNotes, missingForFiling]
+
+    ClientErrorReport:
+      type: object
+      properties:
+        app:
+          type: string
+          enum: [family, console, admin]
+        kind:
+          type: string
+          enum: [render, error, rejection]
+          description: |
+            `render` is a screen that failed to draw (caught by the app's
+            error boundary); the other two are uncaught errors and promises.
+        message:
+          type: string
+          maxLength: 1000
+        stack:
+          type: string
+          nullable: true
+          maxLength: 8000
+        path:
+          type: string
+          maxLength: 500
+          description: The page's path, with a family link's token already removed.
+      required: [app, kind, message, path]
+
+    HomeAccessLog:
+      type: object
+      properties:
+        entries:
+          type: array
+          items:
+            $ref: "#/components/schemas/HomeAccessEntry"
+        nextBefore:
+          type: integer
+          nullable: true
+          description: Pass as `before` for older lines; null when there are none.
+      required: [entries, nextBefore]
+
+    HomeAccessEntry:
+      type: object
+      description: One line of the platform's access log about this home.
+      properties:
+        id:
+          type: integer
+        at:
+          type: string
+          format: date-time
+        who:
+          type: string
+          description: The platform admin, by the address they signed in with.
+        action:
+          type: string
+          description: The stable code, e.g. `home.open`.
+        what:
+          type: string
+          description: The same, in plain words.
+        detail:
+          type: string
+          nullable: true
+      required: [id, at, who, action, what, detail]
+
+    CertificateFiling:
+      type: object
+      description: |
+        Colorado's death certificate clock (SB 23-020: within 72 hours of
+        taking custody, and before disposition), as the home's own record.
+        Staff only. We file nothing and are told nothing by the state:
+        every time here was typed by someone at the home.
+      properties:
+        caseId:
+          type: integer
+        stateCode:
+          type: string
+          description: The home's state as read for the deadline, e.g. "CO".
+        filingWindowHours:
+          type: integer
+          nullable: true
+          description: |
+            72 in Colorado. Null in any state whose statute has not been
+            checked, rather than a guess a director would trust.
+        custodyTakenAt:
+          type: string
+          format: date-time
+          nullable: true
+          description: When the home took custody. The clock starts here, not at the death.
+        dueAt:
+          type: string
+          format: date-time
+          nullable: true
+          description: Custody plus the filing window, or null while either is unknown.
+        physicianRequestedAt:
+          type: string
+          format: date-time
+          nullable: true
+        physicianDueAt:
+          type: string
+          format: date-time
+          nullable: true
+          description: The certifying physician's own 72 hours, from the EDRS request.
+        certifyingPhysician:
+          type: string
+          nullable: true
+        filedAt:
+          type: string
+          format: date-time
+          nullable: true
+          description: When the home filed it, as they recorded it.
+        filedByName:
+          type: string
+          nullable: true
+        stateFileNumber:
+          type: string
+          nullable: true
+        standing:
+          type: string
+          enum: [not_applicable, no_custody, open, past_due, filed]
+          description: |
+            Where it stands now. `not_applicable` is a pre-need file;
+            `no_custody` means the clock cannot be known until custody is
+            recorded; `open` is either within the window or in a state with
+            no window we know.
+      required:
+        [
+          caseId,
+          stateCode,
+          filingWindowHours,
+          custodyTakenAt,
+          dueAt,
+          physicianRequestedAt,
+          physicianDueAt,
+          certifyingPhysician,
+          filedAt,
+          filedByName,
+          stateFileNumber,
+          standing,
+        ]
+
+    CertificateFilingUpdate:
+      type: object
+      description: Any subset. Null clears a field; an absent key leaves it alone.
+      properties:
+        custodyTakenAt:
+          type: string
+          format: date-time
+          nullable: true
+        physicianRequestedAt:
+          type: string
+          format: date-time
+          nullable: true
+        certifyingPhysician:
+          type: string
+          nullable: true
+          maxLength: 200
+        filedAt:
+          type: string
+          format: date-time
+          nullable: true
+          description: |
+            When the home filed it. Recording it notes who did; clearing it
+            reopens the clock.
+        stateFileNumber:
+          type: string
+          nullable: true
+          maxLength: 80
+
+    DashboardCertificate:
+      type: object
+      description: |
+        A death certificate the home has not recorded as filed, on a case
+        where custody is recorded. Soonest due first.
+      properties:
+        caseId:
+          type: integer
+        decedentName:
+          type: string
+        custodyTakenAt:
+          type: string
+          format: date-time
+        dueAt:
+          type: string
+          format: date-time
+          nullable: true
+          description: Null in a state whose filing window we have not checked.
+      required: [caseId, decedentName, custodyTakenAt, dueAt]
 
     VitalsFamilyUpdate:
       type: object

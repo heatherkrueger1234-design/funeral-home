@@ -31,6 +31,7 @@ import { TimelinePanel } from "@/components/case/TimelinePanel";
 import { MessagesPanel } from "@/components/case/MessagesPanel";
 import { BelongingsPanel } from "@/components/case/BelongingsPanel";
 import { VitalsPanel } from "@/components/case/VitalsPanel";
+import { CertificateClock } from "@/components/case/CertificateClock";
 import { PrintPanel } from "@/components/case/PrintPanel";
 import { MemoryBookPanel } from "@/components/case/MemoryBookPanel";
 import { DetailsPanel } from "@/components/case/DetailsPanel";
@@ -68,15 +69,15 @@ function serviceLabel(value: string | Date, zone: string | undefined): string {
  */
 const TABS = [
   "family",
+  "messages",
   "photos",
-  "vitals",
-  "belongings",
   "obituary",
+  "belongings",
+  "book",
   "service",
   "print",
-  "book",
   "timeline",
-  "messages",
+  "vitals",
   "details",
   "data",
 ] as const;
@@ -347,6 +348,7 @@ export default function CaseDetail() {
 
       <CaseGlance
         caseId={caseId}
+        kind={detail.kind}
         unreadFamilyMessages={detail.unreadFamilyMessages}
         onOpen={setTab}
       />
@@ -356,26 +358,16 @@ export default function CaseDetail() {
         value={detail.kind === "pre_need" && tab === "book" ? "family" : tab}
         onValueChange={setTab}
       >
+        {/*
+          Twelve tabs, read as five groups: the people, what the family is
+          telling us about the person, the day itself, the paperwork, and the
+          file. The order follows the family's own page, so a director on the
+          phone to a daughter looking at "About them" is looking at the same
+          things in the same order. A hairline between groups rather than a
+          heading over each: the bar stays one quiet row.
+        */}
         <TabsList>
           <TabsTrigger value="family">Family</TabsTrigger>
-          <TabsTrigger value="photos">Photos ({detail.photoCount})</TabsTrigger>
-          <TabsTrigger value="vitals">Certificate</TabsTrigger>
-          <TabsTrigger value="belongings">Belongings</TabsTrigger>
-          <TabsTrigger value="obituary">Obituary</TabsTrigger>
-          <TabsTrigger value="service">Service</TabsTrigger>
-          <TabsTrigger value="print">Print</TabsTrigger>
-          {/* Not on a pre-need file: a memory book is about somebody who has died. */}
-          {detail.kind !== "pre_need" && (
-            <TabsTrigger value="book">Memory book</TabsTrigger>
-          )}
-          <TabsTrigger value="timeline">
-            Timeline
-            {detail.outstandingDeadlines > 0 && (
-              <span className="tabular rounded-full bg-[var(--muted)] px-1.5 py-0.5 text-xs font-semibold text-muted-foreground">
-                {detail.outstandingDeadlines}
-              </span>
-            )}
-          </TabsTrigger>
           <TabsTrigger value="messages">
             Messages
             {detail.unreadFamilyMessages > 0 && (
@@ -384,6 +376,28 @@ export default function CaseDetail() {
               </span>
             )}
           </TabsTrigger>
+          <GroupBreak />
+          <TabsTrigger value="photos">Photos ({detail.photoCount})</TabsTrigger>
+          <TabsTrigger value="obituary">Obituary</TabsTrigger>
+          <TabsTrigger value="belongings">Belongings</TabsTrigger>
+          {/* Not on a pre-need file: a memory book is about somebody who has died. */}
+          {detail.kind !== "pre_need" && (
+            <TabsTrigger value="book">Memory book</TabsTrigger>
+          )}
+          <GroupBreak />
+          <TabsTrigger value="service">Service</TabsTrigger>
+          <TabsTrigger value="print">Print</TabsTrigger>
+          <TabsTrigger value="timeline">
+            Timeline
+            {detail.outstandingDeadlines > 0 && (
+              <span className="tabular rounded-full bg-[var(--muted)] px-1.5 py-0.5 text-xs font-semibold text-muted-foreground">
+                {detail.outstandingDeadlines}
+              </span>
+            )}
+          </TabsTrigger>
+          <GroupBreak />
+          <TabsTrigger value="vitals">Certificate</TabsTrigger>
+          <GroupBreak />
           <TabsTrigger value="details">Details</TabsTrigger>
           <TabsTrigger value="data">Data</TabsTrigger>
         </TabsList>
@@ -399,7 +413,9 @@ export default function CaseDetail() {
               referencePhotoId={detail.referencePhotoId}
             />
           </TabsContent>
-          <TabsContent value="vitals">
+          <TabsContent value="vitals" className="space-y-6">
+            {/* Nobody has died on a pre-need file, so there is no clock. */}
+            {detail.kind !== "pre_need" && <CertificateClock caseId={caseId} />}
             <VitalsPanel
               caseId={caseId}
               fromCase={{
@@ -453,4 +469,9 @@ export default function CaseDetail() {
       </Tabs>
     </div>
   );
+}
+
+/** A hairline between groups of tabs. Not a tab, so not in the tab order. */
+function GroupBreak() {
+  return <span aria-hidden className="mx-1 my-2.5 w-px shrink-0 bg-border" />;
 }

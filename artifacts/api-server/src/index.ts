@@ -1,7 +1,11 @@
+import { initErrorTracking } from "./lib/error-tracking";
 import app from "./app";
 import { logger } from "./lib/logger";
 import { assertEncryptionConfigured } from "@workspace/db/crypto";
 import { bootstrapPlatformAdmins } from "./lib/platform-auth";
+
+// Before anything else can fail, so a crash on the way up is reported too.
+initErrorTracking();
 
 // Documents hold passwords and medical records. Refusing to start is the
 // right failure mode: the alternative is accepting them and writing them

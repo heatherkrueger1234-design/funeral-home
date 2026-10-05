@@ -102,7 +102,7 @@ export function StaffSection({
       toast({
         title: "Couldn't copy",
         description: "Select the link and copy it by hand.",
-        variant: "destructive",
+        variant: "notice",
       });
     }
   };

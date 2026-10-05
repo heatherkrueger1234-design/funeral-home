@@ -262,7 +262,7 @@ export function PhotoYears({ caseId, photos }: { caseId: number; photos: CasePho
                 }}
               />
               {problems[photo.id] && (
-                <p id={`${id}-problem`} className="mt-1 text-xs text-[var(--destructive)]">
+                <p id={`${id}-problem`} className="mt-1 text-xs text-[var(--notice)]">
                   A year, like 1974
                 </p>
               )}

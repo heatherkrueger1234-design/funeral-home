@@ -7,6 +7,7 @@ import {
   gt,
   gte,
   inArray,
+  isNotNull,
   isNull,
   lt,
   lte,
@@ -19,9 +20,11 @@ import {
   caseDeadlinesTable,
   caseMessagesTable,
   casesTable,
+  deathCertificateFilingsTable,
   intakeRequestsTable,
   vendorQuotesTable,
   vendorsTable,
+  certificateDueAt,
   decedentDisplayName,
 } from "@workspace/db";
 import { tenant } from "../middleware/require-auth";
@@ -119,6 +122,7 @@ router.get("/home/dashboard", async (req, res) => {
     awaitingChoice,
     quoteCount,
     quoteRows,
+    unfiledCertificates,
   ] = await Promise.all([
     db
       .select({ value: sql<number>`count(*)::int` })
@@ -267,6 +271,41 @@ router.get("/home/dashboard", async (req, res) => {
       .where(unansweredQuotes(home.id))
       .orderBy(asc(vendorQuotesTable.createdAt))
       .limit(LIST_LIMIT),
+
+    /*
+     * Death certificates on the 72-hour clock, not yet recorded as filed.
+     *
+     * Only where custody is recorded, because that is where the clock
+     * starts and nothing here may guess it. Ordered by custody, which is
+     * the same order as due -- every case at one home has the same window.
+     * A closed case drops off for the same reason a closed case's timeline
+     * does: a list that keeps a two-year-old file in it forever is a list
+     * nobody reads by spring.
+     */
+    db
+      .select({
+        caseId: casesTable.id,
+        decedentFirstName: casesTable.decedentFirstName,
+        decedentLastName: casesTable.decedentLastName,
+        decedentPreferredName: casesTable.decedentPreferredName,
+        custodyTakenAt: deathCertificateFilingsTable.custodyTakenAt,
+      })
+      .from(deathCertificateFilingsTable)
+      .innerJoin(
+        casesTable,
+        eq(casesTable.id, deathCertificateFilingsTable.caseId),
+      )
+      .where(
+        and(
+          eq(deathCertificateFilingsTable.funeralHomeId, home.id),
+          ne(casesTable.status, "closed"),
+          eq(casesTable.kind, "at_need"),
+          isNotNull(deathCertificateFilingsTable.custodyTakenAt),
+          isNull(deathCertificateFilingsTable.filedAt),
+        ),
+      )
+      .orderBy(asc(deathCertificateFilingsTable.custodyTakenAt))
+      .limit(LIST_LIMIT),
   ]);
 
   res.json({
@@ -299,6 +338,12 @@ router.get("/home/dashboard", async (req, res) => {
     })),
     pendingRequests: pendingRequests[0]?.value ?? 0,
     offersAwaitingChoice: awaitingChoice.length,
+    certificatesToFile: unfiledCertificates.map((row) => ({
+      caseId: row.caseId,
+      decedentName: decedentDisplayName(row),
+      custodyTakenAt: row.custodyTakenAt!,
+      dueAt: certificateDueAt(row.custodyTakenAt, home.region),
+    })),
     /*
      * Where this home stands on money is deliberately absent. `/billing`
      * answers that, the console's trial banner reads it from there, and a

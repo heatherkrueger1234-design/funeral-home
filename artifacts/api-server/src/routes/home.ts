@@ -10,6 +10,7 @@ import {
   type FuneralHome,
 } from "@workspace/db";
 import {
+  GetHomeAccessLogQueryParams,
   UpdateHomeBody,
   InviteStaffBody,
   UpdateStaffBody,
@@ -22,6 +23,7 @@ import {
   HttpError,
   parseBody,
   parseId,
+  parseQuery,
   requireRow,
 } from "../lib/http";
 import { currentUser, tenant } from "../middleware/require-auth";
@@ -34,6 +36,7 @@ import {
 import { sendStaffInviteEmail } from "@workspace/mailer";
 import { templateFor, toTemplateJson } from "../lib/timeline";
 import { markOnboarding } from "../lib/onboarding";
+import { accessLogForHome } from "../lib/access-log";
 
 const router: IRouter = Router();
 
@@ -65,6 +68,34 @@ function toDirectorHome(home: FuneralHome) {
 
 router.get("/home", (req, res) => {
   res.json(toDirectorHome(tenant(req)));
+});
+
+/**
+ * The platform's access log, as it concerns this home.
+ *
+ * Owner only. It is the home's evidence about its vendor -- the thing a
+ * home's insurer asks to see -- and the owner is the person who answers to
+ * the insurer. A director working cases has no use for it, and it names the
+ * people at the platform who looked.
+ */
+router.get("/home/access-log", async (req, res) => {
+  const home = tenant(req);
+
+  if (currentUser(req).role !== "owner") {
+    throw new HttpError(403, "Only an owner can read the access log.");
+  }
+
+  const query = parseQuery(GetHomeAccessLogQueryParams, req.query);
+
+  res.json(
+    await accessLogForHome(home.id, {
+      // Through parseId, so a cursor past the range of a serial column is a
+      // 400 for a typo rather than a 500 from the driver.
+      before:
+        query.before === undefined ? undefined : parseId(String(query.before)),
+      limit: query.limit,
+    }),
+  );
 });
 
 router.put("/home", async (req, res) => {

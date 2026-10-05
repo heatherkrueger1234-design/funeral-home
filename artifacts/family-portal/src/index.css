@@ -55,8 +55,8 @@
   --color-secondary-foreground: var(--foreground);
   --color-accent: var(--accent-soft);
   --color-accent-foreground: var(--accent-deep);
-  --color-destructive: var(--destructive);
-  --color-destructive-foreground: #ffffff;
+  --color-notice: var(--notice);
+  --color-notice-soft: var(--notice-soft);
   --color-brass: var(--brass);
   --color-brass-soft: var(--brass-soft);
   --color-popover: var(--card);
@@ -114,10 +114,27 @@
   --accent-deep: #14332e;
 
   /*
-   * Never red for anything a family might simply not have finished. Red here
-   * is reserved for a request that actually failed.
+   * Something worth a second look: a photograph that did not upload, a box
+   * that needs filling in differently, a date that has gone by.
+   *
+   * There is no red in this portal at all, not even for a request that
+   * failed. CRAFT.md allows red only to confirm something destructive, and
+   * never in the family portal; a failed save is the portal's problem
+   * rather than the family's, and drawn in alarm colours on the worst week
+   * of somebody's life it reads as "you have done something wrong". This
+   * warm clay reads as "worth your attention", and the words beside it say
+   * what happens next.
+   *
+   * The same two values the director's console uses for overdue work, so
+   * one colour means one thing on both sides of the product. AA for text
+   * wherever it is set: 5.43:1 on the paper, 5.87:1 on a card, 5.58:1 on
+   * --sunken, 4.94:1 on --muted, 5.15:1 on its own tint. A muted brown
+   * rather than a strong colour, so it sits beside a deep green, a navy, a
+   * burgundy or a muted gold accent without reading as a second brand
+   * colour.
    */
-  --destructive: #a32a20;
+  --notice: #8a5a2b;
+  --notice-soft: #f7efe4;
 
   /*
    * Brass, for the gilt edge on good stationery: a hairline under the
@@ -148,8 +165,21 @@
   --radius: 0.75rem;
 }
 
-* {
-  border-color: var(--border);
+/*
+ * The default border colour, in the base layer where it belongs.
+ *
+ * It used to sit outside any layer, and an unlayered rule outranks every
+ * layered one whatever its specificity -- so it beat every Tailwind border
+ * utility in the app. Every border written as the notice colour or the
+ * home's own colour (a past-due row, a tile that needs the director, the
+ * outline on a hovered card, an invalid field) quietly drew as this grey
+ * instead. In `@layer base`, after Tailwind's preflight, it is the default
+ * it was meant to be and nothing more. The website already did this.
+ */
+@layer base {
+  * {
+    border-color: var(--border);
+  }
 }
 
 body {

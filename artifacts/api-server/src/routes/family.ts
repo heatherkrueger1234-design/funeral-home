@@ -903,7 +903,9 @@ router.post("/quotes", async (req, res) => {
  */
 router.get("/vitals", async (req, res) => {
   const row = familyCase(req);
-  res.json(await toVitalsJson(await vitalsForCase(row.id, row.funeralHomeId)));
+  res.json(
+    await toVitalsJson(await vitalsForCase(row.id, row.funeralHomeId), "family"),
+  );
 });
 
 router.put("/vitals", async (req, res) => {
@@ -946,7 +948,7 @@ router.put("/vitals", async (req, res) => {
     .where(eq(vitalStatisticsTable.id, existing.id))
     .returning();
 
-  res.json(await toVitalsJson(updated!));
+  res.json(await toVitalsJson(updated!, "family"));
 });
 
 /**
@@ -959,7 +961,7 @@ router.post("/vitals/submit", async (req, res) => {
   const existing = await vitalsForCase(row.id, row.funeralHomeId);
 
   if (existing.status === "verified") {
-    res.json(await toVitalsJson(existing));
+    res.json(await toVitalsJson(existing, "family"));
     return;
   }
 
@@ -969,7 +971,7 @@ router.post("/vitals/submit", async (req, res) => {
     .where(eq(vitalStatisticsTable.id, existing.id))
     .returning();
 
-  res.json(await toVitalsJson(updated!));
+  res.json(await toVitalsJson(updated!, "family"));
 });
 
 /* --------------------------------------------------------------- print --- */

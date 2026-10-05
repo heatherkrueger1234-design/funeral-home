@@ -319,7 +319,7 @@ router.get("/cases/:caseId/export", async (req, res) => {
    * copied to a laptop, and left in a downloads folder, and a number that
    * opens a person's credit file does not belong in one.
    */
-  const vitalsJson = await toVitalsJson(vitals);
+  const vitalsJson = await toVitalsJson(vitals, "staff");
   await zip.addFile(
     "vitals.txt",
     Buffer.from(

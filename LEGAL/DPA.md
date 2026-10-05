@@ -114,14 +114,20 @@ Adding or removing one of our staff from that list is itself logged, with who
 did it. A colleague who leaves is removed from a table, immediately, rather
 than at the next deployment.
 
-**On request we will give you every entry in that log concerning your home.**
-Ask at `[PRIVACY CONTACT]`.
+**Every entry in that log concerning your home is visible to your account's
+owner, whenever they like,** under Settings in your console — who looked, what
+they did, and when. On request we will also send you a copy. Ask at
+`[PRIVACY CONTACT]`.
 
 What that console can do is see, and almost nothing else. The complete list of
-writes it can make that touch a funeral home is: create a home; suspend or
-restore one; record its licensure and its practitioners; create a group and
-move a home into or out of one; start a group's billing; and mark a home as
-ours rather than a customer's.
+writes it can make that touch a funeral home is: create a home; invite its
+owner; email one of its staff a password reset or a fresh invitation (never a
+password, and never access to their account); extend its free trial; suspend
+or restore it; record its licensure and its practitioners; create a group and
+move a home into or out of one; start a group's billing; mark a home as ours
+rather than a customer's; and keep our own commercial record of the account
+(the plan, the price agreed and our notes), which holds nothing about any
+family. Every one of them is a line in the log above.
 
 **It cannot read a case.** Everything it shows about how much a home is using
 the service is a count — `count(*)`, grouped by home. No row of a case, a

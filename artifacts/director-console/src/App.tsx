@@ -17,6 +17,7 @@ import {
   useSession,
 } from "@/lib/session";
 import { ConsoleShell } from "@/components/ConsoleShell";
+import { CrashBoundary } from "@/components/CrashBoundary";
 import SignIn from "@/pages/SignIn";
 import { Loading } from "@/components/page";
 import { BASE_PATH } from "@/lib/base";
@@ -73,7 +74,7 @@ const queryClient = new QueryClient({
       toast({
         title: "Couldn't load that",
         description: describeError(error),
-        variant: "destructive",
+        variant: "notice",
       });
     },
   }),
@@ -89,7 +90,7 @@ const queryClient = new QueryClient({
       toast({
         title: "That didn't save",
         description: describeError(error),
-        variant: "destructive",
+        variant: "notice",
       });
     },
   }),
@@ -129,26 +130,30 @@ function Routes() {
 
   return (
     <ConsoleShell>
-      <Suspense fallback={<Loading />}>
-        <Switch>
-          {/*
-          The home's own page is the landing screen, and the case list moved
-          one click away. A director arriving in the morning needs to know
-          what is waiting on them before they need a list of everyone they
-          have ever buried.
-        */}
-          <Route path="/" component={Dashboard} />
-          <Route path="/cases" component={Cases} />
-          <Route path="/cases/:caseId" component={CaseDetail} />
-          <Route path="/inbox" component={Inbox} />
-          <Route path="/requests" component={Requests} />
-          <Route path="/vendors" component={Vendors} />
-          <Route path="/storefront" component={Storefront} />
-          <Route path="/prices" component={PriceList} />
-          <Route path="/settings" component={Settings} />
-          <Route component={NotFound} />
-        </Switch>
-      </Suspense>
+      {/* Keyed on the address: a screen that failed to draw is cleared by
+          going to another one, and the bar above it never goes with it. */}
+      <CrashBoundary key={path}>
+        <Suspense fallback={<Loading />}>
+          <Switch>
+            {/*
+              The home's own page is the landing screen, and the case list
+              moved one click away. A director arriving in the morning needs
+              to know what is waiting on them before they need a list of
+              everyone they have ever buried.
+            */}
+            <Route path="/" component={Dashboard} />
+            <Route path="/cases" component={Cases} />
+            <Route path="/cases/:caseId" component={CaseDetail} />
+            <Route path="/inbox" component={Inbox} />
+            <Route path="/requests" component={Requests} />
+            <Route path="/vendors" component={Vendors} />
+            <Route path="/storefront" component={Storefront} />
+            <Route path="/prices" component={PriceList} />
+            <Route path="/settings" component={Settings} />
+            <Route component={NotFound} />
+          </Switch>
+        </Suspense>
+      </CrashBoundary>
     </ConsoleShell>
   );
 }

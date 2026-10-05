@@ -1,6 +1,12 @@
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { api, formatMoney, type PlatformPlan } from "@/lib/api";
+import {
+  api,
+  formatMoney,
+  toCents,
+  toDollars,
+  type PlatformPlan,
+} from "@/lib/api";
 import {
   Button,
   Card,
@@ -123,18 +129,18 @@ function PlanForm({
 }) {
   const [name, setName] = useState(plan?.name ?? "");
   const [monthly, setMonthly] = useState(
-    plan ? String(plan.monthlyAmountCents / 100) : "",
+    plan ? toDollars(plan.monthlyAmountCents) : "",
   );
   const [annual, setAnnual] = useState(
-    plan ? String(plan.annualAmountCents / 100) : "",
+    plan ? toDollars(plan.annualAmountCents) : "",
   );
 
   const save = useMutation({
     mutationFn: () => {
       const body = {
         name: name.trim(),
-        monthlyAmountCents: Math.round(parseFloat(monthly) * 100),
-        annualAmountCents: Math.round(parseFloat(annual) * 100),
+        monthlyAmountCents: toCents(monthly),
+        annualAmountCents: toCents(annual),
       };
       return plan
         ? api.put<PlatformPlan>(`/admin/plans/${plan.id}`, body)

@@ -102,7 +102,7 @@ export default function Requests() {
             error instanceof Error && error.message.trim()
               ? error.message
               : "Somebody else here may have answered it. The list has been refreshed.",
-          variant: "destructive",
+          variant: "notice",
         });
       },
     },

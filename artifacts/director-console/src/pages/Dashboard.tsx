@@ -10,6 +10,7 @@ import {
   getGetHomeDashboardQueryKey,
 } from "@workspace/api-client-react";
 import type {
+  DashboardCertificate,
   DashboardDeadline,
   DashboardQuoteRequest,
   DashboardService,
@@ -17,7 +18,8 @@ import type {
 import { SetupChecklist } from "@/components/SetupChecklist";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Divider, Empty, LoadFailed, Loading, PageHeader } from "@/components/page";
-import { cn, formatAtHome, homeDayNumber } from "@/lib/utils";
+import { cn, formatAtHome } from "@/lib/utils";
+import { relative, whenLabel } from "@/lib/when";
 import { useHomeZone } from "@/lib/session";
 import {
   CalendarClock,
@@ -46,65 +48,6 @@ import {
  * handled this quarter, because a funeral home is not a funnel and a
  * dashboard that treats it like one is one a director stops opening.
  */
-
-const asDate = (value: string | Date) =>
-  value instanceof Date ? value : new Date(value);
-
-/**
- * Dates in a funeral home are always read alongside the day of the week, and
- * on the home's clock (`formatAtHome`): the service is at eleven where the
- * chapel is, whatever zone the director reading this has flown to.
- */
-function whenLabel(value: string | Date, zone: string | undefined): string {
-  return `${formatAtHome(value, zone, {
-    weekday: "short",
-    month: "short",
-    day: "numeric",
-  })}, ${formatAtHome(value, zone, { hour: "numeric", minute: "2-digit" })}`;
-}
-
-/**
- * "3 days ago", "in 2 days". Plain words, because that is how it is said.
- *
- * The sign is never dropped. An earlier version answered "within the hour"
- * for anything inside sixty minutes either way, which put "within the hour"
- * against rows in a list headed **Past due** — a director reading that has
- * been told the opposite of the truth about something that has already
- * slipped, on the one screen whose whole job is to be believed.
- *
- * "Today", "tomorrow" and "yesterday" are counted in calendar days rather
- * than in multiples of 86,400,000 milliseconds, which is the same class of
- * mistake one layer down. Rounding the elapsed time meant that a director
- * looking at the console at nine in the morning was told a service at eleven
- * *tonight* was "tomorrow", and that a step which slipped at ten o'clock last
- * night was "yesterday" when they had walked past it on their way in. Both
- * are off by a day in the direction that costs something: a funeral is this
- * evening or it is not, and a diary does not round.
- *
- * The calendar is the home's: "today" is today in the home's town, so a
- * director in London at midnight is not told that tonight's Denver service
- * was yesterday.
- */
-function relative(value: string | Date, zone: string | undefined): string {
-  const date = asDate(value);
-  const ms = date.getTime() - Date.now();
-  const past = ms < 0;
-
-  if (Math.abs(ms) < 60_000) return "now";
-  if (Math.abs(ms) < 3_600_000) {
-    const minutes = Math.max(1, Math.round(Math.abs(ms) / 60_000));
-    const unit = `${minutes} min`;
-    return past ? `${unit} ago` : `in ${unit}`;
-  }
-
-  const days = homeDayNumber(date, zone) - homeDayNumber(new Date(), zone);
-
-  if (days === 0) return past ? "earlier today" : "later today";
-  if (days === 1) return "tomorrow";
-  if (days === -1) return "yesterday";
-
-  return past ? `${-days} days ago` : `in ${days} days`;
-}
 
 /** The row shape every list on this screen uses. */
 const ROW =
@@ -137,16 +80,32 @@ export default function Dashboard() {
   }
 
   const data = dashboard.data;
+  const certificatesLate = data.certificatesToFile.filter(
+    (row) => row.dueAt !== null && new Date(row.dueAt).getTime() < Date.now(),
+  ).length;
   const nothingWaiting =
     data.casesWaitingOnReply === 0 &&
     data.pendingRequests === 0 &&
     data.quoteRequestsWaiting === 0 &&
     data.overdue.length === 0 &&
-    data.offersAwaitingChoice === 0;
+    data.offersAwaitingChoice === 0 &&
+    certificatesLate === 0;
 
   return (
     <div className="space-y-8">
-      <PageHeader title={data.homeName}>
+      {/*
+        "Today", not the home's name: the name is already in the bar across
+        the top, and saying it twice put the one thing every director knows
+        in the largest type on the page. The date is the home's, so a
+        director checking in from another time zone reads the home's day.
+      */}
+      <PageHeader title="Today">
+        {formatAtHome(new Date(), zone, {
+          weekday: "long",
+          month: "long",
+          day: "numeric",
+        })}
+        {" · "}
         {data.openCases === 0
           ? "No open cases."
           : `${data.openCases} open ${data.openCases === 1 ? "case" : "cases"}.`}
@@ -242,6 +201,65 @@ export default function Dashboard() {
                 </Link>
               </li>
             ))}
+          </ul>
+        </section>
+      )}
+
+      {/*
+        The one list here with a statute behind it. Colorado gives a home 72
+        hours from custody to file the death certificate, and before this
+        section nothing anywhere said which certificate was next. Only cases
+        where custody is recorded, because that is where the clock starts.
+      */}
+      {data.certificatesToFile.length > 0 && (
+        <section className="space-y-3">
+          <Divider label="Death certificates to file" />
+          <p className="max-w-prose text-sm leading-snug text-muted-foreground">
+            Not yet recorded as filed. We don't file anything — tick it on the
+            case's Certificate tab once you've filed in EDRS.
+          </p>
+          <ul className="space-y-2">
+            {data.certificatesToFile.map((row: DashboardCertificate) => {
+              const late =
+                row.dueAt !== null && new Date(row.dueAt).getTime() < Date.now();
+              return (
+                <li key={row.caseId}>
+                  <Link
+                    href={`/cases/${row.caseId}?tab=vitals`}
+                    className={cn(ROW, late && "border-[var(--notice)]/60")}
+                  >
+                    <span className="min-w-0">
+                      <span className="block truncate font-semibold">
+                        {row.decedentName}
+                      </span>
+                      <span className="block truncate text-sm text-muted-foreground">
+                        In your care since {whenLabel(row.custodyTakenAt, zone)}
+                      </span>
+                    </span>
+                    {row.dueAt ? (
+                      <span className="whitespace-nowrap text-right text-sm">
+                        <span className="tabular block">
+                          {late ? "Was due " : "Due "}
+                          {whenLabel(row.dueAt, zone)}
+                        </span>
+                        <span
+                          className={cn(
+                            "block text-xs",
+                            late ? "text-[var(--notice)]" : "text-muted-foreground",
+                          )}
+                        >
+                          {relative(row.dueAt, zone)}
+                        </span>
+                      </span>
+                    ) : (
+                      <span className="whitespace-nowrap text-xs text-muted-foreground">
+                        not filed yet
+                      </span>
+                    )}
+                  </Link>
+                </li>
+              );
+            })}
           </ul>
         </section>
       )}

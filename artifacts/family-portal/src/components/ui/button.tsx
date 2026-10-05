@@ -33,8 +33,11 @@ const buttonVariants = cva(
         /* The one thing to do on this screen. There is never more than one. */
         default:
           "bg-[var(--accent)] text-white shadow-[var(--elevation-1)] hover:bg-[var(--accent-deep)] hover:shadow-[var(--elevation-2)] active:shadow-[var(--elevation-1)]",
-        destructive:
-          "bg-[var(--destructive)] text-white shadow-[var(--elevation-1)] hover:brightness-110 focus-visible:outline-[var(--destructive)]",
+        /*
+         * No red variant, deliberately: nothing a family can press is red
+         * (CRAFT.md). Taking something away is an outline or a quiet link
+         * whose words say what it does.
+         */
         outline:
           "border border-[var(--border-strong)] bg-[var(--card)] text-foreground shadow-[var(--elevation-1)] hover:border-[var(--accent)] hover:bg-[var(--sunken)]",
         secondary:

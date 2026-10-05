@@ -1,13 +1,15 @@
 import { useCallback, useState } from "react";
-import { Route, Router, Switch, useParams } from "wouter";
+import { Route, Router, Switch, useLocation, useParams } from "wouter";
 import {
   QueryClient,
   QueryClientProvider,
   useQuery,
   useQueryClient,
 } from "@tanstack/react-query";
-import { api, isForbidden, isUnauthorized } from "@/lib/api";
+import { api, worthRetrying } from "@/lib/api";
+import { gateScreen, type Session } from "@/lib/gate";
 import { Shell } from "@/components/Shell";
+import { CrashBoundary } from "@/components/CrashBoundary";
 import { Button, Card, ErrorState, Missing, usePageTitle } from "@/components/ui";
 import { SignIn } from "@/pages/SignIn";
 import { Overview } from "@/pages/Overview";
@@ -23,10 +25,7 @@ import { BASE_PATH } from "@/lib/base";
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
-      // A 401 or a 403 is an answer, not a failure. Retrying either just
-      // makes the sign-in page take four seconds to appear.
-      retry: (count, error) =>
-        !isUnauthorized(error) && !isForbidden(error) && count < 1,
+      retry: worthRetrying,
       /*
        * Off, because nearly every read in this console is an audited read.
        * Switching back to this tab used to re-open the home on screen, and
@@ -41,8 +40,6 @@ const queryClient = new QueryClient({
   },
 });
 
-type Session = { user: { email: string; emailVerified: boolean } };
-
 /**
  * The gate, and the two things that can be wrong.
  *
@@ -53,6 +50,7 @@ type Session = { user: { email: string; emailVerified: boolean } };
  */
 function Gate() {
   const queryClient = useQueryClient();
+  const [location] = useLocation();
 
   const session = useQuery({
     queryKey: ["session"],
@@ -85,15 +83,11 @@ function Gate() {
     void queryClient.resetQueries();
   }, [queryClient]);
 
-  if (session.isPending) return null;
+  const gate = gateScreen(session, access);
 
-  /*
-   * Only a 401 means "signed out". Anything else -- the API restarting, a
-   * 500, the network dropping -- used to fall through to the sign-in form,
-   * which told a signed-in admin their session was gone and invited them to
-   * type their password into a page whose server was not answering.
-   */
-  if (session.error && !isUnauthorized(session.error)) {
+  if (gate.screen === "nothing") return null;
+
+  if (gate.screen === "error") {
     return (
       <main className="mx-auto grid min-h-dvh max-w-md place-items-center px-6 py-12">
         <div className="w-full">
@@ -107,19 +101,13 @@ function Gate() {
     );
   }
 
-  if (!session.data) {
-    return <SignIn onSignedIn={refresh} />;
-  }
+  if (gate.screen === "sign-in") return <SignIn onSignedIn={refresh} />;
 
-  if (access.isPending) return null;
-
-  if (isUnauthorized(access.error)) return <SignIn onSignedIn={refresh} />;
-
-  if (access.error) {
+  if (gate.screen === "not-for-you") {
     return (
       <NotForYou
-        unconfirmed={!session.data.user.emailVerified}
-        forbidden={isForbidden(access.error)}
+        unconfirmed={gate.unconfirmed}
+        forbidden={gate.forbidden}
         onRetry={() => void access.refetch()}
         onSignedOut={signedOut}
       />
@@ -127,18 +115,22 @@ function Gate() {
   }
 
   return (
-    <Shell signedInAs={session.data.user.email} onSignedOut={signedOut}>
-      <Switch>
-        <Route path="/" component={Overview} />
-        <Route path="/homes" component={Homes} />
-        <Route path="/homes/:homeId" component={HomeRoute} />
-        <Route path="/groups" component={Groups} />
-        <Route path="/groups/:groupId" component={GroupRoute} />
-        <Route path="/audit" component={Audit} />
-        <Route path="/admins" component={Admins} />
-        <Route path="/plans" component={Plans} />
-        <Route component={NotFound} />
-      </Switch>
+    <Shell signedInAs={gate.signedInAs} onSignedOut={signedOut}>
+      {/* Keyed on the address, so the next screen clears a failed one and
+          the navigation never goes with it. */}
+      <CrashBoundary key={location}>
+        <Switch>
+          <Route path="/" component={Overview} />
+          <Route path="/homes" component={Homes} />
+          <Route path="/homes/:homeId" component={HomeRoute} />
+          <Route path="/groups" component={Groups} />
+          <Route path="/groups/:groupId" component={GroupRoute} />
+          <Route path="/audit" component={Audit} />
+          <Route path="/admins" component={Admins} />
+          <Route path="/plans" component={Plans} />
+          <Route component={NotFound} />
+        </Switch>
+      </CrashBoundary>
     </Shell>
   );
 }

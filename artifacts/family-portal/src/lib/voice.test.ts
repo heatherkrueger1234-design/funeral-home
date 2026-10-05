@@ -31,5 +31,33 @@ describe("voiceFor", () => {
     expect(voiceFor(undefined).preNeed).toBe(false);
     expect(voiceFor("").preNeed).toBe(false);
     expect(voiceFor("something-unexpected").preNeed).toBe(false);
+    // Including the pronouns: a widow is never asked about "your" hair.
+    expect(voiceFor(undefined).Their).toBe("Their");
+    expect(voiceFor("something-unexpected").they).toBe("they");
+  });
+
+  it("refers to somebody who has died as they, them and their", () => {
+    const voice = voiceFor("at_need");
+
+    expect([voice.they, voice.them, voice.their]).toEqual(["they", "them", "their"]);
+    expect([voice.They, voice.Their]).toEqual(["They", "Their"]);
+    expect(`${voice.Their} parents`).toBe("Their parents");
+    expect(`About ${voice.them}`).toBe("About them");
+  });
+
+  it("calls the person reading their own plan you, in every position", () => {
+    const voice = voiceFor("pre_need");
+
+    expect([voice.they, voice.them, voice.their]).toEqual(["you", "you", "your"]);
+    expect([voice.They, voice.Their]).toEqual(["You", "Your"]);
+    // The certificate's labels, as they read on a plan.
+    expect(`${voice.Their} parents`).toBe("Your parents");
+    expect(`${voice.They} served in the armed forces`).toBe(
+      "You served in the armed forces",
+    );
+    expect(`Only if ${voice.they} were born outside the United States.`).toBe(
+      "Only if you were born outside the United States.",
+    );
+    expect(`About ${voice.them}`).toBe("About you");
   });
 });

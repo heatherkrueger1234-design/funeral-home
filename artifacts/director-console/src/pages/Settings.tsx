@@ -17,6 +17,7 @@ import { StandardSchedule } from "@/components/StandardSchedule";
 import { BillingSection } from "@/components/BillingSection";
 import { SnippetLibrary } from "@/components/SnippetLibrary";
 import { StaffSection } from "@/components/StaffSection";
+import { AccessLogSection } from "@/components/AccessLogSection";
 import { LoadFailed, Loading, PageHeader } from "@/components/page";
 
 /** Every zone this browser can format in; the home's clock must be one. */
@@ -66,7 +67,8 @@ export default function Settings() {
         void queryClient.invalidateQueries({
           queryKey: getGetCurrentUserQueryKey(),
         });
-        // The master page heads itself with the home's name.
+        // The master page's certificate deadlines are read from the
+        // home's state, which is edited here.
         void queryClient.invalidateQueries({
           queryKey: getGetHomeDashboardQueryKey(),
         });
@@ -173,6 +175,73 @@ export default function Settings() {
             </p>
           </div>
         </div>
+
+        {/*
+          The address was only ever typed by the platform when the home
+          joined, with nowhere here to correct it -- and it is on the page
+          families find the home through, and the state on it decides the
+          death certificate's filing deadline.
+        */}
+        <div className="space-y-1.5">
+          <Label htmlFor="addressLine1">Address</Label>
+          <Input
+            id="addressLine1"
+            autoComplete="street-address"
+            disabled={readOnly}
+            defaultValue={row.addressLine1 ?? ""}
+            onBlur={(event) => {
+              const value = event.target.value.trim();
+              if (value !== (row.addressLine1 ?? "")) save({ addressLine1: value || null });
+            }}
+          />
+        </div>
+        <div className="grid gap-4 sm:grid-cols-[2fr_1fr_1fr]">
+          <div className="space-y-1.5">
+            <Label htmlFor="city">City</Label>
+            <Input
+              id="city"
+              autoComplete="address-level2"
+              disabled={readOnly}
+              defaultValue={row.city ?? ""}
+              onBlur={(event) => {
+                const value = event.target.value.trim();
+                if (value !== (row.city ?? "")) save({ city: value || null });
+              }}
+            />
+          </div>
+          <div className="space-y-1.5">
+            <Label htmlFor="region">State</Label>
+            <Input
+              id="region"
+              autoComplete="address-level1"
+              disabled={readOnly}
+              defaultValue={row.region ?? ""}
+              placeholder="CO"
+              onBlur={(event) => {
+                const value = event.target.value.trim();
+                if (value !== (row.region ?? "")) save({ region: value || null });
+              }}
+            />
+          </div>
+          <div className="space-y-1.5">
+            <Label htmlFor="postalCode">ZIP</Label>
+            <Input
+              id="postalCode"
+              inputMode="numeric"
+              autoComplete="postal-code"
+              disabled={readOnly}
+              defaultValue={row.postalCode ?? ""}
+              onBlur={(event) => {
+                const value = event.target.value.trim();
+                if (value !== (row.postalCode ?? "")) save({ postalCode: value || null });
+              }}
+            />
+          </div>
+        </div>
+        <p className="-mt-2 text-sm leading-snug text-muted-foreground">
+          On your public page. The state also sets the death certificate
+          deadline: Colorado's 72 hours from custody is built in.
+        </p>
       </section>
 
       <section className="space-y-4 rounded-xl border border-border bg-card p-5 shadow-[var(--elevation-1)]">
@@ -369,6 +438,8 @@ export default function Settings() {
           </p>
         </div>
       </section>
+
+      {!readOnly && <AccessLogSection />}
     </div>
   );
 }

@@ -22,6 +22,27 @@ export type CaseVoice = {
   strapline: (displayName: string) => string;
   /** Whose photographs, obituary, wishes these are. */
   possessive: (displayName: string) => string;
+
+  /*
+   * The person as a pronoun, for a label or a sentence about them: "they"
+   * when they have died, "you" when they are the one reading. The
+   * capitalised forms begin a label — `${voice.Their} hair`.
+   *
+   * Only the pronoun, on purpose. Where the tense changes too, the page
+   * writes both sentences out: "Where they lived" is "Where you live", not
+   * "Where you lived", because a living person's life is not in the past
+   * tense, and no helper here should be able to put it there.
+   */
+  /** "they", or "you": the subject of a sentence. */
+  they: string;
+  /** "them", or "you": the object of one. */
+  them: string;
+  /** "their", or "your". */
+  their: string;
+  /** "They", or "You", to begin a label or a sentence. */
+  They: string;
+  /** "Their", or "Your", to begin a label or a sentence. */
+  Their: string;
 };
 
 export function voiceFor(kind: string | undefined): CaseVoice {
@@ -33,5 +54,10 @@ export function voiceFor(kind: string | undefined): CaseVoice {
     strapline: (displayName) =>
       preNeed ? `${displayName}'s plan` : `For ${displayName}`,
     possessive: (displayName) => (preNeed ? "your" : `${displayName}'s`),
+    they: preNeed ? "you" : "they",
+    them: preNeed ? "you" : "them",
+    their: preNeed ? "your" : "their",
+    They: preNeed ? "You" : "They",
+    Their: preNeed ? "Your" : "Their",
   };
 }
