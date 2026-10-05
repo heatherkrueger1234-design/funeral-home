@@ -46,10 +46,13 @@ jobs:
     env:
       DATABASE_URL: postgresql://postgres:postgres@localhost:5432/drill
       VERIFY_DATABASE_URL: postgresql://postgres:postgres@localhost:5432/drill_verify
-      BACKUP_DIR: ./backups
+      # Absolute, because `pnpm --filter` runs each script from inside
+      # scripts/, and the steps below run from the checkout's root: relative
+      # paths put the backup in one place and looked for it in another.
+      BACKUP_DIR: ${{ github.workspace }}/backups
       # Standing in for the bucket: rclone treats a plain path as a local
       # disk, so the copy-off-the-host step runs for real, credentials aside.
-      BACKUP_OFFSITE: ./offsite
+      BACKUP_OFFSITE: ${{ github.workspace }}/offsite
       # Fixed test key. This is not, and must never become, a deployed secret.
       ENCRYPTION_KEY: BwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwc=
 
@@ -90,11 +93,12 @@ jobs:
       # came back from the far side, the way somebody would at 3am.
       - name: Lose the host's copy, and fetch the offsite one
         run: |
-          rm -rf ./backups
-          rclone copy ./offsite ./from-offsite
-          ls -la ./from-offsite
+          rm -rf "$BACKUP_DIR"
+          test ! -e "$BACKUP_DIR"
+          rclone copy "$BACKUP_OFFSITE" "$GITHUB_WORKSPACE/from-offsite"
+          ls -la "$GITHUB_WORKSPACE/from-offsite"
 
       - name: Verify the offsite copy restores
         env:
-          BACKUP_DIR: ./from-offsite
+          BACKUP_DIR: ${{ github.workspace }}/from-offsite
         run: pnpm --filter @workspace/scripts run verify-backup
