@@ -1,5 +1,5 @@
 import multer from "multer";
-import type { Response } from "express";
+import type { RequestHandler, Response } from "express";
 import { and, count, eq } from "drizzle-orm";
 import {
   db,
@@ -17,6 +17,7 @@ import { encryptBuffer, decryptBuffer } from "@workspace/db/crypto";
 import { detectFileType } from "./file-type";
 import { normaliseImage, renameForType } from "./images";
 import { badRequest, HttpError, notFound } from "./http";
+import { Gate } from "./concurrency";
 
 /**
  * Storing and serving bytes.
@@ -43,10 +44,63 @@ import { badRequest, HttpError, notFound } from "./http";
  */
 export const MAX_PHOTO_BYTES = 50 * 1024 * 1024;
 
-export const photoUpload = multer({
+/**
+ * How many uploads this process holds at once.
+ *
+ * Each is buffered whole before anything can look at it, so the ceiling is
+ * on memory: eight at 50 MB is 400 MB before conversion, inside the 2 GB
+ * DEPLOY.md gives the API. A family's portal sends one photograph at a time,
+ * so eight is eight families at the same moment. The ninth is told to wait a
+ * few seconds and send it again, which both apps do without a word to
+ * anyone, rather than being held open here.
+ */
+export const MAX_UPLOADS_AT_ONCE = 8;
+export const uploadsGate = new Gate(MAX_UPLOADS_AT_ONCE);
+
+/*
+ * Before multer, so a turned-away upload is never read into memory at all;
+ * the slot is given back when the response is done, however it ends.
+ */
+const waitYourTurn: RequestHandler = (_req, res, next) => {
+  if (!uploadsGate.tryEnter()) {
+    res.setHeader("retry-after", "3");
+    next(
+      new HttpError(
+        429,
+        "A lot of photographs are arriving at once. Yours will go in a moment.",
+      ),
+    );
+    return;
+  }
+
+  let released = false;
+  const release = () => {
+    if (released) return;
+    released = true;
+    uploadsGate.leave();
+  };
+  res.once("finish", release);
+  res.once("close", release);
+  next();
+};
+
+const parse = multer({
   storage: multer.memoryStorage(),
   limits: { fileSize: MAX_PHOTO_BYTES, files: 1 },
 });
+
+/** One photograph in the named field, taken only when it is this one's turn. */
+export const photoUpload = {
+  single: (field: string): RequestHandler => {
+    const read = parse.single(field);
+    return (req, res, next) => {
+      waitYourTurn(req, res, (error?: unknown) => {
+        if (error) next(error);
+        else void read(req, res, next);
+      });
+    };
+  },
+};
 
 export type StoredUpload = Omit<Upload, "data">;
 

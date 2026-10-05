@@ -10,6 +10,7 @@ import {
   getGetCaseQueryKey,
   cropOf,
   postCasePhotoMultipart,
+  withPatience,
   MAX_UPLOAD_BYTES,
   ACCEPTED_UPLOAD_TYPES,
 } from "@workspace/api-client-react";
@@ -69,7 +70,9 @@ function useAddPhotos(caseId: number, onDone: () => void) {
         });
       } else {
         try {
-          await postCasePhotoMultipart(caseId, file);
+          // A busy minute's "not yet" is waited out, not shown; see
+          // `withPatience`.
+          await withPatience(() => postCasePhotoMultipart(caseId, file));
         } catch (error) {
           toast({
             title: `Couldn't add "${file.name}"`,

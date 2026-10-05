@@ -89,3 +89,29 @@ export async function postFamilyPhotoMultipart(
     responseType: "json",
   });
 }
+
+/**
+ * Send, and when the server says "not yet" (a 429), wait as long as it says
+ * and send the same thing again -- up to four more times.
+ *
+ * Two different "not yet"s arrive here, and in neither was anything wrong
+ * with the photograph. A family's link has a per-minute ceiling that a
+ * family choosing three hundred pictures on good wifi can reach; and the API
+ * holds only so many uploads in memory at once, which anybody can meet in a
+ * busy minute. Each used to come back as its own "Couldn't add", seventy of
+ * them for photographs that were perfectly fine.
+ */
+export async function withPatience<T>(send: () => Promise<T>): Promise<T> {
+  for (let attempt = 0; ; attempt += 1) {
+    try {
+      return await send();
+    } catch (error) {
+      const status = (error as { status?: number }).status;
+      if (status !== 429 || attempt >= 4) throw error;
+
+      const header = (error as { headers?: Headers }).headers?.get("retry-after");
+      const seconds = Math.min(60, Math.max(1, Number(header) || 10));
+      await new Promise((resolve) => setTimeout(resolve, seconds * 1000));
+    }
+  }
+}

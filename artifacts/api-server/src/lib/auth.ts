@@ -16,13 +16,47 @@ import {
   type User,
 } from "@workspace/db";
 import { logger } from "./logger";
+import { HttpError } from "./http";
+import { Gate } from "./concurrency";
 
-const scrypt = promisify(scryptCallback) as (
+const scryptOnce = promisify(scryptCallback) as (
   password: string,
   salt: Buffer,
   keylen: number,
   options: { N: number; r: number; p: number },
 ) => Promise<Buffer>;
+
+/*
+ * Two password checks at once for the whole process, and up to sixty-four
+ * waiting behind them.
+ *
+ * Each check is about a quarter of a second of one of the four threads Node
+ * keeps for slow work -- the same four that read files and look up the mail
+ * server's address. Sign-in is limited per address, but enough attempts
+ * from enough addresses would have taken all four, and everything else
+ * waiting on them with it. Now they take two at most and queue for those,
+ * and past sixty-four waiting, which is eight seconds of work, a new attempt
+ * is told to come back rather than joining a line it will not reach. Checks
+ * for addresses with no account (`fakeVerify`) queue the same way, so the
+ * line says nothing about who has one.
+ */
+const hashing = new Gate(2, 64);
+
+async function scrypt(
+  password: string,
+  salt: Buffer,
+  keylen: number,
+  options: { N: number; r: number; p: number },
+): Promise<Buffer> {
+  if (!(await hashing.enter())) {
+    throw new HttpError(503, "Signing in is busy just now. Please try again in a moment.");
+  }
+  try {
+    return await scryptOnce(password, salt, keylen, options);
+  } finally {
+    hashing.leave();
+  }
+}
 
 /*
  * OWASP's scrypt configuration for a 16 MiB memory cost: N=2^14, r=8, p=5,

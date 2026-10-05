@@ -13,6 +13,7 @@ import {
   getGetFamilySessionQueryKey,
   getGetFamilyPreparationQueryKey,
   postFamilyPhotoMultipart,
+  withPatience,
   MAX_UPLOAD_BYTES,
   ACCEPTED_UPLOAD_TYPES,
 } from "@workspace/api-client-react";
@@ -51,31 +52,12 @@ import { describeError } from "@/lib/utils";
  */
 
 /**
- * Send one photograph, waiting out the link's rate limit rather than failing.
- *
- * A family choosing three hundred pictures on good wifi can send them faster
- * than the server's per-minute ceiling allows, and each one past it used to
- * come back as its own red "Couldn't add" — seventy of them, for photographs
- * that were perfectly fine. The server says how long to wait, so wait that
- * long and send the same one again; only a refusal that is about the
- * photograph itself is shown to the family.
+ * Send one photograph, waiting out a "not yet" rather than failing; only a
+ * refusal that is about the photograph itself is shown to the family. See
+ * `withPatience`, which the console's upload shares.
  */
 async function uploadWithPatience(file: File): Promise<void> {
-  for (let attempt = 0; ; attempt += 1) {
-    try {
-      await postFamilyPhotoMultipart(file);
-      return;
-    } catch (error) {
-      const status = (error as { status?: number }).status;
-      if (status !== 429 || attempt >= 4) throw error;
-
-      const header = (error as { headers?: Headers }).headers?.get(
-        "retry-after",
-      );
-      const seconds = Math.min(60, Math.max(1, Number(header) || 10));
-      await new Promise((resolve) => setTimeout(resolve, seconds * 1000));
-    }
-  }
+  await withPatience(() => postFamilyPhotoMultipart(file));
 }
 
 /** Size a caption box to its words: two lines at least, never a scrollbar. */
