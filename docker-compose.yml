@@ -223,6 +223,16 @@ services:
       ENCRYPTION_KEY: ${ENCRYPTION_KEY}
       BACKUP_DIR: /backups
       BACKUP_RETAIN_DAYS: ${BACKUP_RETAIN_DAYS:-30}
+      # The copy off this host. DEPLOY.md, "Backups off the host".
+      BACKUP_OFFSITE: ${BACKUP_OFFSITE:-}
+      BACKUP_OFFSITE_RETAIN_DAYS: ${BACKUP_OFFSITE_RETAIN_DAYS:-}
+      RCLONE_CONFIG_OFFSITE_TYPE: ${RCLONE_CONFIG_OFFSITE_TYPE:-}
+      RCLONE_CONFIG_OFFSITE_PROVIDER: ${RCLONE_CONFIG_OFFSITE_PROVIDER:-}
+      RCLONE_CONFIG_OFFSITE_ENDPOINT: ${RCLONE_CONFIG_OFFSITE_ENDPOINT:-}
+      RCLONE_CONFIG_OFFSITE_REGION: ${RCLONE_CONFIG_OFFSITE_REGION:-}
+      RCLONE_CONFIG_OFFSITE_ACCESS_KEY_ID: ${RCLONE_CONFIG_OFFSITE_ACCESS_KEY_ID:-}
+      RCLONE_CONFIG_OFFSITE_SECRET_ACCESS_KEY: ${RCLONE_CONFIG_OFFSITE_SECRET_ACCESS_KEY:-}
+      RCLONE_CONFIG_OFFSITE_NO_CHECK_BUCKET: ${RCLONE_CONFIG_OFFSITE_NO_CHECK_BUCKET:-}
       SMTP_HOST: ${SMTP_HOST:-}
       SMTP_PORT: ${SMTP_PORT:-}
       SMTP_USER: ${SMTP_USER:-}
@@ -232,7 +242,8 @@ services:
       CONSOLE_URL: ${CONSOLE_URL:-}
     volumes:
       # A named volume so backups survive `docker compose down`. It is still
-      # on this host's disk, which is not a backup — copy it somewhere else.
+      # on this host's disk, which is not a backup on its own: BACKUP_OFFSITE
+      # is what copies each one somewhere else.
       - backups:/backups
 
 volumes:

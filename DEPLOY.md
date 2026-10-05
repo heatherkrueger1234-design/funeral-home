@@ -11,10 +11,11 @@ matters at 3am:
 | Run, for real | The production esbuild bundle: registration, a case, a family link, a genuine iPhone HEIC uploaded and served back as JPEG, twelve photos zipped into a slideshow pack — all of it through this exact `nginx.conf`, with `nginx -t` passing on the expanded template. |
 | Run, for real | `pnpm deploy --prod --legacy` produces a tree where `sharp`, `heic-decode` and `nodemailer` resolve and `esbuild`, `vitest` and `supertest` do not. |
 | Run, for real | `backup-database` → `DROP DATABASE` → `restore-database`, with an encrypted photo matching byte-for-byte and an encrypted SSN decrypting afterwards (`pnpm --filter @workspace/scripts run verify-backup`). |
+| Run, for real | `backup-database` with `BACKUP_OFFSITE` set: the encrypted dump copied with rclone and its size checked on the far side, the local copy deleted, the far copy fetched back and restored with every table matching (5 Oct 2026, against a directory standing in for the bucket; the weekly drill does the same). An unreachable destination fails the run. The tools image's `apt` step was built on `node:24-bookworm-slim` and gives `pg_dump` 16.15 and rclone 1.60.1. |
 | Run, for real | `docker build` for all four images, then `docker compose up`: four containers healthy, migrations applied through `tools`, a home registered and a real iPhone HEIC uploaded and served back through nginx, and a backup taken and restored inside the containers. A full `docker compose restart` left the photograph byte-for-byte identical. |
 | Run, for real | Caddy → this `nginx.conf` → the API, with TLS from Caddy's own CA on `*.localhost`: HTTPS reaches the API as HTTPS, plain HTTP redirects, and one visitor exhausting the sign-in limit does not lock out another. The same test against the previous config locked both out. |
 | Run, for real | `send-test-email` against an SMTP server on 587 with STARTTLS: delivered over TLS; a wrong password, a half-set config and an API key with no `SMTP_FROM` each fail with the reason; a server that refuses STARTTLS is refused rather than sent the password in clear. |
-| **Not run** | A real Let's Encrypt certificate on a real domain, a real mail provider, or a real Stripe key. Those need your DNS and your accounts. |
+| **Not run** | A real Let's Encrypt certificate on a real domain, a real mail provider, a real Stripe key, or a real bucket for the backups. Those need your DNS and your accounts. |
 
 ## Before anything else
 
@@ -203,12 +204,67 @@ volume:
               run --rm tools pnpm --filter @workspace/scripts run backup-database
 ```
 
-That volume is on this host's disk, which means it is not a backup — it does
-not survive the failure it exists for. Copy it off the host:
+That volume is on this host's disk, which means it is not a backup on its
+own — it does not survive the failure it exists for. Set `BACKUP_OFFSITE` and
+every run copies its dump off the host as well.
+
+### Backups off the host
+
+`backup-database` hands each finished dump to [rclone](https://rclone.org),
+which is in the `tools` image, then asks the far side for the file and checks
+its size. A copy that fails, or arrives the wrong size, fails the run with
+the reason, so the scheduler reports it; the local backup is still there.
+
+Any S3-compatible bucket works. Make a bucket used for nothing else, and an
+access key that can **write to that bucket and nothing more** — not delete,
+not list other buckets. Then, in `.env`:
 
 ```sh
-docker run --rm -v funeral-home_backups:/b -v "$PWD:/out" alpine \
-  tar czf /out/backups.tar.gz -C /b .
+BACKUP_OFFSITE=offsite:continuum-backups
+RCLONE_CONFIG_OFFSITE_TYPE=s3
+RCLONE_CONFIG_OFFSITE_ACCESS_KEY_ID=...
+RCLONE_CONFIG_OFFSITE_SECRET_ACCESS_KEY=...
+# A key limited to one bucket cannot check the bucket exists; say so.
+RCLONE_CONFIG_OFFSITE_NO_CHECK_BUCKET=true
+
+# Cloudflare R2:
+RCLONE_CONFIG_OFFSITE_PROVIDER=Cloudflare
+RCLONE_CONFIG_OFFSITE_ENDPOINT=https://<account id>.r2.cloudflarestorage.com
+# Backblaze B2 (its S3 endpoint, shown on the bucket's page):
+#RCLONE_CONFIG_OFFSITE_PROVIDER=Other
+#RCLONE_CONFIG_OFFSITE_ENDPOINT=https://s3.us-west-004.backblazeb2.com
+# AWS S3:
+#RCLONE_CONFIG_OFFSITE_PROVIDER=AWS
+#RCLONE_CONFIG_OFFSITE_REGION=us-east-2
+```
+
+`offsite` is the name rclone knows the destination by; the
+`RCLONE_CONFIG_OFFSITE_*` settings define it, and anything rclone supports
+(SFTP to another machine, a mounted disk) works the same way. Run one backup
+by hand and look for `copied off this host to …` before trusting the cron
+line.
+
+Three things that matter more than they look:
+
+- **Keep `ENCRYPTION_KEY` somewhere else too** — a password manager, not this
+  host and not the bucket. The dumps are encrypted with it, so the bucket on
+  its own is useless to a thief, and equally useless to you if the key died
+  with the host.
+- **Expire old copies with the bucket's own lifecycle rule** (90 days is
+  sensible), not from this host. `BACKUP_OFFSITE_RETAIN_DAYS` exists for a
+  destination without lifecycle rules, but it needs a key that can delete,
+  and whoever gets into this host then gets that too.
+- **The bucket's region is where the data lives.** Pick a US one: the draft
+  privacy policy says family data stays in the United States.
+
+To restore from the far side, fetch it back inside `tools` (which has rclone
+and the settings) and restore as usual:
+
+```sh
+docker compose run --rm tools sh -c \
+  'rclone copy offsite:continuum-backups /backups/from-offsite --include "holding-today-*.sql.enc" && ls /backups/from-offsite'
+docker compose run --rm tools pnpm --filter @workspace/scripts run \
+  restore-database -- --file /backups/from-offsite/<newest>.sql.enc
 ```
 
 ### Prove the restore works before you need it
@@ -228,7 +284,9 @@ docker compose run --rm \
 
 `.github/workflows/backup-drill.yml` runs it weekly and on any change to the
 schema or the backup scripts, so the drill fails in CI rather than in an
-emergency.
+emergency. It restores the copy that came back from the far side (a
+directory standing in for the bucket), not the one left on the runner's
+disk, because on the day it matters the disk is gone.
 
 ## A caution about `db push`
 
@@ -352,9 +410,10 @@ whoever last edited the file.
 
 ## What this is not
 
-One Postgres, one API, no replication, no object storage, backups on the same
-host until you copy them off. That is honestly sized for a pilot with a
-handful of homes on it. The things to fix before it is more than that, roughly
-in order: move uploads out of Postgres, put the backups somewhere else
-automatically, and run more than one API container — which needs nothing
-changed, since sessions are in the database rather than in memory.
+One Postgres, one API, no replication, no object storage, and backups that
+are only off the host if `BACKUP_OFFSITE` is set. That is honestly sized for a
+pilot with a handful of homes on it. The things to fix before it is more than
+that, roughly in order: move uploads out of Postgres (every photograph is in
+every dump, so backups grow with them), and run more than one API container —
+which needs nothing changed, since sessions are in the database rather than in
+memory.

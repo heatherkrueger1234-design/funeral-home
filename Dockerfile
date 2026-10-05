@@ -77,6 +77,10 @@ FROM build AS tools
 #
 # Both were observed here, in this order. Keep this in step with the postgres
 # image in docker-compose.yml.
+#
+# rclone comes along in the same step: it carries each backup off this host
+# (BACKUP_OFFSITE). Debian's package is fine — any version from the last few
+# years speaks S3, R2, B2 and SFTP.
 ARG PG_MAJOR=16
 RUN apt-get update \
   && apt-get install -y --no-install-recommends ca-certificates curl gnupg \
@@ -87,6 +91,7 @@ RUN apt-get update \
        > /etc/apt/sources.list.d/pgdg.list \
   && apt-get update \
   && apt-get install -y --no-install-recommends "postgresql-client-${PG_MAJOR}" \
+  && apt-get install -y --no-install-recommends rclone \
   && apt-get purge -y --auto-remove gnupg \
   && rm -rf /var/lib/apt/lists/*
 
@@ -97,7 +102,8 @@ RUN apt-get update \
 # that actually matters happens in `backup-database`, which can see both.
 RUN pg_dump --version \
   && pg_dump --version | grep -qE "PostgreSQL\) ${PG_MAJOR}\." \
-  && psql --version | grep -qE "PostgreSQL\) ${PG_MAJOR}\."
+  && psql --version | grep -qE "PostgreSQL\) ${PG_MAJOR}\." \
+  && rclone version
 
 ENV NODE_ENV=production
 
