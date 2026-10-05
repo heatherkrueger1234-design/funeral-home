@@ -11,6 +11,7 @@ import {
   AFTERCARE_COPY_KEYS,
   AFTERCARE_TOUCHPOINTS,
   FAMILY_LINK_TTL_MS,
+  aftercareGraceMs,
   isAftercareHour,
   type AftercareCopyKey,
 } from "@workspace/db";
@@ -245,6 +246,12 @@ export type AftercareRunResult = {
   texted: number;
   failed: number;
   skipped: number;
+  /**
+   * Too late to be true, and so never sent (`aftercareGraceMs`). Not a
+   * failure of this run, but a number an operator wants to see: it is what an
+   * outage cost families.
+   */
+  missed: number;
   dryRun: boolean;
   mailConfigured: boolean;
 };
@@ -375,6 +382,7 @@ export async function runAftercare(
     texted: 0,
     failed: 0,
     skipped: 0,
+    missed: 0,
     dryRun,
     mailConfigured,
   };
@@ -478,6 +486,30 @@ export async function runAftercare(
           .set({ expiresAt: keepUntil })
           .where(eq(familyContactsTable.id, row.contactId));
       }
+    }
+
+    /*
+     * Too late to be true, so it is marked missed rather than sent; see
+     * `aftercareGraceMs` for the burst this stops. Checked before whether
+     * anything can be sent at all, so a note that fell due while there was
+     * no way to send it does not go out weeks later, the day there is. After
+     * the link is kept alive above, because the family's way in should not
+     * lapse because our sender did.
+     */
+    if (now.getTime() - row.delivery.dueAt.getTime() > aftercareGraceMs(row.delivery.kind, row.delivery.dayOffset)) {
+      if (!dryRun) {
+        await db
+          .update(aftercareDeliveriesTable)
+          .set({ sentAt: now, sentVia: "missed" })
+          .where(
+            and(
+              eq(aftercareDeliveriesTable.id, row.delivery.id),
+              isNull(aftercareDeliveriesTable.sentAt),
+            ),
+          );
+      }
+      result.missed += 1;
+      continue;
     }
 
     const canEmail = Boolean(to) && mailConfigured;

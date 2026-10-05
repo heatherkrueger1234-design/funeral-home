@@ -243,9 +243,16 @@ describe("the aftercare trigger", () => {
           eq(aftercareDeliveriesTable.dayOffset, 90),
         ),
       );
+    // Failed this morning, so it is still true and still owed a retry. One
+    // that failed a month ago would be too late to send at all, and is
+    // marked missed instead -- see "a family who says yes late".
     await db
       .update(aftercareDeliveriesTable)
-      .set({ failedAt: new Date(Date.now() - DAY), failureReason: "SMTP timeout" })
+      .set({
+        dueAt: new Date(Date.now() - DAY / 12),
+        failedAt: new Date(Date.now() - DAY / 24),
+        failureReason: "SMTP timeout",
+      })
       .where(
         and(
           eq(aftercareDeliveriesTable.enrollmentId, enrollment!.id),

@@ -7655,7 +7655,7 @@ components:
         sentVia:
           type: string
           nullable: true
-          description: "`email`, `sms`, `email,sms`, or `withdrawn` when consent lapsed before it was due."
+          description: "`email`, `sms`, `email,sms`, `withdrawn` when consent lapsed before it was due, or `missed` when it fell due and could not go out while it was still true (see `aftercareGraceMs`). Neither of the last two was sent."
       required: [id, kind, dayOffset, dueAt, sentAt, failedAt, sentVia]
 
     AftercareMessage:

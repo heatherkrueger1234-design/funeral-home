@@ -83,7 +83,8 @@ jobs:
           with open("result.json") as f:
               result = json.load(f)
           print(f"due={result['due']} sent={result['sent']} "
-                f"failed={result['failed']} skipped={result['skipped']}")
+                f"failed={result['failed']} skipped={result['skipped']} "
+                f"missed={result.get('missed', 0)}")
           if result["failed"] > 0 and result["sent"] == 0 and result["due"] > 0:
               sys.exit("Every check-in that was due failed to send.")
           PY

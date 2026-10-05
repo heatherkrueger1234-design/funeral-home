@@ -189,6 +189,33 @@ export type AftercareDelivery = typeof aftercareDeliveriesTable.$inferSelect;
 export const AFTERCARE_DUE_HOUR = 10;
 export const AFTERCARE_SEND_FROM_HOUR = 9;
 export const AFTERCARE_SEND_UNTIL_HOUR = 19;
+
+/**
+ * How late a note may still go out and be true. Past this it is marked
+ * missed and never sent.
+ *
+ * Nothing used to stop a note going out however late it was, and late ones
+ * arrived together: a family who said yes to the check-ins in March, two
+ * months after the service, was sent "Thinking of you", "Two months on" and
+ * "Today would have been Margaret's birthday" -- seven weeks after her
+ * birthday -- in the same minute. The same burst followed any mail outage,
+ * and would have followed the day SMTP is first configured, because a note
+ * that falls due with no way to send it waits rather than failing.
+ *
+ * A note about a day goes on that day or not at all: the sender keeps to
+ * nine till seven where the home is, so twelve hours late is the next day.
+ * "Before the holidays" is due in mid-December and is wrong after Christmas.
+ * The check-ins at one, two and three months are about an interval, and a
+ * fortnight late is still true of it -- and as they are thirty days apart,
+ * no two of them can go together.
+ */
+export function aftercareGraceMs(kind: string, dayOffset: number): number {
+  const HOUR = 60 * 60 * 1000;
+  if (kind === "birthday" || kind === "death_anniversary") return 12 * HOUR;
+  if (kind === "checkin" && dayOffset === 365) return 12 * HOUR;
+  if (kind === "holidays") return 7 * 24 * HOUR;
+  return 14 * 24 * HOUR;
+}
 /** Where a home with an unusable time zone is assumed to be. */
 const FALLBACK_ZONE = "America/Denver";
 

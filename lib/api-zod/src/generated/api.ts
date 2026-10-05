@@ -4461,7 +4461,7 @@ export const GetAftercareResponseItem = zod.object({
         .string()
         .nullable()
         .describe(
-          "`email`, `sms`, `email,sms`, or `withdrawn` when consent lapsed before it was due.",
+          "`email`, `sms`, `email,sms`, `withdrawn` when consent lapsed before it was due, or `missed` when it fell due and could not go out while it was still true (see `aftercareGraceMs`). Neither of the last two was sent.",
         ),
     }),
   ),
@@ -4525,7 +4525,7 @@ export const StopAftercareResponseItem = zod.object({
         .string()
         .nullable()
         .describe(
-          "`email`, `sms`, `email,sms`, or `withdrawn` when consent lapsed before it was due.",
+          "`email`, `sms`, `email,sms`, `withdrawn` when consent lapsed before it was due, or `missed` when it fell due and could not go out while it was still true (see `aftercareGraceMs`). Neither of the last two was sent.",
         ),
     }),
   ),
@@ -6049,7 +6049,7 @@ export const GetFamilySessionResponse = zod
               .string()
               .nullable()
               .describe(
-                "`email`, `sms`, `email,sms`, or `withdrawn` when consent lapsed before it was due.",
+                "`email`, `sms`, `email,sms`, `withdrawn` when consent lapsed before it was due, or `missed` when it fell due and could not go out while it was still true (see `aftercareGraceMs`). Neither of the last two was sent.",
               ),
           }),
         ),
@@ -6741,7 +6741,7 @@ export const SetFamilyAftercareConsentResponse = zod.object({
         .string()
         .nullable()
         .describe(
-          "`email`, `sms`, `email,sms`, or `withdrawn` when consent lapsed before it was due.",
+          "`email`, `sms`, `email,sms`, `withdrawn` when consent lapsed before it was due, or `missed` when it fell due and could not go out while it was still true (see `aftercareGraceMs`). Neither of the last two was sent.",
         ),
     }),
   ),
