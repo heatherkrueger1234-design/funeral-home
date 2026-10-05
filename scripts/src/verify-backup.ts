@@ -15,10 +15,11 @@
  * you cannot.
  */
 import { spawn } from "node:child_process";
-import { readdir, stat, readFile, rm } from "node:fs/promises";
+import { readdir, stat, rm } from "node:fs/promises";
 import path from "node:path";
 import pg from "pg";
 import { decryptFile, isEncryptedBackupName } from "./backup-crypto";
+import { looksLikePgDump } from "./lib/dump-head";
 
 const DATABASE_URL = process.env.DATABASE_URL;
 const VERIFY_DATABASE_URL = process.env.VERIFY_DATABASE_URL;
@@ -190,8 +191,7 @@ async function main(): Promise<void> {
 
     const dumpInfo = encrypted ? await stat(dumpFile) : info;
 
-    const head = (await readFile(dumpFile)).subarray(0, 4096).toString("utf8");
-    if (!head.includes("PostgreSQL database dump")) {
+    if (!(await looksLikePgDump(dumpFile))) {
       throw new Error(`${file} does not look like a pg_dump.`);
     }
 

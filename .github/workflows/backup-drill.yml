@@ -19,6 +19,7 @@ on:
       - "scripts/src/backup-crypto.ts"
       - "scripts/src/restore-database.ts"
       - "scripts/src/verify-backup.ts"
+      - "scripts/src/lib/dump-head.ts"
       - "lib/db/**"
 
 # Checkout and a local Postgres service, nothing that writes back to GitHub.
