@@ -96,12 +96,27 @@ export async function verifyPassword(
   if (!Object.values(options).every(Number.isInteger)) return false;
 
   const expected = Buffer.from(rawHash, "base64");
-  const derived = await scrypt(
-    password,
-    Buffer.from(rawSalt, "base64"),
-    expected.length,
-    options,
-  );
+  const salt = Buffer.from(rawSalt, "base64");
+  const derived = await scrypt(password, salt, expected.length, options);
+
+  /*
+   * A hash made before 5 October costs a fifth of today's to check, while
+   * `fakeVerify` — the answer for an address with no account — costs
+   * today's. A wrong password against a dormant account therefore came
+   * back about 180ms sooner than one against nobody, which says which
+   * addresses have accounts. The difference is paid here, every time,
+   * until the account signs in and is rehashed.
+   */
+  if (
+    options.N === SCRYPT_PARAMS.N &&
+    options.r === SCRYPT_PARAMS.r &&
+    options.p < SCRYPT_PARAMS.p
+  ) {
+    await scrypt(password, salt, expected.length, {
+      ...options,
+      p: SCRYPT_PARAMS.p - options.p,
+    });
+  }
 
   // Lengths must match before timingSafeEqual, which throws otherwise.
   return (
