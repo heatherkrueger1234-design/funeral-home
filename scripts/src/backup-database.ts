@@ -295,8 +295,16 @@ async function main(): Promise<void> {
   const partial = `${plain}.partial`;
 
   console.log(`backing up to ${plain}`);
-  await runPgDump(partial);
-  await rename(partial, plain);
+  try {
+    await runPgDump(partial);
+    await rename(partial, plain);
+  } finally {
+    // Whatever pg_dump wrote before it failed is plaintext, and nothing else
+    // would ever remove it: the next run writes to a new name, and prune
+    // matches only finished ones. After the rename nothing is left at this
+    // name, so a backup that worked is untouched.
+    await rm(partial, { force: true }).catch(() => {});
+  }
 
   const { size } = await stat(plain);
   if (size === 0) fail(`${plain} is empty. Treating this as a failed backup.`);
