@@ -44,18 +44,18 @@ production esbuild bundle, through the real nginx config:
   containers restores and verifies. A full restart leaves the photograph
   byte-for-byte identical.
 
-808 unit and integration tests (646 API against real Postgres, 62 platform
-console, 62 family portal, 30 director console, 8 for the scripts) and 7
-Playwright browser tests, every project typechecking and every app building —
-as of the evening of 5 October, on `ccr-159a35a1-xifk0k`. `STATUS.md` says
-which branch holds what.
+928 unit and integration tests (717 API against real Postgres, 63 platform
+console, 73 family portal, 51 director console, 24 for the scripts) and 10
+Playwright browser tests, every project typechecking, its tests included, and
+every app building — as of the night of 5 October, on `ccr-159a35a1-xifk0k`.
+`STATUS.md` says which branch holds what.
 
 Every suite was green before that evening too, at 770, and a launch review
 still found an outsider able to take over the platform console, the
 platform's notes on each home sent to its staff, and imported service times
-six hours early, among twenty fixed defects. Green says the tests pass, not
-that they ask everything; `STATUS.md` lists what that review found and left
-open.
+six hours early, among twenty defects fixed that evening and twenty-seven
+more that night. Green says the tests pass, not that they ask everything;
+`STATUS.md` lists what is still open.
 
 ## Lighthouse scores
 
