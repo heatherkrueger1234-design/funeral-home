@@ -14,6 +14,7 @@ on:
   # Also on changes to the scripts themselves, since that is when it breaks.
   push:
     paths:
+      - ".github/workflows/backup-drill.yml"
       - "scripts/src/backup-database.ts"
       - "scripts/src/backup-crypto.ts"
       - "scripts/src/restore-database.ts"
