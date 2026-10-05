@@ -6,6 +6,7 @@ import {
   holdsSomebodyElses,
   isSessionQuery,
   isUnauthorized,
+  serverUnreachable,
   whoIsSignedIn,
 } from "./session";
 
@@ -55,6 +56,42 @@ describe("isUnauthorized", () => {
     expect(isUnauthorized(new Error("boom"))).toBe(false);
     expect(isUnauthorized(null)).toBe(false);
     expect(isUnauthorized(undefined)).toBe(false);
+  });
+});
+
+/**
+ * Only a 401 means "signed out". The console used to put its sign-in form
+ * up whenever the first question about who is here failed at all -- the API
+ * restarting, the office wifi dropping -- which told a director they had
+ * been signed out and invited them to type their password into a page
+ * whose server was not answering. The platform console learned this first
+ * (`admin-console/src/lib/gate.ts`).
+ */
+describe("serverUnreachable", () => {
+  const heather = { user: { id: 7, email: "heather@willowbank.example" } };
+  const refused = (status: number) =>
+    new ApiError(new Response(null, { status }), null, {
+      method: "GET",
+      url: "/api/auth/me",
+    });
+
+  it("is true when the first answer failed for any reason but being signed out", () => {
+    for (const error of [refused(500), refused(502), refused(503), new TypeError("Failed to fetch")]) {
+      expect(serverUnreachable({ data: undefined, error })).toBe(true);
+    }
+  });
+
+  it("is false for somebody who is signed out, who gets the sign-in form", () => {
+    expect(serverUnreachable({ data: undefined, error: refused(401) })).toBe(false);
+  });
+
+  it("is false for a director already at work when a re-ask fails, who stays where they are", () => {
+    expect(serverUnreachable({ data: heather, error: refused(503) })).toBe(false);
+  });
+
+  it("is false when nothing has failed", () => {
+    expect(serverUnreachable({ data: undefined, error: null })).toBe(false);
+    expect(serverUnreachable({ data: heather, error: null })).toBe(false);
   });
 });
 

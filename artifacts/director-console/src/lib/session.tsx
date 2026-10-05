@@ -23,6 +23,10 @@ import {
 type SessionState = {
   session: AuthUser | null;
   isPending: boolean;
+  /** Nobody is known to be here because the server could not be asked. */
+  unreachable: boolean;
+  /** The session question is being asked again. */
+  asking: boolean;
   /** Re-read the session after signing in or out. */
   refresh: () => void;
 };
@@ -71,6 +75,8 @@ export function SessionProvider({ children }: { children: ReactNode }) {
       value={{
         session: changingHands ? null : session,
         isPending: query.isPending || changingHands,
+        unreachable: serverUnreachable(query),
+        asking: query.isFetching,
         refresh: () => {
           void queryClient.invalidateQueries({
             queryKey: getGetCurrentUserQueryKey(),
@@ -120,6 +126,23 @@ export function whoIsSignedIn<T>(answer: { data?: T; error: unknown }): T | null
 
 export function isUnauthorized(error: unknown): boolean {
   return (error as { status?: number } | null)?.status === 401;
+}
+
+/**
+ * Whether the session question failed, with no answer in hand, for any
+ * reason but being signed out.
+ *
+ * Only a 401 means "signed out". The API restarting or the network dropping
+ * on the first load used to fall through to the sign-in form, which told a
+ * director their session was gone and invited them to type their password
+ * into a page whose server was not answering. With an answer in hand the
+ * director stays where they are (`whoIsSignedIn`), so this is only ever the
+ * first load.
+ */
+export function serverUnreachable(answer: { data?: unknown; error: unknown }): boolean {
+  return (
+    whoIsSignedIn(answer) === null && answer.error != null && !isUnauthorized(answer.error)
+  );
 }
 
 /** The session query is allowed to fail quietly; nothing else is. */

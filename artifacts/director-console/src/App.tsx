@@ -30,6 +30,7 @@ import { BASE_PATH } from "@/lib/base";
  */
 import ChoosePassword from "@/pages/ChoosePassword";
 import VerifyEmail from "@/pages/VerifyEmail";
+import Unreachable from "@/pages/Unreachable";
 import Dashboard from "@/pages/Dashboard";
 import NotFound from "@/pages/NotFound";
 
@@ -118,7 +119,7 @@ const queryClient = new QueryClient({
  * route, rather than a flash of an empty case list.
  */
 function Routes() {
-  const { session, isPending } = useSession();
+  const { session, isPending, unreachable } = useSession();
   const [path] = useLocation();
 
   if (isPending) return null;
@@ -140,6 +141,9 @@ function Routes() {
   if (path === "/reset-password") return <ChoosePassword />;
   if (path === "/verify-email") return <VerifyEmail />;
 
+  // Nobody is known to be here only because the server did not answer: not
+  // the sign-in form, which would say they had been signed out.
+  if (unreachable) return <Unreachable />;
   if (!session) return <SignIn />;
 
   return (
