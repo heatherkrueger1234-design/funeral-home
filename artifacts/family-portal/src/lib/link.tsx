@@ -115,6 +115,26 @@ type LinkState = {
   forget: () => void;
 };
 
+/**
+ * What forgetting does, in the words of the dialog that offers it (`Hub`).
+ *
+ * `forget` lets go of everything this page kept: the link, and any message
+ * half-written. It cannot reach the browser's own history. The visit to
+ * `/f/<token>` is written there, and offered back in the address bar, the
+ * moment the link is opened -- before this page has run at all, let alone
+ * taken the token out of the address -- and opening it from there opens the
+ * case again for whoever has the device next. The dialog used to promise the
+ * page would "stop opening here", which on a hospital tablet was not true.
+ * It now promises what the page does, and says what only the person
+ * holding the device can do.
+ */
+export const FORGETTING = {
+  here:
+    "This page won't open here by itself anymore. Nothing anyone has added is lost, and the link keeps working on your own phone.",
+  inTheBrowser:
+    "The browser keeps its own copy of the link, in its history. On a phone or computer that isn't yours, please clear the browser's history as well, from its settings.",
+} as const;
+
 const LinkContext = createContext<LinkState | null>(null);
 
 export function LinkProvider({ children }: { children: ReactNode }) {
