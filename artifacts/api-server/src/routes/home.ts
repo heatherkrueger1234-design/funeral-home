@@ -114,7 +114,7 @@ router.put("/home", async (req, res) => {
   const values = assertHasUpdates(parseBody(UpdateHomeBody, req.body));
 
   if (values.accentColor && !/^#[0-9a-fA-F]{6}$/.test(values.accentColor)) {
-    throw badRequest("An accent colour must be a hex value such as #1f4e46.");
+    throw badRequest("An accent color must be a hex value such as #1f4e46.");
   }
 
   // A timezone that Intl cannot resolve would make every office-hours

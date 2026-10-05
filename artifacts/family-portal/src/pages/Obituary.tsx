@@ -224,7 +224,7 @@ export default function Obituary() {
           <Field
             id="bornOn"
             label="Date of birth"
-            hint="A date, or just the year — “19 March 1941” or “1941”."
+            hint="A date, or just the year — “March 19, 1941” or “1941”."
             note={draft.hints?.bornOn}
             value={draft.bornOn}
             disabled={locked}

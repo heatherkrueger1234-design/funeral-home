@@ -157,9 +157,9 @@ function Hero() {
 }
 
 const inbox = [
-  ["Ruth Ellison-Park", "Fwd: Fwd: Mum pics (part 3 of 5)", "11:52 PM", "7 attachments"],
+  ["Ruth Ellison-Park", "Fwd: Fwd: Mom pics (part 3 of 5)", "11:52 PM", "7 attachments"],
   ["Daniel", "photos from the farm", "11:40 PM", "12 attachments"],
-  ["June (Mum's sister)", "Re: which hymns??", "11:17 PM", ""],
+  ["June (Mom's sister)", "Re: which hymns??", "11:17 PM", ""],
   ["Michael Park", "the obituary, Ruth's version", "10:58 PM", "1 attachment"],
   ["Ruth Ellison-Park", "IMG_4471.HEIC", "10:31 PM", "1 attachment"],
   ["Sam Ellison", "Re: Re: who is carrying?", "9:46 PM", ""],
@@ -648,7 +648,7 @@ const faqs: { q: string; a: ReactNode }[] = [
   },
   {
     q: "Will our name or our prices appear anywhere a family can see?",
-    a: "Your name, yes: the family portal carries your home's name, mark and colour, and ours does not appear on it. Your prices, never. There is no setting that would show a price to a family or on your public page.",
+    a: "Your name, yes: the family portal carries your home's name, mark and color, and ours does not appear on it. Your prices, never. There is no setting that would show a price to a family or on your public page.",
   },
   {
     q: "How do families find us before there is a case?",
