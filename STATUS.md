@@ -159,8 +159,13 @@ message.
   counsel, with the brief, rather than rewritten here.
 - **Replit pages have no security headers.** The Docker path's nginx sets
   them (`deploy/security-headers.conf`); Replit's static hosting does not.
-- **Texts may resume after a home changes its sending number**: Twilio's
-  STOP list is per sender. Untested.
+- **Two denial-of-service edges, older than this branch** (found by its
+  security review): uploads are read into memory whole (up to 50 MB each)
+  before any check, so one forwarded family link sending forty at once
+  could hold 2 GB; and each sign-in attempt costs about 240 ms of a
+  four-thread pool, limited only per address. Both want a process-wide
+  concurrency cap (uploads waiting their turn with a 429 the portal already
+  retries, sign-ins queueing) before the platform is advertised.
 - **Infrastructure, sized for a pilot:** uploads in Postgres (about 0.6 MB a
   photograph, in every backup), one API instance, an in-memory rate limiter.
   `DEPLOY.md`, "What this is not".
