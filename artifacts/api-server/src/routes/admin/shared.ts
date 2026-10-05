@@ -133,6 +133,13 @@ declare global {
  * handed back on screen. A confirmation link only ever reaches the real inbox,
  * so requiring it is what makes the list mean the *person* rather than the
  * string.
+ *
+ * Requiring it is only half of that. Confirming proves somebody read the
+ * inbox, not that the password and session on the account are theirs: the
+ * squatter above kept both, and the owner's click let them in. So the moment
+ * a listed address is confirmed, or a confirmed one is listed,
+ * `reclaimForInbox` clears every credential anybody else could hold and sends
+ * the inbox a link to choose its own.
  */
 export const requirePlatformAdmin: RequestHandler = (req, _res, next) => {
   void (async () => {

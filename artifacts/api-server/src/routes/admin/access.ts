@@ -8,6 +8,7 @@ import { logger } from "../../lib/logger";
 import {
   grantPlatformAdmin,
   listPlatformAdmins,
+  reclaimIfConfirmed,
   revokePlatformAdmin,
 } from "../../lib/platform-auth";
 import {
@@ -112,6 +113,11 @@ router.post("/admin/admins", async (req, res) => {
     note: values.note ?? null,
     addedByEmail: who.email,
   });
+
+  // A new grant or a restoration changes what an existing account can
+  // reach, so its password has to be one chosen from the inbox; see
+  // `reclaimForInbox`. Re-granting somebody already on the list does not.
+  if (!previous || previous.revokedAt) await reclaimIfConfirmed(granted.email);
 
   // A restoration says so, and says what it undid. The row can only hold
   // who has access now; this line is where "they were taken off in March by

@@ -45,7 +45,7 @@ import {
   sendPasswordResetEmail,
 } from "@workspace/mailer";
 import { authRateLimit } from "../middleware/rate-limit";
-import { isPlatformAdmin } from "../lib/platform-auth";
+import { isPlatformAdmin, reclaimForInbox } from "../lib/platform-auth";
 import { seedTimelineTemplate } from "../lib/timeline";
 import { seedPolicyPrompts } from "../lib/storefront";
 import { currentUser, requireAuth, tenant } from "../middleware/require-auth";
@@ -78,7 +78,10 @@ async function authPayload(user: User, home: FuneralHome) {
   return {
     user: toPublicUser(user),
     home: toDirectorHome(home),
-    platformAdmin: await isPlatformAdmin(user.email),
+    // The gate's own condition, confirmation included. Without it, anyone
+    // registering an address learned from the answer whether it was on the
+    // list -- which is the first step of squatting one.
+    platformAdmin: user.emailVerified && (await isPlatformAdmin(user.email)),
   };
 }
 
@@ -234,6 +237,10 @@ router.post("/auth/verify-email", authRateLimit, async (req, res) => {
         "Sign in and ask for another.",
     );
   }
+
+  // A listed address has just proved its inbox, which is not the same as
+  // proving the password on it was chosen there. See `reclaimForInbox`.
+  if (await isPlatformAdmin(user.email)) await reclaimForInbox(user);
 
   res.status(204).end();
 });

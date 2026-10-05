@@ -405,6 +405,70 @@ export async function sendPasswordResetEmail(options: {
 }
 
 /**
+ * An address on the platform list, asked to choose its own password.
+ *
+ * Sent when the address proves its inbox, or is put on the list after it had,
+ * and the account's old password and sessions have just been cleared -- see
+ * `reclaimForInbox` in the API. It says why in the first line, because the
+ * person reading it may have done nothing more than click a confirmation link a
+ * minute ago, and a password email they did not ask for reads like an attack.
+ */
+export async function sendPlatformPasswordEmail(options: {
+  to: string;
+  link: string;
+  expiresInDays: number;
+}): Promise<void> {
+  const { to, link, expiresInDays } = options;
+
+  const text = [
+    "This address can open the Continuum Aftercare platform console, so the",
+    "password on it has to be one chosen from this inbox.",
+    "",
+    "Any password it had before has been cleared, and anyone signed in with it",
+    "has been signed out. Choose yours here:",
+    link,
+    "",
+    `The link works once, and expires in ${expiresInDays} days.`,
+    "",
+    "— Continuum Aftercare",
+  ].join("\n");
+
+  const html = `
+<div style="font-family:-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;
+            max-width:520px;margin:0 auto;padding:32px 24px;color:#1f2937;
+            line-height:1.6;font-size:15px">
+  <p style="margin:0 0 20px">
+    This address can open the Continuum&nbsp;Aftercare platform console, so the
+    password on it has to be one chosen from this inbox.
+  </p>
+  <p style="margin:0 0 20px">
+    Any password it had before has been cleared, and anyone signed in with it
+    has been signed out.
+  </p>
+  <p style="margin:0 0 28px">
+    <a href="${esc(link)}"
+       style="display:inline-block;background:#1f4e46;color:#ffffff;
+              text-decoration:none;padding:12px 26px;border-radius:999px;
+              font-weight:600">Choose your password</a>
+  </p>
+  <p style="margin:0 0 20px;color:#6b7280;font-size:13px">
+    The link works once, and expires in ${expiresInDays} days.
+    If the button doesn't work, paste this into your browser:<br>
+    <span style="word-break:break-all">${esc(link)}</span>
+  </p>
+  <p style="margin:24px 0 0;color:#9ca3af;font-size:12px">— Continuum Aftercare</p>
+</div>`.trim();
+
+  await send({
+    to,
+    subject: "Choose your password for the Continuum Aftercare console",
+    text,
+    html,
+    logText: text.replace(link, redactToken(link)),
+  });
+}
+
+/**
  * Somebody tried to open an account with an address that already has one.
  *
  * Registration answers "check your email" either way, so the page cannot be

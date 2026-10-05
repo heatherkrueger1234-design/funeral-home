@@ -338,7 +338,15 @@ ordinary session gate. The account's address must also be **confirmed**: the
 list names addresses and registration never checks them, so without that
 anybody could register under a listed address nobody had claimed yet (the
 bootstrap address before its owner signs up is the obvious one) and walk in.
-On a fresh deployment, register, click the confirmation link, then sign in.
+Confirming is not enough on its own, because it proves the inbox and not the
+password: whoever registered first kept their password and session, and the
+owner's click used to let them in. So when a listed address is confirmed, or
+a confirmed address is put on the list, its password, sessions and any
+outstanding reset or invitation links are cleared, and the inbox is emailed a
+link to choose a new password (`reclaimForInbox` in `lib/platform-auth.ts`).
+On a fresh deployment: register, click the confirmation link, choose your
+password from the email that follows it, then sign in. Somebody given access
+later gets the same email the moment they are added.
 
 **What an operator can do for a caller.** Find their home from the exact
 address they give (never shown back), see whether each person at the home

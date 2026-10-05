@@ -10,7 +10,8 @@ import {
   aftercareEnrollmentsTable,
   aftercareDeliveriesTable,
 } from "@workspace/db";
-import { eq } from "drizzle-orm";
+import { and, eq, isNull } from "drizzle-orm";
+import { createEmailVerification, createPasswordReset } from "../src/lib/auth";
 import {
   createCase,
   inviteFamily,
@@ -55,19 +56,64 @@ beforeEach(async () => {
 
 /* ------------------------------------------------------------ the hole -- */
 
+/** Redeem a confirmation the way the real inbox's owner would. */
+async function confirmFromInbox(userId: number, email: string) {
+  const token = await createEmailVerification(userId, email);
+  await request(app).post("/api/auth/verify-email").send({ token }).expect(204);
+}
+
+/** Whether a fresh choose-a-password link is waiting for this account. */
+async function openResetLinks(userId: number) {
+  return db
+    .select()
+    .from(passwordResetsTable)
+    .where(and(eq(passwordResetsTable.userId, userId), isNull(passwordResetsTable.usedAt)));
+}
+
 describe("who gets in", () => {
-  it("refuses a listed address until it has been confirmed", async () => {
+  it("does not hand a listed address to whoever registered it first", async () => {
     // Somebody registers first under the address the bootstrap seeded -- the
     // ordinary state of a fresh deployment before its owner has signed up.
-    const squatter = await register(ADMIN_EMAIL, "Totally Real Funeral Home");
+    const agent = request.agent(app);
+    const registered = await agent
+      .post("/api/auth/register")
+      .send({ homeName: "Totally Real Funeral Home", email: ADMIN_EMAIL, password: PASSWORD })
+      .expect(201);
+    const squatter = { agent, userId: registered.body.user.id as number };
 
+    // Nothing in the answer says the address is on the list.
+    expect(registered.body.platformAdmin).toBe(false);
     await squatter.agent.get("/api/admin/homes").expect(403);
     await squatter.agent.get("/api/admin/overview").expect(403);
     await squatter.agent.get("/api/admin/me").expect(403);
 
-    // Confirming the address -- which only its real owner can do -- opens it.
-    await markEmailVerified(ADMIN_EMAIL);
-    await squatter.agent.get("/api/admin/me").expect(200);
+    // The real owner opens the confirmation registration sent them. That
+    // proves the inbox, not the password the squatter typed: the squatter's
+    // session and password are gone rather than promoted.
+    await confirmFromInbox(squatter.userId, ADMIN_EMAIL);
+
+    await squatter.agent.get("/api/admin/me").expect(401);
+    await request(app)
+      .post("/api/auth/login")
+      .send({ email: ADMIN_EMAIL, password: PASSWORD })
+      .expect(401);
+
+    // The inbox is sent a way in, and only the inbox. The emailed token is
+    // stored hashed, so the owner's choice is made with one issued the same way.
+    expect(await openResetLinks(squatter.userId)).toHaveLength(1);
+    const choose = await createPasswordReset(squatter.userId);
+    await request(app)
+      .post("/api/auth/reset-password")
+      .send({ token: choose, password: "the-owners-own-password" })
+      .expect(204);
+
+    const owner = request.agent(app);
+    const signedIn = await owner
+      .post("/api/auth/login")
+      .send({ email: ADMIN_EMAIL, password: "the-owners-own-password" })
+      .expect(200);
+    expect(signedIn.body.platformAdmin).toBe(true);
+    await owner.get("/api/admin/me").expect(200);
   });
 
   it("does not let an owner mint a platform admin by inviting a listed address", async () => {
@@ -94,6 +140,42 @@ describe("who gets in", () => {
       .expect(200);
 
     await agent.get("/api/admin/homes").expect(403);
+
+    // The owner then asks for the confirmation to be sent again, and the
+    // colleague, seeing it arrive, clicks it. The password the owner chose
+    // does not survive that, and neither does the owner's session.
+    await agent.post("/api/auth/resend-verification").expect(204);
+    const [account] = await db.select().from(usersTable).where(eq(usersTable.email, colleague));
+    await confirmFromInbox(account!.id, colleague);
+
+    await agent.get("/api/admin/homes").expect(401);
+    await request(app)
+      .post("/api/auth/login")
+      .send({ email: colleague, password: PASSWORD })
+      .expect(401);
+  });
+
+  it("takes a confirmed account back for its inbox when the address is put on the list", async () => {
+    const admin = await signInAdmin();
+    // Any confirmed account, whoever chose its password.
+    const existing = await signUpHome("Olinger Chapel");
+
+    await admin.agent
+      .post("/api/admin/admins")
+      .send({ email: existing.email })
+      .expect(201);
+
+    await existing.agent.get("/api/admin/me").expect(401);
+    await request(app)
+      .post("/api/auth/login")
+      .send({ email: existing.email, password: "correct-horse-battery" })
+      .expect(401);
+    expect(await openResetLinks(existing.userId)).toHaveLength(1);
+
+    // Granting somebody already on the list changes nothing, so it signs
+    // nobody out -- here, the admin doing the granting.
+    await admin.agent.post("/api/admin/admins").send({ email: ADMIN_EMAIL }).expect(201);
+    await admin.agent.get("/api/admin/me").expect(200);
   });
 
   it("answers /admin/me for an admin without writing to the log", async () => {
