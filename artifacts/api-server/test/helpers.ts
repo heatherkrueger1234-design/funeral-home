@@ -117,3 +117,25 @@ export const PNG_BYTES = Buffer.from(
   "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==",
   "base64",
 );
+
+/**
+ * A time zone where it is the middle of the day right now.
+ *
+ * The aftercare sender sends only between nine and seven where the home is,
+ * and this suite runs at whatever hour CI happens to. A test about sending
+ * moves its homes here first, rather than freezing the clock: a frozen
+ * JavaScript clock disagrees with Postgres's `now()`, and that disagreement
+ * would be the thing under test instead.
+ */
+export function middayZone(now = new Date()): string {
+  const ahead = 12 - now.getUTCHours();
+  // The Etc zones are named with the sign reversed: Etc/GMT-5 is UTC+5.
+  if (ahead === 0) return "Etc/GMT";
+  return ahead > 0 ? `Etc/GMT-${ahead}` : `Etc/GMT+${-ahead}`;
+}
+
+/** Every home to a midday zone, so the next aftercare run may send. */
+export async function homesAtMidday(): Promise<void> {
+  const { db, funeralHomesTable } = await import("@workspace/db");
+  await db.update(funeralHomesTable).set({ timezone: middayZone() });
+}

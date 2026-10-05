@@ -177,6 +177,10 @@ router.post("/intake-requests/:intakeId/accept", async (req, res) => {
       relationship: row.relationship,
       role: "next_of_kin",
       canInvite: true,
+      // A plan's request comes from the person it is about (the form asks
+      // no relationship for that reason), so the portal will speak to them
+      // as "you".
+      isSubject: row.kind === "pre_need",
       tokenHash: link.tokenHash,
       expiresAt: link.expiresAt,
       invitedByUserId: user.id,

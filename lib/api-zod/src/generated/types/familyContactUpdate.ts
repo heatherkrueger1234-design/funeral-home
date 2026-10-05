@@ -27,4 +27,13 @@ export interface FamilyContactUpdate {
   email?: string | null;
   role?: FamilyContactUpdateRole;
   canInvite?: boolean;
+  /** This is the person the plan is for. Pre-need files only - refused
+on an at-need one - and at most one per file: marking somebody
+moves it from whoever had it.
+ */
+  isSubject?: boolean;
+  /** The director confirms this person agreed to be texted. Recorded
+with the time and `director` as the source; false withdraws it.
+ */
+  smsConsent?: boolean;
 }

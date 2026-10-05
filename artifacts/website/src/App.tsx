@@ -1,3 +1,9 @@
+import {
+  PRICE_BOOK,
+  dollars,
+  locationAnnualCents,
+  monthlyBillCents,
+} from "../../../lib/db/src/price-book";
 import type { ReactNode } from "react";
 import {
   Desk,
@@ -31,7 +37,7 @@ import {
  * 2. Every claim is one the code backs today. The sources are replit.md,
  *    PRICING.md, RETENTION.md and LEGAL/README.md, which cites the file
  *    behind each security claim. No customer counts, no testimonials, no
- *    logos, no uptime figure, no certification, no price. Where something is
+ *    logos, no uptime figure, no certification; prices come from price-book.ts. Where something is
  *    a draft (the legal documents) the page says so. If the product changes
  *    underneath a sentence here, change the sentence.
  */
@@ -151,9 +157,9 @@ function Hero() {
 }
 
 const inbox = [
-  ["Ruth Ellison-Park", "Fwd: Fwd: Mum pics (part 3 of 5)", "11:52 PM", "7 attachments"],
+  ["Ruth Ellison-Park", "Fwd: Fwd: Mom pics (part 3 of 5)", "11:52 PM", "7 attachments"],
   ["Daniel", "photos from the farm", "11:40 PM", "12 attachments"],
-  ["June (Mum's sister)", "Re: which hymns??", "11:17 PM", ""],
+  ["June (Mom's sister)", "Re: which hymns??", "11:17 PM", ""],
   ["Michael Park", "the obituary, Ruth's version", "10:58 PM", "1 attachment"],
   ["Ruth Ellison-Park", "IMG_4471.HEIC", "10:31 PM", "1 attachment"],
   ["Sam Ellison", "Re: Re: who is carrying?", "9:46 PM", ""],
@@ -552,27 +558,34 @@ function Security() {
 }
 
 function Pricing() {
+  const monthly = dollars(PRICE_BOOK.locationMonthlyCents);
+  const perFuneral = dollars(PRICE_BOOK.perFuneralCents);
+  const annual = dollars(locationAnnualCents);
+  const typical = dollars(monthlyBillCents(10));
   return (
     <Section id="pricing" labelledBy="pricing-title" className="border-y border-border bg-card py-20 sm:py-24">
       <div className="mx-auto max-w-2xl text-center">
         <p className="eyebrow">Pricing</p>
         <h2 id="pricing-title" className="mt-3 text-3xl sm:text-4xl">
-          Free while you try it. Talk to us about the rest.
+          One price per location, and a little per funeral.
         </h2>
         <p className="mt-4 text-lg leading-relaxed text-muted-foreground">
-          We have not published prices yet, and we will not guess at one here.
+          Aftercare, texts and email are included. No activation fee. Your families pay nothing, ever.
         </p>
       </div>
 
       <div className="mx-auto mt-12 grid max-w-4xl gap-6 md:grid-cols-2">
         <div className="flex flex-col rounded-2xl border-2 border-accent bg-background p-7 shadow-raised sm:p-8">
-          <h3 className="text-2xl">The trial</h3>
-          <p className="mt-1 font-display text-4xl text-accent-deep">30 days free</p>
+          <h3 className="text-2xl">Monthly</h3>
+          <p className="mt-1 font-display text-4xl text-accent-deep">
+            {monthly}
+            <span className="text-lg text-muted-foreground"> / location / month</span>
+          </p>
+          <p className="mt-1 text-lg">+ {perFuneral} per funeral served</p>
           <ul className="mb-8 mt-6 space-y-3">
             {[
-              "Every feature, including aftercare",
-              "No card needed to start",
-              "Your own cases and your own families from the first day",
+              ...PRICE_BOOK.included,
+              `A home with ten funerals a month pays ${typical}`,
             ].map((line) => (
               <li key={line} className="flex gap-3">
                 <Icon name="check" className="mt-1 size-4 shrink-0 text-accent" />
@@ -581,19 +594,23 @@ function Pricing() {
             ))}
           </ul>
           <a href={trialHref} className={`${buttonPrimary} mt-auto`}>
-            Start a free trial
+            Start {PRICE_BOOK.trialDays} days free — no card
           </a>
         </div>
 
         <div className="flex flex-col rounded-2xl border border-border bg-background p-7 sm:p-8">
-          <h3 className="text-2xl">After the trial</h3>
-          <p className="mt-1 font-display text-4xl text-foreground">Talk to us</p>
+          <h3 className="text-2xl">Annual</h3>
+          <p className="mt-1 font-display text-4xl text-foreground">
+            {annual}
+            <span className="text-lg text-muted-foreground"> / location / year</span>
+          </p>
+          <p className="mt-1 text-lg">Two months free, + {perFuneral} per funeral</p>
           <ul className="mb-8 mt-6 space-y-3">
             {[
-              "Priced per location, with a charge per funeral served, so a small home is not paying what a large one does",
+              "Everything in monthly",
               "A pre-need file is not billed until it becomes a funeral, and no funeral is billed twice",
-              "Group pricing for several locations on one invoice",
-              "Your families pay nothing, ever",
+              "Several locations on one invoice",
+              "Funerals during your trial are counted, then waived",
             ].map((line) => (
               <li key={line} className="flex gap-3">
                 <Icon name="check" className="mt-1 size-4 shrink-0 text-accent" />
@@ -603,10 +620,12 @@ function Pricing() {
           </ul>
           {contactHref ? (
             <a href={contactHref} className={`${buttonSecondary} mt-auto`}>
-              Email {contactEmail}
+              Questions? Email {contactEmail}
             </a>
           ) : (
-            <p className="mt-auto text-sm text-muted-foreground">Ask from inside the console.</p>
+            <a href={trialHref} className={`${buttonSecondary} mt-auto`}>
+              Start a free trial
+            </a>
           )}
         </div>
       </div>
@@ -629,7 +648,7 @@ const faqs: { q: string; a: ReactNode }[] = [
   },
   {
     q: "Will our name or our prices appear anywhere a family can see?",
-    a: "Your name, yes: the family portal carries your home's name, mark and colour, and ours does not appear on it. Your prices, never. There is no setting that would show a price to a family or on your public page.",
+    a: "Your name, yes: the family portal carries your home's name, mark and color, and ours does not appear on it. Your prices, never. There is no setting that would show a price to a family or on your public page.",
   },
   {
     q: "How do families find us before there is a case?",

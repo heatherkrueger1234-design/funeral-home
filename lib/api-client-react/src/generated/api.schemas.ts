@@ -209,6 +209,8 @@ export interface Billing {
   canOpenCases: boolean;
   /** False when this deployment has no Stripe keys. */
   billingConfigured: boolean;
+  /** Whether checkout offers annual billing (two months free). */
+  annualAvailable: boolean;
   hasSubscription: boolean;
   onboarding: OnboardingItem[];
   onboardingComplete: boolean;
@@ -216,9 +218,22 @@ export interface Billing {
   addOns: BillingAddOnsItem[];
 }
 
+/**
+ * Checkout only. Annual is twelve months for the price of ten.
+ */
+export type BillingReturnInputInterval =
+  (typeof BillingReturnInputInterval)[keyof typeof BillingReturnInputInterval];
+
+export const BillingReturnInputInterval = {
+  month: "month",
+  year: "year",
+} as const;
+
 export interface BillingReturnInput {
   /** Where Stripe sends them back to. */
   returnUrl: string;
+  /** Checkout only. Annual is twelve months for the price of ten. */
+  interval?: BillingReturnInputInterval;
 }
 
 export interface BillingRedirect {
@@ -288,6 +303,8 @@ export const FuneralHomeSubscriptionStatus = {
 } as const;
 
 export interface FuneralHome {
+  /** Where this home's texts are sent from, in words. Only on GET /home. */
+  textingStatus?: string;
   id: number;
   name: string;
   slug: string;
@@ -1005,6 +1022,19 @@ export const FamilyContactRole = {
   contributor: "contributor",
 } as const;
 
+/**
+ * How the consent was given.
+ */
+export type FamilyContactSmsConsentSource =
+  | (typeof FamilyContactSmsConsentSource)[keyof typeof FamilyContactSmsConsentSource]
+  | null;
+
+export const FamilyContactSmsConsentSource = {
+  director: "director",
+  family_portal: "family_portal",
+  reply_start: "reply_start",
+} as const;
+
 export interface FamilyContact {
   id: number;
   caseId: number;
@@ -1014,12 +1044,24 @@ export interface FamilyContact {
   email: string | null;
   role: FamilyContactRole;
   canInvite: boolean;
+  /** This person is the one the file is about: a planner reading their
+own plan. Only ever true on a pre-need file, and it is what the
+portal asks before it says "your plan" - a relative on somebody
+else's plan is spoken to about them, not as them.
+ */
+  isSubject: boolean;
   expiresAt: string;
   revokedAt: string | null;
   firstSeenAt: string | null;
   lastSeenAt: string | null;
   /** Set when somebody on the family's side added this person, rather than the home. */
   invitedByContactId: number | null;
+  /** When this person agreed to be texted. Nobody is texted without it. */
+  smsConsentAt: string | null;
+  /** How the consent was given. */
+  smsConsentSource: FamilyContactSmsConsentSource;
+  /** When they replied STOP. Wins over any consent. */
+  smsOptedOutAt: string | null;
   createdAt: string;
 }
 
@@ -1148,6 +1190,11 @@ export type FamilyContactWithLink = FamilyContact & {
   link: string;
 };
 
+export interface SendLinkInput {
+  /** The director confirms, now, that this person agreed to be texted. */
+  smsConsent?: boolean;
+}
+
 export type SentLink = FamilyContactWithLink & {
   sent: boolean;
   /** Why the text did not go, in words a director can act on. */
@@ -1170,6 +1217,15 @@ export interface FamilyContactInput {
   email?: string | null;
   role?: FamilyContactInputRole;
   canInvite?: boolean;
+  /** This is the person the plan is for. Pre-need files only - refused
+on an at-need one - and at most one per file: marking somebody
+moves it from whoever had it.
+ */
+  isSubject?: boolean;
+  /** The director confirms this person agreed to be texted. Recorded
+with the time and `director` as the source; false withdraws it.
+ */
+  smsConsent?: boolean;
 }
 
 export type FamilyContactUpdateRole =
@@ -1188,6 +1244,15 @@ export interface FamilyContactUpdate {
   email?: string | null;
   role?: FamilyContactUpdateRole;
   canInvite?: boolean;
+  /** This is the person the plan is for. Pre-need files only - refused
+on an at-need one - and at most one per file: marking somebody
+moves it from whoever had it.
+ */
+  isSubject?: boolean;
+  /** The director confirms this person agreed to be texted. Recorded
+with the time and `director` as the source; false withdraws it.
+ */
+  smsConsent?: boolean;
 }
 
 export type CasePhotoStatus =
@@ -1424,6 +1489,27 @@ export interface TemplateSlot {
   maxLength: number | null;
 }
 
+export type PrintThemePhotoShape =
+  (typeof PrintThemePhotoShape)[keyof typeof PrintThemePhotoShape];
+
+export const PrintThemePhotoShape = {
+  rect: "rect",
+  arch: "arch",
+  oval: "oval",
+  circle: "circle",
+} as const;
+
+export interface PrintTheme {
+  key: string;
+  name: string;
+  description: string;
+  /** The theme's own colour; null follows the home's brand colour. */
+  accent: string | null;
+  paper: string;
+  ink: string;
+  photoShape: PrintThemePhotoShape;
+}
+
 export interface PrintTemplate {
   key: string;
   name: string;
@@ -1499,6 +1585,8 @@ export interface PrintItem {
   caseId: number;
   templateKey: string;
   templateName: string;
+  /** The look, from GET /print/themes. */
+  themeKey: string;
   title: string | null;
   photoId: number | null;
   photoUploadId: number | null;
@@ -1535,6 +1623,7 @@ export interface PrintChangesInput {
 
 export interface PrintItemInput {
   templateKey: string;
+  themeKey?: string;
   title?: string | null;
 }
 
@@ -1550,6 +1639,7 @@ export const PrintItemUpdateStatus = {
 } as const;
 
 export interface PrintItemUpdate {
+  themeKey?: string;
   title?: string | null;
   photoId?: number | null;
   values?: PrintItemUpdateValues;
@@ -2107,6 +2197,10 @@ checked, rather than a guess a director would trust.
   physicianRequestedAt: string | null;
   /** The certifying physician's own 72 hours, from the EDRS request. */
   physicianDueAt: string | null;
+  /** When the physician completed the medical certification, as the
+director saw it in EDRS. Until then the home cannot file.
+ */
+  physicianCertifiedAt: string | null;
   certifyingPhysician: string | null;
   /** When the home filed it, as they recorded it. */
   filedAt: string | null;
@@ -2126,6 +2220,7 @@ no window we know.
 export interface CertificateFilingUpdate {
   custodyTakenAt?: string | null;
   physicianRequestedAt?: string | null;
+  physicianCertifiedAt?: string | null;
   /** @maxLength 200 */
   certifyingPhysician?: string | null;
   /** When the home filed it. Recording it notes who did; clearing it
@@ -2185,6 +2280,24 @@ export type VitalsStaffUpdate = VitalsFamilyUpdate & {
   verified?: boolean;
 };
 
+export type ObituaryDraftPronouns =
+  | (typeof ObituaryDraftPronouns)[keyof typeof ObituaryDraftPronouns]
+  | null;
+
+export const ObituaryDraftPronouns = {
+  she: "she",
+  he: "he",
+  they: "they",
+} as const;
+
+/**
+ * A gentle note under a date box that holds a place instead.
+ */
+export type ObituaryDraftHints = {
+  bornOn: string | null;
+  diedOn: string | null;
+};
+
 export type ObituaryDraftStatus =
   (typeof ObituaryDraftStatus)[keyof typeof ObituaryDraftStatus];
 
@@ -2198,6 +2311,14 @@ export interface ObituaryDraft {
   id: number;
   caseId: number;
   fullName: string | null;
+  pronouns: ObituaryDraftPronouns;
+  /** A gentle note under a date box that holds a place instead. */
+  hints: ObituaryDraftHints;
+  /** Staff only. Whether suggested rewrites are switched on. */
+  aiAvailable?: boolean;
+  /** Staff only. A suggested rewrite a director asked for. */
+  aiSuggestion?: string | null;
+  aiSuggestedAt?: string | null;
   bornOn: string | null;
   birthPlace: string | null;
   diedOn: string | null;
@@ -2215,8 +2336,19 @@ export interface ObituaryDraft {
   updatedAt: string;
 }
 
+export type ObituaryFieldsInputPronouns =
+  | (typeof ObituaryFieldsInputPronouns)[keyof typeof ObituaryFieldsInputPronouns]
+  | null;
+
+export const ObituaryFieldsInputPronouns = {
+  she: "she",
+  he: "he",
+  they: "they",
+} as const;
+
 export interface ObituaryFieldsInput {
   fullName?: string | null;
+  pronouns?: ObituaryFieldsInputPronouns;
   bornOn?: string | null;
   birthPlace?: string | null;
   diedOn?: string | null;
@@ -2231,6 +2363,11 @@ export interface ObituaryFieldsInput {
 export type ObituaryUpdate = ObituaryFieldsInput & {
   draftText?: string | null;
 };
+
+export interface ObituarySuggestionInput {
+  /** The director agreed to send the family's notes out. */
+  confirm: boolean;
+}
 
 export interface ComposeObituaryInput {
   /** Recompose even though staff have hand-edited the text. */
@@ -2396,12 +2533,39 @@ export const AftercareEnrollmentStatus = {
   done: "done",
 } as const;
 
+export type AftercareEnrollmentTouchpointsOfferedItemKind =
+  (typeof AftercareEnrollmentTouchpointsOfferedItemKind)[keyof typeof AftercareEnrollmentTouchpointsOfferedItemKind];
+
+export const AftercareEnrollmentTouchpointsOfferedItemKind = {
+  birthday: "birthday",
+  holidays: "holidays",
+  death_anniversary: "death_anniversary",
+} as const;
+
+export type AftercareEnrollmentTouchpointsOfferedItem = {
+  kind: AftercareEnrollmentTouchpointsOfferedItemKind;
+  dueAt: string;
+};
+
+export type AftercareDeliveryKind =
+  (typeof AftercareDeliveryKind)[keyof typeof AftercareDeliveryKind];
+
+export const AftercareDeliveryKind = {
+  checkin: "checkin",
+  birthday: "birthday",
+  holidays: "holidays",
+  death_anniversary: "death_anniversary",
+} as const;
+
 export interface AftercareDelivery {
   id: number;
+  kind: AftercareDeliveryKind;
   dayOffset: number;
   dueAt: string;
   sentAt: string | null;
   failedAt: string | null;
+  /** `email`, `sms`, `email,sms`, or `withdrawn` when consent lapsed before it was due. */
+  sentVia: string | null;
 }
 
 export interface AftercareEnrollment {
@@ -2416,12 +2580,97 @@ export interface AftercareEnrollment {
   startsAt: string;
   consentedAt: string | null;
   unsubscribedAt: string | null;
+  smsConsentAt?: string | null;
+  touchpointsConsentAt?: string | null;
+  /** Extra notes the home offers and when they would land; only while the family has not answered, and only on the family's view. */
+  touchpointsOffered?: AftercareEnrollmentTouchpointsOfferedItem[];
+  /** Whether texts can be sent on this deployment. Family view only. */
+  smsAvailable?: boolean;
   deliveries: AftercareDelivery[];
+}
+
+export type AftercareMessageKey =
+  (typeof AftercareMessageKey)[keyof typeof AftercareMessageKey];
+
+export const AftercareMessageKey = {
+  NUMBER_30: "30",
+  NUMBER_60: "60",
+  NUMBER_90: "90",
+  NUMBER_365: "365",
+  birthday: "birthday",
+  holidays: "holidays",
+  death_anniversary: "death_anniversary",
+} as const;
+
+export interface AftercareMessage {
+  key: AftercareMessageKey;
+  label: string;
+  subject: string;
+  /** `{name}` stands for the person who died. */
+  body: string;
+  defaultSubject: string;
+  defaultBody: string;
+  custom: boolean;
+}
+
+export type AftercareSettingsTouchpointsItem =
+  (typeof AftercareSettingsTouchpointsItem)[keyof typeof AftercareSettingsTouchpointsItem];
+
+export const AftercareSettingsTouchpointsItem = {
+  birthday: "birthday",
+  holidays: "holidays",
+  death_anniversary: "death_anniversary",
+} as const;
+
+export interface AftercareSettings {
+  touchpoints: AftercareSettingsTouchpointsItem[];
+  messages: AftercareMessage[];
+}
+
+export type AftercareSettingsInputTouchpointsItem =
+  (typeof AftercareSettingsInputTouchpointsItem)[keyof typeof AftercareSettingsInputTouchpointsItem];
+
+export const AftercareSettingsInputTouchpointsItem = {
+  birthday: "birthday",
+  holidays: "holidays",
+  death_anniversary: "death_anniversary",
+} as const;
+
+export type AftercareSettingsInputMessagesItemKey =
+  (typeof AftercareSettingsInputMessagesItemKey)[keyof typeof AftercareSettingsInputMessagesItemKey];
+
+export const AftercareSettingsInputMessagesItemKey = {
+  NUMBER_30: "30",
+  NUMBER_60: "60",
+  NUMBER_90: "90",
+  NUMBER_365: "365",
+  birthday: "birthday",
+  holidays: "holidays",
+  death_anniversary: "death_anniversary",
+} as const;
+
+export type AftercareSettingsInputMessagesItem = {
+  key: AftercareSettingsInputMessagesItemKey;
+  /** @maxLength 120 */
+  subject?: string | null;
+  /** @maxLength 2000 */
+  body?: string | null;
+};
+
+export interface AftercareSettingsInput {
+  touchpoints?: AftercareSettingsInputTouchpointsItem[];
+  messages?: AftercareSettingsInputMessagesItem[];
 }
 
 export interface AftercareConsentInput {
   consent: boolean;
   email?: string | null;
+  /** Also send each note as a short text. This is the person's own consent to texts. */
+  sms?: boolean;
+  /** The mobile for the texts; defaults to the one the home has. */
+  phone?: string | null;
+  /** Also send the extra notes the home offers (birthday, first holidays, anniversary of the death). */
+  touchpoints?: boolean;
 }
 
 /**

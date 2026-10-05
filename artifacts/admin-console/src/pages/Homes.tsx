@@ -28,7 +28,6 @@ import { amountForPlan, HOME_SORTS, homesQuery, pageSpan } from "@/lib/homes";
 import {
   Button,
   Card,
-  CopyButton,
   EmptyState,
   ErrorState,
   Field,
@@ -129,7 +128,12 @@ export function Homes() {
         />
       )}
 
-      <div className="flex flex-wrap items-end gap-x-6 gap-y-4">
+      {/*
+        Aligned on the labels, not the bottoms: the search field carries a
+        hint underneath and the two selects do not, so bottom alignment left
+        the search box sitting half a row above the controls beside it.
+      */}
+      <div className="flex flex-wrap items-start gap-x-6 gap-y-4">
         <div className="w-full max-w-sm">
           <Field
             label="Find a home"
@@ -181,7 +185,7 @@ export function Homes() {
           customers. Without a way back to them, a home marked ours by mistake
           could only be found by typing its number into the address bar.
         */}
-        <label className="inline-flex min-h-11 items-center gap-2 text-sm font-semibold">
+        <label className="mt-6.5 inline-flex min-h-11 items-center gap-2 text-sm font-semibold">
           <input
             type="checkbox"
             className="size-4 accent-[var(--accent)]"

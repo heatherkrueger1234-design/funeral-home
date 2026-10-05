@@ -435,8 +435,8 @@ export default function MemoryBook() {
   const session = useGetFamilySession();
   /*
    * Not offered on a plan, and the hub has no way here on one: a book of
-   * memories is written about somebody who has died, and the person reading
-   * a plan is alive and arranging their own funeral. Somebody who arrives
+   * memories is written about somebody who has died, and the person a plan
+   * is about is alive and arranging their own funeral. Somebody who arrives
    * by the address is told the page is not here, and the book is never
    * asked for, because asking for it is what makes one.
    */

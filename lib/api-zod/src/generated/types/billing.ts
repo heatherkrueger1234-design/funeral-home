@@ -32,6 +32,8 @@ export interface Billing {
   canOpenCases: boolean;
   /** False when this deployment has no Stripe keys. */
   billingConfigured: boolean;
+  /** Whether checkout offers annual billing (two months free). */
+  annualAvailable: boolean;
   hasSubscription: boolean;
   onboarding: OnboardingItem[];
   onboardingComplete: boolean;

@@ -9,10 +9,11 @@ import pino from "pino";
  * logger would make the worker depend on the whole HTTP stack to send an
  * email.
  */
-const logger = pino({
+export const mailLogger = pino({
   level: process.env["LOG_LEVEL"] ?? "info",
   base: { component: "mailer" },
 });
+const logger = mailLogger;
 
 /**
  * Outbound email, over plain SMTP.
@@ -26,8 +27,9 @@ const logger = pino({
  * With no SMTP settings configured the transport logs the message instead of
  * sending it. That keeps local development and the test suite working without
  * credentials, and it is why `sendPasswordResetEmail` is safe to call before
- * email is set up — the reset link appears in the server log rather than
- * silently failing.
+ * email is set up — outside production the reset link appears in the server
+ * log rather than silently failing. In production only the recipient is
+ * logged (`loggable`): a link in a log works for whoever reads the log.
  */
 
 type MailerConfig = {
@@ -112,6 +114,24 @@ function readConfig():
 
 type Mailer = { transport: Transporter; from: string; fromAddress: string };
 
+/**
+ * What the log may say about a message: outside production, all of it, which
+ * is how a developer gets a reset link without a mail server; in production,
+ * who it was for and nothing more.
+ *
+ * A body carries links that work for whoever reads them — a password reset,
+ * a staff invitation, an address confirmation, a family's link — and the
+ * rest of it is a family's own words: the 2am note from the public page, a
+ * check-in that names the person who died. Subjects can name them too. Both
+ * Replit deployments ran without SMTP, and so wrote every one of those into
+ * a log that people other than the recipient can read. `logText` masked
+ * some links and missed others; this does not depend on remembering.
+ */
+function loggable(message: { to: string; subject: string; text: string; logText?: string }) {
+  if (process.env["NODE_ENV"] === "production") return { to: message.to };
+  return { to: message.to, subject: message.subject, body: message.logText ?? message.text };
+}
+
 let cached: Mailer | null | undefined;
 
 function getTransport(): Mailer | null {
@@ -123,8 +143,12 @@ function getTransport(): Mailer | null {
     if (problem) logger.error(problem);
     else
       logger.warn(
-        "SMTP is not configured. Password reset emails will be written to this " +
-          "log instead of sent. Set SMTP_HOST, SMTP_USER and SMTP_PASS to send them.",
+        process.env["NODE_ENV"] === "production"
+          ? "SMTP is not configured, so no email is sent: password resets, " +
+              "invitations and check-ins go nowhere, and only the recipient's " +
+              "address is logged. Set SMTP_HOST, SMTP_USER, SMTP_PASS and SMTP_FROM."
+          : "SMTP is not configured. Emails will be written to this log " +
+              "instead of sent. Set SMTP_HOST, SMTP_USER and SMTP_PASS to send them.",
       );
     cached = null;
     return cached;
@@ -280,12 +304,10 @@ async function send(message: {
 
   if (!mailer) {
     logger.warn(
-      {
-        to: message.to,
-        subject: message.subject,
-        body: message.logText ?? message.text,
-      },
-      "SMTP not configured — email not sent, logged instead",
+      loggable(message),
+      process.env["NODE_ENV"] === "production"
+        ? "SMTP not configured — email not sent"
+        : "SMTP not configured — email not sent, logged instead",
     );
     if (message.rethrow) {
       throw new MailNotSentError("SMTP is not configured on this deployment.");
@@ -307,7 +329,12 @@ async function send(message: {
       ...(headers ? { headers } : {}),
       ...payload,
     });
-    logger.info({ to: message.to, subject: message.subject }, "Email sent");
+    logger.info(
+      process.env["NODE_ENV"] === "production"
+        ? { to: message.to }
+        : { to: message.to, subject: message.subject },
+      "Email sent",
+    );
   } catch (err) {
     // Never rethrow to the caller: /auth/forgot-password must answer the same
     // way whatever happens, and a provider outage must not become a signal

@@ -90,6 +90,10 @@ export async function resolveFamilyLink(
   if (!row) return undefined;
   if (row.contact.revokedAt !== null) return undefined;
   if (row.contact.expiresAt <= now) return undefined;
+  // The person the file is about, once the file says they have died. The
+  // conversion closed this link and the console will not reopen it; this is
+  // the line that holds if a row ever reaches here some other way.
+  if (row.contact.isSubject && row.case.kind !== "pre_need") return undefined;
 
   return { contact: row.contact, case: row.case };
 }

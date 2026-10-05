@@ -3,6 +3,8 @@ import {
   useUpdateCase,
   useGetStaff,
   useGetAftercare,
+  useStopAftercare,
+  getGetAftercareQueryKey,
   getGetCaseQueryKey,
   getGetCasesQueryKey,
   getGetDeadlinesQueryKey,
@@ -21,6 +23,8 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { DateOptions } from "@/components/case/DateOptions";
+import { Button } from "@/components/ui/button";
+import { Confirm } from "@/components/page";
 
 
 /** For a `date` input. Dates of birth and death are stored as midnight UTC. */
@@ -48,6 +52,13 @@ export function DetailsPanel({
   const queryClient = useQueryClient();
   const staff = useGetStaff();
   const aftercare = useGetAftercare(caseId);
+  const stop = useStopAftercare({
+    mutation: {
+      onSuccess: (enrollments) => {
+        queryClient.setQueryData(getGetAftercareQueryKey(caseId), enrollments);
+      },
+    },
+  });
   // The picker shows and takes the home's wall time; see `toHomeInput`.
   const zone = useHomeZone();
 
@@ -267,9 +278,37 @@ export function DetailsPanel({
                   {enrollment.status === "pending"
                     ? "waiting on their consent"
                     : enrollment.status === "active"
-                      ? `${enrollment.deliveries.filter((d) => d.sentAt).length} of ${enrollment.deliveries.length} sent`
-                      : "ended"}
+                      ? `${enrollment.deliveries.filter((d) => d.sentAt).length} of ${enrollment.deliveries.filter((d) => d.sentVia !== "withdrawn").length} sent` +
+                        (enrollment.smsConsentAt ? " · by email and text" : "") +
+                        (enrollment.touchpointsConsentAt ? " · with extra notes" : "")
+                      : enrollment.unsubscribedAt
+                        ? "stopped"
+                        : "ended"}
                 </span>
+                {/*
+                  For the family member who telephones and asks: the
+                  unsubscribe page tells them the home can do this for
+                  them. Final, so it asks first.
+                */}
+                {enrollment.unsubscribedAt === null && enrollment.status !== "done" && (
+                  <Confirm
+                    trigger={
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="text-muted-foreground"
+                        disabled={stop.isPending}
+                      >
+                        Stop their check-ins
+                      </Button>
+                    }
+                    title={`Stop ${enrollment.contactName ?? "their"} check-ins?`}
+                    description="Nothing more is sent to them, by email or text, and this cannot be turned back on. Use it when they have asked."
+                    confirmLabel="Stop the check-ins"
+                    cancelLabel="Keep them"
+                    onConfirm={() => stop.mutate({ caseId, enrollmentId: enrollment.id })}
+                  />
+                )}
               </li>
             ))}
           </ul>

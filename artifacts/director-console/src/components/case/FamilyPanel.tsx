@@ -99,9 +99,60 @@ function LinkOnce({
   );
 }
 
-type Props = { caseId: number; contacts: FamilyContact[] };
+type Props = {
+  caseId: number;
+  contacts: FamilyContact[];
+  kind: string;
+  /** The person the file is about, as the case names them. */
+  subjectName: string;
+};
 
-export function FamilyPanel({ caseId, contacts }: Props) {
+/**
+ * "This is the person the plan is for", asked on a plan only.
+ *
+ * The family portal speaks to whoever holds the link, and on a plan that is
+ * either the planner — "your plan", "where you live" — or somebody helping
+ * them, who is told about the planner instead. The portal cannot tell which
+ * from the name, so the director says. Off unless ticked: telling a daughter
+ * "your plan" about her mother's funeral is worse than calling the planner
+ * by name.
+ */
+function PlannerTick({
+  id,
+  checked,
+  onChange,
+  subjectName,
+}: {
+  id: string;
+  checked: boolean;
+  onChange: (checked: boolean) => void;
+  subjectName: string;
+}) {
+  return (
+    <label htmlFor={id} className="flex items-start gap-2 text-sm leading-snug">
+      <input
+        id={id}
+        type="checkbox"
+        className="mt-0.5"
+        checked={checked}
+        onChange={(event) => onChange(event.target.checked)}
+      />
+      <span>
+        This is {subjectName}, the person the plan is for.
+        <span className="block text-muted-foreground">
+          Their page speaks to them as &ldquo;you&rdquo;. Leave it unticked for
+          family helping with the plan.
+        </span>
+      </span>
+    </label>
+  );
+}
+
+export function FamilyPanel({ caseId, contacts, kind, subjectName }: Props) {
+  const preNeed = kind === "pre_need";
+  // The first person on a plan is nearly always the planner, sitting across
+  // the desk at the pre-need conference. Everyone after that is family.
+  const startsAPlan = preNeed && contacts.length === 0;
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const [fresh, setFresh] = useState<{
@@ -116,6 +167,10 @@ export function FamilyPanel({ caseId, contacts }: Props) {
   const [phone, setPhone] = useState("");
   const [email, setEmail] = useState("");
   const [role, setRole] = useState<"next_of_kin" | "contributor">("next_of_kin");
+  const [smsConsent, setSmsConsent] = useState(false);
+  // Null until the director touches it, so the default can follow the list.
+  const [planner, setPlanner] = useState<boolean | null>(null);
+  const isPlanner = preNeed && (planner ?? startsAPlan);
 
   const refresh = () => {
     void queryClient.invalidateQueries({ queryKey: getGetCaseQueryKey(caseId) });
@@ -133,6 +188,8 @@ export function FamilyPanel({ caseId, contacts }: Props) {
         setPhone("");
         setEmail("");
         setRole("contributor");
+        setSmsConsent(false);
+        setPlanner(null);
         refresh();
       },
     },
@@ -202,6 +259,8 @@ export function FamilyPanel({ caseId, contacts }: Props) {
                 >
                   <ContactEditor
                     contact={contact}
+                    preNeed={preNeed}
+                    subjectName={subjectName}
                     pending={update.isPending}
                     onCancel={() => setEditing(null)}
                     onSave={(data) => update.mutate({ contactId: contact.id, data })}
@@ -213,6 +272,10 @@ export function FamilyPanel({ caseId, contacts }: Props) {
             const who = contact.name;
             const textingThis =
               sendLink.isPending && sendLink.variables?.contactId === contact.id;
+            // The planner, once the plan became a funeral. Their link closed
+            // then and the server will not open it again (`contacts.ts`), so
+            // nothing here offers to.
+            const died = contact.isSubject && !preNeed;
 
             return (
               <li
@@ -232,7 +295,13 @@ export function FamilyPanel({ caseId, contacts }: Props) {
                     ) : null}
                   </span>
                   <span className="block text-sm text-muted-foreground">
-                    {contact.role === "next_of_kin" ? "Next of kin" : "Contributor"}
+                    {contact.isSubject
+                      ? died
+                        ? "The plan was theirs"
+                        : "The plan is theirs"
+                      : contact.role === "next_of_kin"
+                        ? "Next of kin"
+                        : "Contributor"}
                     {addedBy ? ` · added by ${addedBy}` : ""}
                     {contact.canInvite ? " · can add family" : ""}
                     {contact.phone ? (
@@ -249,6 +318,13 @@ export function FamilyPanel({ caseId, contacts }: Props) {
                       ""
                     )}
                     {contact.email ? ` · ${contact.email}` : ""}
+                    {contact.phone
+                      ? contact.smsOptedOutAt
+                        ? " · replied STOP, not texted"
+                        : contact.smsConsentAt
+                          ? " · agreed to texts"
+                          : ""
+                      : ""}
                     {/* Whether the text ever landed — otherwise invisible
                         until the family fails to do anything. */}
                     {revoked
@@ -266,21 +342,8 @@ export function FamilyPanel({ caseId, contacts }: Props) {
                     asks, for the same reason "New link" does.
                   */}
                   {contact.phone &&
-                    (revoked ? (
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        disabled={textingThis}
-                        onClick={() => sendLink.mutate({ contactId: contact.id })}
-                      >
-                        {textingThis ? (
-                          <Loader2 className="size-4 animate-spin" />
-                        ) : (
-                          <MessageSquare className="size-4" />
-                        )}
-                        Text a new link
-                      </Button>
-                    ) : (
+                    !died &&
+                    (contact.smsOptedOutAt ? null : (
                       <Confirm
                         trigger={
                           <Button variant="ghost" size="sm" disabled={textingThis}>
@@ -289,13 +352,22 @@ export function FamilyPanel({ caseId, contacts }: Props) {
                             ) : (
                               <MessageSquare className="size-4" />
                             )}
-                            Text it
+                            {revoked ? "Text a new link" : "Text it"}
                           </Button>
                         }
                         title={`Text ${who} a new link?`}
-                        description={`It goes to ${contact.phone}. The link ${who} already has stops working, so the one in this text is the one to use.`}
+                        description={
+                          (revoked
+                            ? `It goes to ${contact.phone}.`
+                            : `It goes to ${contact.phone}. The link ${who} already has stops working, so the one in this text is the one to use.`) +
+                          (contact.smsConsentAt
+                            ? ""
+                            : ` By sending, you confirm ${who} agreed to receive texts from you; that is recorded with today's date.`)
+                        }
                         confirmLabel="Text it"
-                        onConfirm={() => sendLink.mutate({ contactId: contact.id })}
+                        onConfirm={() =>
+                          sendLink.mutate({ contactId: contact.id, data: { smsConsent: true } })
+                        }
                       />
                     ))}
                   {/*
@@ -305,7 +377,7 @@ export function FamilyPanel({ caseId, contacts }: Props) {
                   */}
                   {/* Pending-guarded: a double press minted two links and
                       the one on screen was already dead. */}
-                  {revoked ? (
+                  {died ? null : revoked ? (
                     <Button
                       variant="ghost"
                       size="sm"
@@ -378,19 +450,24 @@ export function FamilyPanel({ caseId, contacts }: Props) {
               email: email.trim() || null,
               role,
               canInvite: role === "next_of_kin",
+              ...(isPlanner ? { isSubject: true } : {}),
+              ...(phone.trim() && smsConsent ? { smsConsent: true } : {}),
             },
           });
         }}
       >
         <p className="font-medium">
-          {contacts.length === 0
-            ? "Start with the next of kin"
-            : "Add someone from the family"}
+          {startsAPlan
+            ? `Start with ${subjectName}`
+            : contacts.length === 0
+              ? "Start with the next of kin"
+              : "Add someone from the family"}
         </p>
         {contacts.length === 0 && (
           <p className="-mt-2 text-sm leading-snug text-muted-foreground">
-            They get a private link to the arrangements. Add a mobile number
-            and you can text it to them from here.
+            {startsAPlan
+              ? "They get a private link to their plan, to fill in at home. Add a mobile number and you can text it to them from here."
+              : "They get a private link to the arrangements. Add a mobile number and you can text it to them from here."}
           </p>
         )}
 
@@ -421,6 +498,22 @@ export function FamilyPanel({ caseId, contacts }: Props) {
               value={phone}
               onChange={(event) => setPhone(event.target.value)}
             />
+            {phone.trim() && (
+              <label className="flex items-start gap-2 text-sm leading-snug">
+                <input
+                  type="checkbox"
+                  className="mt-0.5"
+                  checked={smsConsent}
+                  onChange={(event) => setSmsConsent(event.target.checked)}
+                />
+                <span>
+                  They agreed to get texts from us about the arrangements.
+                  <span className="block text-muted-foreground">
+                    Recorded with today&rsquo;s date. Nobody is texted without it.
+                  </span>
+                </span>
+              </label>
+            )}
           </div>
           <div className="space-y-1.5">
             <Label htmlFor="email">Email</Label>
@@ -435,6 +528,15 @@ export function FamilyPanel({ caseId, contacts }: Props) {
             </p>
           </div>
         </div>
+
+        {preNeed && (
+          <PlannerTick
+            id="newContactPlanner"
+            checked={isPlanner}
+            onChange={setPlanner}
+            subjectName={subjectName}
+          />
+        )}
 
         <div className="space-y-1.5">
           <Label htmlFor="newContactRole">Role</Label>
@@ -478,11 +580,15 @@ export function FamilyPanel({ caseId, contacts }: Props) {
  */
 function ContactEditor({
   contact,
+  preNeed,
+  subjectName,
   pending,
   onSave,
   onCancel,
 }: {
   contact: FamilyContact;
+  preNeed: boolean;
+  subjectName: string;
   pending: boolean;
   onSave: (data: {
     name: string;
@@ -491,6 +597,7 @@ function ContactEditor({
     email: string | null;
     role: "next_of_kin" | "contributor";
     canInvite?: boolean;
+    isSubject?: boolean;
   }) => void;
   onCancel: () => void;
 }) {
@@ -501,6 +608,7 @@ function ContactEditor({
   const [role, setRole] = useState<"next_of_kin" | "contributor">(
     contact.role === "next_of_kin" ? "next_of_kin" : "contributor",
   );
+  const [planner, setPlanner] = useState(contact.isSubject);
   const id = `contact-${contact.id}`;
 
   return (
@@ -518,6 +626,9 @@ function ContactEditor({
           // Changing the role carries the same rule as adding somebody: next
           // of kin may add family, a contributor may not.
           ...(role !== contact.role ? { canInvite: role === "next_of_kin" } : {}),
+          // Sent only when changed. Ticking it here moves it from whoever
+          // had it, which the list shows as soon as this saves.
+          ...(planner !== contact.isSubject ? { isSubject: planner } : {}),
         });
       }}
     >
@@ -558,6 +669,14 @@ function ContactEditor({
           />
         </div>
       </div>
+      {preNeed && (
+        <PlannerTick
+          id={`${id}-planner`}
+          checked={planner}
+          onChange={setPlanner}
+          subjectName={subjectName}
+        />
+      )}
       <div className="space-y-1.5">
         <Label htmlFor={`${id}-role`}>Role</Label>
         <Select

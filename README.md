@@ -73,7 +73,6 @@ artifacts/
   family-portal/     What the family opens from their link   (served at /family)
   admin-console/     Our own platform console                (served at /admin)
   website/           The marketing site
-  mockup-sandbox/    Component previews, not shipped
   e2e-tests/         Playwright, against a real stack
 lib/
   api-spec/          openapi.yaml, the contract. Source of truth.
@@ -116,15 +115,17 @@ The product works and is tested — the API suite runs against real Postgres wit
 no mocks, and there are frontend and Playwright suites alongside it. What is
 *not* done, so nobody is surprised:
 
-- **The work is spread across branches.** Main, the 4 October fixes, and an
-  unmerged twelve-commit branch from 2 October (the price book, SMS consent,
-  ESLint, its own 72-hour clock) overlap. `STATUS.md`, problem 1, has the
-  order to bring them together.
-- The legal documents need a lawyer.
+- **Nothing live runs current code.** Both Replit apps serve builds from
+  before 28 September; `STATUS.md` says what to do about it, starting with
+  switching off Replit's analytics, which sees every family's link.
+- **This repository is public.** Make it private before anything else.
+- The legal documents need a lawyer, and are not yet true of the code in
+  about thirty places.
 - Error tracking and uptime checks are built but switched off until a Sentry
   project and a paging monitor exist (`DEPLOY.md`, "Knowing when it breaks").
-- The three daily scheduled jobs skip with a notice until two repository
-  secrets are set. `STATUS.md`, problem 2.
+- The scheduled jobs (aftercare hourly, usage and trial reminders daily)
+  skip with a notice until two repository secrets are set. Backups copy
+  themselves off the host once a bucket exists. `STATUS.md` has the list.
 - Colorado's 72-hour certificate clock is built; the statutory authorisation
   order and forms are not, and wait on a lawyer.
 

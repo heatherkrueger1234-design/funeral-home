@@ -245,11 +245,11 @@ export function PortalShell({ children }: { children: ReactNode }) {
 
   if (!session.data) return <Waiting />;
 
-  const { home, case: subject } = session.data;
+  const { home, case: subject, contact } = session.data;
   const atHub = location === "/" || location.startsWith("/f/");
-  // "For Eleanor Vance" is right for a bereavement and wrong for somebody
-  // reading their own plan.
-  const voice = voiceFor(subject.kind);
+  // "For Eleanor Vance" is right for a bereavement and wrong for a plan,
+  // whoever is reading it.
+  const voice = voiceFor(subject.kind, contact.isSubject);
 
   return (
     <div className="min-h-dvh flex flex-col">

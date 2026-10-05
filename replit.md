@@ -77,14 +77,16 @@ frontends use, so a contract change cannot land on one side only. CI fails if
 the checked-in generated code drifts from the spec.
 
 ```
-lib/db              Drizzle schema. 28 tables, all reachable from funeral_homes.
+lib/db              Drizzle schema. 40 tables, all reachable from funeral_homes.
 lib/api-spec        openapi.yaml + orval config. The contract.
 lib/api-zod         Generated: zod validators (server-side).
 lib/api-client-react Generated: react-query hooks (+ hand-written multipart).
-lib/mailer          SMTP. Shared, because the aftercare worker sends mail too.
+lib/mailer          SMTP and SMS (Twilio). Shared, because the aftercare worker sends both.
 artifacts/api-server Express. Two auth surfaces; see below.
 artifacts/family-portal   What the family opens. Mobile-first, brandable.
 artifacts/director-console What the home works cases from, and its master page.
+artifacts/admin-console   The platform console: homes, licensure, texting setup, audit log.
+artifacts/website         The marketing site, with prices.
 scripts             Backups, and the aftercare sender.
 ```
 
@@ -150,7 +152,6 @@ by path instead of by subdomain (the Docker deployment gives each its own):
 | `/family` | family portal, where a texted link opens |
 | `/admin` | platform admin console |
 | `/api` | the API |
-| `/__mockup` | component preview sandbox, development only |
 
 The director console is at the root deliberately: it is the only screen that
 can sort out a director, a platform admin and a lost family member, so it is
@@ -204,21 +205,23 @@ This is the part that earns the subscription, and it does nothing unless
 something triggers it. Pick one:
 
 ```sh
-# 1. Anything that can make an HTTP request, once a day. This is the one to
-#    use — it works on an autoscale deployment that sleeps when idle.
+# 1. Anything that can make an HTTP request, once an hour. This is the one
+#    to use — it works on an autoscale deployment that sleeps when idle.
 curl -X POST "$API_URL/api/tasks/aftercare" -H "Authorization: Bearer $TASK_SECRET"
 
 # 2. From a machine with the repo checked out.
 pnpm --filter @workspace/scripts run send-aftercare -- --dry-run
 
 # 3. A plain cron line.
-0 14 * * * curl -fsS -X POST "$API_URL/api/tasks/aftercare" \
+17 * * * * curl -fsS -X POST "$API_URL/api/tasks/aftercare" \
              -H "Authorization: Bearer $TASK_SECRET"
 ```
 
-`.github/workflows/aftercare.yml` already does (1) daily at 14:00 UTC —
-mid-morning across the US, because 3am is a bad time to receive a message
-about somebody who died. It needs two repository secrets, `API_URL` and
+`.github/workflows/aftercare.yml` already does (1) hourly. Each check-in
+falls due at mid-morning in the home's own time zone and only goes out
+between nine and seven there, because 3am is a bad time to receive a message
+about somebody who died, and "Today would have been her birthday" belongs on
+her birthday. It needs two repository secrets, `API_URL` and
 `TASK_SECRET`, and `TASK_SECRET` must match the server's. **Without
 `TASK_SECRET` set on the server the endpoint refuses every request**, which
 is deliberate: an unauthenticated endpoint that sends email is not something
@@ -330,7 +333,7 @@ Colorado this year — where each home stands with DORA.
 named in the `platform_admins` table. That is on purpose: one way to authenticate
 in this application means one cookie to protect, not two. Being on the list is
 an *additional* condition and never an alternative one, and an empty list
-means nobody. `routes/admin.ts` applies that check under `/admin`, below the
+means nobody. `routes/admin/` applies that check under `/admin`, below the
 ordinary session gate. The account's address must also be **confirmed**: the
 list names addresses and registration never checks them, so without that
 anybody could register under a listed address nobody had claimed yet (the
@@ -365,7 +368,7 @@ is no route that edits a case, an obituary, a photograph or a family contact,
 and there is not meant to be — Section 2 of `COLORADO.md` has the reason: we
 are the processor and the home is the controller.
 
-**Cross-tenant reads.** Every one goes through a helper in `routes/admin.ts`
+**Cross-tenant reads.** Every one goes through a helper in `routes/admin/`
 whose name begins with `platform`, and every one of those writes a row to
 `platform_audit` before returning. `tenant(req)` is never called in that file.
 The log is readable from the console's own Access log page, because a log
@@ -627,3 +630,30 @@ person on every page (`lib/voice.ts`) and no longer name the planner as the
 informant. The master page is headed "Today". The platform console has a
 test suite (`artifacts/admin-console/src/lib/*.test.ts`, run on a Denver
 clock).
+
+## The 5 October pass: who is reading, who is texting, and when
+
+`STATUS.md` has the whole list. What changes how a Replit deployment is run:
+
+**Switch off Replit's analytics injection** in the deployment's settings,
+before any real family opens a link. It sends each page's full address to
+Replit, and the family portal's address carries the family's link.
+
+**Run `fix-plan-records` once** against any database that held a plan
+before 5 October: `pnpm --filter @workspace/scripts run fix-plan-records`,
+then `-- --apply` once its report reads right. It marks each planner as the
+person their plan is for (`family_contacts.isSubject`), closes the link of a
+planner who has since died and stops their check-ins, and takes a planner
+off their own certificate as its informant.
+
+**Aftercare runs hourly now.** Each check-in falls due at 10:00 in the home's
+own time zone and only goes out between 9:00 and 19:00 there; point whatever
+calls `/api/tasks/aftercare` at it every hour.
+
+**Logs in production name only who a message was for.** With mail
+unconfigured, a password reset used to appear in full in the log; it no
+longer does, so on a deployment without SMTP a reset link goes nowhere.
+Configure mail before inviting a real home.
+
+**Texting replies:** "Stop please" and the FCC's other words opt out, HELP is
+answered once, and any other reply is told how to reach the home.

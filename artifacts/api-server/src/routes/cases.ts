@@ -12,6 +12,9 @@ import {
   canOpenCases,
   cannotOpenCasesReason,
   hasAddOn,
+  informantIsTheSubject,
+  namesOnFile,
+  vitalStatisticsTable,
   type Case,
   type FuneralHome,
 } from "@workspace/db";
@@ -395,6 +398,60 @@ router.post("/cases/:caseId/at-need", async (req, res) => {
    * once.
    */
   await recordBillableCase(converted!, home);
+
+  /*
+   * And close the planner's own link. They have died; their phone and their
+   * inbox are in somebody else's hand now, and a message sent through that
+   * link would appear in the chat under the name of the person whose
+   * funeral it is. They stay on the file, as a contact nobody can text,
+   * invite from, or count as the next of kin. Whoever picks up their phone
+   * is added as themselves.
+   */
+  const planners = await db
+    .update(familyContactsTable)
+    .set({
+      revokedAt: new Date(),
+      role: "contributor",
+      canInvite: false,
+      updatedAt: new Date(),
+    })
+    .where(
+      and(
+        eq(familyContactsTable.caseId, converted!.id),
+        eq(familyContactsTable.isSubject, true),
+      ),
+    )
+    .returning({ name: familyContactsTable.name });
+
+  /*
+   * And take the planner off the certificate as its informant, if a plan
+   * saved before 4 October put them there (`informantIsTheSubject`). The
+   * family's page fills "About you" from what is stored before it suggests
+   * the reader's own details, so a name left here would be offered to the
+   * family as theirs, and the person who died named as reporting it.
+   */
+  const [vitals] = await db
+    .select()
+    .from(vitalStatisticsTable)
+    .where(eq(vitalStatisticsTable.caseId, converted!.id))
+    .limit(1);
+  if (
+    vitals &&
+    informantIsTheSubject(vitals.informantName, [
+      ...namesOnFile(converted!, vitals),
+      ...planners.map((planner) => planner.name),
+    ])
+  ) {
+    await db
+      .update(vitalStatisticsTable)
+      .set({
+        informantName: null,
+        informantRelationship: null,
+        informantPhone: null,
+        updatedAt: new Date(),
+      })
+      .where(eq(vitalStatisticsTable.id, vitals.id));
+  }
 
   // The obituary a planner may have started in their own words gets the
   // date of death on its empty line, and keeps everything they wrote.

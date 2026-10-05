@@ -2,7 +2,6 @@ import { describe, expect, it } from "vitest";
 import { and, eq } from "drizzle-orm";
 import {
   db,
-  casePhotosTable,
   familyContactsTable,
   funeralHomesTable,
   memoryBooksTable,
@@ -18,6 +17,7 @@ import {
   signUpHome,
   PNG_BYTES,
   type StaffSession,
+  homesAtMidday,
 } from "./helpers";
 
 const DAY = 24 * 60 * 60 * 1000;
@@ -537,6 +537,7 @@ describe("the aftercare year filling the book", () => {
     // The book exists because somebody opened the page.
     await staff.agent.get(`/api/cases/${built.row.id}/memory-book`).expect(200);
 
+    await homesAtMidday();
     const result = await runAftercare({ dryRun: true });
     expect(result.due).toBeGreaterThan(0);
   });
@@ -554,6 +555,7 @@ describe("the aftercare year filling the book", () => {
       .set({ expiresAt: nearlyGone })
       .where(eq(familyContactsTable.id, built.contactId));
 
+    await homesAtMidday();
     await runAftercare();
 
     const [contact] = await db
@@ -589,6 +591,7 @@ describe("the aftercare year filling the book", () => {
       .set({ revokedAt: new Date(), expiresAt: new Date(Date.now() + 2 * DAY) })
       .where(eq(familyContactsTable.id, built.contactId));
 
+    await homesAtMidday();
     await runAftercare();
 
     const [contact] = await db
@@ -614,6 +617,7 @@ describe("the aftercare year filling the book", () => {
       .set({ expiresAt: soon })
       .where(eq(familyContactsTable.id, built.contactId));
 
+    await homesAtMidday();
     await runAftercare();
 
     const [contact] = await db

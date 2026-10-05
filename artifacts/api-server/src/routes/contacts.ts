@@ -7,21 +7,86 @@ import {
   toPublicFamilyContact,
   type FamilyContact,
 } from "@workspace/db";
-import { CreateCaseContactBody, UpdateContactBody } from "@workspace/api-zod";
+import {
+  CreateCaseContactBody,
+  SendContactLinkBody,
+  UpdateContactBody,
+} from "@workspace/api-zod";
 import {
   assertHasUpdates,
   badRequest,
+  HttpError,
   parseBody,
   parseId,
   requireRow,
 } from "../lib/http";
 import { currentUser, tenant } from "../middleware/require-auth";
 import { linkUrl, mintLink } from "../lib/family-link";
-import { sendSms, SmsNotSentError } from "../lib/sms";
+import { sendSms, smsBlockReason, SmsNotSentError } from "../lib/sms";
 import { markOnboarding } from "../lib/onboarding";
 import { loadCase } from "./cases";
 
 const router: IRouter = Router();
+
+/** The columns a director's "they agreed to texts" tick writes. */
+function consentFields(consent: boolean | undefined) {
+  if (consent === true) return { smsConsentAt: new Date(), smsConsentSource: "director" };
+  if (consent === false) return { smsConsentAt: null, smsConsentSource: null };
+  return {};
+}
+
+type Tx = Parameters<Parameters<typeof db.transaction>[0]>[0];
+
+const NOT_A_PLAN =
+  "Only a plan has a person it is for who reads it. On this file, everyone here is family.";
+
+/**
+ * Take the "person this plan is for" flag off whoever has it, so the caller
+ * can give it to somebody else. A plan is about one person.
+ *
+ * The case row is locked first. Two directors ticking two different names in
+ * the same second then take turns, and the second simply moves the flag
+ * again, rather than both writes landing and the database's one-per-case
+ * index refusing one of them as an error.
+ */
+async function releaseSubject(tx: Tx, caseId: number): Promise<void> {
+  await tx
+    .select({ id: casesTable.id })
+    .from(casesTable)
+    .where(eq(casesTable.id, caseId))
+    .for("update");
+  await tx
+    .update(familyContactsTable)
+    .set({ isSubject: false, updatedAt: new Date() })
+    .where(
+      and(
+        eq(familyContactsTable.caseId, caseId),
+        eq(familyContactsTable.isSubject, true),
+      ),
+    );
+}
+
+/**
+ * Refuse a link for the person a file was about, once they have died.
+ *
+ * Their phone and their inbox are somebody else's now, and the link would
+ * let that somebody post in the chat under the dead person's name. The
+ * conversion to at-need already closed it (`cases.ts`); this stops one click
+ * here opening it again. Whoever has the phone is added as themselves.
+ */
+async function assertCanHaveLink(contact: FamilyContact): Promise<void> {
+  if (!contact.isSubject) return;
+  const [row] = await db
+    .select({ kind: casesTable.kind })
+    .from(casesTable)
+    .where(eq(casesTable.id, contact.caseId))
+    .limit(1);
+  if (row?.kind === "pre_need") return;
+  throw new HttpError(
+    409,
+    `This is ${contact.name}'s own contact, from when the file was their plan. To give somebody in the family a link, add them as themselves.`,
+  );
+}
 
 /** Load a contact, scoped to the signed-in home. */
 async function loadContact(
@@ -74,25 +139,34 @@ router.post("/cases/:caseId/contacts", async (req, res) => {
 
   const name = values.name.trim();
   if (!name) throw badRequest("Please give this person a name.");
+  if (values.isSubject && row.kind !== "pre_need") {
+    throw new HttpError(409, NOT_A_PLAN);
+  }
 
   const link = mintLink();
 
-  const [created] = await db
-    .insert(familyContactsTable)
-    .values({
-      funeralHomeId: home.id,
-      caseId: row.id,
-      name,
-      relationship: values.relationship ?? null,
-      phone: values.phone ?? null,
-      email: values.email ?? null,
-      role: values.role ?? "contributor",
-      canInvite: values.canInvite ?? false,
-      tokenHash: link.tokenHash,
-      expiresAt: link.expiresAt,
-      invitedByUserId: user.id,
-    })
-    .returning();
+  const created = await db.transaction(async (tx) => {
+    if (values.isSubject) await releaseSubject(tx, row.id);
+    const [inserted] = await tx
+      .insert(familyContactsTable)
+      .values({
+        funeralHomeId: home.id,
+        caseId: row.id,
+        name,
+        relationship: values.relationship ?? null,
+        phone: values.phone ?? null,
+        email: values.email ?? null,
+        role: values.role ?? "contributor",
+        canInvite: values.canInvite ?? false,
+        isSubject: values.isSubject ?? false,
+        ...consentFields(values.smsConsent),
+        tokenHash: link.tokenHash,
+        expiresAt: link.expiresAt,
+        invitedByUserId: user.id,
+      })
+      .returning();
+    return inserted;
+  });
 
   // Adding the first family member is what turns an intake into a live case.
   if (row.status === "intake") {
@@ -111,13 +185,33 @@ router.post("/cases/:caseId/contacts", async (req, res) => {
 
 router.put("/contacts/:contactId", async (req, res) => {
   const existing = await loadContact(req, req.params.contactId);
-  const values = assertHasUpdates(parseBody(UpdateContactBody, req.body));
+  const { smsConsent, ...values } = assertHasUpdates(parseBody(UpdateContactBody, req.body));
 
-  const [updated] = await db
-    .update(familyContactsTable)
-    .set({ ...values, updatedAt: new Date() })
-    .where(eq(familyContactsTable.id, existing.id))
-    .returning();
+  // Taking the flag off is always allowed; giving it is for a plan only.
+  const claiming = values.isSubject === true && !existing.isSubject;
+  if (claiming) {
+    const [row] = await db
+      .select({ kind: casesTable.kind })
+      .from(casesTable)
+      .where(eq(casesTable.id, existing.caseId))
+      .limit(1);
+    if (row?.kind !== "pre_need") throw new HttpError(409, NOT_A_PLAN);
+  }
+
+  const updated = await db.transaction(async (tx) => {
+    if (claiming) await releaseSubject(tx, existing.caseId);
+    const [row] = await tx
+      .update(familyContactsTable)
+      .set({
+        ...values,
+        // Recording consent again keeps the original moment it was given.
+        ...(smsConsent === true && existing.smsConsentAt ? {} : consentFields(smsConsent)),
+        updatedAt: new Date(),
+      })
+      .where(eq(familyContactsTable.id, existing.id))
+      .returning();
+    return row;
+  });
 
   res.json(toPublicFamilyContact(updated!));
 });
@@ -145,6 +239,7 @@ router.delete("/contacts/:contactId", async (req, res) => {
  */
 router.post("/contacts/:contactId/link", async (req, res) => {
   const existing = await loadContact(req, req.params.contactId);
+  await assertCanHaveLink(existing);
   const link = mintLink();
 
   const [updated] = await db
@@ -178,6 +273,9 @@ router.post("/contacts/:contactId/send-link", async (req, res) => {
   const home = tenant(req);
   const existing = await loadContact(req, req.params.contactId);
 
+  const values = parseBody(SendContactLinkBody, req.body ?? {});
+  await assertCanHaveLink(existing);
+
   if (!existing.phone?.trim()) {
     throw badRequest("There is no mobile number for this person.");
   }
@@ -190,6 +288,7 @@ router.post("/contacts/:contactId/send-link", async (req, res) => {
       tokenHash: link.tokenHash,
       expiresAt: link.expiresAt,
       revokedAt: null,
+      ...(values.smsConsent === true && !existing.smsConsentAt ? consentFields(true) : {}),
       updatedAt: new Date(),
     })
     .where(eq(familyContactsTable.id, existing.id))
@@ -199,19 +298,24 @@ router.post("/contacts/:contactId/send-link", async (req, res) => {
 
   // Short, and it names the home. A link arriving from an unknown number
   // three days after a death reads like a scam unless it says who it is.
-  const body = `${home.name}: here is your private page for the arrangements. ${url}`;
+  // Opt-out wording on every link text, as carriers expect.
+  const body = `${home.name}: here is your private page for the arrangements. ${url} Reply STOP to opt out.`;
 
   let sent = false;
-  let smsError: string | null = null;
+  // Consent is checked on the row as saved, so a tick sent with this
+  // request counts and a STOP reply always wins.
+  let smsError: string | null = smsBlockReason(updated!);
 
-  try {
-    await sendSms({ to: existing.phone, body });
-    sent = true;
-  } catch (error) {
-    if (error instanceof SmsNotSentError) {
-      smsError = error.message;
-    } else {
-      throw error;
+  if (!smsError) {
+    try {
+      await sendSms({ to: existing.phone, body, home });
+      sent = true;
+    } catch (error) {
+      if (error instanceof SmsNotSentError) {
+        smsError = error.message;
+      } else {
+        throw error;
+      }
     }
   }
 

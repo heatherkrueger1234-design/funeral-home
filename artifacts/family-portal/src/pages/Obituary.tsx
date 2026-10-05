@@ -34,13 +34,15 @@ type FieldProps = {
   id: string;
   label: string;
   hint?: string;
+  /** A gentle note from the server about what is in the box now. */
+  note?: string | null;
   value: string | null;
   multiline?: boolean;
   disabled: boolean;
   onSave: (value: string | null) => void;
 };
 
-function Field({ id, label, hint, value, multiline, disabled, onSave }: FieldProps) {
+function Field({ id, label, hint, note, value, multiline, disabled, onSave }: FieldProps) {
   const Control = multiline ? Textarea : Input;
 
   return (
@@ -80,6 +82,11 @@ function Field({ id, label, hint, value, multiline, disabled, onSave }: FieldPro
           onSave(next || null);
         }}
       />
+      {note && (
+        <p className="mt-1.5 text-sm leading-snug text-[var(--accent-deep)]" role="note">
+          {note}
+        </p>
+      )}
     </div>
   );
 }
@@ -89,8 +96,9 @@ export default function Obituary() {
   const queryClient = useQueryClient();
   const obituary = useGetFamilyObituary();
   const session = useGetFamilySession();
-  // On a plan this is somebody writing their own, about a life still going.
-  const voice = voiceFor(session.data?.case.kind);
+  // On a plan this is a life still going, written by the person living it
+  // or by their family.
+  const voice = voiceFor(session.data?.case.kind, session.data?.contact.isSubject);
   const [savedAt, setSavedAt] = useState<number | null>(null);
 
   const refresh = () => {
@@ -175,18 +183,57 @@ export default function Obituary() {
           disabled={locked}
           onSave={save("fullName")}
         />
+
+        <fieldset disabled={locked}>
+          <legend className="text-sm font-medium">
+            {voice.self ? "How should it refer to you?" : "How should it refer to them?"}
+          </legend>
+          <p className="mt-1 text-sm leading-snug text-muted-foreground">
+            Used in sentences like &ldquo;She was born in Pueblo&rdquo;.
+          </p>
+          <div className="mt-2 flex flex-wrap gap-2">
+            {(
+              [
+                ["she", "She"],
+                ["he", "He"],
+                ["they", "They"],
+                ["", voice.self ? "Just my name" : "Just their name"],
+              ] as const
+            ).map(([key, label]) => {
+              const chosen = (draft.pronouns ?? "") === key;
+              return (
+                <button
+                  key={key || "name"}
+                  type="button"
+                  aria-pressed={chosen}
+                  onClick={() => save("pronouns")(key || null)}
+                  className={
+                    chosen
+                      ? "min-h-11 rounded-full border border-[var(--accent)] bg-[var(--accent-soft)] px-4 text-sm font-semibold text-[var(--accent-deep)]"
+                      : "min-h-11 rounded-full border border-border bg-card px-4 text-sm"
+                  }
+                >
+                  {label}
+                </button>
+              );
+            })}
+          </div>
+        </fieldset>
+
         <div className="grid gap-5 sm:grid-cols-2">
           <Field
             id="bornOn"
-            label="Born"
-            hint="A date, or just the year."
+            label="Date of birth"
+            hint="A date, or just the year — “March 19, 1941” or “1941”."
+            note={draft.hints?.bornOn}
             value={draft.bornOn}
             disabled={locked}
             onSave={save("bornOn")}
           />
           <Field
             id="birthPlace"
-            label="Born in"
+            label={voice.self ? "Where you were born" : "Where they were born"}
+            hint="A town, or a hospital — “Pueblo, Colorado”."
             value={draft.birthPlace}
             disabled={locked}
             onSave={save("birthPlace")}
@@ -202,14 +249,17 @@ export default function Obituary() {
           <div className="grid gap-5 sm:grid-cols-2">
             <Field
               id="diedOn"
-              label="Died"
+              label="Date they died"
+              hint="Just the date — “September 24, 2026”."
+              note={draft.hints?.diedOn}
               value={draft.diedOn}
               disabled={locked}
               onSave={save("diedOn")}
             />
             <Field
               id="deathPlace"
-              label="Died at"
+              label="Where they died"
+              hint="“At home in Denver”, or a hospice or hospital."
               value={draft.deathPlace}
               disabled={locked}
               onSave={save("deathPlace")}
@@ -224,11 +274,11 @@ export default function Obituary() {
         <Field
           id="biography"
           label={`${voice.Their} life`}
-          hint={
-            voice.preNeed
-              ? "Work, where you've lived, what you love, what matters to you. A few sentences is plenty."
-              : "Work, where they lived, what they loved, what they were like. A few sentences is plenty."
-          }
+          hint={voice.say({
+            self: "Work, where you've lived, what you love, what matters to you. A few sentences is plenty.",
+            living: "Work, where they've lived, what they love, what matters to them. A few sentences is plenty.",
+            died: "Work, where they lived, what they loved, what they were like. A few sentences is plenty.",
+          })}
           value={draft.biography}
           multiline
           disabled={locked}
@@ -248,12 +298,12 @@ export default function Obituary() {
         */}
         <Field
           id="survivedBy"
-          label={voice.preNeed ? "Your family" : "Survived by"}
-          hint={
-            voice.preNeed
-              ? "Names, and how each of them is related to you. Take your time over the spellings."
-              : "Names, and how they were related. Take your time over the spellings."
-          }
+          label={voice.say({ self: "Your family", living: "Their family", died: "Survived by" })}
+          hint={voice.say({
+            self: "Names, and how each of them is related to you. Take your time over the spellings.",
+            living: "Names, and how they are related. Take your time over the spellings.",
+            died: "Names, and how they were related. Take your time over the spellings.",
+          })}
           value={draft.survivedBy}
           multiline
           disabled={locked}
@@ -275,7 +325,7 @@ export default function Obituary() {
         <Field
           id="inLieuOfFlowers"
           label="In lieu of flowers"
-          hint="A charity, if there is one."
+          hint="A charity, if there is one — “donations to the Denver Public Library Friends”."
           value={draft.inLieuOfFlowers}
           disabled={locked}
           onSave={save("inLieuOfFlowers")}
@@ -285,11 +335,11 @@ export default function Obituary() {
           id="specialThanks"
           label="Anyone to thank"
           // The care at the end of a life has not happened on a plan.
-          hint={
-            voice.preNeed
-              ? "Friends, neighbors, anyone you would like thanked by name."
-              : "Caregivers, a hospice, the nurses on a ward."
-          }
+          hint={voice.say({
+            self: "Friends, neighbors, anyone you would like thanked by name.",
+            living: "Friends, neighbors, anyone they would like thanked by name.",
+            died: "Who, and what for — “the nurses at Denver Hospice, for their kindness”.",
+          })}
           value={draft.specialThanks}
           multiline
           disabled={locked}

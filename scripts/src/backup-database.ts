@@ -8,9 +8,10 @@
  * exits non-zero on any failure so a scheduler reports a broken backup
  * instead of quietly keeping none.
  *
- * Run it on a schedule, and copy BACKUP_DIR somewhere that is not this host.
  * A backup on the same disk as the database does not survive the failure it
- * exists for.
+ * exists for, so with BACKUP_OFFSITE set each new dump is also copied off
+ * this host with rclone and the copy checked (`sendOffsite`). Without it, the
+ * run still succeeds and says plainly that nothing left the machine.
  */
 import { spawn } from "node:child_process";
 import { mkdir, readdir, rename, rm, stat } from "node:fs/promises";
@@ -20,6 +21,21 @@ import { encryptFile } from "./backup-crypto";
 const DATABASE_URL = process.env.DATABASE_URL;
 const BACKUP_DIR = process.env.BACKUP_DIR ?? "./backups";
 const RETAIN_DAYS = Number(process.env.BACKUP_RETAIN_DAYS ?? "30");
+/**
+ * Where the copy goes: any rclone destination — `offsite:bucket/continuum`
+ * with the remote defined by RCLONE_CONFIG_OFFSITE_* settings, or a plain
+ * path to a mounted disk. DEPLOY.md, "Backups off the host".
+ */
+const OFFSITE = process.env.BACKUP_OFFSITE?.trim().replace(/\/+$/, "") ?? "";
+/**
+ * Unset by default, so nothing here ever deletes from the far side: an
+ * attacker, or a bug, that reaches this host should not also be able to
+ * empty the copy kept away from it. A lifecycle rule on the bucket is the
+ * better way to expire old copies; this is for a destination without one.
+ */
+const OFFSITE_RETAIN_DAYS = process.env.BACKUP_OFFSITE_RETAIN_DAYS
+  ? Number(process.env.BACKUP_OFFSITE_RETAIN_DAYS)
+  : null;
 
 function fail(message: string): never {
   console.error(`backup-database: ${message}`);
@@ -30,6 +46,16 @@ if (!DATABASE_URL) fail("DATABASE_URL is not set. Nothing to back up.");
 if (!Number.isFinite(RETAIN_DAYS) || RETAIN_DAYS < 1) {
   fail(
     `BACKUP_RETAIN_DAYS must be a positive number, got "${process.env.BACKUP_RETAIN_DAYS}".`,
+  );
+}
+if (
+  OFFSITE_RETAIN_DAYS !== null &&
+  (!Number.isFinite(OFFSITE_RETAIN_DAYS) || OFFSITE_RETAIN_DAYS < RETAIN_DAYS)
+) {
+  // Keeping fewer days off the host than on it would make the off-host copy
+  // the one that runs out first, which is backwards.
+  fail(
+    `BACKUP_OFFSITE_RETAIN_DAYS must be a number no smaller than BACKUP_RETAIN_DAYS (${RETAIN_DAYS}), got "${process.env.BACKUP_OFFSITE_RETAIN_DAYS}".`,
   );
 }
 
@@ -58,6 +84,87 @@ function capture(command: string, args: string[]): Promise<string> {
         : reject(new Error(`${command} exited with ${code}.`)),
     );
   });
+}
+
+/** Run a command and hand back only what it wrote to stdout. */
+function stdoutOf(command: string, args: string[]): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const child = spawn(command, args, { stdio: ["ignore", "pipe", "pipe"] });
+    let out = "";
+    let err = "";
+    child.stdout.on("data", (chunk: Buffer) => (out += chunk.toString()));
+    child.stderr.on("data", (chunk: Buffer) => (err += chunk.toString()));
+    child.on("error", (error) => {
+      reject(
+        (error as NodeJS.ErrnoException).code === "ENOENT"
+          ? new Error(`${command} is not installed or not on PATH.`)
+          : error,
+      );
+    });
+    child.on("close", (code) =>
+      code === 0
+        ? resolve(out)
+        : reject(new Error(`${command} exited with ${code}: ${err.trim().split("\n").pop() ?? ""}`)),
+    );
+  });
+}
+
+/**
+ * Copy one finished backup off this host, and prove it got there.
+ *
+ * rclone, rather than a storage SDK, because the dump holds every photograph
+ * a family uploaded (they live in Postgres) and will run to gigabytes: rclone
+ * already does multipart uploads, retries and checksums, and speaks to S3,
+ * R2, B2, Spaces, a mounted disk or an SFTP box with the same command. The
+ * exit code is not taken on trust; the far side is asked for the file and
+ * its size must match.
+ *
+ * The file is already encrypted, which is what makes it safe to hand to a
+ * storage provider. The key is not in it, and must not be stored beside it.
+ */
+async function sendOffsite(file: string): Promise<void> {
+  const name = path.basename(file);
+  const destination = `${OFFSITE}/${name}`;
+
+  await stdoutOf("rclone", [
+    "copyto",
+    "--retries",
+    "5",
+    "--low-level-retries",
+    "20",
+    file,
+    destination,
+  ]);
+
+  const { size } = await stat(file);
+  let landed: { Size?: number } = {};
+  try {
+    landed = JSON.parse(
+      await stdoutOf("rclone", ["lsjson", "--stat", destination]),
+    ) as { Size?: number };
+  } catch (error) {
+    throw new Error(
+      `rclone reported the copy done, but ${destination} could not be read back: ${error instanceof Error ? error.message : String(error)}`,
+    );
+  }
+  if (landed.Size !== size) {
+    throw new Error(
+      `${destination} is ${landed.Size ?? "missing"} bytes on the far side and ${size} here.`,
+    );
+  }
+  console.log(`copied off this host to ${destination}`);
+
+  if (OFFSITE_RETAIN_DAYS !== null) {
+    // Only names this script writes, as with the local prune.
+    await stdoutOf("rclone", [
+      "delete",
+      "--min-age",
+      `${OFFSITE_RETAIN_DAYS}d`,
+      "--include",
+      "holding-today-*.sql.enc",
+      OFFSITE,
+    ]);
+  }
 }
 
 function majorOf(text: string): number | null {
@@ -208,9 +315,24 @@ async function main(): Promise<void> {
   );
 
   await prune(BACKUP_DIR);
-  console.log(
-    "done. Now make sure a copy of this directory lives off this host.",
-  );
+
+  if (!OFFSITE) {
+    console.warn(
+      "done, but nothing left this host: set BACKUP_OFFSITE to copy each " +
+        "backup somewhere else (DEPLOY.md, \"Backups off the host\").",
+    );
+    return;
+  }
+
+  try {
+    await sendOffsite(final);
+  } catch (error) {
+    fail(
+      `the backup is on this host at ${final}, but the copy off it failed. ` +
+        (error instanceof Error ? error.message : String(error)),
+    );
+  }
+  console.log("done.");
 }
 
 main().catch((error: unknown) => {

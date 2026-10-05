@@ -7,7 +7,7 @@ import {
   aftercareEnrollmentsTable,
 } from "@workspace/db";
 import app from "../src/app";
-import { asFamily, createCase, inviteFamily, signUpHome } from "./helpers";
+import { asFamily, createCase, inviteFamily, signUpHome, homesAtMidday } from "./helpers";
 
 const DAY = 24 * 60 * 60 * 1000;
 
@@ -25,6 +25,7 @@ describe("the aftercare trigger", () => {
   it("refuses entirely when no secret is configured", async () => {
     // An unauthenticated endpoint that sends email to bereaved families is
     // not something to leave open because an env var is missing.
+    await homesAtMidday();
     await request(app)
       .post("/api/tasks/aftercare")
       .set("Authorization", "Bearer anything")
@@ -35,11 +36,13 @@ describe("the aftercare trigger", () => {
     process.env["TASK_SECRET"] = "a-real-secret-value";
 
     await request(app).post("/api/tasks/aftercare").expect(401);
+    await homesAtMidday();
     await request(app)
       .post("/api/tasks/aftercare")
       .set("Authorization", "Bearer not-it")
       .expect(401);
     // Length differences must not be a timing signal either.
+    await homesAtMidday();
     await request(app)
       .post("/api/tasks/aftercare")
       .set("Authorization", "Bearer short")
@@ -64,6 +67,7 @@ describe("the aftercare trigger", () => {
       .send({ consent: true })
       .expect(200);
 
+    await homesAtMidday();
     const dry = await request(app)
       .post("/api/tasks/aftercare?dryRun=1")
       .set("Authorization", "Bearer a-real-secret-value")
@@ -74,6 +78,7 @@ describe("the aftercare trigger", () => {
     expect(dry.body.dryRun).toBe(true);
 
     // And nothing was marked, so the real run still has it to do.
+    await homesAtMidday();
     const again = await request(app)
       .post("/api/tasks/aftercare?dryRun=1")
       .set("Authorization", "Bearer a-real-secret-value")
@@ -93,6 +98,7 @@ describe("the aftercare trigger", () => {
     await staff.agent.post(`/api/cases/${row.id}/close`).expect(200);
     // Enrolment exists but is still pending.
 
+    await homesAtMidday();
     const dry = await request(app)
       .post("/api/tasks/aftercare?dryRun=1")
       .set("Authorization", "Bearer a-real-secret-value")
@@ -118,6 +124,7 @@ describe("the aftercare trigger", () => {
       .send({ consent: true })
       .expect(200);
 
+    await homesAtMidday();
     const before = await request(app)
       .post("/api/tasks/aftercare?dryRun=1")
       .set("Authorization", "Bearer a-real-secret-value")
@@ -131,6 +138,7 @@ describe("the aftercare trigger", () => {
 
     // Consent is checked when the message would go out, not when it was
     // scheduled — so something queued a month ago stops immediately.
+    await homesAtMidday();
     const after = await request(app)
       .post("/api/tasks/aftercare?dryRun=1")
       .set("Authorization", "Bearer a-real-secret-value")
@@ -175,6 +183,7 @@ describe("the aftercare trigger", () => {
 
     // It must still be reported as due, not silently excluded because a
     // `failedAt` is already on the row.
+    await homesAtMidday();
     const dry = await request(app)
       .post("/api/tasks/aftercare?dryRun=1")
       .set("Authorization", "Bearer a-real-secret-value")
@@ -248,6 +257,7 @@ describe("the aftercare trigger", () => {
     // cannot actually send the still-outstanding one either — it can only
     // be marked skipped. What matters is whether the enrolment is
     // considered finished afterwards.
+    await homesAtMidday();
     await request(app)
       .post("/api/tasks/aftercare")
       .set("Authorization", "Bearer a-real-secret-value")

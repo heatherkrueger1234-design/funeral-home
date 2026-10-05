@@ -29,13 +29,14 @@ const DESCRIPTIONS: Record<string, string> = {
   "home.suspend": "Suspended your account",
   "home.restore": "Lifted a suspension on your account",
   "home.licensure.update": "Updated your Colorado licensure record",
-  "home.practitioner.update": "Updated a practitioner's licence record",
+  "home.practitioner.update": "Updated a practitioner's license record",
   "home.group.update": "Changed the group your account belongs to",
   "home.internal.update": "Changed whether your account counts as a customer",
   "home.crm.update": "Updated our own customer record for your account",
   "home.staff.reset": "Sent a sign-in email to one of your staff",
   "home.owner.invite": "Invited your account's owner",
   "home.trial.extend": "Extended your free trial",
+  "home.sms.update": "Changed your texting setup",
 };
 
 /**

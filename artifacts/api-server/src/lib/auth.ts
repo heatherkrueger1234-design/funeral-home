@@ -24,9 +24,19 @@ const scrypt = promisify(scryptCallback) as (
   options: { N: number; r: number; p: number },
 ) => Promise<Buffer>;
 
-// OWASP's floor for scrypt at the time of writing. Kept in the stored hash
-// string so these can be raised later without invalidating existing passwords.
-const SCRYPT_PARAMS = { N: 16384, r: 8, p: 1 };
+/*
+ * OWASP's scrypt configuration for a 16 MiB memory cost: N=2^14, r=8, p=5,
+ * the listed equivalent of its N=2^17, p=1 floor. Not that floor itself:
+ * 2^17 costs 128 MiB per hash, and a sign-in form that anybody can submit —
+ * including for addresses that do not exist, which `fakeVerify` pays for
+ * too — would let a few hundred requests take a 2 GB server's memory. Five
+ * passes at 16 MiB cost the same in time to an attacker guessing offline.
+ *
+ * These were N=2^14, p=1 until 5 October, which is below the floor. The
+ * parameters are kept in each stored hash, so old ones still verify, and
+ * `needsRehash` upgrades them at the next sign-in.
+ */
+const SCRYPT_PARAMS = { N: 16384, r: 8, p: 5 };
 const KEY_LENGTH = 64;
 const SALT_LENGTH = 16;
 
@@ -86,16 +96,42 @@ export async function verifyPassword(
   if (!Object.values(options).every(Number.isInteger)) return false;
 
   const expected = Buffer.from(rawHash, "base64");
-  const derived = await scrypt(
-    password,
-    Buffer.from(rawSalt, "base64"),
-    expected.length,
-    options,
-  );
+  const salt = Buffer.from(rawSalt, "base64");
+  const derived = await scrypt(password, salt, expected.length, options);
+
+  /*
+   * A hash made before 5 October costs a fifth of today's to check, while
+   * `fakeVerify` — the answer for an address with no account — costs
+   * today's. A wrong password against a dormant account therefore came
+   * back about 180ms sooner than one against nobody, which says which
+   * addresses have accounts. The difference is paid here, every time,
+   * until the account signs in and is rehashed.
+   */
+  if (
+    options.N === SCRYPT_PARAMS.N &&
+    options.r === SCRYPT_PARAMS.r &&
+    options.p < SCRYPT_PARAMS.p
+  ) {
+    await scrypt(password, salt, expected.length, {
+      ...options,
+      p: SCRYPT_PARAMS.p - options.p,
+    });
+  }
 
   // Lengths must match before timingSafeEqual, which throws otherwise.
   return (
     derived.length === expected.length && timingSafeEqual(derived, expected)
+  );
+}
+
+/** Whether a stored hash was made with weaker settings than today's. */
+export function needsRehash(stored: string): boolean {
+  const [scheme, rawN, rawR, rawP] = stored.split("$");
+  return (
+    scheme !== "scrypt" ||
+    Number(rawN) < SCRYPT_PARAMS.N ||
+    Number(rawR) < SCRYPT_PARAMS.r ||
+    Number(rawP) < SCRYPT_PARAMS.p
   );
 }
 
@@ -355,7 +391,7 @@ function cookieOptions(): CookieOptions {
  * proxy that is not forwarding the header, or TRUST_PROXY_HOPS set lower than
  * the number of proxies actually in front.
  */
-function warnIfCookieCannotReturn(req: Request, res: Response): void {
+function warnIfCookieCannotReturn(req: Request, _res: Response): void {
   if (!cookieOptions().secure || req.secure) return;
 
   logger.warn(

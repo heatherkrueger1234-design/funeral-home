@@ -17,11 +17,15 @@ Two audiences, two authentication schemes, and the split is load-bearing:
 
  * OpenAPI spec version: 0.1.0
  */
+import type { AftercareDeliveryKind } from "./aftercareDeliveryKind";
 
 export interface AftercareDelivery {
   id: number;
+  kind: AftercareDeliveryKind;
   dayOffset: number;
   dueAt: Date;
   sentAt: Date | null;
   failedAt: Date | null;
+  /** `email`, `sms`, `email,sms`, or `withdrawn` when consent lapsed before it was due. */
+  sentVia: string | null;
 }

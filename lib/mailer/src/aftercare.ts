@@ -1,4 +1,4 @@
-import { and, eq, isNull, lte } from "drizzle-orm";
+import { and, asc, eq, isNull, lte } from "drizzle-orm";
 import {
   db,
   aftercareDeliveriesTable,
@@ -8,10 +8,15 @@ import {
   funeralHomesTable,
   memoryBooksTable,
   usersTable,
+  AFTERCARE_COPY_KEYS,
+  AFTERCARE_TOUCHPOINTS,
   FAMILY_LINK_TTL_MS,
+  isAftercareHour,
+  type AftercareCopyKey,
 } from "@workspace/db";
 import { signId } from "@workspace/db/crypto";
 import { sendAftercareEmail, isMailConfigured } from "./index";
+import { isSmsConfigured, normalisePhone, sendSms } from "./sms";
 
 /**
  * Sending the grief check-ins that are due.
@@ -41,43 +46,111 @@ import { sendAftercareEmail, isMailConfigured } from "./index";
  *     attempted.
  */
 
-const MESSAGES: Record<number, { subject: string; body: (name: string) => string }> = {
-  30: {
+/**
+ * The default wording, keyed as `AFTERCARE_COPY_KEYS`. `{name}` is the
+ * person who died. A home can replace any of these in Settings; what it
+ * writes is sent as written.
+ */
+export const AFTERCARE_DEFAULT_COPY: Record<AftercareCopyKey, { subject: string; body: string }> = {
+  "30": {
     subject: "Thinking of you",
-    body: (name) =>
-      `It has been a month since ${name}'s service.\n\n` +
-      `This is often the point when the cards stop arriving and everyone else ` +
-      `goes back to their week, which can make it a harder month rather than an ` +
-      `easier one. If today is a bad day, that is not a sign anything is going ` +
-      `wrong.\n\n` +
-      `There is nothing you need to do with this message.`,
+    body:
+      "It has been a month since {name}'s service.\n\n" +
+      "This is often the point when the cards stop arriving and everyone else " +
+      "goes back to their week, which can make it a harder month rather than an " +
+      "easier one. If today is a bad day, that is not a sign anything is going " +
+      "wrong.\n\n" +
+      "There is nothing you need to do with this message.",
   },
-  60: {
+  "60": {
     subject: "Two months on",
-    body: (name) =>
-      `Two months since ${name}'s service.\n\n` +
-      `Grief is not a line that goes steadily down. A good fortnight followed ` +
-      `by a week where you cannot function is the ordinary shape of it, not a ` +
-      `setback.\n\n` +
-      `If you would like to talk to someone, we can point you to people locally.`,
+    body:
+      "Two months since {name}'s service.\n\n" +
+      "Grief is not a line that goes steadily down. A good fortnight followed " +
+      "by a week where you cannot function is the ordinary shape of it, not a " +
+      "setback.\n\n" +
+      "If you would like to talk to someone, we can point you to people locally.",
   },
-  90: {
+  "90": {
     subject: "Three months on",
-    body: (name) =>
-      `Three months since ${name}'s service.\n\n` +
-      `Some people find this is when the practical work finally stops and the ` +
-      `loss itself gets louder. If that is where you are, you are not behind.\n\n` +
-      `We are still here, and you are welcome to call.`,
+    body:
+      "Three months since {name}'s service.\n\n" +
+      "Some people find this is when the practical work finally stops and the " +
+      "loss itself gets louder. If that is where you are, you are not behind.\n\n" +
+      "We are still here, and you are welcome to call.",
   },
-  365: {
+  "365": {
     subject: "A year today",
-    body: (name) =>
-      `A year today since ${name}'s service.\n\n` +
-      `Anniversaries are often heavier than the day itself, partly because most ` +
-      `people no longer know the date. We do.\n\n` +
-      `Thinking of you and your family today.`,
+    body:
+      "A year today since {name}'s service.\n\n" +
+      "Anniversaries are often heavier than the day itself, partly because most " +
+      "people no longer know the date. We do.\n\n" +
+      "Thinking of you and your family today.",
+  },
+  birthday: {
+    subject: "Thinking of you today",
+    body:
+      "Today would have been {name}'s birthday.\n\n" +
+      "The first birthday is one of the days people warn you least about. " +
+      "However you spend it — marking it, or getting through it — is the right way.\n\n" +
+      "There is nothing you need to do with this message.",
+  },
+  holidays: {
+    subject: "Before the holidays",
+    body:
+      "The first holiday season without {name} is close.\n\n" +
+      "Many families find it helps to decide ahead of time what to keep and what " +
+      "to let go of this year, and to say so out loud. There is no right way to do it.\n\n" +
+      "We are thinking of you.",
+  },
+  death_anniversary: {
+    subject: "Remembering {name}",
+    body:
+      "It has been a year since {name} died.\n\n" +
+      "We have not forgotten, and we did not want today to pass without saying so.\n\n" +
+      "Thinking of you and your family.",
   },
 };
+
+/** The home's wording for a note if it wrote one, else the default. */
+export function aftercareMessage(
+  key: AftercareCopyKey,
+  copy: Record<string, { subject: string; body: string }> | null | undefined,
+  name: string,
+): { subject: string; body: string } {
+  const own = copy?.[key];
+  const chosen =
+    own && own.subject?.trim() && own.body?.trim() ? own : AFTERCARE_DEFAULT_COPY[key];
+  const fill = (text: string) => text.replace(/\{name\}/g, name);
+  return { subject: fill(chosen.subject), body: fill(chosen.body) };
+}
+
+/** Which copy key a delivery row uses. */
+export function copyKeyFor(kind: string, dayOffset: number): AftercareCopyKey | null {
+  if (kind === "checkin") {
+    const key = String(dayOffset);
+    return (AFTERCARE_COPY_KEYS as readonly string[]).includes(key) &&
+      !(AFTERCARE_TOUCHPOINTS as readonly string[]).includes(key)
+      ? (key as AftercareCopyKey)
+      : null;
+  }
+  return (AFTERCARE_TOUCHPOINTS as readonly string[]).includes(kind)
+    ? (kind as AftercareCopyKey)
+    : null;
+}
+
+/**
+ * The text version: the note's first paragraph, signed, with the opt-out
+ * carriers require. Short enough for two segments at most.
+ */
+export function aftercareSmsBody(brandedAs: string, body: string, emailToo: boolean): string {
+  const first = body.split("\n\n")[0]!.trim();
+  return (
+    `${brandedAs}: ${first}` +
+    (emailToo ? " We've sent a longer note by email." : " Thinking of you.") +
+    " Reply STOP to opt out."
+  );
+}
 
 /**
  * The line that turns a check-in into a collection.
@@ -168,6 +241,8 @@ function postalAddressOf(row: {
 export type AftercareRunResult = {
   due: number;
   sent: number;
+  /** Of `sent`, how many also (or only) went by text. */
+  texted: number;
   failed: number;
   skipped: number;
   dryRun: boolean;
@@ -220,6 +295,7 @@ export async function runAftercare(
       contactId: familyContactsTable.id,
       contactExpiresAt: familyContactsTable.expiresAt,
       contactRevokedAt: familyContactsTable.revokedAt,
+      contactOptedOutAt: familyContactsTable.smsOptedOutAt,
       firstName: casesTable.decedentFirstName,
       preferredName: casesTable.decedentPreferredName,
       homeId: funeralHomesTable.id,
@@ -229,6 +305,18 @@ export async function runAftercare(
       homeCity: funeralHomesTable.city,
       homeRegion: funeralHomesTable.region,
       homePostalCode: funeralHomesTable.postalCode,
+      home: {
+        id: funeralHomesTable.id,
+        smsSubaccountSid: funeralHomesTable.smsSubaccountSid,
+        smsMessagingServiceSid: funeralHomesTable.smsMessagingServiceSid,
+        smsBrandStatus: funeralHomesTable.smsBrandStatus,
+        smsCampaignStatus: funeralHomesTable.smsCampaignStatus,
+        smsTollFreeNumber: funeralHomesTable.smsTollFreeNumber,
+        smsTollFreeStatus: funeralHomesTable.smsTollFreeStatus,
+      },
+      homeCopy: funeralHomesTable.aftercareCopy,
+      homeTouchpoints: funeralHomesTable.aftercareTouchpoints,
+      homeTimezone: funeralHomesTable.timezone,
       bookClosesAt: memoryBooksTable.closesAt,
       bookId: memoryBooksTable.id,
     })
@@ -262,13 +350,29 @@ export async function runAftercare(
         isNull(aftercareEnrollmentsTable.unsubscribedAt),
       ),
     )
-    // Bounded, so one very overdue backlog cannot turn a scheduled run into
-    // an hour-long request that the scheduler kills half-way through.
-    .limit(options.limit ?? 200);
+    .orderBy(asc(aftercareDeliveriesTable.dueAt))
+    // Read with room to spare, because some of it is for homes where it is
+    // the middle of the night and waits for the next run (below).
+    .limit((options.limit ?? 200) * 5)
+    .then((rows) =>
+      rows
+        /*
+         * Only between nine and seven, where the home is (`isAftercareHour`).
+         * The sender runs every hour, so whatever falls due overnight goes
+         * out the next morning, and nothing lands at six o'clock in Oregon.
+         * Checked here rather than in SQL so one home with a time zone the
+         * database does not know cannot fail every family's check-in.
+         */
+        .filter((row) => isAftercareHour(now, row.homeTimezone))
+        // Bounded, so one very overdue backlog cannot turn a scheduled run
+        // into an hour-long request that the scheduler kills half-way.
+        .slice(0, options.limit ?? 200),
+    );
 
   const result: AftercareRunResult = {
     due: due.length,
     sent: 0,
+    texted: 0,
     failed: 0,
     skipped: 0,
     dryRun,
@@ -277,19 +381,48 @@ export async function runAftercare(
 
   if (due.length === 0) return result;
 
-  for (const row of due) {
-    const template = MESSAGES[row.delivery.dayOffset];
-    const to = row.enrollment.email;
-    const deceased = row.preferredName?.trim() || row.firstName;
+  const smsConfigured = isSmsConfigured();
 
-    if (!template || !to) {
+  for (const row of due) {
+    const key = copyKeyFor(row.delivery.kind, row.delivery.dayOffset);
+    const deceased = row.preferredName?.trim() || row.firstName;
+    const to = row.enrollment.email;
+
+    /*
+     * Consent, again, at the moment of sending. A touchpoint needs the
+     * family's opt-in and the home still offering it; a text needs the
+     * family's yes to texts and no STOP since (the STOP list itself is
+     * checked inside `sendSms`).
+     */
+    const isTouchpoint = row.delivery.kind !== "checkin";
+    const touchpointAllowed =
+      !isTouchpoint ||
+      (row.enrollment.touchpointsConsentAt !== null &&
+        row.homeTouchpoints.split(",").includes(row.delivery.kind));
+    const smsPhone = row.enrollment.phone ? normalisePhone(row.enrollment.phone) : null;
+    const wantsSms =
+      row.enrollment.smsConsentAt !== null && row.contactOptedOutAt === null && smsPhone !== null;
+
+    if (!touchpointAllowed) {
+      // Dealt with, not failed: nobody should chase a note that must not go.
+      if (!dryRun) {
+        await db
+          .update(aftercareDeliveriesTable)
+          .set({ sentAt: now, sentVia: "withdrawn" })
+          .where(eq(aftercareDeliveriesTable.id, row.delivery.id));
+      }
+      result.skipped += 1;
+      continue;
+    }
+
+    if (!key || (!to && !wantsSms)) {
       if (!dryRun) {
         await db
           .update(aftercareDeliveriesTable)
           .set({
             failedAt: now,
-            failureReason: template
-              ? "No email address"
+            failureReason: key
+              ? "No email address or agreed mobile number"
               : "No message for this offset",
           })
           .where(eq(aftercareDeliveriesTable.id, row.delivery.id));
@@ -297,6 +430,7 @@ export async function runAftercare(
       result.failed += 1;
       continue;
     }
+    const template = aftercareMessage(key, row.homeCopy, deceased);
 
     /*
      * Is there an open book to invite them to?
@@ -346,7 +480,9 @@ export async function runAftercare(
       }
     }
 
-    if (dryRun || !mailConfigured) {
+    const canEmail = Boolean(to) && mailConfigured;
+    const canSms = wantsSms && smsConfigured;
+    if (dryRun || (!canEmail && !canSms)) {
       result.skipped += 1;
       continue;
     }
@@ -369,28 +505,56 @@ export async function runAftercare(
       continue;
     }
 
-    try {
-      await sendAftercareEmail({
-        to,
-        subject: template.subject,
-        body:
-          template.body(deceased) +
-          (bookOpen ? memoryInvitation(deceased, row.delivery.dayOffset) : ""),
-        brandedAs: row.enrollment.brandedAs,
-        replyTo: await replyToFor(row.homeId, row.homeInbox),
-        unsubscribeUrl: aftercareUnsubscribeUrl(row.enrollment.id),
-        oneClickUnsubscribeUrl: aftercareOneClickUrl(row.enrollment.id),
-        postalAddress: postalAddressOf(row),
-      });
+    const via: string[] = [];
+    const problems: string[] = [];
+
+    if (canEmail) {
+      try {
+        await sendAftercareEmail({
+          to: to!,
+          subject: template.subject,
+          body:
+            template.body +
+            (bookOpen ? memoryInvitation(deceased, row.delivery.dayOffset) : ""),
+          brandedAs: row.enrollment.brandedAs,
+          replyTo: await replyToFor(row.homeId, row.homeInbox),
+          unsubscribeUrl: aftercareUnsubscribeUrl(row.enrollment.id),
+          oneClickUnsubscribeUrl: aftercareOneClickUrl(row.enrollment.id),
+          postalAddress: postalAddressOf(row),
+        });
+        via.push("email");
+      } catch (error) {
+        problems.push(error instanceof Error ? error.message : "Unknown error");
+      }
+    }
+
+    if (canSms) {
+      try {
+        await sendSms({
+          to: smsPhone!,
+          body: aftercareSmsBody(row.enrollment.brandedAs, template.body, via.includes("email")),
+          home: row.home,
+        });
+        via.push("sms");
+        result.texted += 1;
+      } catch (error) {
+        problems.push(error instanceof Error ? error.message : "Unknown error");
+      }
+    }
+
+    if (via.length > 0) {
+      await db
+        .update(aftercareDeliveriesTable)
+        .set({ sentVia: via.join(","), failureReason: problems[0] ?? null })
+        .where(eq(aftercareDeliveriesTable.id, row.delivery.id));
       result.sent += 1;
-    } catch (error) {
+    } else {
       await db
         .update(aftercareDeliveriesTable)
         .set({
           sentAt: null,
           failedAt: new Date(),
-          failureReason:
-            error instanceof Error ? error.message : "Unknown error",
+          failureReason: problems.join("; ") || "Unknown error",
         })
         .where(eq(aftercareDeliveriesTable.id, row.delivery.id));
       result.failed += 1;

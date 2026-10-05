@@ -329,8 +329,9 @@ Deceased people; their next of kin and family members; your staff.
 | `[BACKUP LOCATION]` | Off-host encrypted backups | Whole-file encrypted backups only | No |
 | Stripe, Inc. (US) | Your subscription and per-funeral billing | Your billing contact; and, per funeral, our own internal case number, the date, and the figure `1`. The case number is sent as a deduplication key so that a job running twice cannot bill you twice for the same death. **No name, no case content, and no family data, ever.** | No |
 | `[SMTP PROVIDER]` | Sending email | Recipient address and message body: password resets, staff invitations, address confirmations, trial notices, aftercare check-ins, and intake alerts | Yes — without it, mail is written to the log instead of sent |
-| Twilio Inc. (US) | Sending the family their link by text | The recipient's phone number, the link, and your home's name | Yes — without it, your director is handed the link to send themselves |
+| Twilio Inc. (US) | Texting the family their link, and aftercare notes they chose by text | The recipient's phone number, the message, and your home's name. Only to people whose consent is recorded; STOP replies are honoured | Yes — without it, your director is handed the link to send themselves |
 | Google LLC (US) | Vendor lookup, only if you supply a key | Search terms and a ZIP code. **No family details.** | Yes — without it, the vendor directory is hand-entered |
+| Anthropic, PBC (US) | A suggested obituary rewrite, only if the deployment enables it and a director asks and confirms | That one obituary's fields. **No photographs, messages, vital statistics or SSNs.** | Yes — off unless enabled; the composed draft needs nothing sent |
 
 There is no analytics provider, no error-reporting provider, no session
 recording, no advertising network, and no customer-data platform. The service

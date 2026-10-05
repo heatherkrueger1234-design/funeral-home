@@ -19,6 +19,7 @@ Two audiences, two authentication schemes, and the split is load-bearing:
  */
 import type { AftercareDelivery } from "./aftercareDelivery";
 import type { AftercareEnrollmentStatus } from "./aftercareEnrollmentStatus";
+import type { AftercareEnrollmentTouchpointsOfferedItem } from "./aftercareEnrollmentTouchpointsOfferedItem";
 
 export interface AftercareEnrollment {
   id: number;
@@ -32,5 +33,11 @@ export interface AftercareEnrollment {
   startsAt: Date;
   consentedAt: Date | null;
   unsubscribedAt: Date | null;
+  smsConsentAt?: Date | null;
+  touchpointsConsentAt?: Date | null;
+  /** Extra notes the home offers and when they would land; only while the family has not answered, and only on the family's view. */
+  touchpointsOffered?: AftercareEnrollmentTouchpointsOfferedItem[];
+  /** Whether texts can be sent on this deployment. Family view only. */
+  smsAvailable?: boolean;
   deliveries: AftercareDelivery[];
 }

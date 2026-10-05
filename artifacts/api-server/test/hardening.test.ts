@@ -100,3 +100,40 @@ describe("the photo cap holds", () => {
     expect(refused.body.error).toContain(String(MAX_PHOTOS_PER_CASE));
   });
 });
+
+describe("passwords hashed with older settings", () => {
+  it("still sign in, and are rehashed with today's settings when they do", async () => {
+    const { scryptSync, randomBytes } = await import("node:crypto");
+    const { db, usersTable } = await import("@workspace/db");
+    const { eq } = await import("drizzle-orm");
+    const { signUpHome } = await import("./helpers");
+
+    const staff = await signUpHome();
+    // As every password was stored before 5 October: N=2^14, r=8, p=1.
+    const salt = randomBytes(16);
+    const old = scryptSync("correct-horse-battery", salt, 64, { N: 16384, r: 8, p: 1 });
+    const oldHash = `scrypt$16384$8$1$${salt.toString("base64")}$${old.toString("base64")}`;
+    await db.update(usersTable).set({ passwordHash: oldHash }).where(eq(usersTable.id, staff.userId));
+
+    const request = (await import("supertest")).default;
+    const app = (await import("../src/app")).default;
+    await request(app)
+      .post("/api/auth/login")
+      .send({ email: staff.email, password: "correct-horse-battery" })
+      .expect(200);
+
+    const [user] = await db.select().from(usersTable).where(eq(usersTable.id, staff.userId));
+    expect(user!.passwordHash).not.toBe(oldHash);
+    expect(user!.passwordHash?.startsWith("scrypt$16384$8$5$")).toBe(true);
+
+    // And the new hash is the same password.
+    await request(app)
+      .post("/api/auth/login")
+      .send({ email: staff.email, password: "correct-horse-battery" })
+      .expect(200);
+    await request(app)
+      .post("/api/auth/login")
+      .send({ email: staff.email, password: "wrong-horse-battery" })
+      .expect(401);
+  });
+});

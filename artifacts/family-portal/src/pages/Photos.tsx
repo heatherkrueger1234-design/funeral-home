@@ -200,11 +200,16 @@ export default function Photos() {
 
   /*
    * The third switch, named the same in the key above the list and under
-   * every photograph. On a plan it is the reader's own face, in the present
-   * tense: "How they looked" would be said about somebody who has died.
+   * every photograph. On a plan it is a living face, in the present tense —
+   * "How they looked" would be said about somebody who has died — and the
+   * reader's own when the plan is theirs.
    */
-  const voice = voiceFor(session.data?.case.kind);
-  const lookLabel = voice.preNeed ? "How you look" : "How they looked";
+  const voice = voiceFor(session.data?.case.kind, session.data?.contact.isSubject);
+  const lookLabel = voice.say({
+    self: "How you look",
+    living: "How they look",
+    died: "How they looked",
+  });
 
   /**
    * Selection is expressed as the whole list, so a tap has to rebuild it.
@@ -498,9 +503,11 @@ export default function Photos() {
           <div>
             <dt className="inline font-semibold text-foreground">{lookLabel}</dt>
             <dd className="inline">
-              {voice.preNeed
-                ? " — a recent, clear one of you, so the funeral home knows how you like to look. Just one."
-                : " — a recent, clear one, so the funeral home can prepare them as you remember them. Just one."}
+              {voice.say({
+                self: " — a recent, clear one of you, so the funeral home knows how you like to look. Just one.",
+                living: " — a recent, clear one of them, so the funeral home knows how they like to look. Just one.",
+                died: " — a recent, clear one, so the funeral home can prepare them as you remember them. Just one.",
+              })}
             </dd>
           </div>
         </dl>

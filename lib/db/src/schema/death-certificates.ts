@@ -64,6 +64,12 @@ export const deathCertificateFilingsTable = pgTable(
     physicianRequestedAt: timestamp("physician_requested_at"),
     /** Who was asked, so the follow-up call has a name on it. */
     certifyingPhysician: text("certifying_physician"),
+    /**
+     * When the physician completed the medical certification, as the
+     * director saw it in EDRS. The home cannot file until this has happened,
+     * so it is the fact that says whose move it is.
+     */
+    physicianCertifiedAt: timestamp("physician_certified_at"),
 
     /**
      * When the *home* filed it, in the state's own system. Typed by the

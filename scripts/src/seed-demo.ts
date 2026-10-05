@@ -182,7 +182,7 @@ async function main(): Promise<void> {
       caseId: row!.id,
       uploadId: upload!.id,
       uploadedByContactId: contact!.id,
-      caption: "Mum at Skegness, 1974",
+      caption: "Mom at Lake Pueblo, 1974",
       selected: true,
     })
     .returning();
@@ -196,7 +196,7 @@ async function main(): Promise<void> {
     funeralHomeId: home!.id,
     caseId: row!.id,
     fullName: "Margaret Ellen Hale",
-    bornOn: "4 March 1938",
+    bornOn: "March 4, 1938",
     survivedBy: "her daughters Anne and Judith, and six grandchildren",
     status: "submitted",
     submittedAt: new Date(),

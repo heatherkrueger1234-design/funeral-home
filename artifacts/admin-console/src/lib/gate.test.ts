@@ -84,4 +84,20 @@ describe("the gate", () => {
       screen: "sign-in",
     });
   });
+
+  it("goes back to the sign-in form when the session expires with the console open", () => {
+    // Re-asked after a panel was refused: the refetch fails, and react-query
+    // keeps the answer it had alongside the new error.
+    const expired = { ...failed(401), data: heather };
+    expect(gateScreen(expired, answered({ email: heather.user.email }))).toEqual({
+      screen: "sign-in",
+    });
+  });
+
+  it("says the server is in trouble, not signed out, when a re-ask fails another way", () => {
+    const hiccup = { ...failed(503), data: heather };
+    expect(gateScreen(hiccup, answered({ email: heather.user.email }))).toEqual({
+      screen: "error",
+    });
+  });
 });

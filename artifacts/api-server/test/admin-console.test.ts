@@ -312,7 +312,7 @@ describe("engagement", () => {
   it("counts what each home is actually doing, per home", async () => {
     const admin = await signInPlatformAdmin();
     const busy = await signUpHome("Horan & McConaty");
-    const quiet = await signUpHome("Green Lawn");
+    await signUpHome("Green Lawn");
 
     const first = await createCase(busy);
     await createCase(busy, { decedentFirstName: "Arthur" });

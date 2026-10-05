@@ -37,7 +37,7 @@ vi.mock("nodemailer", () => ({
 }));
 
 import app from "../src/app";
-import { asFamily, createCase, inviteFamily, signUpHome } from "./helpers";
+import { asFamily, createCase, inviteFamily, signUpHome, homesAtMidday } from "./helpers";
 
 const DAY = 24 * 60 * 60 * 1000;
 
@@ -93,6 +93,7 @@ async function runAftercare() {
   // Registering a home sends its own email (the address confirmation); only
   // what the aftercare run sends is under test here.
   sent.length = 0;
+  await homesAtMidday();
   const res = await request(app)
     .post("/api/tasks/aftercare")
     .set("Authorization", "Bearer a-real-secret-value")

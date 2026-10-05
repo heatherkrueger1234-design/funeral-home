@@ -18,6 +18,7 @@ Two audiences, two authentication schemes, and the split is load-bearing:
  * OpenAPI spec version: 0.1.0
  */
 import type { FamilyContactRole } from "./familyContactRole";
+import type { FamilyContactSmsConsentSource } from "./familyContactSmsConsentSource";
 
 export interface FamilyContact {
   id: number;
@@ -28,11 +29,23 @@ export interface FamilyContact {
   email: string | null;
   role: FamilyContactRole;
   canInvite: boolean;
+  /** This person is the one the file is about: a planner reading their
+own plan. Only ever true on a pre-need file, and it is what the
+portal asks before it says "your plan" - a relative on somebody
+else's plan is spoken to about them, not as them.
+ */
+  isSubject: boolean;
   expiresAt: Date;
   revokedAt: Date | null;
   firstSeenAt: Date | null;
   lastSeenAt: Date | null;
   /** Set when somebody on the family's side added this person, rather than the home. */
   invitedByContactId: number | null;
+  /** When this person agreed to be texted. Nobody is texted without it. */
+  smsConsentAt: Date | null;
+  /** How the consent was given. */
+  smsConsentSource: FamilyContactSmsConsentSource;
+  /** When they replied STOP. Wins over any consent. */
+  smsOptedOutAt: Date | null;
   createdAt: Date;
 }

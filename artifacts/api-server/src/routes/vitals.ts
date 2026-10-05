@@ -113,6 +113,7 @@ router.put("/cases/:caseId/certificate-filing", async (req, res) => {
   for (const [field, label] of [
     ["custodyTakenAt", "The custody time"],
     ["physicianRequestedAt", "The physician's request"],
+    ["physicianCertifiedAt", "The physician's certification"],
     ["filedAt", "The filing time"],
   ] as const) {
     const value = body[field];
@@ -140,6 +141,9 @@ router.put("/cases/:caseId/certificate-filing", async (req, res) => {
       ...(body.physicianRequestedAt === undefined
         ? {}
         : { physicianRequestedAt: body.physicianRequestedAt }),
+      ...(body.physicianCertifiedAt === undefined
+        ? {}
+        : { physicianCertifiedAt: body.physicianCertifiedAt }),
       ...(body.certifyingPhysician === undefined
         ? {}
         : { certifyingPhysician: body.certifyingPhysician?.trim() || null }),

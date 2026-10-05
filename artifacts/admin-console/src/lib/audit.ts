@@ -95,9 +95,23 @@ export function homesInLog(
  * been opened.
  */
 export function platformSubject(action: string): string {
-  return action.startsWith("group.")
-    ? "A group"
-    : action.startsWith("platform.admin")
-      ? "The access list"
-      : "Platform";
+  return ACROSS_EVERY_HOME.has(action)
+    ? "Every home"
+    : action.startsWith("group.")
+      ? "A group"
+      : action.startsWith("platform.admin")
+        ? "The access list"
+        : "Platform";
 }
+
+/**
+ * The actions whose missing home means "all of them" rather than "none":
+ * listing the homes and the overview read across every customer at once.
+ * Everything else with no home on it -- granting access, groups -- is about
+ * no home, and calling those "Every home" on a page shown to an insurer
+ * would describe a far larger read than happened.
+ */
+const ACROSS_EVERY_HOME: ReadonlySet<string> = new Set([
+  "homes.list",
+  "platform.overview",
+]);

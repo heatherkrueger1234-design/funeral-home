@@ -32,6 +32,7 @@ import {
   destroySession,
   fakeVerify,
   hashPassword,
+  needsRehash,
   normaliseEmail,
   revokePasswordResets,
   setSessionCookie,
@@ -289,6 +290,15 @@ router.post("/auth/login", authRateLimit, async (req, res) => {
     .limit(1);
 
   if (!home) throw new HttpError(401, "That email address and password do not match.");
+
+  // The one moment the password is in hand: a hash made with older,
+  // weaker settings is replaced with today's.
+  if (needsRehash(user.passwordHash)) {
+    await db
+      .update(usersTable)
+      .set({ passwordHash: await hashPassword(values.password) })
+      .where(eq(usersTable.id, user.id));
+  }
 
   setSessionCookie(req, res, await createSession(user.id));
   res.json(await authPayload(user, home));

@@ -32,6 +32,8 @@ import type {
   AcceptedIntake,
   AftercareConsentInput,
   AftercareEnrollment,
+  AftercareSettings,
+  AftercareSettingsInput,
   AftercareUnsubscribeParams,
   AftercareUnsubscribeState,
   AuthUser,
@@ -113,6 +115,7 @@ import type {
   MessageThread,
   ObituaryDraft,
   ObituaryFieldsInput,
+  ObituarySuggestionInput,
   ObituaryUpdate,
   OnboardingStepInput,
   PhotoIdInput,
@@ -133,6 +136,7 @@ import type {
   PrintItemInput,
   PrintItemUpdate,
   PrintTemplate,
+  PrintTheme,
   PublicFuneralHome,
   QuoteRequestInput,
   QuoteUpdate,
@@ -141,6 +145,7 @@ import type {
   ResetPasswordInput,
   SelectionInput,
   SelectionUpdate,
+  SendLinkInput,
   SentLink,
   ServiceOffer,
   ServiceOfferInput,
@@ -4129,6 +4134,84 @@ export const useApplyTimelineTemplate = <
 };
 
 /**
+ * One row per case, in columns our importer reads back. No social
+security numbers, vital statistics or photographs.
+
+ * @summary Every case as one CSV, for another case system
+ */
+export const getExportCaseListUrl = () => {
+  return `/api/export/cases.csv`;
+};
+
+export const exportCaseList = async (
+  options?: RequestInit,
+): Promise<string> => {
+  return customFetch<string>(getExportCaseListUrl(), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getExportCaseListQueryKey = () => {
+  return [`/api/export/cases.csv`] as const;
+};
+
+export const getExportCaseListQueryOptions = <
+  TData = Awaited<ReturnType<typeof exportCaseList>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof exportCaseList>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getExportCaseListQueryKey();
+
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof exportCaseList>>> = ({
+    signal,
+  }) => exportCaseList({ signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof exportCaseList>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type ExportCaseListQueryResult = NonNullable<
+  Awaited<ReturnType<typeof exportCaseList>>
+>;
+export type ExportCaseListQueryError = ErrorType<unknown>;
+
+/**
+ * @summary Every case as one CSV, for another case system
+ */
+
+export function useExportCaseList<
+  TData = Awaited<ReturnType<typeof exportCaseList>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof exportCaseList>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getExportCaseListQueryOptions(options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
  * A zip the home can walk away with: the photographs at full size, the
 obituary as written, the selections, the belongings, the vital
 statistics, the message thread, and a readable summary of the case
@@ -4235,6 +4318,11 @@ Flips the file to `at_need`, records the date of death, and builds the
 standard schedule that a pre-need file deliberately never had. It does
 not invite anybody: who the family is, is a conversation, not a
 field.
+
+It does close one link: the planner's own (`isSubject`). They have
+died, and their phone is now in somebody else's hand; a message sent
+from it would appear in the chat under their name. They stay on the
+file, as a contact who can no longer be texted or sent a link.
 
 Refused on a file that is already at-need. There is no way back - a
 death is not an editing mistake, and if it really was one, the case
@@ -5489,8 +5577,8 @@ export const useRevokeContact = <
 /**
  * Mints a new link and sends it, so the previous one stops working. The
 response says whether the text actually went; where the home has no
-SMS credentials it returns the link and `sent: false` so the director
-can send it themselves rather than being told nothing happened.
+SMS credentials, the person has not agreed to texts, or they replied
+STOP, it returns the link and `sent: false` with the reason.
 
  * @summary Text a fresh link to this person's mobile
  */
@@ -5500,11 +5588,14 @@ export const getSendContactLinkUrl = (contactId: number) => {
 
 export const sendContactLink = async (
   contactId: number,
+  sendLinkInput?: SendLinkInput,
   options?: RequestInit,
 ): Promise<SentLink> => {
   return customFetch<SentLink>(getSendContactLinkUrl(contactId), {
     ...options,
     method: "POST",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(sendLinkInput),
   });
 };
 
@@ -5515,14 +5606,14 @@ export const getSendContactLinkMutationOptions = <
   mutation?: UseMutationOptions<
     Awaited<ReturnType<typeof sendContactLink>>,
     TError,
-    { contactId: number },
+    { contactId: number; data: BodyType<SendLinkInput> },
     TContext
   >;
   request?: SecondParameter<typeof customFetch>;
 }): UseMutationOptions<
   Awaited<ReturnType<typeof sendContactLink>>,
   TError,
-  { contactId: number },
+  { contactId: number; data: BodyType<SendLinkInput> },
   TContext
 > => {
   const mutationKey = ["sendContactLink"];
@@ -5536,11 +5627,11 @@ export const getSendContactLinkMutationOptions = <
 
   const mutationFn: MutationFunction<
     Awaited<ReturnType<typeof sendContactLink>>,
-    { contactId: number }
+    { contactId: number; data: BodyType<SendLinkInput> }
   > = (props) => {
-    const { contactId } = props ?? {};
+    const { contactId, data } = props ?? {};
 
-    return sendContactLink(contactId, requestOptions);
+    return sendContactLink(contactId, data, requestOptions);
   };
 
   return { mutationFn, ...mutationOptions };
@@ -5549,7 +5640,7 @@ export const getSendContactLinkMutationOptions = <
 export type SendContactLinkMutationResult = NonNullable<
   Awaited<ReturnType<typeof sendContactLink>>
 >;
-
+export type SendContactLinkMutationBody = BodyType<SendLinkInput>;
 export type SendContactLinkMutationError = ErrorType<unknown>;
 
 /**
@@ -5562,14 +5653,14 @@ export const useSendContactLink = <
   mutation?: UseMutationOptions<
     Awaited<ReturnType<typeof sendContactLink>>,
     TError,
-    { contactId: number },
+    { contactId: number; data: BodyType<SendLinkInput> },
     TContext
   >;
   request?: SecondParameter<typeof customFetch>;
 }): UseMutationResult<
   Awaited<ReturnType<typeof sendContactLink>>,
   TError,
-  { contactId: number },
+  { contactId: number; data: BodyType<SendLinkInput> },
   TContext
 > => {
   return useMutation(getSendContactLinkMutationOptions(options));
@@ -8350,6 +8441,265 @@ export const useReopenObituary = <
 };
 
 /**
+ * Off unless the deployment has a key. Sends the family's notes to the
+text provider only with `confirm: true`. The answer is stored beside
+the draft and never shown to the family unless a director accepts it.
+
+ * @summary Ask for a suggested rewrite (optional, staff only)
+ */
+export const getSuggestObituaryUrl = (caseId: number) => {
+  return `/api/cases/${caseId}/obituary/suggestion`;
+};
+
+export const suggestObituary = async (
+  caseId: number,
+  obituarySuggestionInput: ObituarySuggestionInput,
+  options?: RequestInit,
+): Promise<ObituaryDraft> => {
+  return customFetch<ObituaryDraft>(getSuggestObituaryUrl(caseId), {
+    ...options,
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(obituarySuggestionInput),
+  });
+};
+
+export const getSuggestObituaryMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof suggestObituary>>,
+    TError,
+    { caseId: number; data: BodyType<ObituarySuggestionInput> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof suggestObituary>>,
+  TError,
+  { caseId: number; data: BodyType<ObituarySuggestionInput> },
+  TContext
+> => {
+  const mutationKey = ["suggestObituary"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof suggestObituary>>,
+    { caseId: number; data: BodyType<ObituarySuggestionInput> }
+  > = (props) => {
+    const { caseId, data } = props ?? {};
+
+    return suggestObituary(caseId, data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type SuggestObituaryMutationResult = NonNullable<
+  Awaited<ReturnType<typeof suggestObituary>>
+>;
+export type SuggestObituaryMutationBody = BodyType<ObituarySuggestionInput>;
+export type SuggestObituaryMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Ask for a suggested rewrite (optional, staff only)
+ */
+export const useSuggestObituary = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof suggestObituary>>,
+    TError,
+    { caseId: number; data: BodyType<ObituarySuggestionInput> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof suggestObituary>>,
+  TError,
+  { caseId: number; data: BodyType<ObituarySuggestionInput> },
+  TContext
+> => {
+  return useMutation(getSuggestObituaryMutationOptions(options));
+};
+
+/**
+ * @summary Throw a suggestion away
+ */
+export const getDiscardObituarySuggestionUrl = (caseId: number) => {
+  return `/api/cases/${caseId}/obituary/suggestion`;
+};
+
+export const discardObituarySuggestion = async (
+  caseId: number,
+  options?: RequestInit,
+): Promise<ObituaryDraft> => {
+  return customFetch<ObituaryDraft>(getDiscardObituarySuggestionUrl(caseId), {
+    ...options,
+    method: "DELETE",
+  });
+};
+
+export const getDiscardObituarySuggestionMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof discardObituarySuggestion>>,
+    TError,
+    { caseId: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof discardObituarySuggestion>>,
+  TError,
+  { caseId: number },
+  TContext
+> => {
+  const mutationKey = ["discardObituarySuggestion"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof discardObituarySuggestion>>,
+    { caseId: number }
+  > = (props) => {
+    const { caseId } = props ?? {};
+
+    return discardObituarySuggestion(caseId, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type DiscardObituarySuggestionMutationResult = NonNullable<
+  Awaited<ReturnType<typeof discardObituarySuggestion>>
+>;
+
+export type DiscardObituarySuggestionMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Throw a suggestion away
+ */
+export const useDiscardObituarySuggestion = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof discardObituarySuggestion>>,
+    TError,
+    { caseId: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof discardObituarySuggestion>>,
+  TError,
+  { caseId: number },
+  TContext
+> => {
+  return useMutation(getDiscardObituarySuggestionMutationOptions(options));
+};
+
+/**
+ * @summary Use the suggestion as the draft
+ */
+export const getAcceptObituarySuggestionUrl = (caseId: number) => {
+  return `/api/cases/${caseId}/obituary/suggestion/accept`;
+};
+
+export const acceptObituarySuggestion = async (
+  caseId: number,
+  options?: RequestInit,
+): Promise<ObituaryDraft> => {
+  return customFetch<ObituaryDraft>(getAcceptObituarySuggestionUrl(caseId), {
+    ...options,
+    method: "POST",
+  });
+};
+
+export const getAcceptObituarySuggestionMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof acceptObituarySuggestion>>,
+    TError,
+    { caseId: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof acceptObituarySuggestion>>,
+  TError,
+  { caseId: number },
+  TContext
+> => {
+  const mutationKey = ["acceptObituarySuggestion"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof acceptObituarySuggestion>>,
+    { caseId: number }
+  > = (props) => {
+    const { caseId } = props ?? {};
+
+    return acceptObituarySuggestion(caseId, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type AcceptObituarySuggestionMutationResult = NonNullable<
+  Awaited<ReturnType<typeof acceptObituarySuggestion>>
+>;
+
+export type AcceptObituarySuggestionMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Use the suggestion as the draft
+ */
+export const useAcceptObituarySuggestion = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof acceptObituarySuggestion>>,
+    TError,
+    { caseId: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof acceptObituarySuggestion>>,
+  TError,
+  { caseId: number },
+  TContext
+> => {
+  return useMutation(getAcceptObituarySuggestionMutationOptions(options));
+};
+
+/**
  * @summary Hymns, readings, music, pallbearers
  */
 export const getGetSelectionsUrl = (caseId: number) => {
@@ -9299,6 +9649,262 @@ export function useGetAftercare<
 
   return { ...query, queryKey: queryOptions.queryKey };
 }
+
+/**
+ * What the unsubscribe page promises a family who telephones: the home
+can stop the notes for them. Final, exactly as the family's own "no"
+and the unsubscribe link are - nothing sets it back. Stopping a
+stopped enrolment changes nothing. Returns the case's enrolments as
+they now stand.
+
+ * @summary Stop one person's check-ins, at the family's request
+ */
+export const getStopAftercareUrl = (caseId: number, enrollmentId: number) => {
+  return `/api/cases/${caseId}/aftercare/${enrollmentId}/stop`;
+};
+
+export const stopAftercare = async (
+  caseId: number,
+  enrollmentId: number,
+  options?: RequestInit,
+): Promise<AftercareEnrollment[]> => {
+  return customFetch<AftercareEnrollment[]>(
+    getStopAftercareUrl(caseId, enrollmentId),
+    {
+      ...options,
+      method: "POST",
+    },
+  );
+};
+
+export const getStopAftercareMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof stopAftercare>>,
+    TError,
+    { caseId: number; enrollmentId: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof stopAftercare>>,
+  TError,
+  { caseId: number; enrollmentId: number },
+  TContext
+> => {
+  const mutationKey = ["stopAftercare"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof stopAftercare>>,
+    { caseId: number; enrollmentId: number }
+  > = (props) => {
+    const { caseId, enrollmentId } = props ?? {};
+
+    return stopAftercare(caseId, enrollmentId, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type StopAftercareMutationResult = NonNullable<
+  Awaited<ReturnType<typeof stopAftercare>>
+>;
+
+export type StopAftercareMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Stop one person's check-ins, at the family's request
+ */
+export const useStopAftercare = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof stopAftercare>>,
+    TError,
+    { caseId: number; enrollmentId: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof stopAftercare>>,
+  TError,
+  { caseId: number; enrollmentId: number },
+  TContext
+> => {
+  return useMutation(getStopAftercareMutationOptions(options));
+};
+
+/**
+ * @summary The notes this home sends, and which extra touchpoints it offers
+ */
+export const getGetAftercareSettingsUrl = () => {
+  return `/api/home/aftercare`;
+};
+
+export const getAftercareSettings = async (
+  options?: RequestInit,
+): Promise<AftercareSettings> => {
+  return customFetch<AftercareSettings>(getGetAftercareSettingsUrl(), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getGetAftercareSettingsQueryKey = () => {
+  return [`/api/home/aftercare`] as const;
+};
+
+export const getGetAftercareSettingsQueryOptions = <
+  TData = Awaited<ReturnType<typeof getAftercareSettings>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof getAftercareSettings>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getGetAftercareSettingsQueryKey();
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof getAftercareSettings>>
+  > = ({ signal }) => getAftercareSettings({ signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof getAftercareSettings>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type GetAftercareSettingsQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getAftercareSettings>>
+>;
+export type GetAftercareSettingsQueryError = ErrorType<unknown>;
+
+/**
+ * @summary The notes this home sends, and which extra touchpoints it offers
+ */
+
+export function useGetAftercareSettings<
+  TData = Awaited<ReturnType<typeof getAftercareSettings>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof getAftercareSettings>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getGetAftercareSettingsQueryOptions(options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary Change the wording of a note, or which touchpoints are offered
+ */
+export const getUpdateAftercareSettingsUrl = () => {
+  return `/api/home/aftercare`;
+};
+
+export const updateAftercareSettings = async (
+  aftercareSettingsInput: AftercareSettingsInput,
+  options?: RequestInit,
+): Promise<AftercareSettings> => {
+  return customFetch<AftercareSettings>(getUpdateAftercareSettingsUrl(), {
+    ...options,
+    method: "PUT",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(aftercareSettingsInput),
+  });
+};
+
+export const getUpdateAftercareSettingsMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof updateAftercareSettings>>,
+    TError,
+    { data: BodyType<AftercareSettingsInput> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof updateAftercareSettings>>,
+  TError,
+  { data: BodyType<AftercareSettingsInput> },
+  TContext
+> => {
+  const mutationKey = ["updateAftercareSettings"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof updateAftercareSettings>>,
+    { data: BodyType<AftercareSettingsInput> }
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return updateAftercareSettings(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type UpdateAftercareSettingsMutationResult = NonNullable<
+  Awaited<ReturnType<typeof updateAftercareSettings>>
+>;
+export type UpdateAftercareSettingsMutationBody =
+  BodyType<AftercareSettingsInput>;
+export type UpdateAftercareSettingsMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Change the wording of a note, or which touchpoints are offered
+ */
+export const useUpdateAftercareSettings = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof updateAftercareSettings>>,
+    TError,
+    { data: BodyType<AftercareSettingsInput> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof updateAftercareSettings>>,
+  TError,
+  { data: BodyType<AftercareSettingsInput> },
+  TContext
+> => {
+  return useMutation(getUpdateAftercareSettingsMutationOptions(options));
+};
 
 /**
  * Opens the book the first time anybody looks, so this never 404s for a
@@ -11345,6 +11951,81 @@ export function useGetPrintTemplates<
   request?: SecondParameter<typeof customFetch>;
 }): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
   const queryOptions = getGetPrintTemplatesQueryOptions(options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary The looks a card or programme can take
+ */
+export const getGetPrintThemesUrl = () => {
+  return `/api/print/themes`;
+};
+
+export const getPrintThemes = async (
+  options?: RequestInit,
+): Promise<PrintTheme[]> => {
+  return customFetch<PrintTheme[]>(getGetPrintThemesUrl(), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getGetPrintThemesQueryKey = () => {
+  return [`/api/print/themes`] as const;
+};
+
+export const getGetPrintThemesQueryOptions = <
+  TData = Awaited<ReturnType<typeof getPrintThemes>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof getPrintThemes>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getGetPrintThemesQueryKey();
+
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof getPrintThemes>>> = ({
+    signal,
+  }) => getPrintThemes({ signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof getPrintThemes>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type GetPrintThemesQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getPrintThemes>>
+>;
+export type GetPrintThemesQueryError = ErrorType<unknown>;
+
+/**
+ * @summary The looks a card or programme can take
+ */
+
+export function useGetPrintThemes<
+  TData = Awaited<ReturnType<typeof getPrintThemes>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof getPrintThemes>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getGetPrintThemesQueryOptions(options);
 
   const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
     queryKey: QueryKey;

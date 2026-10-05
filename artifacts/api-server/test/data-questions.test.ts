@@ -10,10 +10,17 @@
  * from.
  */
 import { describe, expect, it } from "vitest";
+import { asFamily, createCase, inviteFamily, signUpHome, PNG_BYTES } from "./helpers";
 import request from "supertest";
 import app from "../src/app";
-import { asFamily, createCase, inviteFamily, signUpHome, PNG_BYTES } from "./helpers";
-import { db, funeralHomesTable, caseDeletionsTable, casesTable, uploadsTable } from "@workspace/db";
+import {
+  db,
+  funeralHomesTable,
+  caseDeletionsTable,
+  casesTable,
+  intakeRequestsTable,
+  uploadsTable,
+} from "@workspace/db";
 import { eq } from "drizzle-orm";
 
 /** Read a zip's entry names without a dependency, by scanning local headers. */
@@ -245,6 +252,44 @@ describe("erasing a case on request", () => {
      */
     expect(JSON.stringify(tomb)).not.toContain("Eleanor");
     expect(JSON.stringify(tomb)).not.toContain("Vance");
+  });
+
+  it("takes the family's request from the public page with it", async () => {
+    const staff = await signUpHome("Riverside");
+    const [home] = await db
+      .select({ slug: funeralHomesTable.slug })
+      .from(funeralHomesTable)
+      .where(eq(funeralHomesTable.id, staff.homeId));
+    await request(app)
+      .post("/api/public/intake")
+      .send({
+        homeSlug: home!.slug,
+        kind: "at_need",
+        requesterName: "Marie Vance",
+        requesterPhone: "+15555550142",
+        relationship: "Daughter",
+        subjectFirstName: "Eleanor",
+        subjectLastName: "Vance",
+        note: "She died this morning at home.",
+      })
+      .expect(202);
+    const queue = await staff.agent.get("/api/intake-requests").expect(200);
+    const opened = await staff.agent
+      .post(`/api/intake-requests/${queue.body[0].id}/accept`)
+      .expect(201);
+
+    await staff.agent
+      .post(`/api/cases/${opened.body.id}/delete`)
+      .send({ confirmName: "Eleanor Vance" })
+      .expect(204);
+
+    // Not left behind holding her name, her daughter's number, the note and
+    // the address it was sent from.
+    const left = await db
+      .select()
+      .from(intakeRequestsTable)
+      .where(eq(intakeRequestsTable.funeralHomeId, staff.homeId));
+    expect(left).toEqual([]);
   });
 
   it("cannot erase another home's case", async () => {

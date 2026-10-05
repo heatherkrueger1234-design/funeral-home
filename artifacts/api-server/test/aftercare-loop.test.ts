@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { asFamily, createCase, inviteFamily, signUpHome } from "./helpers";
+import { checkInDueAt } from "../src/lib/aftercare";
 
 const DAY = 24 * 60 * 60 * 1000;
 
@@ -32,9 +33,15 @@ describe("the aftercare loop closes", () => {
     );
     expect(offsets).toEqual([30, 60, 90, 365]);
 
-    const thirty = session.body.aftercare.deliveries[0];
-    expect(new Date(thirty.dueAt).getTime()).toBe(
-      serviceAt.getTime() + 30 * DAY,
+    // Mid-morning where the home is, thirty days on from the service's own
+    // day: the day the family was shown is the day it arrives.
+    const thirty = new Date(session.body.aftercare.deliveries[0].dueAt);
+    expect(thirty.getTime()).toBe(checkInDueAt(serviceAt, 30, "America/Denver").getTime());
+    const there = (options: Intl.DateTimeFormatOptions) =>
+      new Intl.DateTimeFormat("en-US", { timeZone: "America/Denver", ...options });
+    expect(there({ hour: "numeric", hourCycle: "h23" }).format(thirty)).toBe("10");
+    expect(there({ dateStyle: "short" }).format(thirty)).toBe(
+      there({ dateStyle: "short" }).format(new Date(serviceAt.getTime() + 30 * DAY)),
     );
   });
 
@@ -115,5 +122,46 @@ describe("the aftercare loop closes", () => {
     const session = await asFamily(token).get("/api/family/session").expect(200);
     expect(session.body.aftercare.status).toBe("done");
     expect(session.body.aftercare.unsubscribedAt).not.toBeNull();
+  });
+});
+
+describe("a home stopping a family's check-ins", () => {
+  it("stops them for good when somebody telephones and asks", async () => {
+    const staff = await signUpHome();
+    const row = await createCase(staff, {
+      serviceAt: new Date(Date.now() - 2 * DAY).toISOString(),
+    });
+    const { token } = await inviteFamily(staff, row.id, { email: "anne@example.com" });
+    await staff.agent.post(`/api/cases/${row.id}/close`).expect(200);
+    await asFamily(token).post("/api/family/aftercare").send({ consent: true }).expect(200);
+
+    const [enrollment] = (await staff.agent.get(`/api/cases/${row.id}/aftercare`).expect(200)).body;
+    const stopped = await staff.agent
+      .post(`/api/cases/${row.id}/aftercare/${enrollment.id}/stop`)
+      .expect(200);
+    expect(stopped.body[0].unsubscribedAt).not.toBeNull();
+    expect(stopped.body[0].status).toBe("done");
+
+    // Final: the family cannot say yes again behind it.
+    await asFamily(token).post("/api/family/aftercare").send({ consent: true }).expect(409);
+
+    // Stopping again changes nothing.
+    const again = await staff.agent
+      .post(`/api/cases/${row.id}/aftercare/${enrollment.id}/stop`)
+      .expect(200);
+    expect(again.body[0].unsubscribedAt).toBe(stopped.body[0].unsubscribedAt);
+  });
+
+  it("cannot stop another home's", async () => {
+    const a = await signUpHome("Home A");
+    const b = await signUpHome("Home B");
+    const row = await createCase(a, { serviceAt: new Date(Date.now() - 2 * DAY).toISOString() });
+    await inviteFamily(a, row.id, { email: "anne@example.com" });
+    await a.agent.post(`/api/cases/${row.id}/close`).expect(200);
+    const [enrollment] = (await a.agent.get(`/api/cases/${row.id}/aftercare`).expect(200)).body;
+
+    await b.agent.post(`/api/cases/${row.id}/aftercare/${enrollment.id}/stop`).expect(404);
+    const still = (await a.agent.get(`/api/cases/${row.id}/aftercare`).expect(200)).body;
+    expect(still[0].unsubscribedAt).toBeNull();
   });
 });

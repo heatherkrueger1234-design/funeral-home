@@ -165,7 +165,7 @@ export default function Family() {
 
   const data = relatives.data;
   const homeName = session.data?.home.name ?? "The funeral home";
-  const voice = voiceFor(session.data?.case.kind);
+  const voice = voiceFor(session.data?.case.kind, session.data?.contact.isSubject);
 
   if (!data?.canInvite) {
     return (

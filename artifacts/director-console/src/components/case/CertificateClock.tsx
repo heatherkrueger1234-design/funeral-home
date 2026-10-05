@@ -26,9 +26,9 @@ import { Check, Clock } from "lucide-react";
  * out. In Colorado that is 72 hours from taking custody, and before
  * disposition (SB 23-020).
  *
- * Three things a director records here, each a fact only they know: when
- * the home took custody, when the physician was asked through EDRS, and
- * when they filed. We file nothing and hear nothing from the state, and the
+ * What a director records here, each a fact only they know: when the home
+ * took custody, when the physician was asked through EDRS and when they
+ * certified, and when the home filed. We file nothing and hear nothing from the state, and the
  * card says so in its first paragraph -- a director who thought this screen
  * filed a certificate would find out otherwise from the registrar.
  *
@@ -107,7 +107,7 @@ export function CertificateClock({ caseId }: { caseId: number }) {
         </p>
       </div>
 
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+      <div className="grid gap-4 sm:grid-cols-2">
         <WhenField
           id="custodyTakenAt"
           label="Took custody"
@@ -125,8 +125,26 @@ export function CertificateClock({ caseId }: { caseId: number }) {
           zone={zone}
           onSave={(physicianRequestedAt) => save({ physicianRequestedAt })}
           hint={
-            record.physicianDueAt
+            record.physicianDueAt && !record.physicianCertifiedAt
               ? `Their certification is due ${whenLabel(record.physicianDueAt, zone)}.`
+              : undefined
+          }
+          disabled={update.isPending}
+        />
+        {/*
+          The home cannot file until the physician has certified, so this is
+          the fact that says whose move it is. Typed from what EDRS shows;
+          nothing here is told it.
+        */}
+        <WhenField
+          id="physicianCertifiedAt"
+          label="Physician certified"
+          value={record.physicianCertifiedAt}
+          zone={zone}
+          onSave={(physicianCertifiedAt) => save({ physicianCertifiedAt })}
+          hint={
+            record.physicianRequestedAt && !record.physicianCertifiedAt
+              ? "Not yet, as far as this record knows."
               : undefined
           }
           disabled={update.isPending}

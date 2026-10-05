@@ -16,13 +16,57 @@ describe("voiceFor", () => {
     expect(voice.possessive("Eleanor Vance")).toBe("Eleanor Vance's");
   });
 
-  it("speaks directly to the person for a pre-need case", () => {
-    const voice = voiceFor("pre_need");
+  it("speaks directly to the planner reading their own plan", () => {
+    const voice = voiceFor("pre_need", true);
 
     expect(voice.preNeed).toBe(true);
+    expect(voice.self).toBe(true);
     expect(voice.heading("Eleanor Vance")).toBe("Your plan");
     expect(voice.strapline("Eleanor Vance")).toBe("Eleanor Vance's plan");
     expect(voice.possessive("Eleanor Vance")).toBe("your");
+  });
+
+  it("speaks to a relative about the planner, who is alive, not as them", () => {
+    // Her daughter, invited to help. "Your plan" would be telling her about
+    // her own funeral; "they lived" would be telling her mother has died.
+    const voice = voiceFor("pre_need", false);
+
+    expect(voice.preNeed).toBe(true);
+    expect(voice.self).toBe(false);
+    expect(voice.person).toBe("living");
+    expect(voice.heading("Eleanor Vance")).toBe("Eleanor Vance's plan");
+    expect(voice.possessive("Eleanor Vance")).toBe("Eleanor Vance's");
+    expect([voice.they, voice.them, voice.their]).toEqual(["they", "them", "their"]);
+    expect(
+      voice.say({ self: "Where you live", living: "Where they live", died: "Where they lived" }),
+    ).toBe("Where they live");
+  });
+
+  it("never calls a relative you because the flag has not loaded", () => {
+    // The session is still on its way, or came from a server that predates
+    // the flag: the third person is the safe guess, never the first.
+    expect(voiceFor("pre_need").self).toBe(false);
+    expect(voiceFor("pre_need", undefined).heading("Eleanor Vance")).toBe(
+      "Eleanor Vance's plan",
+    );
+  });
+
+  it("ignores the flag on a file for somebody who has died", () => {
+    // Nobody reads about their own death; a planner's flag outlives the plan.
+    const voice = voiceFor("at_need", true);
+
+    expect(voice.self).toBe(false);
+    expect(voice.person).toBe("died");
+    expect(voice.heading("Eleanor Vance")).toBe("Eleanor Vance");
+    expect(voice.Their).toBe("Their");
+  });
+
+  it("picks one written-out sentence for each of the three readers", () => {
+    const lines = { self: "How you like to look", living: "How they like to look", died: "How they looked" };
+
+    expect(voiceFor("pre_need", true).say(lines)).toBe("How you like to look");
+    expect(voiceFor("pre_need", false).say(lines)).toBe("How they like to look");
+    expect(voiceFor("at_need").say(lines)).toBe("How they looked");
   });
 
   it("treats an unrecognized or missing kind as at-need, never pre-need", () => {
@@ -46,7 +90,7 @@ describe("voiceFor", () => {
   });
 
   it("calls the person reading their own plan you, in every position", () => {
-    const voice = voiceFor("pre_need");
+    const voice = voiceFor("pre_need", true);
 
     expect([voice.they, voice.them, voice.their]).toEqual(["you", "you", "your"]);
     expect([voice.They, voice.Their]).toEqual(["You", "Your"]);

@@ -80,6 +80,14 @@ const say = (message = "") => {
 
 const DAY = 24 * 60 * 60 * 1000;
 const now = Date.now();
+/** "September 25, 2026", the way the obituary form asks for it. */
+const obituaryDay = (moment: Date): string =>
+  moment.toLocaleDateString("en-US", {
+    month: "long",
+    day: "numeric",
+    year: "numeric",
+    timeZone: HOME_TIMEZONE,
+  });
 /**
  * `hour` o'clock in Denver, `offsetDays` from today. A moment today that has
  * not happened yet is pulled back to just before now, in the same order, so a
@@ -727,7 +735,7 @@ async function seedShowcaseCase(
   /* Nine photographs, five of them chosen for the slideshow — the shape of a
    * real collection, where the family sends more than runs. */
   const pictures = [
-    { caption: "Mum and Dad on the porch at Cedar Street, about 1968", w: 1600, h: 1067, from: "#c9b79a", to: "#6d5f4c", selected: true },
+    { caption: "Mom and Dad on the porch on Cedar Street, about 1968", w: 1600, h: 1067, from: "#c9b79a", to: "#6d5f4c", selected: true },
     { caption: "Her wedding day, 1963", w: 1000, h: 1400, from: "#d8cdbd", to: "#7e7160", selected: true },
     { caption: "Teaching at Columbine Elementary — she had that room 31 years", w: 1600, h: 1067, from: "#a9b6a4", to: "#4f5c4d", selected: true },
     { caption: "With the grandchildren at Estes Park, 1994", w: 1600, h: 1067, from: "#b4c2cc", to: "#4a5a66", selected: true },
@@ -735,7 +743,7 @@ async function seedShowcaseCase(
     { caption: "Her garden, the summer before last", w: 1600, h: 1067, from: "#b9c49a", to: "#5c6642", selected: false },
     { caption: "Christmas, one of the last ones at the house", w: 1200, h: 1600, from: "#c6a9a0", to: "#6b4f48", selected: false },
     { caption: null, w: 1600, h: 1067, from: "#c2bdb2", to: "#68635a", selected: false },
-    { caption: "Rob thinks this is Skegness. Anne says Brighton.", w: 1600, h: 1067, from: "#aebdc0", to: "#525f62", selected: false },
+    { caption: "Rob thinks this is Grand Lake. Anne says Lake Dillon.", w: 1600, h: 1067, from: "#aebdc0", to: "#525f62", selected: false },
   ];
 
   const photoIds: number[] = [];
@@ -766,10 +774,11 @@ async function seedShowcaseCase(
     funeralHomeId: homeId,
     caseId,
     fullName: "Margaret Ellen Whitfield",
+    pronouns: "she",
     bornOn: "19 March 1941",
     birthPlace: "Pueblo, Colorado",
-    diedOn: "at home in Denver",
-    deathPlace: "Denver, Colorado",
+    diedOn: obituaryDay(at(-3, 6)),
+    deathPlace: "at home in Denver",
     survivedBy:
       "her daughter Anne, her son Robert, five grandchildren and one " +
       "great-granddaughter, Nell",
@@ -786,7 +795,7 @@ async function seedShowcaseCase(
       "Donations to the Denver Public Library Friends, where she volunteered " +
       "every Tuesday for eleven years.",
     specialThanks:
-      "To the district nurses, who were kind to her and to us, every single " +
+      "the district nurses, who were kind to her and to us, every single " +
       "day for five weeks.",
     status: "submitted",
     submittedAt: at(-1, 20),
@@ -854,7 +863,7 @@ async function seedShowcaseCase(
     { funeralHomeId: homeId, caseId, authorUserId: ownerId, body: "Anne — this is Ruth at Cedar & Stone. Everything you need is behind the link I sent. There is no hurry on any of it, and you can ring me on the number at the top of that page.", createdAt: at(-3, 14), readAt: at(-3, 19) },
     { funeralHomeId: homeId, caseId, authorContactId: anne!.id, body: "Thank you. Rob is going to put some photographs in too — he has the ones from Dad's side.", createdAt: at(-3, 19), readAt: at(-3, 20) },
     { funeralHomeId: homeId, caseId, authorUserId: ownerId, body: "That is exactly right. Anything he has is welcome, even if it is blurry or straight off his phone.", createdAt: at(-2, 9), readAt: at(-2, 12) },
-    { funeralHomeId: homeId, caseId, authorContactId: anne!.id, body: "We have picked the Thursday. Is it alright if my sister-in-law brings Mum's dress on Wednesday instead of tomorrow? She is driving up from Pueblo.", createdAt: at(-2, 12), readAt: at(-2, 13) },
+    { funeralHomeId: homeId, caseId, authorContactId: anne!.id, body: "We picked Thursday. Is it all right if my sister-in-law brings Mom's dress on Wednesday instead of tomorrow? She is driving up from Pueblo.", createdAt: at(-2, 12), readAt: at(-2, 13) },
     { funeralHomeId: homeId, caseId, authorUserId: ownerId, body: "Wednesday is fine. I am here until five, and if she is later than that someone will be on the urgent number.", createdAt: at(-2, 13), readAt: at(-2, 18) },
     { funeralHomeId: homeId, caseId, authorContactId: anne!.id, body: "One more thing — Rob has found a reading he would like to do. Do we need to tell you the words in advance or can he just read it?", createdAt: at(0, 9) },
   ]);
@@ -1092,8 +1101,8 @@ async function seedAftercareCase(
   const pictures = [
     { caption: "Dad at the shop on Colfax, 1981", w: 1600, h: 1067, from: "#c8b49b", to: "#6a5a45" },
     { caption: "Lagos, before he came over", w: 1100, h: 1500, from: "#d2c0a4", to: "#7c6a4f" },
-    { caption: "Him and Mum, thirty-fifth anniversary", w: 1600, h: 1067, from: "#b6c0c9", to: "#4d5761" },
-    { caption: "The allotment he was so proud of", w: 1600, h: 1067, from: "#b2c199", to: "#566442" },
+    { caption: "Him and Mom, thirty-fifth anniversary", w: 1600, h: 1067, from: "#b6c0c9", to: "#4d5761" },
+    { caption: "The community garden plot he was so proud of", w: 1600, h: 1067, from: "#b2c199", to: "#566442" },
   ];
   for (const [index, picture] of pictures.entries()) {
     photoIds.push(
@@ -1122,6 +1131,7 @@ async function seedAftercareCase(
     funeralHomeId: homeId,
     caseId,
     fullName: "Harold Chukwuemeka Nkemelu",
+    pronouns: "he",
     bornOn: "2 November 1949",
     birthPlace: "Enugu, Nigeria",
     survivedBy: "his wife Ngozi, his daughters Chiamaka and Adaeze, and four grandchildren",
@@ -1197,7 +1207,7 @@ async function seedAftercareCase(
 
   await db.insert(caseMessagesTable).values([
     { funeralHomeId: homeId, caseId, authorUserId: directorId, body: "Chiamaka — the photographs are all in and the book is open whenever anyone wants to add to it. There is no closing date.", createdAt: at(-66, 16), readAt: at(-66, 18) },
-    { funeralHomeId: homeId, caseId, authorContactId: contact!.id, body: "Thank you for everything last week. Mum has not stopped talking about how kind you were with the grandchildren.", createdAt: at(-66, 18), readAt: at(-65, 9) },
+    { funeralHomeId: homeId, caseId, authorContactId: contact!.id, body: "Thank you for everything last week. Mom hasn't stopped talking about how kind you were with the grandchildren.", createdAt: at(-66, 18), readAt: at(-65, 9) },
   ]);
 
   return { who: "Chiamaka Nkemelu (daughter, aftercare and memory book)", token: link.token };
@@ -1312,7 +1322,8 @@ async function seedPreNeedCase(homeId: number, ownerId: number): Promise<void> {
     funeralHomeId: homeId,
     caseId: row!.id,
     fullName: "Thomas Alan Brightwater",
-    bornOn: "8 July 1944",
+    pronouns: "he",
+    bornOn: "July 8, 1944",
     birthPlace: "Grand Junction, Colorado",
     biography:
       "Wrote this himself: \"Surveyor. Two marriages, one good. Climbed " +

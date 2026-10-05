@@ -43,20 +43,21 @@ import { voiceFor } from "@/lib/voice";
 /*
  * The choices are the reader's own answer, so they are in the reader's own
  * voice: a family says "Comes back to us", and somebody planning their own
- * funeral says "Goes to my family".
+ * funeral says "Goes to my family". A daughter helping with her mother's
+ * plan is family, and answers as family.
  */
-function dispositionsFor(preNeed: boolean) {
+function dispositionsFor(self: boolean) {
   return [
     { value: "undecided", label: "Not decided yet" },
-    { value: "with_deceased", label: preNeed ? "Stays with me" : "Stays with them" },
+    { value: "with_deceased", label: self ? "Stays with me" : "Stays with them" },
     {
       value: "return_to_family",
-      label: preNeed ? "Goes to my family" : "Comes back to us",
+      label: self ? "Goes to my family" : "Comes back to us",
     },
   ];
 }
 
-function kindsFor(preNeed: boolean) {
+function kindsFor(self: boolean) {
   return [
     { value: "clothing", label: "Clothing" },
     { value: "undergarments", label: "Undergarments" },
@@ -66,7 +67,7 @@ function kindsFor(preNeed: boolean) {
     { value: "glasses", label: "Glasses" },
     {
       value: "keepsake",
-      label: preNeed ? "Something to go with me" : "Something to go with them",
+      label: self ? "Something to go with me" : "Something to go with them",
     },
     { value: "other", label: "Something else" },
   ];
@@ -78,13 +79,13 @@ export default function Belongings() {
   const preparation = useGetFamilyPreparation();
   const session = useGetFamilySession();
   /*
-   * On a plan the person reading is the person this page is about, so it
-   * asks how they like to look, in the present tense and in their own
-   * words — never how they looked.
+   * On a plan the person this page is about is alive, so it asks how they
+   * like to look, in the present tense — never how they looked — and in
+   * their own words when they are the one reading.
    */
-  const voice = voiceFor(session.data?.case.kind);
-  const dispositions = dispositionsFor(voice.preNeed);
-  const kinds = kindsFor(voice.preNeed);
+  const voice = voiceFor(session.data?.case.kind, session.data?.contact.isSubject);
+  const dispositions = dispositionsFor(voice.self);
+  const kinds = kindsFor(voice.self);
 
   const [description, setDescription] = useState("");
   const [kind, setKind] = useState("keepsake");
@@ -165,7 +166,7 @@ export default function Belongings() {
       <section className="space-y-3">
         <Divider
           label={
-            voice.preNeed
+            voice.self
               ? "What to wear, and what to keep"
               : "What they'll wear, and what to keep"
           }
@@ -173,7 +174,7 @@ export default function Belongings() {
 
         {rows.length === 0 && (
           <Empty icon={Shirt} title="Nothing listed yet">
-            {voice.preNeed
+            {voice.self
               ? "Add a suit, a dress, a ring — anything you would like to have with you, or anything your family should keep afterwards."
               : "Add a suit, a dress, a ring — anything you would like them to have with them, or anything you want back afterwards."}
           </Empty>
@@ -319,12 +320,22 @@ export default function Belongings() {
       </section>
 
       <section className="space-y-5">
-        <Divider label={voice.preNeed ? "How you like to look" : "How they looked"} />
+        <Divider
+          label={voice.say({
+            self: "How you like to look",
+            living: "How they like to look",
+            died: "How they looked",
+          })}
+        />
 
         <p className="text-muted-foreground">
           Whatever you can tell us helps. Even{" "}
-          {voice.preNeed ? '"I never wear makeup"' : '"she never wore makeup"'} is
-          exactly the sort of thing we need to know.
+          {voice.say({
+            self: '"I never wear makeup"',
+            living: '"she never wears makeup"',
+            died: '"she never wore makeup"',
+          })}{" "}
+          is exactly the sort of thing we need to know.
         </p>
 
         {prep?.reviewedAt && (
@@ -339,11 +350,11 @@ export default function Belongings() {
           <Textarea
             id="hair"
             rows={3}
-            placeholder={
-              voice.preNeed
-                ? "How you part it, whether you have it set, who does it."
-                : "How it was parted, whether it was set, who used to do it."
-            }
+            placeholder={voice.say({
+              self: "How you part it, whether you have it set, who does it.",
+              living: "How it is parted, whether it is set, who does it.",
+              died: "How it was parted, whether it was set, who used to do it.",
+            })}
             key={prep?.hairNotes ?? ""}
             {...noteProps("hairNotes")}
           />
@@ -354,11 +365,11 @@ export default function Belongings() {
           <Textarea
             id="cosmetics"
             rows={3}
-            placeholder={
-              voice.preNeed
-                ? "How much, and what you wear. Or that you never wear any."
-                : "How much, and what they wore. Or that they never wore any."
-            }
+            placeholder={voice.say({
+              self: "How much, and what you wear. Or that you never wear any.",
+              living: "How much, and what they wear. Or that they never wear any.",
+              died: "How much, and what they wore. Or that they never wore any.",
+            })}
             key={prep?.cosmeticsNotes ?? ""}
             {...noteProps("cosmeticsNotes")}
           />
@@ -366,14 +377,18 @@ export default function Belongings() {
 
         <div className="space-y-2">
           <Label htmlFor="jewellery">
-            {voice.preNeed ? "Jewelry you'd like to wear" : "Jewelry they should be wearing"}
+            {voice.say({
+              self: "Jewelry you'd like to wear",
+              living: "Jewelry they'd like to wear",
+              died: "Jewelry they should be wearing",
+            })}
           </Label>
           <Textarea
             id="jewellery"
             rows={2}
             // An example of an answer, so in the words of whoever is answering.
             placeholder={
-              voice.preNeed ? "My wedding ring, left hand." : "Her wedding ring, left hand."
+              voice.self ? "My wedding ring, left hand." : "Her wedding ring, left hand."
             }
             key={prep?.jewelleryNotes ?? ""}
             {...noteProps("jewelleryNotes")}
@@ -385,11 +400,11 @@ export default function Belongings() {
           <Textarea
             id="other"
             rows={3}
-            placeholder={
-              voice.preNeed
-                ? "A scarf I always wear. Glasses on or off. Anything at all."
-                : "A scarf she always wore. Glasses on or off. Anything at all."
-            }
+            placeholder={voice.say({
+              self: "A scarf I always wear. Glasses on or off. Anything at all.",
+              living: "A scarf she always wears. Glasses on or off. Anything at all.",
+              died: "A scarf she always wore. Glasses on or off. Anything at all.",
+            })}
             key={prep?.otherNotes ?? ""}
             {...noteProps("otherNotes")}
           />
@@ -399,8 +414,12 @@ export default function Belongings() {
             photograph there, so it can be found. */}
         <p className="border-l-2 border-[var(--accent)]/30 pl-4 text-sm leading-relaxed text-muted-foreground">
           It also helps enormously to mark a recent photograph as{" "}
-          {voice.preNeed ? "“How you look”" : "“this is how they looked”"} on
-          the photographs page.
+          {voice.say({
+            self: "“How you look”",
+            living: "“How they look”",
+            died: "“this is how they looked”",
+          })}{" "}
+          on the photographs page.
         </p>
       </section>
     </div>

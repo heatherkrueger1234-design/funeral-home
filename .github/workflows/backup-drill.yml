@@ -14,7 +14,9 @@ on:
   # Also on changes to the scripts themselves, since that is when it breaks.
   push:
     paths:
+      - ".github/workflows/backup-drill.yml"
       - "scripts/src/backup-database.ts"
+      - "scripts/src/backup-crypto.ts"
       - "scripts/src/restore-database.ts"
       - "scripts/src/verify-backup.ts"
       - "lib/db/**"
@@ -45,7 +47,13 @@ jobs:
     env:
       DATABASE_URL: postgresql://postgres:postgres@localhost:5432/drill
       VERIFY_DATABASE_URL: postgresql://postgres:postgres@localhost:5432/drill_verify
-      BACKUP_DIR: ./backups
+      # Absolute, because `pnpm --filter` runs each script from inside
+      # scripts/, and the steps below run from the checkout's root: relative
+      # paths put the backup in one place and looked for it in another.
+      BACKUP_DIR: ${{ github.workspace }}/backups
+      # Standing in for the bucket: rclone treats a plain path as a local
+      # disk, so the copy-off-the-host step runs for real, credentials aside.
+      BACKUP_OFFSITE: ${{ github.workspace }}/offsite
       # Fixed test key. This is not, and must never become, a deployed secret.
       ENCRYPTION_KEY: BwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwc=
 
@@ -60,13 +68,14 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: Install postgres client
+      - name: Install postgres client and rclone
         # The runner image has psql, but pin the major so pg_dump and the
         # server agree — a newer server than client refuses to dump.
         run: |
           sudo apt-get update -qq
-          sudo apt-get install -y --no-install-recommends postgresql-client-16
+          sudo apt-get install -y --no-install-recommends postgresql-client-16 rclone
           psql --version
+          rclone version
 
       - name: Create the schema and the scratch database
         run: |
@@ -77,8 +86,20 @@ jobs:
       - name: Seed something worth losing
         run: pnpm --filter @workspace/scripts run seed-demo -- --quiet
 
-      - name: Back up
+      - name: Back up, and copy it off the host
         run: pnpm --filter @workspace/scripts run backup-database
 
-      - name: Verify the backup restores
+      # The day this matters, the host and everything on its disk are gone.
+      # So the copy on this disk is thrown away and the drill restores what
+      # came back from the far side, the way somebody would at 3am.
+      - name: Lose the host's copy, and fetch the offsite one
+        run: |
+          rm -rf "$BACKUP_DIR"
+          test ! -e "$BACKUP_DIR"
+          rclone copy "$BACKUP_OFFSITE" "$GITHUB_WORKSPACE/from-offsite"
+          ls -la "$GITHUB_WORKSPACE/from-offsite"
+
+      - name: Verify the offsite copy restores
+        env:
+          BACKUP_DIR: ${{ github.workspace }}/from-offsite
         run: pnpm --filter @workspace/scripts run verify-backup
