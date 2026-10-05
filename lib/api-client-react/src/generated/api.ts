@@ -142,9 +142,14 @@ import type {
   QuoteUpdate,
   RegisterHome202,
   RegisterInput,
+  ReissueContactLinkParams,
+  ReissuedLink,
   ResetPasswordInput,
+  RevokeContactParams,
+  RevokedContact,
   SelectionInput,
   SelectionUpdate,
+  SendContactLinkParams,
   SendLinkInput,
   SentLink,
   ServiceOffer,
@@ -5491,17 +5496,36 @@ export const useUpdateContact = <
 };
 
 /**
+ * Stops the links this person passed on to relatives as well, unless
+`passedOn` is `keep`; `alsoStopped` names them.
+
  * @summary Revoke this person's link
  */
-export const getRevokeContactUrl = (contactId: number) => {
-  return `/api/contacts/${contactId}`;
+export const getRevokeContactUrl = (
+  contactId: number,
+  params?: RevokeContactParams,
+) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? "null" : value.toString());
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0
+    ? `/api/contacts/${contactId}?${stringifiedParams}`
+    : `/api/contacts/${contactId}`;
 };
 
 export const revokeContact = async (
   contactId: number,
+  params?: RevokeContactParams,
   options?: RequestInit,
-): Promise<void> => {
-  return customFetch<void>(getRevokeContactUrl(contactId), {
+): Promise<RevokedContact> => {
+  return customFetch<RevokedContact>(getRevokeContactUrl(contactId, params), {
     ...options,
     method: "DELETE",
   });
@@ -5514,14 +5538,14 @@ export const getRevokeContactMutationOptions = <
   mutation?: UseMutationOptions<
     Awaited<ReturnType<typeof revokeContact>>,
     TError,
-    { contactId: number },
+    { contactId: number; params?: RevokeContactParams },
     TContext
   >;
   request?: SecondParameter<typeof customFetch>;
 }): UseMutationOptions<
   Awaited<ReturnType<typeof revokeContact>>,
   TError,
-  { contactId: number },
+  { contactId: number; params?: RevokeContactParams },
   TContext
 > => {
   const mutationKey = ["revokeContact"];
@@ -5535,11 +5559,11 @@ export const getRevokeContactMutationOptions = <
 
   const mutationFn: MutationFunction<
     Awaited<ReturnType<typeof revokeContact>>,
-    { contactId: number }
+    { contactId: number; params?: RevokeContactParams }
   > = (props) => {
-    const { contactId } = props ?? {};
+    const { contactId, params } = props ?? {};
 
-    return revokeContact(contactId, requestOptions);
+    return revokeContact(contactId, params, requestOptions);
   };
 
   return { mutationFn, ...mutationOptions };
@@ -5561,14 +5585,14 @@ export const useRevokeContact = <
   mutation?: UseMutationOptions<
     Awaited<ReturnType<typeof revokeContact>>,
     TError,
-    { contactId: number },
+    { contactId: number; params?: RevokeContactParams },
     TContext
   >;
   request?: SecondParameter<typeof customFetch>;
 }): UseMutationResult<
   Awaited<ReturnType<typeof revokeContact>>,
   TError,
-  { contactId: number },
+  { contactId: number; params?: RevokeContactParams },
   TContext
 > => {
   return useMutation(getRevokeContactMutationOptions(options));
@@ -5578,20 +5602,37 @@ export const useRevokeContact = <
  * Mints a new link and sends it, so the previous one stops working. The
 response says whether the text actually went; where the home has no
 SMS credentials, the person has not agreed to texts, or they replied
-STOP, it returns the link and `sent: false` with the reason.
+STOP, it returns the link and `sent: false` with the reason. The links
+this person passed on stop too, unless `passedOn` is `keep`.
 
  * @summary Text a fresh link to this person's mobile
  */
-export const getSendContactLinkUrl = (contactId: number) => {
-  return `/api/contacts/${contactId}/send-link`;
+export const getSendContactLinkUrl = (
+  contactId: number,
+  params?: SendContactLinkParams,
+) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? "null" : value.toString());
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0
+    ? `/api/contacts/${contactId}/send-link?${stringifiedParams}`
+    : `/api/contacts/${contactId}/send-link`;
 };
 
 export const sendContactLink = async (
   contactId: number,
   sendLinkInput?: SendLinkInput,
+  params?: SendContactLinkParams,
   options?: RequestInit,
 ): Promise<SentLink> => {
-  return customFetch<SentLink>(getSendContactLinkUrl(contactId), {
+  return customFetch<SentLink>(getSendContactLinkUrl(contactId, params), {
     ...options,
     method: "POST",
     headers: { "Content-Type": "application/json", ...options?.headers },
@@ -5606,14 +5647,22 @@ export const getSendContactLinkMutationOptions = <
   mutation?: UseMutationOptions<
     Awaited<ReturnType<typeof sendContactLink>>,
     TError,
-    { contactId: number; data: BodyType<SendLinkInput> },
+    {
+      contactId: number;
+      data: BodyType<SendLinkInput>;
+      params?: SendContactLinkParams;
+    },
     TContext
   >;
   request?: SecondParameter<typeof customFetch>;
 }): UseMutationOptions<
   Awaited<ReturnType<typeof sendContactLink>>,
   TError,
-  { contactId: number; data: BodyType<SendLinkInput> },
+  {
+    contactId: number;
+    data: BodyType<SendLinkInput>;
+    params?: SendContactLinkParams;
+  },
   TContext
 > => {
   const mutationKey = ["sendContactLink"];
@@ -5627,11 +5676,15 @@ export const getSendContactLinkMutationOptions = <
 
   const mutationFn: MutationFunction<
     Awaited<ReturnType<typeof sendContactLink>>,
-    { contactId: number; data: BodyType<SendLinkInput> }
+    {
+      contactId: number;
+      data: BodyType<SendLinkInput>;
+      params?: SendContactLinkParams;
+    }
   > = (props) => {
-    const { contactId, data } = props ?? {};
+    const { contactId, data, params } = props ?? {};
 
-    return sendContactLink(contactId, data, requestOptions);
+    return sendContactLink(contactId, data, params, requestOptions);
   };
 
   return { mutationFn, ...mutationOptions };
@@ -5653,32 +5706,59 @@ export const useSendContactLink = <
   mutation?: UseMutationOptions<
     Awaited<ReturnType<typeof sendContactLink>>,
     TError,
-    { contactId: number; data: BodyType<SendLinkInput> },
+    {
+      contactId: number;
+      data: BodyType<SendLinkInput>;
+      params?: SendContactLinkParams;
+    },
     TContext
   >;
   request?: SecondParameter<typeof customFetch>;
 }): UseMutationResult<
   Awaited<ReturnType<typeof sendContactLink>>,
   TError,
-  { contactId: number; data: BodyType<SendLinkInput> },
+  {
+    contactId: number;
+    data: BodyType<SendLinkInput>;
+    params?: SendContactLinkParams;
+  },
   TContext
 > => {
   return useMutation(getSendContactLinkMutationOptions(options));
 };
 
 /**
+ * The links this person passed on stop with the old one, unless
+`passedOn` is `keep`.
+
  * @summary Mint a fresh link, invalidating the old one
  */
-export const getReissueContactLinkUrl = (contactId: number) => {
-  return `/api/contacts/${contactId}/link`;
+export const getReissueContactLinkUrl = (
+  contactId: number,
+  params?: ReissueContactLinkParams,
+) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? "null" : value.toString());
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0
+    ? `/api/contacts/${contactId}/link?${stringifiedParams}`
+    : `/api/contacts/${contactId}/link`;
 };
 
 export const reissueContactLink = async (
   contactId: number,
+  params?: ReissueContactLinkParams,
   options?: RequestInit,
-): Promise<FamilyContactWithLink> => {
-  return customFetch<FamilyContactWithLink>(
-    getReissueContactLinkUrl(contactId),
+): Promise<ReissuedLink> => {
+  return customFetch<ReissuedLink>(
+    getReissueContactLinkUrl(contactId, params),
     {
       ...options,
       method: "POST",
@@ -5693,14 +5773,14 @@ export const getReissueContactLinkMutationOptions = <
   mutation?: UseMutationOptions<
     Awaited<ReturnType<typeof reissueContactLink>>,
     TError,
-    { contactId: number },
+    { contactId: number; params?: ReissueContactLinkParams },
     TContext
   >;
   request?: SecondParameter<typeof customFetch>;
 }): UseMutationOptions<
   Awaited<ReturnType<typeof reissueContactLink>>,
   TError,
-  { contactId: number },
+  { contactId: number; params?: ReissueContactLinkParams },
   TContext
 > => {
   const mutationKey = ["reissueContactLink"];
@@ -5714,11 +5794,11 @@ export const getReissueContactLinkMutationOptions = <
 
   const mutationFn: MutationFunction<
     Awaited<ReturnType<typeof reissueContactLink>>,
-    { contactId: number }
+    { contactId: number; params?: ReissueContactLinkParams }
   > = (props) => {
-    const { contactId } = props ?? {};
+    const { contactId, params } = props ?? {};
 
-    return reissueContactLink(contactId, requestOptions);
+    return reissueContactLink(contactId, params, requestOptions);
   };
 
   return { mutationFn, ...mutationOptions };
@@ -5740,14 +5820,14 @@ export const useReissueContactLink = <
   mutation?: UseMutationOptions<
     Awaited<ReturnType<typeof reissueContactLink>>,
     TError,
-    { contactId: number },
+    { contactId: number; params?: ReissueContactLinkParams },
     TContext
   >;
   request?: SecondParameter<typeof customFetch>;
 }): UseMutationResult<
   Awaited<ReturnType<typeof reissueContactLink>>,
   TError,
-  { contactId: number },
+  { contactId: number; params?: ReissueContactLinkParams },
   TContext
 > => {
   return useMutation(getReissueContactLinkMutationOptions(options));

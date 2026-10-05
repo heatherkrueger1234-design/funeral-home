@@ -9,6 +9,7 @@ import {
   db,
   FAMILY_INVITE_CAP,
   familyContactsTable,
+  isLinkLive,
 } from "@workspace/db";
 import { MailNotSentError, sendFamilyLinkEmail } from "@workspace/mailer";
 import { and, asc, count, eq, gt, isNotNull, isNull } from "drizzle-orm";
@@ -23,6 +24,7 @@ import {
   familyCase,
   familyContact,
   familyHome,
+  unauthorized,
 } from "../../middleware/require-family";
 
 /** Aftercare consent and the relatives the family adds. Mounted under /family; see `index.ts`. */
@@ -167,7 +169,9 @@ router.post("/aftercare", async (req, res) => {
  *    `canInvite` false; the home can widen that from the console. Otherwise
  *    one forwarded message is a chain nobody can see the end of.
  *  - Outlive the person who asked. The new link expires no later than the
- *    inviter's own, so nothing here extends anyone's access to the case.
+ *    inviter's own, so nothing here extends anyone's access to the case;
+ *    and when the home stops or replaces the inviter's link, this one stops
+ *    with it unless the director says to keep it (`contacts.ts`).
  *  - Go on without limit. `FAMILY_INVITE_CAP` per case, counted over every
  *    family-added row including the removed ones, checked under a lock on
  *    the case so two taps at once cannot both take the last place.
@@ -251,18 +255,19 @@ router.get("/relatives", async (req, res) => {
   });
 });
 
+const notForThisLink = () =>
+  new HttpError(
+    403,
+    "Adding family is something the funeral home looks after for you. Please ask them, and they'll send a link.",
+  );
+
 router.post("/relatives", async (req, res) => {
   const contact = familyContact(req);
   const row = familyCase(req);
   const home = familyHome(req);
   const values = parseBody(InviteFamilyRelativeBody, req.body);
 
-  if (!contact.canInvite) {
-    throw new HttpError(
-      403,
-      "Adding family is something the funeral home looks after for you. Please ask them, and they'll send a link.",
-    );
-  }
+  if (!contact.canInvite) throw notForThisLink();
 
   if (row.status === "closed") {
     throw new HttpError(
@@ -308,6 +313,22 @@ router.post("/relatives", async (req, res) => {
       .from(casesTable)
       .where(eq(casesTable.id, row.id))
       .for("update");
+
+    /*
+     * The link is asked about again now that the case is held. It was
+     * checked when this request arrived, but a director stopping it takes
+     * this same lock (`contacts.ts`) and stops whatever it passed on as it
+     * does. Without this, an invitation that arrived a moment before the
+     * stop and waited behind it would mint a link from one that had just
+     * been stopped -- a link the stop never saw.
+     */
+    const [inviter] = await tx
+      .select()
+      .from(familyContactsTable)
+      .where(eq(familyContactsTable.id, contact.id))
+      .limit(1);
+    if (!inviter || !isLinkLive(inviter)) throw unauthorized();
+    if (!inviter.canInvite) throw notForThisLink();
 
     if ((await familyInviteCount(row.id, tx)) >= FAMILY_INVITE_CAP) {
       throw new HttpError(

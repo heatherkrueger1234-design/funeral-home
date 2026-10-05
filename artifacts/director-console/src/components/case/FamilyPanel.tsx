@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useId, useState, type ComponentProps } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import {
   useCreateCaseContact,
@@ -9,6 +9,8 @@ import {
   getGetCaseQueryKey,
   getGetCasesQueryKey,
   type FamilyContact,
+  type PassedOnParameter,
+  type StoppedLink,
 } from "@workspace/api-client-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -23,6 +25,13 @@ import {
 import { useToast } from "@/hooks/use-toast";
 import { Check, Copy, Link2, Loader2, MessageSquare, Pencil, UserPlus } from "lucide-react";
 import { Confirm } from "@/components/page";
+import {
+  keepLabel,
+  passedOnFrom,
+  passedOnSentence,
+  stoppedTooSentence,
+  type PassedOn,
+} from "@/lib/passed-on";
 
 /**
  * The family's people, and their links.
@@ -97,6 +106,65 @@ function LinkOnce({
       )}
     </div>
   );
+}
+
+/**
+ * "Are you sure?" for anything that stops or replaces somebody's link.
+ *
+ * That stops the links they passed on to relatives as well, because the
+ * usual reason for doing it is that the link reached a stranger, who may
+ * have given themselves one. So when there are any, the question names the
+ * people and offers to keep them, for a director who knows who has them.
+ * Left unticked, they stop: the safe answer when nobody is sure.
+ */
+function ConfirmLinkChange({
+  passedOn,
+  description,
+  onConfirm,
+  ...rest
+}: Omit<ComponentProps<typeof Confirm>, "description" | "onConfirm" | "onOpenChange"> & {
+  description: string;
+  passedOn: PassedOn[];
+  onConfirm: (passedOn: PassedOnParameter) => void;
+}) {
+  const [keep, setKeep] = useState(false);
+  const id = useId();
+
+  return (
+    <Confirm
+      {...rest}
+      description={
+        passedOn.length > 0 ? `${description} ${passedOnSentence(passedOn)}` : description
+      }
+      // Asked afresh every time: a tick left from the last person's link
+      // must not decide this one.
+      onOpenChange={(open) => {
+        if (open) setKeep(false);
+      }}
+      onConfirm={() => onConfirm(keep ? "keep" : "stop")}
+    >
+      {passedOn.length > 0 && (
+        <label htmlFor={id} className="flex items-start gap-2 text-sm leading-snug">
+          <input
+            id={id}
+            type="checkbox"
+            className="mt-0.5"
+            checked={keep}
+            onChange={(event) => setKeep(event.target.checked)}
+          />
+          <span>{keepLabel(passedOn)}</span>
+        </label>
+      )}
+    </Confirm>
+  );
+}
+
+/** Whose links stopped with this one, as the server reports it, and what next. */
+function stoppedToo(stopped: StoppedLink[]): string | null {
+  const sentence = stoppedTooSentence(stopped);
+  return sentence
+    ? `${sentence} Anyone who should still have one can be sent a new link from here.`
+    : null;
 }
 
 type Props = {
@@ -200,11 +268,21 @@ export function FamilyPanel({ caseId, contacts, kind, subjectName }: Props) {
       onSuccess: (updated) => {
         setFresh({ link: updated.link, name: updated.name, phone: updated.phone });
         refresh();
+        const also = stoppedToo(updated.alsoStopped);
+        if (also) toast({ title: `${updated.name}'s old link is stopped`, description: also });
       },
     },
   });
 
-  const revoke = useRevokeContact({ mutation: { onSuccess: refresh } });
+  const revoke = useRevokeContact({
+    mutation: {
+      onSuccess: (stopped) => {
+        refresh();
+        const also = stoppedToo(stopped.alsoStopped);
+        if (also) toast({ title: `${stopped.name}'s link is stopped`, description: also });
+      },
+    },
+  });
   const update = useUpdateContact({
     mutation: {
       onSuccess: () => {
@@ -219,14 +297,17 @@ export function FamilyPanel({ caseId, contacts, kind, subjectName }: Props) {
       onSuccess: (result) => {
         setFresh({ link: result.link, name: result.name, phone: result.phone });
         refresh();
+        // One toast at a time in this console, so what else stopped rides
+        // on the one about the text rather than replacing it.
+        const also = stoppedToo(result.alsoStopped);
         toast(
           result.sent
-            ? { title: "Text sent" }
+            ? { title: "Text sent", ...(also ? { description: also } : {}) }
             : {
                 // Not an error toast: they have the link on screen and can
                 // send it themselves, which is a working outcome.
                 title: "Couldn't text it from here",
-                description: `${result.smsError ?? "Text messaging isn't set up."} The link is below — send it however suits.`,
+                description: `${result.smsError ?? "Text messaging isn't set up."} The link is below — send it however suits.${also ? ` ${also}` : ""}`,
               },
         );
       },
@@ -276,6 +357,13 @@ export function FamilyPanel({ caseId, contacts, kind, subjectName }: Props) {
             // then and the server will not open it again (`contacts.ts`), so
             // nothing here offers to.
             const died = contact.isSubject && !preNeed;
+            /*
+             * The links this person passed on, which stop with theirs. A
+             * link already stopped settled that when it was stopped, with
+             * the director choosing; a new one for this person remedies
+             * nothing, so it keeps what they passed on as it is.
+             */
+            const passedOn = revoked ? [] : passedOnFrom(contact, contacts);
 
             return (
               <li
@@ -344,7 +432,7 @@ export function FamilyPanel({ caseId, contacts, kind, subjectName }: Props) {
                   {contact.phone &&
                     !died &&
                     (contact.smsOptedOutAt ? null : (
-                      <Confirm
+                      <ConfirmLinkChange
                         trigger={
                           <Button variant="ghost" size="sm" disabled={textingThis}>
                             {textingThis ? (
@@ -364,9 +452,14 @@ export function FamilyPanel({ caseId, contacts, kind, subjectName }: Props) {
                             ? ""
                             : ` By sending, you confirm ${who} agreed to receive texts from you; that is recorded with today's date.`)
                         }
+                        passedOn={passedOn}
                         confirmLabel="Text it"
-                        onConfirm={() =>
-                          sendLink.mutate({ contactId: contact.id, data: { smsConsent: true } })
+                        onConfirm={(choice) =>
+                          sendLink.mutate({
+                            contactId: contact.id,
+                            data: { smsConsent: true },
+                            params: { passedOn: revoked ? "keep" : choice },
+                          })
                         }
                       />
                     ))}
@@ -382,13 +475,15 @@ export function FamilyPanel({ caseId, contacts, kind, subjectName }: Props) {
                       variant="ghost"
                       size="sm"
                       disabled={reissue.isPending}
-                      onClick={() => reissue.mutate({ contactId: contact.id })}
+                      onClick={() =>
+                        reissue.mutate({ contactId: contact.id, params: { passedOn: "keep" } })
+                      }
                     >
                       <Link2 className="size-4" />
                       New link
                     </Button>
                   ) : (
-                    <Confirm
+                    <ConfirmLinkChange
                       trigger={
                         <Button variant="ghost" size="sm" disabled={reissue.isPending}>
                           <Link2 className="size-4" />
@@ -397,9 +492,12 @@ export function FamilyPanel({ caseId, contacts, kind, subjectName }: Props) {
                       }
                       title={`Make a new link for ${who}?`}
                       description="The link they have now stops working the moment you do. Use this when they have lost it, or it reached somebody it should not have."
+                      passedOn={passedOn}
                       confirmLabel="Make a new link"
                       cancelLabel="Keep the old one"
-                      onConfirm={() => reissue.mutate({ contactId: contact.id })}
+                      onConfirm={(choice) =>
+                        reissue.mutate({ contactId: contact.id, params: { passedOn: choice } })
+                      }
                     />
                   )}
                   <Button
@@ -412,7 +510,7 @@ export function FamilyPanel({ caseId, contacts, kind, subjectName }: Props) {
                     Edit
                   </Button>
                   {!revoked && (
-                    <Confirm
+                    <ConfirmLinkChange
                       trigger={
                         <Button
                           variant="ghost"
@@ -425,9 +523,12 @@ export function FamilyPanel({ caseId, contacts, kind, subjectName }: Props) {
                       }
                       title={`Stop ${who}'s link?`}
                       description="They can no longer open the family's page. Everything they added stays on the case, and you can send them a new link at any time."
+                      passedOn={passedOn}
                       confirmLabel="Stop the link"
                       cancelLabel="Leave it working"
-                      onConfirm={() => revoke.mutate({ contactId: contact.id })}
+                      onConfirm={(choice) =>
+                        revoke.mutate({ contactId: contact.id, params: { passedOn: choice } })
+                      }
                     />
                   )}
                 </span>

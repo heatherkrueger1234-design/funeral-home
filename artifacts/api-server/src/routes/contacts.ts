@@ -1,15 +1,19 @@
 import { Router, type IRouter } from "express";
-import { and, asc, eq } from "drizzle-orm";
+import { and, asc, eq, inArray } from "drizzle-orm";
 import {
   db,
   casesTable,
   familyContactsTable,
+  isLinkLive,
   toPublicFamilyContact,
   type FamilyContact,
 } from "@workspace/db";
 import {
   CreateCaseContactBody,
+  ReissueContactLinkQueryParams,
+  RevokeContactQueryParams,
   SendContactLinkBody,
+  SendContactLinkQueryParams,
   UpdateContactBody,
 } from "@workspace/api-zod";
 import {
@@ -18,10 +22,11 @@ import {
   HttpError,
   parseBody,
   parseId,
+  parseQuery,
   requireRow,
 } from "../lib/http";
 import { currentUser, tenant } from "../middleware/require-auth";
-import { linkUrl, mintLink } from "../lib/family-link";
+import { linkUrl, mintLink, type MintedLink } from "../lib/family-link";
 import { sendSms, smsBlockReason, SmsNotSentError } from "../lib/sms";
 import { markOnboarding } from "../lib/onboarding";
 import { loadCase } from "./cases";
@@ -217,43 +222,170 @@ router.put("/contacts/:contactId", async (req, res) => {
 });
 
 /**
+ * Stop the links a contact passed on, and any passed on from those in turn.
+ *
+ * A director stops or replaces a link because it reached somebody it should
+ * not have, and whoever was holding it may already have used it to give
+ * themselves a link of their own (`POST /family/relatives`): one that the
+ * remedy for the first never touched, good for the photographs, the thread
+ * and the vitals for ninety days. So the remedy reaches every link that came
+ * from this one, however many steps on, because the home can let a relative
+ * add family too.
+ *
+ * Only links that still work are stopped and named, so the director is told
+ * about people who lose something now. A link that was already stopped is
+ * walked through rather than round: what was passed on from it came from
+ * this one as well.
+ *
+ * Held to the contact's own case and home, under the lock `lockCase` takes:
+ * `invitedByContactId` is not a foreign key, and a row anywhere else that
+ * names this contact is nothing to do with them.
+ */
+async function stopPassedOn(
+  tx: Tx,
+  contact: FamilyContact,
+  now: Date,
+): Promise<Array<{ id: number; name: string }>> {
+  const onCase = await tx
+    .select()
+    .from(familyContactsTable)
+    .where(
+      and(
+        eq(familyContactsTable.caseId, contact.caseId),
+        eq(familyContactsTable.funeralHomeId, contact.funeralHomeId),
+      ),
+    )
+    .orderBy(asc(familyContactsTable.id));
+
+  const passedOnBy = new Map<number, FamilyContact[]>();
+  for (const row of onCase) {
+    if (row.invitedByContactId === null) continue;
+    passedOnBy.set(row.invitedByContactId, [
+      ...(passedOnBy.get(row.invitedByContactId) ?? []),
+      row,
+    ]);
+  }
+
+  // Each row is reached once, so nothing written by hand can send this round
+  // in a circle.
+  const reached = new Set([contact.id]);
+  const from = [contact.id];
+  const stopping: FamilyContact[] = [];
+  while (from.length > 0) {
+    for (const row of passedOnBy.get(from.shift()!) ?? []) {
+      if (reached.has(row.id)) continue;
+      reached.add(row.id);
+      from.push(row.id);
+      if (isLinkLive(row, now)) stopping.push(row);
+    }
+  }
+  stopping.sort((a, b) => a.id - b.id);
+
+  if (stopping.length > 0) {
+    await tx
+      .update(familyContactsTable)
+      .set({ revokedAt: now, updatedAt: now })
+      .where(
+        inArray(
+          familyContactsTable.id,
+          stopping.map((row) => row.id),
+        ),
+      );
+  }
+
+  return stopping.map(({ id, name }) => ({ id, name }));
+}
+
+/**
+ * Take the lock a family's invitation takes (`family/aftercare.ts`), so that
+ * stopping a link and a relative being added from it cannot pass each other:
+ * whichever goes second sees what the first did.
+ */
+async function lockCase(tx: Tx, caseId: number): Promise<void> {
+  await tx
+    .select({ id: casesTable.id })
+    .from(casesTable)
+    .where(eq(casesTable.id, caseId))
+    .for("update");
+}
+
+/**
  * Revoke rather than delete. The photographs this person uploaded stay on the
- * case and keep their name against them; what stops is the link.
+ * case and keep their name against them; what stops is the link -- and,
+ * unless the director says they are family, the links it was passed on to.
  */
 router.delete("/contacts/:contactId", async (req, res) => {
   const existing = await loadContact(req, req.params.contactId);
+  const { passedOn } = parseQuery(RevokeContactQueryParams, req.query);
+  const now = new Date();
 
-  await db
-    .update(familyContactsTable)
-    .set({ revokedAt: new Date(), updatedAt: new Date() })
-    .where(eq(familyContactsTable.id, existing.id));
+  const { updated, alsoStopped } = await db.transaction(async (tx) => {
+    await lockCase(tx, existing.caseId);
+    const [row] = await tx
+      .update(familyContactsTable)
+      .set({ revokedAt: now, updatedAt: now })
+      .where(eq(familyContactsTable.id, existing.id))
+      .returning();
+    return {
+      updated: row!,
+      alsoStopped: passedOn === "stop" ? await stopPassedOn(tx, existing, now) : [],
+    };
+  });
 
-  res.status(204).end();
+  res.json({ ...toPublicFamilyContact(updated), alsoStopped });
 });
+
+/**
+ * Put a freshly minted link on a contact, in place of the one they had, and
+ * stop what the old one passed on unless the director chose to keep it.
+ */
+async function replaceLink(
+  existing: FamilyContact,
+  link: MintedLink,
+  passedOn: "stop" | "keep",
+  also: Partial<Pick<FamilyContact, "smsConsentAt" | "smsConsentSource">> = {},
+) {
+  const now = new Date();
+
+  return db.transaction(async (tx) => {
+    await lockCase(tx, existing.caseId);
+    const [updated] = await tx
+      .update(familyContactsTable)
+      .set({
+        tokenHash: link.tokenHash,
+        expiresAt: link.expiresAt,
+        revokedAt: null,
+        ...also,
+        updatedAt: now,
+      })
+      .where(eq(familyContactsTable.id, existing.id))
+      .returning();
+    return {
+      updated: updated!,
+      alsoStopped: passedOn === "stop" ? await stopPassedOn(tx, existing, now) : [],
+    };
+  });
+}
 
 /**
  * Mint a fresh link. The previous one stops working the moment this returns,
  * because the row holds exactly one digest — which is what makes this the
  * right answer to "my sister forwarded the link to someone she shouldn't
- * have".
+ * have". What the old link passed on stops with it (see `stopPassedOn`).
  */
 router.post("/contacts/:contactId/link", async (req, res) => {
   const existing = await loadContact(req, req.params.contactId);
+  const { passedOn } = parseQuery(ReissueContactLinkQueryParams, req.query);
   await assertCanHaveLink(existing);
   const link = mintLink();
 
-  const [updated] = await db
-    .update(familyContactsTable)
-    .set({
-      tokenHash: link.tokenHash,
-      expiresAt: link.expiresAt,
-      revokedAt: null,
-      updatedAt: new Date(),
-    })
-    .where(eq(familyContactsTable.id, existing.id))
-    .returning();
+  const { updated, alsoStopped } = await replaceLink(existing, link, passedOn);
 
-  res.json({ ...toPublicFamilyContact(updated!), link: linkUrl(link.token) });
+  res.json({
+    ...toPublicFamilyContact(updated),
+    link: linkUrl(link.token),
+    alsoStopped,
+  });
 });
 
 /**
@@ -274,6 +406,7 @@ router.post("/contacts/:contactId/send-link", async (req, res) => {
   const existing = await loadContact(req, req.params.contactId);
 
   const values = parseBody(SendContactLinkBody, req.body ?? {});
+  const { passedOn } = parseQuery(SendContactLinkQueryParams, req.query);
   await assertCanHaveLink(existing);
 
   if (!existing.phone?.trim()) {
@@ -282,17 +415,12 @@ router.post("/contacts/:contactId/send-link", async (req, res) => {
 
   const link = mintLink();
 
-  const [updated] = await db
-    .update(familyContactsTable)
-    .set({
-      tokenHash: link.tokenHash,
-      expiresAt: link.expiresAt,
-      revokedAt: null,
-      ...(values.smsConsent === true && !existing.smsConsentAt ? consentFields(true) : {}),
-      updatedAt: new Date(),
-    })
-    .where(eq(familyContactsTable.id, existing.id))
-    .returning();
+  const { updated, alsoStopped } = await replaceLink(
+    existing,
+    link,
+    passedOn,
+    values.smsConsent === true && !existing.smsConsentAt ? consentFields(true) : {},
+  );
 
   const url = linkUrl(link.token);
 
@@ -304,7 +432,7 @@ router.post("/contacts/:contactId/send-link", async (req, res) => {
   let sent = false;
   // Consent is checked on the row as saved, so a tick sent with this
   // request counts and a STOP reply always wins.
-  let smsError: string | null = smsBlockReason(updated!);
+  let smsError: string | null = smsBlockReason(updated);
 
   if (!smsError) {
     try {
@@ -320,10 +448,11 @@ router.post("/contacts/:contactId/send-link", async (req, res) => {
   }
 
   res.json({
-    ...toPublicFamilyContact(updated!),
+    ...toPublicFamilyContact(updated),
     link: url,
     sent,
     smsError,
+    alsoStopped,
   });
 });
 

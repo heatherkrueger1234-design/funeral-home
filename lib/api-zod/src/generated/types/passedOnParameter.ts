@@ -17,12 +17,11 @@ Two audiences, two authentication schemes, and the split is load-bearing:
 
  * OpenAPI spec version: 0.1.0
  */
-import type { AlsoStopped } from "./alsoStopped";
-import type { FamilyContactWithLink } from "./familyContactWithLink";
 
-export type SentLink = FamilyContactWithLink &
-  AlsoStopped & {
-    sent: boolean;
-    /** Why the text did not go, in words a director can act on. */
-    smsError: string | null;
-  };
+export type PassedOnParameter =
+  (typeof PassedOnParameter)[keyof typeof PassedOnParameter];
+
+export const PassedOnParameter = {
+  stop: "stop",
+  keep: "keep",
+} as const;

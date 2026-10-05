@@ -17,12 +17,15 @@ Two audiences, two authentication schemes, and the split is load-bearing:
 
  * OpenAPI spec version: 0.1.0
  */
-import type { AlsoStopped } from "./alsoStopped";
-import type { FamilyContactWithLink } from "./familyContactWithLink";
+import type { PassedOnParameter } from "./passedOnParameter";
 
-export type SentLink = FamilyContactWithLink &
-  AlsoStopped & {
-    sent: boolean;
-    /** Why the text did not go, in words a director can act on. */
-    smsError: string | null;
-  };
+export type ReissueContactLinkParams = {
+  /**
+ * The links this person passed on to relatives, and any passed on from
+those in turn. `stop` turns them off with this one; `keep` leaves
+them working, for a director who knows who has them. A word rather
+than a boolean, because a query string carries "false" as text.
+
+ */
+  passedOn?: PassedOnParameter;
+};

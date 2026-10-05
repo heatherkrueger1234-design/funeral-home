@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { and, eq } from "drizzle-orm";
 import {
   db,
+  pool,
   casesTable,
   familyContactsTable,
   FAMILY_INVITE_CAP,
@@ -23,7 +24,8 @@ import {
  * same rules a director's link is: one case, a hashed token, revocable,
  * expiring. What is extra here is everything that stops a forwarded link
  * turning into a way to mint more links -- the `canInvite` gate, no
- * invitations from the invited, a per-case cap, and the home being told.
+ * invitations from the invited, a per-case cap, the home being told, and
+ * what was passed on going when the link it came from is stopped.
  */
 
 async function nextOfKin(staff: StaffSession, caseId: number) {
@@ -120,7 +122,7 @@ describe("a relative added by the family", () => {
       .expect(201);
     const token = tokenOf(res.body.link);
 
-    await staff.agent.delete(`/api/contacts/${res.body.relative.id}`).expect(204);
+    await staff.agent.delete(`/api/contacts/${res.body.relative.id}`).expect(200);
     await asFamily(token).get("/api/family/session").expect(401);
 
     const list = await asFamily(anne.token).get("/api/family/relatives").expect(200);
@@ -283,7 +285,7 @@ describe("who may pass the link on", () => {
     const row = await createCase(staff);
     const anne = await nextOfKin(staff, row.id);
 
-    await staff.agent.delete(`/api/contacts/${anne.contactId}`).expect(204);
+    await staff.agent.delete(`/api/contacts/${anne.contactId}`).expect(200);
 
     await asFamily(anne.token)
       .post("/api/family/relatives")
@@ -393,8 +395,8 @@ describe("the cap", () => {
     }
 
     // Removing some does not free their places.
-    await staff.agent.delete(`/api/contacts/${created[0]}`).expect(204);
-    await staff.agent.delete(`/api/contacts/${created[1]}`).expect(204);
+    await staff.agent.delete(`/api/contacts/${created[0]}`).expect(200);
+    await staff.agent.delete(`/api/contacts/${created[1]}`).expect(200);
 
     const refused = await asFamily(anne.token)
       .post("/api/family/relatives")
@@ -493,3 +495,260 @@ describe("what a relative needs", () => {
       .expect(409);
   });
 });
+
+describe("a link that went astray takes what it passed on with it", () => {
+  /*
+   * The director's remedy for a forwarded link is to stop it or replace it.
+   * Whoever was holding it may have used it to give themselves a link of
+   * their own first, and that one has to go with it -- or the stranger keeps
+   * the photographs, the thread and the vitals for ninety days.
+   */
+
+  async function passOn(token: string, name: string) {
+    const res = await asFamily(token)
+      .post("/api/family/relatives")
+      .send({ name, email: `${name.split(" ")[0]!.toLowerCase()}@example.com` })
+      .expect(201);
+    return { contactId: res.body.relative.id as number, token: tokenOf(res.body.link) };
+  }
+
+  /** Anne, who passed her link on to Mark and Joan; and Bob, who passed his to Jo. */
+  async function aFamily() {
+    const staff = await signUpHome();
+    const row = await createCase(staff);
+    const anne = await inviteFamily(staff, row.id, {
+      canInvite: true,
+      phone: "3035550101",
+    });
+    const mark = await passOn(anne.token, "Mark Hale");
+    const joan = await passOn(anne.token, "Joan Hale");
+    const bob = await inviteFamily(staff, row.id, { name: "Bob Hale", canInvite: true });
+    const jo = await passOn(bob.token, "Jo Hale");
+    return { staff, row, anne, mark, joan, bob, jo };
+  }
+
+  async function opens(token: string): Promise<boolean> {
+    const res = await asFamily(token).get("/api/family/session");
+    return res.status === 200;
+  }
+
+  it("stops the links Anne passed on when hers is stopped, and says whose", async () => {
+    const { staff, anne, mark, joan, bob, jo } = await aFamily();
+
+    const res = await staff.agent.delete(`/api/contacts/${anne.contactId}`).expect(200);
+
+    expect(res.body.id).toBe(anne.contactId);
+    expect(res.body.revokedAt).not.toBeNull();
+    expect(res.body.alsoStopped).toEqual([
+      { id: mark.contactId, name: "Mark Hale" },
+      { id: joan.contactId, name: "Joan Hale" },
+    ]);
+    expect(await opens(anne.token)).toBe(false);
+    expect(await opens(mark.token)).toBe(false);
+    expect(await opens(joan.token)).toBe(false);
+
+    // Bob is family the home added, and Jo came from him: neither is touched.
+    expect(await opens(bob.token)).toBe(true);
+    expect(await opens(jo.token)).toBe(true);
+  });
+
+  it("does the same when her link is replaced, and her new one works", async () => {
+    const { staff, anne, mark, joan, bob, jo } = await aFamily();
+
+    const res = await staff.agent.post(`/api/contacts/${anne.contactId}/link`).expect(200);
+
+    expect(res.body.alsoStopped).toEqual([
+      { id: mark.contactId, name: "Mark Hale" },
+      { id: joan.contactId, name: "Joan Hale" },
+    ]);
+    expect(await opens(tokenOf(res.body.link))).toBe(true);
+    expect(await opens(anne.token)).toBe(false);
+    expect(await opens(mark.token)).toBe(false);
+    expect(await opens(joan.token)).toBe(false);
+    expect(await opens(bob.token)).toBe(true);
+    expect(await opens(jo.token)).toBe(true);
+  });
+
+  it("does the same when a new link is texted to her", async () => {
+    const { staff, anne, mark, joan, jo } = await aFamily();
+
+    // No Twilio here, so nothing is sent; the new link is minted all the same.
+    const res = await staff.agent
+      .post(`/api/contacts/${anne.contactId}/send-link`)
+      .send({ smsConsent: true })
+      .expect(200);
+
+    expect(res.body.sent).toBe(false);
+    expect(res.body.alsoStopped.map((stopped: { id: number }) => stopped.id)).toEqual([
+      mark.contactId,
+      joan.contactId,
+    ]);
+    expect(await opens(mark.token)).toBe(false);
+    expect(await opens(joan.token)).toBe(false);
+    expect(await opens(jo.token)).toBe(true);
+  });
+
+  it("leaves them working when the director says they are family", async () => {
+    const { staff, anne, mark, joan, bob, jo } = await aFamily();
+
+    const stopped = await staff.agent
+      .delete(`/api/contacts/${anne.contactId}?passedOn=keep`)
+      .expect(200);
+    expect(stopped.body.alsoStopped).toEqual([]);
+    expect(await opens(anne.token)).toBe(false);
+    expect(await opens(mark.token)).toBe(true);
+    expect(await opens(joan.token)).toBe(true);
+
+    const replaced = await staff.agent
+      .post(`/api/contacts/${bob.contactId}/link?passedOn=keep`)
+      .expect(200);
+    expect(replaced.body.alsoStopped).toEqual([]);
+    expect(await opens(jo.token)).toBe(true);
+
+    // "stop" is the default said out loud, and anything else is refused
+    // rather than guessed at.
+    await staff.agent.delete(`/api/contacts/${anne.contactId}?passedOn=maybe`).expect(400);
+    const said = await staff.agent
+      .delete(`/api/contacts/${anne.contactId}?passedOn=stop`)
+      .expect(200);
+    expect(said.body.alsoStopped.map((s: { id: number }) => s.id)).toEqual([
+      mark.contactId,
+      joan.contactId,
+    ]);
+  });
+
+  it("follows the link on when the home let a relative add family too", async () => {
+    const { staff, anne, mark, joan } = await aFamily();
+
+    // The home trusted Mark to add family of his own, and he did.
+    await staff.agent
+      .put(`/api/contacts/${mark.contactId}`)
+      .send({ role: "next_of_kin", canInvite: true })
+      .expect(200);
+    const sam = await passOn(mark.token, "Sam Hale");
+
+    const res = await staff.agent.delete(`/api/contacts/${anne.contactId}`).expect(200);
+
+    expect(res.body.alsoStopped).toEqual([
+      { id: mark.contactId, name: "Mark Hale" },
+      { id: joan.contactId, name: "Joan Hale" },
+      { id: sam.contactId, name: "Sam Hale" },
+    ]);
+    expect(await opens(sam.token)).toBe(false);
+  });
+
+  it("names only the links that were still working, and follows on past a stopped one", async () => {
+    const { staff, anne, mark, joan } = await aFamily();
+
+    await staff.agent
+      .put(`/api/contacts/${mark.contactId}`)
+      .send({ role: "next_of_kin", canInvite: true })
+      .expect(200);
+    const sam = await passOn(mark.token, "Sam Hale");
+
+    // Mark was stopped on his own earlier, keeping Sam; Joan's ran out.
+    await staff.agent.delete(`/api/contacts/${mark.contactId}?passedOn=keep`).expect(200);
+    const markStoppedAt = (await contactRow(mark.contactId)).revokedAt;
+    await db
+      .update(familyContactsTable)
+      .set({ expiresAt: new Date(Date.now() - 60_000) })
+      .where(eq(familyContactsTable.id, joan.contactId));
+
+    const res = await staff.agent.delete(`/api/contacts/${anne.contactId}`).expect(200);
+
+    // Sam's link came from Anne's by way of Mark's, so it goes; Mark and
+    // Joan were not working already, so they are not named.
+    expect(res.body.alsoStopped).toEqual([{ id: sam.contactId, name: "Sam Hale" }]);
+    expect(await opens(sam.token)).toBe(false);
+    expect((await contactRow(mark.contactId)).revokedAt).toEqual(markStoppedAt);
+    expect((await contactRow(joan.contactId)).revokedAt).toBeNull();
+  });
+
+  it("touches nothing on another case or at another home, whatever a row there says", async () => {
+    const { staff, anne } = await aFamily();
+
+    // Rows elsewhere that claim Anne as the person who added them. Nothing
+    // in the product writes these; the stop must hold to her case anyway.
+    const otherCase = await createCase(staff, { decedentLastName: "Other" });
+    const other = await signUpHome("Another Home");
+    const otherHomeCase = await createCase(other);
+    const elsewhere = await db
+      .insert(familyContactsTable)
+      .values(
+        [
+          { funeralHomeId: staff.homeId, caseId: otherCase.id },
+          { funeralHomeId: other.homeId, caseId: otherHomeCase.id },
+        ].map((where, index) => ({
+          ...where,
+          name: `Elsewhere ${index}`,
+          tokenHash: digestToken(`elsewhere-${index}`),
+          expiresAt: new Date(Date.now() + 60_000),
+          invitedByContactId: anne.contactId,
+        })),
+      )
+      .returning();
+
+    const res = await staff.agent.delete(`/api/contacts/${anne.contactId}`).expect(200);
+
+    expect(res.body.alsoStopped).toHaveLength(2);
+    for (const [index, row] of elsewhere.entries()) {
+      expect((await contactRow(row.id)).revokedAt).toBeNull();
+      expect(await opens(`elsewhere-${index}`)).toBe(true);
+    }
+  });
+
+  it("refuses an invitation that was on its way when the link was stopped", async () => {
+    const staff = await signUpHome();
+    const row = await createCase(staff);
+    const anne = await nextOfKin(staff, row.id);
+
+    /*
+     * The race a stranger would win if they could: their invitation is let
+     * in on a link that is still working, and the director stops that link
+     * before the invitation is written. Invitations and stops take the same
+     * lock on the case, so it is held here while the invitation arrives, and
+     * the link is stopped before it is let go.
+     */
+    const holder = await pool.connect();
+    try {
+      await holder.query("BEGIN");
+      await holder.query("SELECT id FROM cases WHERE id = $1 FOR UPDATE", [row.id]);
+
+      const invitation = asFamily(anne.token)
+        .post("/api/family/relatives")
+        .send({ name: "A stranger", email: "stranger@example.com" })
+        .then((res) => res);
+      await untilWaitingOnTheCase();
+
+      await holder.query("UPDATE family_contacts SET revoked_at = now() WHERE id = $1", [
+        anne.contactId,
+      ]);
+      await holder.query("COMMIT");
+
+      expect((await invitation).status).toBe(401);
+    } finally {
+      holder.release();
+    }
+
+    const rows = await db
+      .select()
+      .from(familyContactsTable)
+      .where(eq(familyContactsTable.caseId, row.id));
+    expect(rows).toHaveLength(1);
+  });
+});
+
+/** Until a request is queued behind the lock a test is holding on a case. */
+async function untilWaitingOnTheCase(): Promise<void> {
+  for (let attempt = 0; attempt < 500; attempt += 1) {
+    const { rows } = await pool.query<{ waiting: number }>(
+      `SELECT count(*)::int AS waiting FROM pg_stat_activity
+        WHERE datname = current_database()
+          AND wait_event_type = 'Lock'
+          AND query ILIKE '%from "cases"%for update%'`,
+    );
+    if (rows[0]!.waiting > 0) return;
+    await new Promise((resolve) => setTimeout(resolve, 10));
+  }
+  throw new Error("Nothing ever waited on the case");
+}

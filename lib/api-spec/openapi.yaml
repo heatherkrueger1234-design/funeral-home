@@ -1351,11 +1351,19 @@ paths:
       operationId: revokeContact
       tags: [contacts]
       summary: Revoke this person's link
+      description: |
+        Stops the links this person passed on to relatives as well, unless
+        `passedOn` is `keep`; `alsoStopped` names them.
       parameters:
         - $ref: "#/components/parameters/ContactId"
+        - $ref: "#/components/parameters/PassedOn"
       responses:
-        "204":
+        "200":
           description: Revoked
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RevokedContact"
 
   /contacts/{contactId}/send-link:
     post:
@@ -1366,9 +1374,11 @@ paths:
         Mints a new link and sends it, so the previous one stops working. The
         response says whether the text actually went; where the home has no
         SMS credentials, the person has not agreed to texts, or they replied
-        STOP, it returns the link and `sent: false` with the reason.
+        STOP, it returns the link and `sent: false` with the reason. The links
+        this person passed on stop too, unless `passedOn` is `keep`.
       parameters:
         - $ref: "#/components/parameters/ContactId"
+        - $ref: "#/components/parameters/PassedOn"
       requestBody:
         required: false
         content:
@@ -1388,15 +1398,19 @@ paths:
       operationId: reissueContactLink
       tags: [contacts]
       summary: Mint a fresh link, invalidating the old one
+      description: |
+        The links this person passed on stop with the old one, unless
+        `passedOn` is `keep`.
       parameters:
         - $ref: "#/components/parameters/ContactId"
+        - $ref: "#/components/parameters/PassedOn"
       responses:
         "200":
           description: The new one-time link
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/FamilyContactWithLink"
+                $ref: "#/components/schemas/ReissuedLink"
 
   # ---------------------------------------------------- staff: the asset drop
 
@@ -3677,6 +3691,19 @@ components:
       required: true
       schema:
         type: integer
+    PassedOn:
+      name: passedOn
+      in: query
+      required: false
+      description: |
+        The links this person passed on to relatives, and any passed on from
+        those in turn. `stop` turns them off with this one; `keep` leaves
+        them working, for a director who knows who has them. A word rather
+        than a boolean, because a query string carries "false" as text.
+      schema:
+        type: string
+        enum: [stop, keep]
+        default: stop
     PhotoId:
       name: photoId
       in: path
@@ -5512,6 +5539,7 @@ components:
     SentLink:
       allOf:
         - $ref: "#/components/schemas/FamilyContactWithLink"
+        - $ref: "#/components/schemas/AlsoStopped"
         - type: object
           properties:
             sent:
@@ -5521,6 +5549,39 @@ components:
               nullable: true
               description: Why the text did not go, in words a director can act on.
           required: [sent, smsError]
+
+    StoppedLink:
+      type: object
+      description: A relative's link that stopped along with the one it was passed on from.
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+      required: [id, name]
+
+    AlsoStopped:
+      type: object
+      properties:
+        alsoStopped:
+          type: array
+          description: |
+            The links this person passed on, and any passed on from those, that
+            were still working and have now stopped too, oldest first. Empty
+            when there were none, or the director chose to keep them.
+          items:
+            $ref: "#/components/schemas/StoppedLink"
+      required: [alsoStopped]
+
+    RevokedContact:
+      allOf:
+        - $ref: "#/components/schemas/FamilyContact"
+        - $ref: "#/components/schemas/AlsoStopped"
+
+    ReissuedLink:
+      allOf:
+        - $ref: "#/components/schemas/FamilyContactWithLink"
+        - $ref: "#/components/schemas/AlsoStopped"
 
     FamilyContactInput:
       type: object

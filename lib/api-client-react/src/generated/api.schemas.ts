@@ -1202,11 +1202,32 @@ export interface SendLinkInput {
   smsConsent?: boolean;
 }
 
-export type SentLink = FamilyContactWithLink & {
-  sent: boolean;
-  /** Why the text did not go, in words a director can act on. */
-  smsError: string | null;
-};
+/**
+ * A relative's link that stopped along with the one it was passed on from.
+ */
+export interface StoppedLink {
+  id: number;
+  name: string;
+}
+
+export interface AlsoStopped {
+  /** The links this person passed on, and any passed on from those, that
+were still working and have now stopped too, oldest first. Empty
+when there were none, or the director chose to keep them.
+ */
+  alsoStopped: StoppedLink[];
+}
+
+export type SentLink = FamilyContactWithLink &
+  AlsoStopped & {
+    sent: boolean;
+    /** Why the text did not go, in words a director can act on. */
+    smsError: string | null;
+  };
+
+export type RevokedContact = FamilyContact & AlsoStopped;
+
+export type ReissuedLink = FamilyContactWithLink & AlsoStopped;
 
 export type FamilyContactInputRole =
   (typeof FamilyContactInputRole)[keyof typeof FamilyContactInputRole];
@@ -3110,6 +3131,14 @@ portal puts it above everything else.
   aftercare: AftercareEnrollment | null;
 }
 
+export type PassedOnParameter =
+  (typeof PassedOnParameter)[keyof typeof PassedOnParameter];
+
+export const PassedOnParameter = {
+  stop: "stop",
+  keep: "keep",
+} as const;
+
 export type GetAftercareUnsubscribeParams = {
   token: string;
 };
@@ -3170,6 +3199,39 @@ export const GetCasesStatus = {
   active: "active",
   closed: "closed",
 } as const;
+
+export type RevokeContactParams = {
+  /**
+ * The links this person passed on to relatives, and any passed on from
+those in turn. `stop` turns them off with this one; `keep` leaves
+them working, for a director who knows who has them. A word rather
+than a boolean, because a query string carries "false" as text.
+
+ */
+  passedOn?: PassedOnParameter;
+};
+
+export type SendContactLinkParams = {
+  /**
+ * The links this person passed on to relatives, and any passed on from
+those in turn. `stop` turns them off with this one; `keep` leaves
+them working, for a director who knows who has them. A word rather
+than a boolean, because a query string carries "false" as text.
+
+ */
+  passedOn?: PassedOnParameter;
+};
+
+export type ReissueContactLinkParams = {
+  /**
+ * The links this person passed on to relatives, and any passed on from
+those in turn. `stop` turns them off with this one; `keep` leaves
+them working, for a director who knows who has them. A word rather
+than a boolean, because a query string carries "false" as text.
+
+ */
+  passedOn?: PassedOnParameter;
+};
 
 export type GetVendorsParams = {
   kind?: GetVendorsKind;
