@@ -408,6 +408,41 @@ repository secret is set, and also checks the front ends when the
 pager: GitHub delays scheduled runs under load, and a failed run only emails
 whoever last edited the file.
 
+## How it holds up under photographs
+
+Measured on 5 October 2026 with `scripts/src/load-test-uploads.ts`, against
+the production bundle on a 4-core, 16 GB machine, with JPEGs the size and
+pixel count of real phone photographs (it also ran the test suite at the same
+time, so these are on the slow side):
+
+| Case | Result |
+| --- | --- |
+| One family sends 1,000 12-megapixel photos (3.1 MB each), one at a time as the portal does | All 1,000 accepted, no errors, never near the rate limit. 16 minutes: about 0.95 s of server work each, mostly re-encoding to 3000 px. Another family opening their page meanwhile: p50 11 ms, max 66 ms. API memory peaked at 462 MB. The database grew 592 MB, about 0.6 MB a photo. |
+| Ten families at once, 20 photos each | 220 photos a minute in all, CPU-bound. Another family's page: p95 70 ms, max 175 ms. Before the fix below it was p95 506 ms and max 848 ms. Memory peaked at 634 MB. |
+| A misbehaving client: eight 48-megapixel photos (12.6 MB each) at once | All accepted; memory peaked at 1,014 MB. |
+
+What follows from it:
+
+- **Give the API container 2 GB at the least; 4 GB is comfortable.** One
+  well-behaved family needs half a gigabyte; abuse needs a gigabyte.
+- **CPU is the limit, not the database.** Each photograph costs most of a
+  second of one core, because it is resized to 3000 px and re-encoded with
+  mozjpeg (`images.ts`). Turning mozjpeg off makes that 3.7× faster and the
+  files about 55% larger; with every photograph in every backup, smaller won.
+- **Plan storage at about 0.6 MB a photograph,** in the database and again in
+  every backup. A case at the 1,000 cap is about 600 MB.
+- Two things the test found are fixed: converting a photograph used to hold a
+  database connection for the whole second (ten families uploading held the
+  whole pool, and everyone else waited), and photographs arriving together at
+  the 999th could all land past the 1,000 cap.
+
+Run it yourself against a throwaway database, never one in use:
+
+```sh
+API_URL=http://localhost:4310 API_PID=<pid> DATABASE_URL=<that database> \
+  pnpm --filter @workspace/scripts run load-test-uploads -- --families 1 --photos 1000
+```
+
 ## What this is not
 
 One Postgres, one API, no replication, no object storage, and backups that

@@ -3,6 +3,7 @@ import type { Response } from "express";
 import { and, count, eq } from "drizzle-orm";
 import {
   db,
+  casesTable,
   uploadsTable,
   casePhotosTable,
   familyContactsTable,
@@ -56,18 +57,24 @@ export type StoredUpload = Omit<Upload, "data">;
  */
 type Db = typeof db | Parameters<Parameters<typeof db.transaction>[0]>[0];
 
-export async function storeUpload(options: {
-  funeralHomeId: number;
-  caseId: number | null;
-  uploadedByUserId?: number | null;
-  uploadedByContactId?: number | null;
-  file: Express.Multer.File;
-  imagesOnly?: boolean;
-  /** Defaults to the pool, for the single-write case. */
-  tx?: Db;
-}): Promise<StoredUpload> {
-  const { file } = options;
+/** An upload checked and normalised, and not yet written anywhere. */
+export type PreparedUpload = { filename: string; mimeType: string; data: Buffer };
 
+/**
+ * Everything about storing an upload that does not need the database:
+ * checking what it is, and converting it.
+ *
+ * Kept apart because the conversion is the slow part — most of a second of
+ * CPU for an ordinary 12-megapixel phone photograph, which is resized and
+ * re-encoded — and it used to run inside the caller's transaction, holding a
+ * pooled connection the whole time. Ten families uploading at once held all
+ * ten, and every other family opening their page waited behind them for one
+ * (the load test measured a bystander's page going from 14ms to 850ms).
+ */
+export async function prepareUpload(
+  file: Express.Multer.File,
+  imagesOnly = true,
+): Promise<PreparedUpload> {
   if (!file?.buffer?.length) {
     throw badRequest("That file arrived empty. Please try again.");
   }
@@ -80,7 +87,7 @@ export async function storeUpload(options: {
     );
   }
 
-  if (options.imagesOnly !== false && detected.kind !== "image") {
+  if (imagesOnly && detected.kind !== "image") {
     throw badRequest("Please upload a photograph.");
   }
 
@@ -95,27 +102,59 @@ export async function storeUpload(options: {
       ? await normaliseImage(file.buffer, detected.mimeType)
       : { data: file.buffer, mimeType: detected.mimeType, converted: false };
 
-  const [row] = await (options.tx ?? db)
+  return {
+    // The browser's filename is used for display only, and is stripped of
+    // any path so a crafted name cannot look like a directory later.
+    filename: renameForType(
+      (file.originalname ?? "photo").split(/[\\/]/).pop()!.slice(0, 200),
+      normalised.mimeType,
+    ),
+    mimeType: normalised.mimeType,
+    data: normalised.data,
+  };
+}
+
+/** Write a prepared upload, encrypted, in whatever transaction is open. */
+export async function insertUpload(
+  tx: Db,
+  prepared: PreparedUpload,
+  owner: {
+    funeralHomeId: number;
+    caseId: number | null;
+    uploadedByUserId?: number | null;
+    uploadedByContactId?: number | null;
+  },
+): Promise<StoredUpload> {
+  const [row] = await tx
     .insert(uploadsTable)
     .values({
-      funeralHomeId: options.funeralHomeId,
-      caseId: options.caseId,
-      uploadedByUserId: options.uploadedByUserId ?? null,
-      uploadedByContactId: options.uploadedByContactId ?? null,
-      // The browser's filename is used for display only, and is stripped of
-      // any path so a crafted name cannot look like a directory later.
-      filename: renameForType(
-        (file.originalname ?? "photo").split(/[\\/]/).pop()!.slice(0, 200),
-        normalised.mimeType,
-      ),
-      mimeType: normalised.mimeType,
-      sizeBytes: normalised.data.length,
-      data: encryptBuffer(normalised.data),
+      funeralHomeId: owner.funeralHomeId,
+      caseId: owner.caseId,
+      uploadedByUserId: owner.uploadedByUserId ?? null,
+      uploadedByContactId: owner.uploadedByContactId ?? null,
+      filename: prepared.filename,
+      mimeType: prepared.mimeType,
+      sizeBytes: prepared.data.length,
+      data: encryptBuffer(prepared.data),
     })
     .returning();
 
   const { data, ...summary } = row!;
   return summary;
+}
+
+export async function storeUpload(options: {
+  funeralHomeId: number;
+  caseId: number | null;
+  uploadedByUserId?: number | null;
+  uploadedByContactId?: number | null;
+  file: Express.Multer.File;
+  imagesOnly?: boolean;
+  /** Defaults to the pool, for the single-write case. */
+  tx?: Db;
+}): Promise<StoredUpload> {
+  const prepared = await prepareUpload(options.file, options.imagesOnly !== false);
+  return insertUpload(options.tx ?? db, prepared, options);
 }
 
 /**
@@ -385,39 +424,60 @@ export async function addPhotoToCase(options: {
   // Checked here rather than trusted from the client: the limit exists so a
   // broken client cannot fill the database, and whoever meets it should be
   // told plainly rather than silently having the next one dropped.
-  const [existing] = await db
-    .select({ value: count() })
-    .from(casePhotosTable)
-    .where(
-      and(
-        eq(casePhotosTable.caseId, caseId),
-        eq(casePhotosTable.funeralHomeId, funeralHomeId),
-      ),
-    );
-
-  if (Number(existing?.value ?? 0) >= MAX_PHOTOS_PER_CASE) {
-    throw badRequest(
+  const full = () =>
+    badRequest(
       "contactId" in options.by
         ? `That's the ${MAX_PHOTOS_PER_CASE}-photograph limit. Remove one to add another, or ask the funeral home.`
         : `This case already holds ${MAX_PHOTOS_PER_CASE} photographs, which is the limit. Delete one to add another.`,
     );
-  }
+  const countPhotos = async (tx: Db) => {
+    const [existing] = await tx
+      .select({ value: count() })
+      .from(casePhotosTable)
+      .where(
+        and(
+          eq(casePhotosTable.caseId, caseId),
+          eq(casePhotosTable.funeralHomeId, funeralHomeId),
+        ),
+      );
+    return Number(existing?.value ?? 0);
+  };
+
+  // Asked once before the expensive part, so a case that is already full
+  // does not spend a second converting a photograph it will refuse.
+  if ((await countPhotos(db)) >= MAX_PHOTOS_PER_CASE) throw full();
 
   const caption =
     typeof options.caption === "string" ? options.caption.trim() : "";
   const contactId = "contactId" in options.by ? options.by.contactId : null;
   const userId = "userId" in options.by ? options.by.userId : null;
 
+  // The conversion, with no connection held (see `prepareUpload`).
+  const prepared = await prepareUpload(file, true);
+
   return db.transaction(async (tx) => {
-    const stored = await storeUpload({
+    /*
+     * Then asked again, properly. The case row is locked first, so two
+     * uploads arriving at the 999th photograph take turns and the second is
+     * refused, instead of both counting 999 and both landing. It also keeps
+     * `position` unique. NO KEY UPDATE rather than UPDATE, so it does not
+     * hold up anything that only points at the case, such as a message.
+     */
+    await tx
+      .select({ id: casesTable.id })
+      .from(casesTable)
+      .where(eq(casesTable.id, caseId))
+      .for("no key update");
+    const existing = await countPhotos(tx);
+    if (existing >= MAX_PHOTOS_PER_CASE) throw full();
+
+    // Same transaction as the photo row below: if that insert fails, the
+    // bytes must go with it rather than linger unreferenced.
+    const stored = await insertUpload(tx, prepared, {
       funeralHomeId,
       caseId,
       uploadedByContactId: contactId,
       uploadedByUserId: userId,
-      file,
-      // Same transaction as the photo row below: if that insert fails, the
-      // bytes must go with it rather than linger unreferenced.
-      tx,
     });
 
     const [photo] = await tx
@@ -429,7 +489,7 @@ export async function addPhotoToCase(options: {
         uploadedByContactId: contactId,
         uploadedByUserId: userId,
         caption: caption || null,
-        position: Number(existing?.value ?? 0),
+        position: existing,
       })
       .returning();
 
