@@ -19,11 +19,13 @@ dist
 *.pem
 *.key
 
-# Database dumps. These hold everything every family has written.
+# Database dumps. These hold everything every family has written. (And the
+# row counts beside each, which do not, but go where their backup goes.)
 backups/
 *.sql
 *.sql.partial
 *.sql.enc
+*.sql.enc.counts.json
 
 .DS_Store
 Thumbs.db

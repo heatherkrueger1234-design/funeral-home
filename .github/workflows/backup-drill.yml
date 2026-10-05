@@ -19,7 +19,9 @@ on:
       - "scripts/src/backup-crypto.ts"
       - "scripts/src/restore-database.ts"
       - "scripts/src/verify-backup.ts"
+      - "scripts/src/lib/backup-counts.ts"
       - "scripts/src/lib/dump-head.ts"
+      - "scripts/src/lib/encrypted-columns.ts"
       - "lib/db/**"
 
 # Checkout and a local Postgres service, nothing that writes back to GitHub.
@@ -84,11 +86,20 @@ jobs:
           psql "$DATABASE_URL" -c 'create database drill_verify' \
             || psql "${DATABASE_URL%/drill}/postgres" -c 'create database drill_verify'
 
+      # One home, case, photograph and encrypted social security number: the
+      # restore has to bring back rows, and verify-backup has to decrypt a
+      # photograph and a number from what came back.
       - name: Seed something worth losing
         run: pnpm --filter @workspace/scripts run seed-demo -- --quiet
 
       - name: Back up, and copy it off the host
         run: pnpm --filter @workspace/scripts run backup-database
+
+      # A database in use does not stop for a backup. Rows written after the
+      # dump must not read as a broken backup: verify-backup holds the restore
+      # to the counts taken with the dump, not to the database as it is now.
+      - name: Keep writing after the dump, as a live database does
+        run: pnpm --filter @workspace/scripts run seed-demo -- --quiet
 
       # The day this matters, the host and everything on its disk are gone.
       # So the copy on this disk is thrown away and the drill restores what
@@ -104,3 +115,15 @@ jobs:
         env:
           BACKUP_DIR: ${{ github.workspace }}/from-offsite
         run: pnpm --filter @workspace/scripts run verify-backup
+
+      # A check that cannot fail proves nothing.
+      - name: Refuse the same copy under a key that is not its own
+        env:
+          BACKUP_DIR: ${{ github.workspace }}/from-offsite
+          # Any other 32 bytes; these are thirty-two 0x08s. Not a secret.
+          ENCRYPTION_KEY: CAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAg=
+        run: |
+          if pnpm --filter @workspace/scripts run verify-backup; then
+            echo "::error::verify-backup passed a backup under the wrong ENCRYPTION_KEY"
+            exit 1
+          fi

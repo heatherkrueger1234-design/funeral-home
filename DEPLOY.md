@@ -10,7 +10,8 @@ matters at 3am:
 | --- | --- |
 | Run, for real | The production esbuild bundle: registration, a case, a family link, a genuine iPhone HEIC uploaded and served back as JPEG, twelve photos zipped into a slideshow pack — all of it through this exact `nginx.conf`, with `nginx -t` passing on the expanded template. |
 | Run, for real | `pnpm deploy --prod --legacy` produces a tree where `sharp`, `heic-decode` and `nodemailer` resolve and `esbuild`, `vitest` and `supertest` do not. |
-| Run, for real | `backup-database` → `DROP DATABASE` → `restore-database`, with an encrypted photo matching byte-for-byte and an encrypted SSN decrypting afterwards (`pnpm --filter @workspace/scripts run verify-backup`). |
+| Run, for real | `backup-database` → `DROP DATABASE` → `restore-database`, with an encrypted photo matching byte-for-byte and an encrypted SSN decrypting afterwards. |
+| Run, for real | `backup-database` → off the host and back with rclone → `verify-backup`, with rows written after the dump: every table matched the counts taken with it, and the photograph and SSN in the restored copy decrypted; the photograph, decrypted, was byte-for-byte the live one. With 1,127 rows written while the backup ran, its counts still matched its dump exactly. A wrong key was refused, and so was a backup whose newest photograph had been stored under a key since replaced, which the old check passed. A backup from before counts were kept was restored and reported, compared with nothing (5 Oct 2026, pg_dump 16, rclone 1.60.1). |
 | Run, for real | `backup-database` with `BACKUP_OFFSITE` set: the encrypted dump copied with rclone and its size checked on the far side, the local copy deleted, the far copy fetched back and restored with every table matching (5 Oct 2026, against a directory standing in for the bucket; the weekly drill does the same). An unreachable destination fails the run. The tools image's `apt` step was built on `node:24-bookworm-slim` and gives `pg_dump` 16.15 and rclone 1.60.1. |
 | Run, for real | `docker build` for all four images, then `docker compose up`: four containers healthy, migrations applied through `tools`, a home registered and a real iPhone HEIC uploaded and served back through nginx, and a backup taken and restored inside the containers. A full `docker compose restart` left the photograph byte-for-byte identical. |
 | Run, for real | Caddy → this `nginx.conf` → the API, with TLS from Caddy's own CA on `*.localhost`: HTTPS reaches the API as HTTPS, plain HTTP redirects, and one visitor exhausting the sign-in limit does not lock out another. The same test against the previous config locked both out. |
@@ -276,19 +277,40 @@ and the settings) and restore as usual:
 
 ```sh
 docker compose run --rm tools sh -c \
-  'rclone copy offsite:continuum-backups /backups/from-offsite --include "holding-today-*.sql.enc" && ls /backups/from-offsite'
+  'rclone copy offsite:continuum-backups /backups/from-offsite --include "holding-today-*" && ls /backups/from-offsite'
 docker compose run --rm tools pnpm --filter @workspace/scripts run \
   restore-database -- --file /backups/from-offsite/<newest>.sql.enc
 ```
+
+Each backup has a `<backup>.counts.json` beside it, which that fetch brings
+back too: the row count of every table when the dump was taken, and nothing
+anybody wrote. It is pruned with its backup and copied off the host with it,
+and it is what the check below compares a restore with.
 
 ### Prove the restore works before you need it
 
 A backup nobody has restored is a belief, not a backup.
 `scripts/src/verify-backup.ts` restores the newest dump into a scratch
-database and checks that an encrypted photo comes back byte-identical and an
-encrypted SSN still decrypts. It refuses to run when `VERIFY_DATABASE_URL`
-equals `DATABASE_URL`, and treats zero rows restored as a failure rather than
-a clean empty database.
+database and checks two things, and only these:
+
+- **Every table has the rows it had when the dump was taken.**
+  `backup-database` counts them in the same snapshot `pg_dump` reads, so the
+  counts are of exactly what the dump holds, however busy the database was;
+  rows written since the dump are not the backup's to answer for. A backup
+  from before the counts were kept is restored and its counts printed,
+  compared with nothing, and the output says so.
+- **The restored copy's encrypted columns open with `ENCRYPTION_KEY`**: the
+  oldest and the newest uploaded file, and the oldest and newest social
+  security number, are decrypted from what was restored. AES-GCM refuses a
+  single changed byte, so a file that decrypts came back whole; one that does
+  not means the bytes are damaged or were written under another key — a key
+  changed since re-encrypts nothing, so every photograph from before the
+  change is in the backup and will not open.
+
+It refuses to run when `VERIFY_DATABASE_URL` reaches the same database as
+`DATABASE_URL`, however the two are spelled, and treats zero rows restored as
+a failure rather than a clean empty database. It does not compare anything
+with the live database, and it does not decrypt every photograph.
 
 ```sh
 docker compose run --rm \
@@ -300,7 +322,9 @@ docker compose run --rm \
 schema or the backup scripts, so the drill fails in CI rather than in an
 emergency. It restores the copy that came back from the far side (a
 directory standing in for the bucket), not the one left on the runner's
-disk, because on the day it matters the disk is gone.
+disk, because on the day it matters the disk is gone. Between the dump and
+the restore it writes to the database again, as a working one would, and
+afterwards it checks that the same copy is refused under the wrong key.
 
 ## A caution about `db push`
 

@@ -12,11 +12,18 @@
  * exists for, so with BACKUP_OFFSITE set each new dump is also copied off
  * this host with rclone and the copy checked (`sendOffsite`). Without it, the
  * run still succeeds and says plainly that nothing left the machine.
+ *
+ * Beside each backup goes `<backup>.counts.json`: every table's row count,
+ * taken in the snapshot pg_dump reads (`dumpWithCounts`). It is what
+ * verify-backup holds a restore to, and it travels with its backup: pruned
+ * with it, copied off the host with it.
  */
 import { spawn } from "node:child_process";
 import { mkdir, readdir, rename, rm, stat } from "node:fs/promises";
 import path from "node:path";
+import pg from "pg";
 import { encryptFile } from "./backup-crypto";
+import { countRows, writeCounts } from "./lib/backup-counts";
 
 const DATABASE_URL = process.env.DATABASE_URL;
 const BACKUP_DIR = process.env.BACKUP_DIR ?? "./backups";
@@ -116,43 +123,46 @@ function stdoutOf(command: string, args: string[]): Promise<string> {
  * a family uploaded (they live in Postgres) and will run to gigabytes: rclone
  * already does multipart uploads, retries and checksums, and speaks to S3,
  * R2, B2, Spaces, a mounted disk or an SFTP box with the same command. The
- * exit code is not taken on trust; the far side is asked for the file and
+ * exit code is not taken on trust; the far side is asked for each file and
  * its size must match.
  *
- * The file is already encrypted, which is what makes it safe to hand to a
+ * The backup is already encrypted, which is what makes it safe to hand to a
  * storage provider. The key is not in it, and must not be stored beside it.
+ * Its counts go with it, so that the copy that comes back on the day it is
+ * needed can be verified against them too.
  */
-async function sendOffsite(file: string): Promise<void> {
-  const name = path.basename(file);
-  const destination = `${OFFSITE}/${name}`;
+async function sendOffsite(files: string[]): Promise<void> {
+  for (const file of files) {
+    const destination = `${OFFSITE}/${path.basename(file)}`;
 
-  await stdoutOf("rclone", [
-    "copyto",
-    "--retries",
-    "5",
-    "--low-level-retries",
-    "20",
-    file,
-    destination,
-  ]);
+    await stdoutOf("rclone", [
+      "copyto",
+      "--retries",
+      "5",
+      "--low-level-retries",
+      "20",
+      file,
+      destination,
+    ]);
 
-  const { size } = await stat(file);
-  let landed: { Size?: number } = {};
-  try {
-    landed = JSON.parse(
-      await stdoutOf("rclone", ["lsjson", "--stat", destination]),
-    ) as { Size?: number };
-  } catch (error) {
-    throw new Error(
-      `rclone reported the copy done, but ${destination} could not be read back: ${error instanceof Error ? error.message : String(error)}`,
-    );
+    const { size } = await stat(file);
+    let landed: { Size?: number } = {};
+    try {
+      landed = JSON.parse(
+        await stdoutOf("rclone", ["lsjson", "--stat", destination]),
+      ) as { Size?: number };
+    } catch (error) {
+      throw new Error(
+        `rclone reported the copy done, but ${destination} could not be read back: ${error instanceof Error ? error.message : String(error)}`,
+      );
+    }
+    if (landed.Size !== size) {
+      throw new Error(
+        `${destination} is ${landed.Size ?? "missing"} bytes on the far side and ${size} here.`,
+      );
+    }
+    console.log(`copied off this host to ${destination}`);
   }
-  if (landed.Size !== size) {
-    throw new Error(
-      `${destination} is ${landed.Size ?? "missing"} bytes on the far side and ${size} here.`,
-    );
-  }
-  console.log(`copied off this host to ${destination}`);
 
   if (OFFSITE_RETAIN_DAYS !== null) {
     // Only names this script writes, as with the local prune.
@@ -162,6 +172,8 @@ async function sendOffsite(file: string): Promise<void> {
       `${OFFSITE_RETAIN_DAYS}d`,
       "--include",
       "holding-today-*.sql.enc",
+      "--include",
+      "holding-today-*.sql.enc.counts.json",
       OFFSITE,
     ]);
   }
@@ -229,7 +241,7 @@ async function assertVersionsMatch(): Promise<void> {
   }
 }
 
-function runPgDump(target: string): Promise<void> {
+function runPgDump(target: string, snapshot: string): Promise<void> {
   return new Promise((resolve, reject) => {
     // --clean --if-exists so the dump can be replayed over a database that
     // still has the old schema in it, which is the situation you are in when
@@ -241,6 +253,7 @@ function runPgDump(target: string): Promise<void> {
         "--if-exists",
         "--no-owner",
         "--no-privileges",
+        `--snapshot=${snapshot}`,
         "--file",
         target,
         DATABASE_URL!,
@@ -262,6 +275,44 @@ function runPgDump(target: string): Promise<void> {
   });
 }
 
+type Counted = { takenAt: string; rows: Record<string, number> };
+
+/**
+ * The dump, and every table's row count as the dump sees it.
+ *
+ * The counts are what verify-backup holds a restore to, so they have to be
+ * of exactly what the dump holds -- not of the database a moment before or
+ * after, which is being written to all day. So a read-only transaction here
+ * exports its snapshot, counts each table in it, and hands it to pg_dump
+ * with --snapshot: both read the database as it stood at one instant. The
+ * transaction stays open until pg_dump is done, as pg_dump keeps its own open
+ * for the whole dump anyway, and the locks counting took keep any table from
+ * being dropped or altered before pg_dump has it too.
+ */
+async function dumpWithCounts(target: string): Promise<Counted> {
+  const client = new pg.Client({ connectionString: DATABASE_URL });
+  try {
+    await client.connect();
+  } catch (error) {
+    throw new Error(
+      `could not connect to the database: ${error instanceof Error ? error.message : String(error)}`,
+    );
+  }
+
+  try {
+    await client.query("begin transaction isolation level repeatable read read only");
+    const { rows } = await client.query<{ snapshot: string; taken_at: Date }>(
+      "select pg_export_snapshot() as snapshot, now() as taken_at",
+    );
+    const counts = await countRows(client);
+    await runPgDump(target, rows[0]!.snapshot);
+    return { takenAt: rows[0]!.taken_at.toISOString(), rows: counts };
+  } finally {
+    // Ending the session ends its transaction, which wrote nothing.
+    await client.end().catch(() => {});
+  }
+}
+
 /**
  * Delete dumps older than the retention window. Deliberately only touches
  * files this script's own naming produces, so pointing BACKUP_DIR at a
@@ -272,10 +323,11 @@ async function prune(dir: string): Promise<void> {
   const entries = await readdir(dir);
 
   for (const name of entries) {
-    // .sql.enc is what this version writes; bare .sql is still matched so a
-    // deployment upgrading from before backups were encrypted keeps pruning
-    // whatever it already has on disk.
-    if (!/^holding-today-\d.*\.sql(\.enc)?$/.test(name)) continue;
+    // .sql.enc is what this version writes, with its .counts.json beside it,
+    // written a moment later and so aged out with it. Bare .sql is still
+    // matched so a deployment upgrading from before backups were encrypted
+    // keeps pruning whatever it already has on disk.
+    if (!/^holding-today-\d.*\.sql(\.enc)?(\.counts\.json)?$/.test(name)) continue;
     const full = path.join(dir, name);
     const info = await stat(full);
     if (info.mtimeMs < cutoff) {
@@ -295,8 +347,9 @@ async function main(): Promise<void> {
   const partial = `${plain}.partial`;
 
   console.log(`backing up to ${plain}`);
+  let counted: Counted;
   try {
-    await runPgDump(partial);
+    counted = await dumpWithCounts(partial);
     await rename(partial, plain);
   } finally {
     // Whatever pg_dump wrote before it failed is plaintext, and nothing else
@@ -322,6 +375,19 @@ async function main(): Promise<void> {
     `wrote ${final} (${(encryptedSize / 1024 / 1024).toFixed(1)} MB, encrypted)`,
   );
 
+  const countsFile = await writeCounts(
+    {
+      backup: path.basename(final),
+      bytes: encryptedSize,
+      takenAt: counted.takenAt,
+      rows: counted.rows,
+    },
+    final,
+  );
+  console.log(
+    `wrote ${countsFile} (the row counts of ${Object.keys(counted.rows).length} tables, for verify-backup)`,
+  );
+
   await prune(BACKUP_DIR);
 
   if (!OFFSITE) {
@@ -333,7 +399,7 @@ async function main(): Promise<void> {
   }
 
   try {
-    await sendOffsite(final);
+    await sendOffsite([final, countsFile]);
   } catch (error) {
     fail(
       `the backup is on this host at ${final}, but the copy off it failed. ` +
