@@ -527,8 +527,10 @@ export async function sendStaffInviteEmail(options: {
   invitedBy: string;
   inviteLink: string;
   expiresInDays: number;
+  /** Throw when it is not sent, so the owner can be told to pass the link on. */
+  rethrow?: boolean;
 }): Promise<void> {
-  const { to, homeName, invitedBy, inviteLink, expiresInDays } = options;
+  const { to, homeName, invitedBy, inviteLink, expiresInDays, rethrow } = options;
 
   const text = [
     `${invitedBy} has added you to ${homeName} on Continuum Aftercare.`,
@@ -569,6 +571,7 @@ export async function sendStaffInviteEmail(options: {
     text,
     html,
     logText: text.replace(inviteLink, redactToken(inviteLink)),
+    rethrow,
   });
 }
 

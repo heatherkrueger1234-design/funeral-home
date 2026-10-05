@@ -62,7 +62,12 @@ export function StaffSection({
   const [displayName, setDisplayName] = useState("");
   const [title, setTitle] = useState("");
   const [role, setRole] = useState<"director" | "staff" | "owner">("director");
-  const [lastInvite, setLastInvite] = useState<{ email: string; link: string } | null>(null);
+  const [lastInvite, setLastInvite] = useState<{
+    email: string;
+    link: string;
+    /** Why it was not emailed, when it was not. */
+    notEmailedBecause: string | null;
+  } | null>(null);
 
   const refresh = () => {
     void queryClient.invalidateQueries({ queryKey: getGetStaffQueryKey() });
@@ -73,7 +78,11 @@ export function StaffSection({
   const invite = useInviteStaff({
     mutation: {
       onSuccess: (created) => {
-        setLastInvite({ email: created.email, link: created.inviteLink });
+        setLastInvite({
+          email: created.email,
+          link: created.inviteLink,
+          notEmailedBecause: created.emailed ? null : created.notEmailedBecause,
+        });
         setEmail("");
         setDisplayName("");
         setTitle("");
@@ -88,7 +97,11 @@ export function StaffSection({
   const resend = useResendStaffInvite({
     mutation: {
       onSuccess: (sent) => {
-        setLastInvite({ email: sent.email, link: sent.inviteLink });
+        setLastInvite({
+          email: sent.email,
+          link: sent.inviteLink,
+          notEmailedBecause: sent.emailed ? null : sent.notEmailedBecause,
+        });
         refresh();
       },
     },
@@ -206,11 +219,19 @@ export function StaffSection({
           role="status"
           className="space-y-2 rounded-lg border border-dashed border-border p-3"
         >
-          <p className="text-sm">
-            We've emailed <span className="font-medium">{lastInvite.email}</span>{" "}
-            a link to choose a password. If it doesn't arrive, send them this
-            one — it works once, for a week, and won't be shown again.
-          </p>
+          {lastInvite.notEmailedBecause === null ? (
+            <p className="text-sm">
+              We've emailed <span className="font-medium">{lastInvite.email}</span>{" "}
+              a link to choose a password. If it doesn't arrive, send them this
+              one — it works once, for a week, and won't be shown again.
+            </p>
+          ) : (
+            <p className="text-sm">
+              We haven't emailed <span className="font-medium">{lastInvite.email}</span>:{" "}
+              {lastInvite.notEmailedBecause} Send them this link yourself — it
+              works once, for a week, and won't be shown again.
+            </p>
+          )}
           <div className="flex gap-2">
             <Input
               readOnly

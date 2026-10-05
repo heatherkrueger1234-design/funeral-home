@@ -1,5 +1,5 @@
 import { Router, type IRouter } from "express";
-import { and, asc, eq, isNull } from "drizzle-orm";
+import { and, asc, count, eq, gt, isNull } from "drizzle-orm";
 import {
   db,
   funeralHomesTable,
@@ -30,12 +30,15 @@ import { currentUser, tenant } from "../middleware/require-auth";
 import {
   createPasswordReset,
   destroyAllSessions,
+  hasVerifiedStaff,
   INVITE_TTL_DAYS,
   INVITE_TTL_MS,
   normaliseEmail,
   revokePasswordResets,
 } from "../lib/auth";
-import { sendStaffInviteEmail } from "@workspace/mailer";
+import { isMailConfigured, sendStaffInviteEmail } from "@workspace/mailer";
+import { advisoryLock, LOCKS } from "../lib/advisory-lock";
+import { claimEmail } from "../lib/email-ceiling";
 import { templateFor, toTemplateJson } from "../lib/timeline";
 import { markOnboarding } from "../lib/onboarding";
 import { accessLogForHome } from "../lib/access-log";
@@ -257,37 +260,107 @@ router.post("/home/staff", async (req, res) => {
     );
   }
 
-  const [created] = await db
-    .insert(usersTable)
-    .values({
-      funeralHomeId: home.id,
-      email,
-      passwordHash: null,
-      displayName: values.displayName?.trim() || null,
-      title: values.title?.trim() || null,
-      role: values.role ?? "director",
-    })
-    .returning();
+  /*
+   * A day's worth of people at a time, counted and added under the home's
+   * lock so that a burst cannot each see room for one more. Twenty is more
+   * than any funeral home takes on in a day, and is all that a list of
+   * strangers' addresses, typed in to have us email each of them, ever was.
+   */
+  const created = await db.transaction(async (tx) => {
+    await advisoryLock(tx, LOCKS.staffAdded, home.id);
+    const [today] = await tx
+      .select({ total: count() })
+      .from(usersTable)
+      .where(
+        and(
+          eq(usersTable.funeralHomeId, home.id),
+          gt(usersTable.createdAt, new Date(Date.now() - DAY_MS)),
+        ),
+      );
+    if ((today?.total ?? 0) >= STAFF_ADDED_PER_DAY) {
+      throw new HttpError(
+        429,
+        "That is more people than a home adds in a day. Add the rest tomorrow, " +
+          "or get in touch if they need to be in today.",
+      );
+    }
 
-  const token = await createPasswordReset(created!.id, INVITE_TTL_MS);
+    const [row] = await tx
+      .insert(usersTable)
+      .values({
+        funeralHomeId: home.id,
+        email,
+        passwordHash: null,
+        displayName: values.displayName?.trim() || null,
+        title: values.title?.trim() || null,
+        role: values.role ?? "director",
+      })
+      .returning();
+    return row!;
+  });
+
+  const token = await createPasswordReset(created.id, INVITE_TTL_MS);
   const base = process.env["CONSOLE_URL"]?.replace(/\/+$/, "") ?? "";
   const inviteLink = `${base}/reset-password?invited=1&token=${encodeURIComponent(token)}`;
 
-  await sendStaffInviteEmail({
-    to: email,
-    homeName: home.name,
-    invitedBy: user.displayName ?? user.email,
-    inviteLink,
-    expiresInDays: INVITE_TTL_DAYS,
-  });
+  const emailed = await emailInvitation(home, user, created, inviteLink);
 
   // Returned once, so the owner can hand it over directly when the email is
   // slow or lands in a spam folder -- which, for a funeral home on a shared
-  // mail host, is most of the time.
+  // mail host, is most of the time -- or was not sent at all.
   await markOnboarding(home.id, "staff");
 
-  res.status(201).json({ ...toPublicUser(created!), inviteLink });
+  res.status(201).json({ ...toPublicUser(created), inviteLink, ...emailed });
 });
+
+const DAY_MS = 24 * 60 * 60 * 1000;
+const STAFF_ADDED_PER_DAY = 20;
+
+/**
+ * Email an invitation if it may go, and say why not when it may not.
+ *
+ * Three reasons it may not, each told to the owner in a sentence, because
+ * the link is in their hands either way and they can pass it on: no mail
+ * server here; nobody at the home has confirmed their own address yet, so
+ * the home's name does not go out under ours to an address it typed
+ * (`hasVerifiedStaff`); or the address has had its share of invitations for
+ * now (`claimEmail`), which stops one owner filling one stranger's inbox.
+ */
+async function emailInvitation(
+  home: { id: number; name: string },
+  actor: { displayName: string | null; email: string },
+  member: { id: number; email: string },
+  inviteLink: string,
+): Promise<{ emailed: boolean; notEmailedBecause: string | null }> {
+  const notEmailed = (notEmailedBecause: string) => ({ emailed: false, notEmailedBecause });
+
+  if (!isMailConfigured()) {
+    return notEmailed("Email isn't set up on this deployment yet.");
+  }
+  if (!(await hasVerifiedStaff(home.id))) {
+    return notEmailed(
+      "Invitations are emailed once somebody here has confirmed their own email address, from the link we sent when you joined.",
+    );
+  }
+  if (!(await claimEmail(member, "staff_invitation"))) {
+    return notEmailed("That address has been sent several invitations already today.");
+  }
+
+  try {
+    await sendStaffInviteEmail({
+      to: member.email,
+      homeName: home.name,
+      invitedBy: actor.displayName ?? actor.email,
+      inviteLink,
+      expiresInDays: INVITE_TTL_DAYS,
+      rethrow: true,
+    });
+  } catch {
+    return notEmailed("Our mail server didn't take it just now.");
+  }
+
+  return { emailed: true, notEmailedBecause: null };
+}
 
 /**
  * Send the invitation again.
@@ -333,15 +406,9 @@ router.post("/home/staff/:userId/invitation", async (req, res) => {
   const base = process.env["CONSOLE_URL"]?.replace(/\/+$/, "") ?? "";
   const inviteLink = `${base}/reset-password?invited=1&token=${encodeURIComponent(token)}`;
 
-  await sendStaffInviteEmail({
-    to: member.email,
-    homeName: home.name,
-    invitedBy: actor.displayName ?? actor.email,
-    inviteLink,
-    expiresInDays: INVITE_TTL_DAYS,
-  });
+  const emailed = await emailInvitation(home, actor, member, inviteLink);
 
-  res.json({ ...toPublicUser(member), inviteLink });
+  res.json({ ...toPublicUser(member), inviteLink, ...emailed });
 });
 
 router.put("/home/staff/:userId", async (req, res) => {

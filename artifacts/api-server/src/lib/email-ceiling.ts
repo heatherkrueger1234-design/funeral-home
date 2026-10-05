@@ -29,6 +29,9 @@ const CEILINGS: Record<SentEmailKind, { hour: number; day: number }> = {
   // ask for another, but that account may be somebody else's typing of a
   // stranger's address.
   email_verification: { hour: 5, day: 10 },
+  // Sent again by an owner whose colleague has not opened the first; the
+  // link is in the owner's hands too, to pass on directly.
+  staff_invitation: { hour: 3, day: 6 },
 };
 
 /**

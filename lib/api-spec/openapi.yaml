@@ -4087,7 +4087,17 @@ components:
           properties:
             inviteLink:
               type: string
-          required: [inviteLink]
+            emailed:
+              type: boolean
+              description: Whether the link was emailed to them as well.
+            notEmailedBecause:
+              type: string
+              nullable: true
+              description: >-
+                Why it was not, in a sentence for the owner: no mail server, no
+                confirmed address at the home yet, or that address has been
+                sent several invitations already today.
+          required: [inviteLink, emailed, notEmailedBecause]
 
     StaffUpdate:
       type: object

@@ -16,6 +16,7 @@ import { AFTERCARE_UNSUBSCRIBE_PURPOSE } from "@workspace/mailer/aftercare";
 import { readSignedId } from "@workspace/db/crypto";
 import { badRequest, notFound, parseBody, HttpError } from "../lib/http";
 import { advisoryLock, LOCKS } from "../lib/advisory-lock";
+import { hasVerifiedStaff } from "../lib/auth";
 import { publicHome } from "../lib/storefront";
 import { markOnboarding } from "../lib/onboarding";
 import { logger } from "../lib/logger";
@@ -42,45 +43,6 @@ const router: IRouter = Router();
 /** Slugs are lower-case in the database, and people type URLs in any case. */
 function normaliseSlug(raw: string): string {
   return raw.trim().toLowerCase();
-}
-
-/**
- * Whether anybody at this home has confirmed the address they registered with.
- *
- * The one thing email verification gates, and the reason it exists.
- *
- * Registration is open — it has to be, a funeral home buying software should
- * not have to ask us for an account first — and nothing checked that the
- * address belonged to the person typing it. So anyone could register under a
- * real home's name and have a public page, at a guessable URL, collecting the
- * details of people's deaths within a minute. That page is the one thing here
- * a stranger reaches, and it is the only thing verification holds back.
- *
- * What it deliberately does not gate: signing in, opening a case, texting a
- * family, uploading a photograph, printing an order of service, exporting, or
- * anything else inside the console. A director locked out of Thursday's
- * funeral because a confirmation email went to spam would be a far worse
- * product than the one this protects against, and the same argument is made at
- * greater length about cancelled subscriptions in `routes/cases.ts`.
- *
- * Any active staff member's confirmed address counts, not only the owner's: a
- * home where the manager confirmed and the proprietor never opened their inbox
- * is a home we have plainly heard from.
- */
-async function hasVerifiedStaff(funeralHomeId: number): Promise<boolean> {
-  const [row] = await db
-    .select({ id: usersTable.id })
-    .from(usersTable)
-    .where(
-      and(
-        eq(usersTable.funeralHomeId, funeralHomeId),
-        eq(usersTable.emailVerified, true),
-        isNull(usersTable.deactivatedAt),
-      ),
-    )
-    .limit(1);
-
-  return row !== undefined;
 }
 
 /**

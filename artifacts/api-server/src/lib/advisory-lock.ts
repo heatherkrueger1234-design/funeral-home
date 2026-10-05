@@ -22,6 +22,8 @@ export const LOCKS = {
    * group's seats are set: `lib/billing.ts`. Keyed by the customer's id.
    */
   stripeCustomer: 3,
+  /** One home's daily count of people added: `routes/home.ts`. */
+  staffAdded: 4,
 } as const;
 
 /**

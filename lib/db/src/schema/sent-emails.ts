@@ -3,7 +3,7 @@ import { pgTable, text, serial, timestamp, index } from "drizzle-orm/pg-core";
 /**
  * The emails anybody can make us send to an address with an account: that
  * somebody tried to register it again, a password reset, a confirmation
- * link. One row for each that went, so that one inbox is sent only so many
+ * link, an invitation to a home. One row for each that went, so that one inbox is sent only so many
  * of them — see `lib/email-ceiling.ts` in the API.
  *
  * Before this the only limit was per caller, twenty requests in fifteen
@@ -34,7 +34,12 @@ export const sentEmailsTable = pgTable(
   ],
 );
 
-export const SENT_EMAIL_KINDS = ["account_exists", "password_reset", "email_verification"] as const;
+export const SENT_EMAIL_KINDS = [
+  "account_exists",
+  "password_reset",
+  "email_verification",
+  "staff_invitation",
+] as const;
 export type SentEmailKind = (typeof SENT_EMAIL_KINDS)[number];
 
 export type SentEmail = typeof sentEmailsTable.$inferSelect;

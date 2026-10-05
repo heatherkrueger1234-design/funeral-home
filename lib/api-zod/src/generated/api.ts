@@ -958,6 +958,15 @@ export const ResendStaffInviteResponse = zod
   .and(
     zod.object({
       inviteLink: zod.string(),
+      emailed: zod
+        .boolean()
+        .describe("Whether the link was emailed to them as well."),
+      notEmailedBecause: zod
+        .string()
+        .nullable()
+        .describe(
+          "Why it was not, in a sentence for the owner: no mail server, no confirmed address at the home yet, or that address has been sent several invitations already today.",
+        ),
     }),
   )
   .describe(

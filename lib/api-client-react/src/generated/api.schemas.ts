@@ -276,6 +276,10 @@ ordinary single-use password-reset link and is never retrievable again.
  */
 export type StaffMemberWithInvite = StaffMember & {
   inviteLink: string;
+  /** Whether the link was emailed to them as well. */
+  emailed: boolean;
+  /** Why it was not, in a sentence for the owner: no mail server, no confirmed address at the home yet, or that address has been sent several invitations already today. */
+  notEmailedBecause: string | null;
 };
 
 export type StaffUpdateRole =
