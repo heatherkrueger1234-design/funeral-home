@@ -15,6 +15,8 @@ type Tx = Parameters<Parameters<typeof db.transaction>[0]>[0];
 export const LOCKS = {
   /** One address's account emails: `lib/email-ceiling.ts`. */
   emailCeiling: 1,
+  /** One home's hourly ceilings on its public request form: `routes/public.ts`. */
+  frontDoor: 2,
 } as const;
 
 /**
