@@ -1,6 +1,7 @@
 import { and, eq, isNotNull, isNull, sql } from "drizzle-orm";
 import {
   db,
+  calendarDayIn,
   funeralHomesTable,
   usersTable,
   TRIAL_REMINDERS,
@@ -34,10 +35,24 @@ export type TrialReminderRunResult = {
   mailConfigured: boolean;
 };
 
-/** Days between now and the end of the trial, rounded up, floored at zero. */
-function daysUntil(endsAt: Date, now: Date): number {
-  const ms = endsAt.getTime() - now.getTime();
-  return ms <= 0 ? 0 : Math.ceil(ms / 86400000);
+/**
+ * Whole days to the end of the trial on the home's own calendar: 1 is
+ * tomorrow, 0 is today or over.
+ *
+ * Counted by calendar, not by hours. A trial ends at the minute the home
+ * registered, thirty days on, and this runs once a day; rounding the hours
+ * left up to days told a home that registered in the afternoon "your trial
+ * ends tomorrow" on the morning of the day it ended -- and it was refused a
+ * case that afternoon.
+ */
+function daysUntil(endsAt: Date, now: Date, timeZone: string): number {
+  if (endsAt <= now) return 0;
+  const end = calendarDayIn(endsAt, timeZone);
+  const today = calendarDayIn(now, timeZone);
+  return Math.round(
+    (Date.UTC(end.year, end.month, end.day) - Date.UTC(today.year, today.month, today.day)) /
+      86400000,
+  );
 }
 
 /**
@@ -52,10 +67,13 @@ function daysUntil(endsAt: Date, now: Date): number {
 function reminderDue(
   home: { trialRemindersSent: string },
   daysLeft: number,
+  ended: boolean,
 ): TrialReminderKey | null {
   const reached = TRIAL_REMINDERS.filter(
     (reminder) =>
-      daysLeft <= reminder.daysBefore && !trialReminderSent(home, reminder.key),
+      // "Has ended" waits until it has, not merely for its last day.
+      (reminder.daysBefore === 0 ? ended : daysLeft <= reminder.daysBefore) &&
+      !trialReminderSent(home, reminder.key),
   );
 
   // TRIAL_REMINDERS runs 7 → 1 → 0, so the last one reached is the most
@@ -147,8 +165,9 @@ export async function runTrialReminders(
   const base = process.env["CONSOLE_URL"]?.replace(/\/+$/, "") ?? "";
 
   for (const { home, ownerEmail } of candidates) {
-    const daysLeft = daysUntil(home.trialEndsAt!, now);
-    const key = reminderDue(home, daysLeft);
+    const ended = home.trialEndsAt! <= now;
+    const daysLeft = daysUntil(home.trialEndsAt!, now, home.timezone);
+    const key = reminderDue(home, daysLeft, ended);
 
     if (!key) continue;
 
@@ -166,6 +185,7 @@ export async function runTrialReminders(
       to: ownerEmail,
       homeName: home.name,
       daysLeft,
+      ended,
       billingUrl: `${base}/settings?billing=1`,
     });
 

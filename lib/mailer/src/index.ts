@@ -944,19 +944,23 @@ export async function sendEmailVerificationEmail(options: {
 export async function sendTrialReminderEmail(options: {
   to: string;
   homeName: string;
-  /** Days remaining. Zero means the trial has ended. */
+  /**
+   * Whole days left on the home's own calendar: 1 is tomorrow, 0 is today.
+   * Counted that way by the caller, not from the hours left, which put
+   * "ends tomorrow" in the inbox on the morning of the day it ended.
+   */
   daysLeft: number;
+  /** Over, rather than merely ending today. */
+  ended: boolean;
   billingUrl: string;
 }): Promise<void> {
-  const { to, homeName, daysLeft, billingUrl } = options;
+  const { to, homeName, daysLeft, ended, billingUrl } = options;
 
-  const ended = daysLeft <= 0;
+  const when = daysLeft <= 0 ? "today" : daysLeft === 1 ? "tomorrow" : `in ${daysLeft} days`;
 
   const opening = ended
     ? `The trial for ${homeName} has come to an end.`
-    : daysLeft === 1
-      ? `The trial for ${homeName} ends tomorrow.`
-      : `The trial for ${homeName} ends in ${daysLeft} days.`;
+    : `The trial for ${homeName} ends ${when}.`;
 
   const consequence = ended
     ? [
@@ -1008,9 +1012,7 @@ export async function sendTrialReminderEmail(options: {
     to,
     subject: ended
       ? `${homeName}: your trial has ended`
-      : daysLeft === 1
-        ? `${homeName}: your trial ends tomorrow`
-        : `${homeName}: your trial ends in ${daysLeft} days`,
+      : `${homeName}: your trial ends ${when}`,
     text,
     html,
   });
