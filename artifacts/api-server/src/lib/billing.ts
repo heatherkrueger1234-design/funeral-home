@@ -1,4 +1,4 @@
-import { count, eq, sql } from "drizzle-orm";
+import { count, eq } from "drizzle-orm";
 import {
   db,
   funeralHomesTable,
@@ -10,6 +10,7 @@ import {
   type FuneralHome,
   type HomeGroup,
 } from "@workspace/db";
+import { advisoryLockOnText, LOCKS } from "./advisory-lock";
 import { HttpError } from "./http";
 import { logger } from "./logger";
 
@@ -654,13 +655,6 @@ async function applyGroupSubscription(
   return true;
 }
 
-/*
- * The first half of the advisory lock that gives each Stripe customer's
- * webhooks one turn at a time; the second is the customer, hashed. Any
- * constant would do so long as nothing else locks with it.
- */
-const STRIPE_CUSTOMER_LOCK = 0x53545250; // "STRP"
-
 /**
  * Something Stripe could not tell us, for the webhook to answer with a 503
  * so Stripe sends the event again. Anything but a 2xx is retried, with
@@ -712,9 +706,7 @@ export async function applySubscriptionEvent(
   if (!secretKey()) return applySubscription(sent, eventCreatedAt);
 
   return db.transaction(async (tx) => {
-    await tx.execute(
-      sql`select pg_advisory_xact_lock(${STRIPE_CUSTOMER_LOCK}, hashtext(${sent.customer ?? sent.id}))`,
-    );
+    await advisoryLockOnText(tx, LOCKS.stripeCustomer, sent.customer ?? sent.id);
 
     let subscription = await askStripe<StripeSubscription>(
       `/subscriptions/${encodeURIComponent(sent.id)}`,
@@ -777,8 +769,10 @@ export async function syncGroupSeats(groupId: number): Promise<SeatSync | null> 
       .limit(1);
     if (!group || !hasLiveSubscription(group)) return null;
 
-    await tx.execute(
-      sql`select pg_advisory_xact_lock(${STRIPE_CUSTOMER_LOCK}, hashtext(${group.stripeCustomerId ?? group.stripeSubscriptionId}))`,
+    await advisoryLockOnText(
+      tx,
+      LOCKS.stripeCustomer,
+      group.stripeCustomerId ?? group.stripeSubscriptionId!,
     );
 
     const [row] = await tx

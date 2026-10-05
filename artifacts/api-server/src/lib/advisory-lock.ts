@@ -17,6 +17,11 @@ export const LOCKS = {
   emailCeiling: 1,
   /** One home's hourly ceilings on its public request form: `routes/public.ts`. */
   frontDoor: 2,
+  /**
+   * One Stripe customer's subscription, as the webhook applies it and as a
+   * group's seats are set: `lib/billing.ts`. Keyed by the customer's id.
+   */
+  stripeCustomer: 3,
 } as const;
 
 /**
@@ -26,4 +31,12 @@ export const LOCKS = {
  */
 export async function advisoryLock(tx: Tx, namespace: number, key: number): Promise<void> {
   await tx.execute(sql`select pg_advisory_xact_lock(${namespace}::int, ${key}::int)`);
+}
+
+/**
+ * The same, for a key that is text -- a Stripe customer's id -- hashed by
+ * Postgres. Two keys that share a hash only wait for each other.
+ */
+export async function advisoryLockOnText(tx: Tx, namespace: number, key: string): Promise<void> {
+  await tx.execute(sql`select pg_advisory_xact_lock(${namespace}::int, hashtext(${key}))`);
 }
