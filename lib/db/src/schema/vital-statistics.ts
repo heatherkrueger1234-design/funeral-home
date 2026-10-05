@@ -284,3 +284,64 @@ export const ssnSchema = z
   .refine((digits) => digits.length === 0 || digits.length === 9, {
     message: "A social security number has nine digits.",
   });
+
+/** A name as a person would recognise it: no case, punctuation or spacing. */
+function looseName(value: string): string {
+  return value
+    .toLowerCase()
+    .replace(/[.,'"’()-]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+/**
+ * Whether the informant on a record is the person the record is about.
+ *
+ * That is only ever a mistake. The informant is whoever reports a death and
+ * answers the registrar's questions about it, and nobody reports their own.
+ * Before 4 October a plan's certificate page filled "About you" from the
+ * reader's own details, and saving the page wrote them here: a planner
+ * reading their own plan was named as the informant on their own
+ * certificate, and when the plan became a case the family inherited it.
+ *
+ * Compared loosely against every name the person goes by on the file,
+ * because the same person is "Margaret Hale", "margaret hale" and
+ * "Peggy Hale" in different boxes.
+ */
+export function informantIsTheSubject(
+  informantName: string | null | undefined,
+  subjectNames: ReadonlyArray<string | null | undefined>,
+): boolean {
+  const informant = informantName ? looseName(informantName) : "";
+  if (!informant) return false;
+  return subjectNames.some((name) => name && looseName(name) === informant);
+}
+
+/**
+ * Every name the person a file is about goes by on it: the case's own, the
+ * one they are known by, and the legal name the certificate page holds.
+ */
+export function namesOnFile(
+  row: {
+    decedentFirstName: string;
+    decedentLastName: string;
+    decedentPreferredName: string | null;
+  },
+  vitals?: {
+    legalFirstName: string | null;
+    legalMiddleName: string | null;
+    legalLastName: string | null;
+  } | null,
+): string[] {
+  const names = [
+    `${row.decedentFirstName} ${row.decedentLastName}`,
+    row.decedentPreferredName ? `${row.decedentPreferredName} ${row.decedentLastName}` : null,
+    vitals?.legalFirstName && vitals.legalLastName
+      ? `${vitals.legalFirstName} ${vitals.legalLastName}`
+      : null,
+    vitals?.legalFirstName && vitals.legalMiddleName && vitals.legalLastName
+      ? `${vitals.legalFirstName} ${vitals.legalMiddleName} ${vitals.legalLastName}`
+      : null,
+  ];
+  return names.filter((name): name is string => Boolean(name));
+}

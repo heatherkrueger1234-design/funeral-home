@@ -12,6 +12,9 @@ import {
   canOpenCases,
   cannotOpenCasesReason,
   hasAddOn,
+  informantIsTheSubject,
+  namesOnFile,
+  vitalStatisticsTable,
   type Case,
   type FuneralHome,
 } from "@workspace/db";
@@ -404,7 +407,7 @@ router.post("/cases/:caseId/at-need", async (req, res) => {
    * invite from, or count as the next of kin. Whoever picks up their phone
    * is added as themselves.
    */
-  await db
+  const planners = await db
     .update(familyContactsTable)
     .set({
       revokedAt: new Date(),
@@ -417,7 +420,38 @@ router.post("/cases/:caseId/at-need", async (req, res) => {
         eq(familyContactsTable.caseId, converted!.id),
         eq(familyContactsTable.isSubject, true),
       ),
-    );
+    )
+    .returning({ name: familyContactsTable.name });
+
+  /*
+   * And take the planner off the certificate as its informant, if a plan
+   * saved before 4 October put them there (`informantIsTheSubject`). The
+   * family's page fills "About you" from what is stored before it suggests
+   * the reader's own details, so a name left here would be offered to the
+   * family as theirs, and the person who died named as reporting it.
+   */
+  const [vitals] = await db
+    .select()
+    .from(vitalStatisticsTable)
+    .where(eq(vitalStatisticsTable.caseId, converted!.id))
+    .limit(1);
+  if (
+    vitals &&
+    informantIsTheSubject(vitals.informantName, [
+      ...namesOnFile(converted!, vitals),
+      ...planners.map((planner) => planner.name),
+    ])
+  ) {
+    await db
+      .update(vitalStatisticsTable)
+      .set({
+        informantName: null,
+        informantRelationship: null,
+        informantPhone: null,
+        updatedAt: new Date(),
+      })
+      .where(eq(vitalStatisticsTable.id, vitals.id));
+  }
 
   // The obituary a planner may have started in their own words gets the
   // date of death on its empty line, and keeps everything they wrote.
