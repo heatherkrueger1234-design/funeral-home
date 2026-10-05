@@ -480,7 +480,7 @@ function WhatItIsNot() {
 const security: { title: string; body: ReactNode }[] = [
   {
     title: "Family links are stored as a fingerprint",
-    body: "We keep only the SHA-256 hash of each family's link, never the link itself. A link reaches exactly one case, expires after 90 days, and you can switch it off in one click.",
+    body: "We keep only the SHA-256 hash of each family's link, never the link itself. A link reaches exactly one case, lasts 90 days from when it is issued (longer while a memory book is open and check-ins are going out), and you can switch it off in one click.",
   },
   {
     title: "Photographs and social security numbers are encrypted",

@@ -225,6 +225,7 @@ message.
   X-Frame-Options and `frame-ancestors`, nosniff, HSTS.
 - **Infrastructure, sized for a pilot:** uploads in Postgres (about 0.6 MB a
   photograph, in every backup), one API instance, an in-memory rate limiter.
+  `DEPLOY.md`, "What this is not".
 
 ## Open findings from the launch review
 
@@ -289,7 +290,3 @@ live account to test against, or more than a review should change unasked.
   visit to a deployment of current code, look for `TRUST_PROXY_HOPS` in its
   log. None means 1 is right, unless the API sees Replit's router at a
   public address, which the check cannot tell from a visitor.
-
-**Copy:** the website says a family link "expires after 90 days";
-`RETENTION.md`, correctly, says it is extended while a memory book is open.
-  `DEPLOY.md`, "What this is not".
