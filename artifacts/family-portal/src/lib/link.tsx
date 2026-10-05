@@ -6,6 +6,7 @@ import {
   useState,
   type ReactNode,
 } from "react";
+import type { MutationFilters } from "@tanstack/react-query";
 import { setAuthTokenGetter } from "@workspace/api-client-react";
 import { BASE_PATH } from "@/lib/base-path";
 import { forgetDrafts } from "@/lib/message-draft";
@@ -177,4 +178,30 @@ export function useLink(): LinkState {
 /** A 401 means the link is revoked, expired, or was never real. */
 export function isUnauthorized(error: unknown): boolean {
   return (error as { status?: number } | null)?.status === 401;
+}
+
+/**
+ * A save refused because the link had stopped, as the mutation cache is
+ * asked for it. The cache keeps a failed save for some minutes after the
+ * screen that made it has gone, which is how the expired-link screen, drawn
+ * in that screen's place, knows why it is there.
+ */
+export const refusedForTheLink: MutationFilters = {
+  status: "error",
+  predicate: (mutation) => isUnauthorized(mutation.state.error),
+};
+
+/**
+ * What the expired-link screen says about the family's work.
+ *
+ * Everything saved before the link stopped is on file. But the screen also
+ * arrives the moment a save is refused (`App.tsx`), and the change in that
+ * save -- a paragraph of the obituary, sent as somebody left the box -- is
+ * the one thing that did not arrive. It used to be told "Nothing you have
+ * already added has been lost", and went away believing it had been kept.
+ */
+export function stoppedLinkWords(refusedSave: boolean): string {
+  return refusedSave
+    ? "Please ask the funeral home to send you a new one. The change you were making just now couldn't be saved, so you may need to make it again with the new link. Everything you added before then is safe."
+    : "Please ask the funeral home to send you a new one. Nothing you have already added has been lost.";
 }
