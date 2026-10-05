@@ -71,7 +71,11 @@ Thumbs.db
 /backups/
 *.sql.partial
 *.sql.enc
+*.sql.enc.partial
 *.sql.enc.counts.json
+# The plain SQL verify-backup and restore-database decrypt a backup to.
+*.sql.enc.verify-*.tmp
+*.sql.enc.restore-*.tmp
 
 # Playwright, from artifacts/e2e-tests
 /playwright-report/

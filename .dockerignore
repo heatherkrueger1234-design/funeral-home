@@ -25,7 +25,10 @@ backups/
 *.sql
 *.sql.partial
 *.sql.enc
+*.sql.enc.partial
 *.sql.enc.counts.json
+*.sql.enc.verify-*.tmp
+*.sql.enc.restore-*.tmp
 
 .DS_Store
 Thumbs.db

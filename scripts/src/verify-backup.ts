@@ -29,6 +29,7 @@ import { decryptFile, isEncryptedBackupName } from "./backup-crypto";
 import { compareCounts, countRows, readCounts } from "./lib/backup-counts";
 import { looksLikePgDump } from "./lib/dump-head";
 import { openSealed, sealedSamples } from "./lib/encrypted-columns";
+import { onStop } from "./lib/on-stop";
 
 const DATABASE_URL = process.env.DATABASE_URL;
 const VERIFY_DATABASE_URL = process.env.VERIFY_DATABASE_URL;
@@ -160,6 +161,9 @@ async function main(): Promise<void> {
 
   const encrypted = isEncryptedBackupName(file);
   const dumpFile = encrypted ? `${file}.verify-${process.pid}.tmp` : file;
+  // The decrypted copy is the whole database in plain SQL: gone however this
+  // ends, a signal included (lib/on-stop.ts).
+  const settled = encrypted ? onStop([dumpFile]) : () => {};
 
   try {
     if (encrypted) {
@@ -182,6 +186,7 @@ async function main(): Promise<void> {
     await psql(VERIFY_DATABASE_URL, dumpFile);
   } finally {
     if (encrypted) await rm(dumpFile, { force: true }).catch(() => {});
+    settled();
   }
 
   const { restored, sealed } = await withClient(VERIFY_DATABASE_URL, async (client) => ({

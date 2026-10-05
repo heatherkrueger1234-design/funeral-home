@@ -223,6 +223,16 @@ That volume is on this host's disk, which means it is not a backup on its
 own — it does not survive the failure it exists for. Set `BACKUP_OFFSITE` and
 every run copies its dump off the host as well.
 
+Until a dump is encrypted it is plain SQL, kept under a `.partial` name. A
+backup stopped part-way — a deploy, `docker compose stop`, a reboot, Ctrl-C —
+removes it before it exits (the `tools` container runs an init that passes
+the signal to the script, which pnpm would not). One killed outright, by the
+out-of-memory killer or a power cut, cannot; the next run removes what it
+left before it starts. `verify-backup` and `restore-database` decrypt a
+backup to plain SQL beside it and remove that the same way, but nothing
+sweeps up after one killed outright: a `.verify-…tmp` or `.restore-…tmp`
+file in the backups volume is one of those. Delete it.
+
 ### Backups off the host
 
 `backup-database` hands each finished dump to [rclone](https://rclone.org),

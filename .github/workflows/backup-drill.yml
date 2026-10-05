@@ -22,6 +22,7 @@ on:
       - "scripts/src/lib/backup-counts.ts"
       - "scripts/src/lib/dump-head.ts"
       - "scripts/src/lib/encrypted-columns.ts"
+      - "scripts/src/lib/on-stop.ts"
       - "lib/db/**"
 
 # Checkout and a local Postgres service, nothing that writes back to GitHub.

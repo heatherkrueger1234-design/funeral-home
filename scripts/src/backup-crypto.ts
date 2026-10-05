@@ -83,9 +83,10 @@ export async function encryptFile(
       await handle.close();
     }
   } catch (cause) {
-    // Leave the plaintext input alone on failure — it's the only copy of
-    // this backup until encryption actually succeeds. Only the half-written
-    // output is this function's to clean up.
+    // Leave the plaintext input alone on failure: what becomes of it is the
+    // caller's decision (backup-database removes it, rather than keep a
+    // dump in plain SQL). Only the half-written output is this function's
+    // to clean up.
     await rm(outputPath, { force: true });
     throw cause;
   }

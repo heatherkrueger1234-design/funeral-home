@@ -236,7 +236,15 @@ services:
     depends_on:
       db:
         condition: service_healthy
+    # `docker stop` -- a deploy, a reboot -- sends SIGTERM to the first
+    # process, which would be pnpm, and pnpm does not pass it on: a backup
+    # holding a plaintext dump never heard it, and was killed with the
+    # container, leaving the dump on the backups volume. An init that signals
+    # the whole process group lets the script remove it first
+    # (scripts/src/lib/on-stop.ts).
+    init: true
     environment:
+      TINI_KILL_PROCESS_GROUP: "1"
       DATABASE_URL: postgres://${POSTGRES_USER:-funeral}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB:-funeral_home}
       ENCRYPTION_KEY: ${ENCRYPTION_KEY}
       BACKUP_DIR: /backups
