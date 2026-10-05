@@ -46,6 +46,7 @@ import {
   sendPasswordResetEmail,
 } from "@workspace/mailer";
 import { authRateLimit } from "../middleware/rate-limit";
+import { claimEmail } from "../lib/email-ceiling";
 import { isPlatformAdmin, reclaimForInbox } from "../lib/platform-auth";
 import { seedTimelineTemplate } from "../lib/timeline";
 import { seedPolicyPrompts } from "../lib/storefront";
@@ -141,8 +142,12 @@ router.post("/auth/register", authRateLimit, async (req, res) => {
       }
     }
 
-    const base = process.env["CONSOLE_URL"]?.replace(/\/+$/, "") ?? "";
-    await sendAccountExistsEmail({ to: email, signInUrl: `${base}/` });
+    // After the answer, as a reset link is: how many of these one address is
+    // sent has a ceiling, and an answer that waited on the mail server only
+    // when one went would say when it had been reached.
+    void sendAccountExists(existing).catch((err: unknown) => {
+      logger.error({ err, userId: existing.id }, "Could not send an account-exists email");
+    });
     res.status(202).json(CHECK_EMAIL);
     return;
   }
@@ -200,13 +205,27 @@ router.post("/auth/register", authRateLimit, async (req, res) => {
   res.status(201).json(await authPayload(user, home));
 });
 
+async function sendAccountExists(user: User): Promise<void> {
+  if (!(await claimEmail(user, "account_exists"))) return;
+
+  const base = process.env["CONSOLE_URL"]?.replace(/\/+$/, "") ?? "";
+  await sendAccountExistsEmail({ to: user.email, signInUrl: `${base}/` });
+}
+
 /**
  * Issue a confirmation link and email it.
  *
  * Shared by registration and by the resend route so the two cannot drift. The
  * link lands on the console, because whoever clicks it is staff.
+ *
+ * Awaited, unlike the account-exists email and the reset link, because only
+ * the signed-in account can ask for one, and about its own address: how long
+ * the answer takes tells them nothing they do not know. Past the address's
+ * ceiling (`claimEmail`) no link is issued, and both routes answer as usual.
  */
 async function sendVerification(user: User, homeName: string): Promise<void> {
+  if (!(await claimEmail(user, "email_verification"))) return;
+
   const token = await createEmailVerification(user.id, user.email);
   const base = process.env["CONSOLE_URL"]?.replace(/\/+$/, "") ?? "";
 
@@ -364,6 +383,10 @@ router.post("/auth/forgot-password", authRateLimit, async (req, res) => {
 });
 
 async function sendResetLink(user: User): Promise<void> {
+  // Here, after the answer has gone, so that the address having had its
+  // share of these changes nothing about the answer either.
+  if (!(await claimEmail(user, "password_reset"))) return;
+
   const token = await createPasswordReset(user.id);
 
   // The console's own origin, so the link lands on the staff sign-in app

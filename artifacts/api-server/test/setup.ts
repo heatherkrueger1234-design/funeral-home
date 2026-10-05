@@ -83,6 +83,7 @@ beforeEach(async () => {
       sessions,
       password_resets,
       email_verifications,
+      sent_emails,
       users,
       funeral_homes,
       home_groups
