@@ -15,6 +15,7 @@ import { z } from "zod";
 import {
   createGroupCheckoutSession,
   isBillingConfigured,
+  syncGroupSeats,
 } from "../../lib/billing";
 import {
   badRequest,
@@ -52,6 +53,30 @@ const router: IRouter = Router();
 
 /** How long a location gets to arrange its own billing after leaving a group. */
 const GROUP_EXIT_GRACE_DAYS = 14;
+
+/**
+ * Tell Stripe how many locations each group a move touched now has, and
+ * say, in words for whoever made the move, anything it could not be told.
+ */
+async function matchGroupBills(
+  groupIds: Array<number | null>,
+): Promise<string | undefined> {
+  const problems: string[] = [];
+
+  for (const groupId of new Set(groupIds)) {
+    if (groupId === null) continue;
+    const outcome = await syncGroupSeats(groupId);
+    if (outcome && !outcome.synced) {
+      problems.push(
+        `Stripe could not be told that ${outcome.groupName} now has ` +
+          `${outcome.locations} location${outcome.locations === 1 ? "" : "s"} ` +
+          `(${outcome.reason}). Set that quantity on its subscription in Stripe.`,
+      );
+    }
+  }
+
+  return problems.length > 0 ? problems.join(" ") : undefined;
+}
 
 async function uniqueGroupSlug(name: string): Promise<string> {
   const base =
@@ -291,7 +316,8 @@ router.put("/admin/homes/:homeId/group", async (req, res) => {
       .where(eq(funeralHomesTable.id, home.id))
       .returning();
 
-    res.json(toAdminHome(updated!));
+    const billingWarning = await matchGroupBills([home.groupId]);
+    res.json({ ...toAdminHome(updated!), billingWarning });
     return;
   }
 
@@ -327,7 +353,9 @@ router.put("/admin/homes/:homeId/group", async (req, res) => {
     .where(eq(funeralHomesTable.id, home.id))
     .returning();
 
-  res.json(toAdminHome(updated!));
+  // The group it left, if it came from one, and the group it joined.
+  const billingWarning = await matchGroupBills([home.groupId, target.id]);
+  res.json({ ...toAdminHome(updated!), billingWarning });
 });
 
 const GroupCheckoutBody = z.object({

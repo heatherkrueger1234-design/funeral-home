@@ -1,10 +1,11 @@
-import { describe, it, expect, beforeEach } from "vitest";
+import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import request from "supertest";
 import app from "../src/app";
 import {
   db,
   casesTable,
   funeralHomesTable,
+  homeGroupsTable,
   platformAdminsTable,
   platformAuditTable,
 } from "@workspace/db";
@@ -164,6 +165,111 @@ describe("groups from the console", () => {
       .put(`/api/admin/homes/${running.homeId}/group`)
       .send({ groupId: group.body.id })
       .expect(409);
+  });
+
+  describe("and the group's bill", () => {
+    afterEach(() => {
+      vi.unstubAllEnvs();
+      vi.unstubAllGlobals();
+    });
+
+    /** A group on a live contract, billed for `locations` locations. */
+    async function payingGroup(locations: number) {
+      const [group] = await db
+        .insert(homeGroupsTable)
+        .values({
+          name: "Front Range Group",
+          slug: "front-range-group",
+          subscriptionStatus: "active",
+          stripeCustomerId: "cus_group",
+          stripeSubscriptionId: "sub_group",
+        })
+        .returning();
+      for (let i = 0; i < locations; i += 1) {
+        const home = await signUpHome(`Location ${i + 1}`);
+        await db
+          .update(funeralHomesTable)
+          .set({ groupId: group!.id, subscriptionStatus: "active" })
+          .where(eq(funeralHomesTable.id, home.homeId));
+      }
+      return group!;
+    }
+
+    /** Stripe holding the group's subscription: a seat line and a metered line. */
+    function stripeHoldsGroup(options: { refuseChanges?: boolean } = {}) {
+      vi.stubEnv("STRIPE_SECRET_KEY", "sk_test_notreal");
+      vi.stubEnv("STRIPE_PRICE_ID", "price_base");
+      const changes: URLSearchParams[] = [];
+      let seats = 2;
+      vi.stubGlobal("fetch", async (url: string, init?: { method?: string; body?: URLSearchParams }) => {
+        if (init?.method === "POST") {
+          if (options.refuseChanges) {
+            return Response.json({ error: { message: "Stripe is having a moment" } }, { status: 500 });
+          }
+          const body = new URLSearchParams(String(init.body));
+          changes.push(body);
+          seats = Number(body.get("items[0][quantity]"));
+          return Response.json({ id: "sub_group" });
+        }
+        expect(new URL(url).pathname).toBe("/v1/subscriptions/sub_group");
+        return Response.json({
+          id: "sub_group",
+          status: "active",
+          customer: "cus_group",
+          items: {
+            data: [
+              { id: "si_seats", quantity: seats, price: { id: "price_base", recurring: { usage_type: "licensed" } } },
+              { id: "si_funerals", price: { id: "price_case", recurring: { usage_type: "metered" } } },
+            ],
+          },
+        });
+      });
+      return changes;
+    }
+
+    it("charges the group for the locations it has, as they come and go", async () => {
+      const admin = await signInAdmin();
+      const group = await payingGroup(2);
+      const changes = stripeHoldsGroup();
+      const joining = await signUpHome("Horan & McConaty");
+
+      // The contract was bought for two. A third location joining without
+      // the bill moving is a branch run for free until somebody notices.
+      const joined = await admin.agent
+        .put(`/api/admin/homes/${joining.homeId}/group`)
+        .send({ groupId: group.id })
+        .expect(200);
+      expect(joined.body.billingWarning).toBeUndefined();
+      expect(changes).toHaveLength(1);
+      expect(changes[0]!.get("items[0][id]")).toBe("si_seats");
+      expect(changes[0]!.get("items[0][quantity]")).toBe("3");
+      // The funeral line is metered: it has no quantity, and Stripe refuses one.
+      expect(changes[0]!.get("items[1][id]")).toBeNull();
+
+      await admin.agent
+        .put(`/api/admin/homes/${joining.homeId}/group`)
+        .send({ groupId: null })
+        .expect(200);
+      expect(changes).toHaveLength(2);
+      expect(changes[1]!.get("items[0][quantity]")).toBe("2");
+    });
+
+    it("still moves the location when Stripe cannot be told, and says what to fix", async () => {
+      const admin = await signInAdmin();
+      const group = await payingGroup(2);
+      stripeHoldsGroup({ refuseChanges: true });
+      const joining = await signUpHome("Horan & McConaty");
+
+      const joined = await admin.agent
+        .put(`/api/admin/homes/${joining.homeId}/group`)
+        .send({ groupId: group.id })
+        .expect(200);
+
+      // The branch has funerals this week whatever Stripe is doing.
+      expect(joined.body.groupId).toBe(group.id);
+      expect(joined.body.billingWarning).toMatch(/Front Range Group/);
+      expect(joined.body.billingWarning).toMatch(/3 locations/);
+    });
   });
 
   it("refuses a group that does not exist without logging a move", async () => {

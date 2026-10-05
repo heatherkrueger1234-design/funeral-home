@@ -1,4 +1,4 @@
-import { eq, sql } from "drizzle-orm";
+import { count, eq, sql } from "drizzle-orm";
 import {
   db,
   funeralHomesTable,
@@ -312,7 +312,13 @@ type StripeSubscription = {
   trial_end?: number | null;
   metadata?: { funeralHomeId?: string; homeGroupId?: string };
   customer?: string;
-  items?: { data?: Array<{ price?: { id?: string } }> };
+  items?: {
+    data?: Array<{
+      id?: string;
+      quantity?: number;
+      price?: { id?: string; recurring?: { usage_type?: string } | null };
+    }>;
+  };
 };
 
 /**
@@ -720,6 +726,80 @@ export async function applySubscriptionEvent(
     }
 
     return applySubscription(subscription, eventCreatedAt, { current: true, tx });
+  });
+}
+
+export type SeatSync =
+  | { synced: true; groupName: string; locations: number }
+  | { synced: false; groupName: string; locations: number; reason: string };
+
+/**
+ * Make a group's subscription charge for the locations it has now.
+ *
+ * Checkout sets the per-location lines to the number of locations on the
+ * day the contract starts, and nothing changed them after: a location moved
+ * in was run for free, and one moved out went on being billed, until
+ * somebody compared the invoice with the estate. Called after every move,
+ * for each group the move touched.
+ *
+ * Every per-location line is set -- the base and any add-on, both sold per
+ * location -- and the metered funeral line is left alone: it has no
+ * quantity, and Stripe refuses one. Stripe prorates the change onto the
+ * next invoice. Under the same per-customer turn as the webhook, so two
+ * moves at once cannot leave Stripe holding the count from the first.
+ *
+ * Null when there is nothing to change: no Stripe here, or no running
+ * subscription. A failure is returned rather than thrown, because the move
+ * has happened and must stand -- the branch has funerals this week either
+ * way -- and whoever made it needs to be told what to fix in Stripe.
+ */
+export async function syncGroupSeats(groupId: number): Promise<SeatSync | null> {
+  if (!secretKey()) return null;
+
+  return db.transaction(async (tx) => {
+    const [group] = await tx
+      .select()
+      .from(homeGroupsTable)
+      .where(eq(homeGroupsTable.id, groupId))
+      .limit(1);
+    if (!group || !hasLiveSubscription(group)) return null;
+
+    await tx.execute(
+      sql`select pg_advisory_xact_lock(${STRIPE_CUSTOMER_LOCK}, hashtext(${group.stripeCustomerId ?? group.stripeSubscriptionId}))`,
+    );
+
+    const [row] = await tx
+      .select({ total: count() })
+      .from(funeralHomesTable)
+      .where(eq(funeralHomesTable.groupId, group.id));
+    // At least one, as at checkout: a contract with no locations is still a
+    // contract, and ending it is a conversation, not a side effect.
+    const locations = Math.max(1, row?.total ?? 0);
+    const path = `/subscriptions/${encodeURIComponent(group.stripeSubscriptionId!)}`;
+
+    try {
+      const subscription = await stripe<StripeSubscription>(path);
+      const body: Record<string, string> = {};
+      let line = 0;
+      for (const item of subscription.items?.data ?? []) {
+        if (!item.id || item.price?.recurring?.usage_type === "metered") continue;
+        if (item.quantity === locations) continue;
+        body[`items[${line}][id]`] = item.id;
+        body[`items[${line}][quantity]`] = String(locations);
+        line += 1;
+      }
+      if (line > 0) await stripe(path, body);
+
+      logger.info({ homeGroupId: group.id, locations }, "Group subscription matched to its locations");
+      return { synced: true as const, groupName: group.name, locations };
+    } catch (error) {
+      const reason = error instanceof Error ? error.message : String(error);
+      logger.warn(
+        { homeGroupId: group.id, locations, err: reason },
+        "Could not match a group's subscription to its locations",
+      );
+      return { synced: false as const, groupName: group.name, locations, reason };
+    }
   });
 }
 
