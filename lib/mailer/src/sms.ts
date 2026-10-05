@@ -210,10 +210,14 @@ export async function sendSms(options: {
   const route = smsRouteFor(options.home ?? null);
 
   if (!creds || !route) {
-    // The body is logged with any family link's token masked out.
+    // Outside production the body is logged, with any family link's token
+    // masked out; in production, only who it was for (see the mailer's
+    // `loggable`: a check-in text names the person who died).
     logger.warn(
-      { to, body: redactFamilyLink(options.body) },
-      "Twilio is not configured — text not sent, logged instead",
+      process.env["NODE_ENV"] === "production"
+        ? { to }
+        : { to, body: redactFamilyLink(options.body) },
+      "Twilio is not configured — text not sent",
     );
     throw new SmsNotSentError("Text messaging is not set up on this deployment.");
   }

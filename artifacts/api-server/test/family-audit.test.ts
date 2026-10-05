@@ -14,6 +14,7 @@ import {
 } from "@workspace/mailer/aftercare";
 import app from "../src/app";
 import { smsLogger } from "../src/lib/sms";
+import { mailLogger } from "@workspace/mailer";
 import {
   asFamily,
   createCase,
@@ -33,6 +34,35 @@ const DAY = 24 * 60 * 60 * 1000;
 
 afterEach(() => {
   vi.restoreAllMocks();
+});
+
+describe("a deployment without a mail server, in production", () => {
+  it("logs who a message was for, and no link, subject or words", async () => {
+    vi.stubEnv("NODE_ENV", "production");
+    const warn = vi.spyOn(mailLogger, "warn");
+    try {
+      // Registering sends the address confirmation, whose link signs nobody
+      // in but confirms the account for whoever follows it.
+      const res = await request(app)
+        .post("/api/auth/register")
+        .send({
+          homeName: "Riverside",
+          email: "owner@riverside.example",
+          password: "correct-horse-battery",
+          displayName: "Karen Voss",
+        })
+        .expect(201);
+      expect(res.body.home.id).toBeGreaterThan(0);
+
+      const logged = JSON.stringify(warn.mock.calls);
+      expect(logged).toContain("owner@riverside.example");
+      expect(logged).not.toContain("token=");
+      expect(logged).not.toContain("Confirm your address");
+      expect(logged).not.toContain("Riverside");
+    } finally {
+      vi.unstubAllEnvs();
+    }
+  });
 });
 
 describe("the family's link is a credential, and stays out of the log", () => {
