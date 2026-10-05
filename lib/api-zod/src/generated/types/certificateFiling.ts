@@ -41,6 +41,10 @@ checked, rather than a guess a director would trust.
   physicianRequestedAt: Date | null;
   /** The certifying physician's own 72 hours, from the EDRS request. */
   physicianDueAt: Date | null;
+  /** When the physician completed the medical certification, as the
+director saw it in EDRS. Until then the home cannot file.
+ */
+  physicianCertifiedAt: Date | null;
   certifyingPhysician: string | null;
   /** When the home filed it, as they recorded it. */
   filedAt: Date | null;

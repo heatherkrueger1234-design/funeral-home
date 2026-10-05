@@ -59,7 +59,7 @@ describe("the homes list's question to the API", () => {
   });
 
   it("offers only orders the API knows how to sort by", () => {
-    // `ListHomesQuery` in api-server/src/routes/admin.ts. Anything else is a
+    // `ListHomesQuery` in api-server/src/routes/admin/homes.ts. Anything else is a
     // refused request, and the list shows an error instead of homes.
     for (const { value } of HOME_SORTS) {
       const { sort, order } = asked({ sort: value });

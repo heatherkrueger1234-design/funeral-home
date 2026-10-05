@@ -5,6 +5,8 @@ import {
   aftercareEnrollmentsTable,
   familyContactsTable,
   AFTERCARE_OFFSETS_DAYS,
+  AFTERCARE_TOUCHPOINTS,
+  type AftercareTouchpoint,
   type Case,
   type FuneralHome,
 } from "@workspace/db";
@@ -92,6 +94,84 @@ export async function enrolCaseInAftercare(
   });
 }
 
+/** The touchpoints a home offers, from its comma-separated setting. */
+export function offeredTouchpoints(home: Pick<FuneralHome, "aftercareTouchpoints">): AftercareTouchpoint[] {
+  const chosen = home.aftercareTouchpoints.split(",").map((part) => part.trim());
+  return AFTERCARE_TOUCHPOINTS.filter((kind) => chosen.includes(kind));
+}
+
+/** 15:00 UTC: mid-morning across the continental US. */
+function atMorning(year: number, month: number, day: number): Date {
+  return new Date(Date.UTC(year, month, day, 15));
+}
+
+/**
+ * When each offered touchpoint lands in the first year after `startsAt`,
+ * or is left out when the case does not know the date or it falls outside
+ * the year. Dates of birth and death are calendar days stored at UTC
+ * midnight, so they are read in UTC.
+ */
+export function touchpointDates(
+  row: Pick<Case, "dateOfBirth" | "dateOfDeath">,
+  startsAt: Date,
+  kinds: AftercareTouchpoint[],
+): Array<{ kind: AftercareTouchpoint; dueAt: Date }> {
+  const end = startsAt.getTime() + 365 * DAY_MS;
+  const within = (date: Date) => date.getTime() > startsAt.getTime() && date.getTime() <= end;
+  const out: Array<{ kind: AftercareTouchpoint; dueAt: Date }> = [];
+
+  const firstAfter = (month: number, day: number): Date | null => {
+    for (const year of [startsAt.getUTCFullYear(), startsAt.getUTCFullYear() + 1]) {
+      const date = atMorning(year, month, day);
+      if (within(date)) return date;
+    }
+    return null;
+  };
+
+  for (const kind of kinds) {
+    let dueAt: Date | null = null;
+    if (kind === "birthday" && row.dateOfBirth) {
+      dueAt = firstAfter(row.dateOfBirth.getUTCMonth(), row.dateOfBirth.getUTCDate());
+    } else if (kind === "holidays") {
+      // Mid-December: ahead of the season, not on the day.
+      dueAt = firstAfter(11, 15);
+    } else if (kind === "death_anniversary" && row.dateOfDeath) {
+      const date = atMorning(
+        row.dateOfDeath.getUTCFullYear() + 1,
+        row.dateOfDeath.getUTCMonth(),
+        row.dateOfDeath.getUTCDate(),
+      );
+      dueAt = within(date) ? date : null;
+    }
+    if (dueAt) out.push({ kind, dueAt });
+  }
+  return out;
+}
+
+/**
+ * Write the touchpoint deliveries for an enrolment whose family opted in.
+ * Idempotent: an existing row for the same kind and day is left alone.
+ */
+export async function scheduleTouchpoints(
+  enrollment: { id: number; startsAt: Date },
+  row: Pick<Case, "dateOfBirth" | "dateOfDeath">,
+  home: Pick<FuneralHome, "aftercareTouchpoints">,
+): Promise<void> {
+  const dates = touchpointDates(row, enrollment.startsAt, offeredTouchpoints(home));
+  if (dates.length === 0) return;
+  await db
+    .insert(aftercareDeliveriesTable)
+    .values(
+      dates.map(({ kind, dueAt }) => ({
+        enrollmentId: enrollment.id,
+        kind,
+        dayOffset: Math.round((dueAt.getTime() - enrollment.startsAt.getTime()) / DAY_MS),
+        dueAt,
+      })),
+    )
+    .onConflictDoNothing();
+}
+
 /** An enrolment with its schedule, as the API describes it. */
 export async function aftercareForCase(caseId: number, funeralHomeId: number) {
   const enrollments = await db
@@ -133,12 +213,29 @@ export async function aftercareForCase(caseId: number, funeralHomeId: number) {
   return enrollments.map(({ enrollment, contactName }) => ({
     ...enrollment,
     contactName,
-    deliveries: (byEnrollment.get(enrollment.id) ?? []).map((d) => ({
-      id: d.id,
-      dayOffset: d.dayOffset,
-      dueAt: d.dueAt,
-      sentAt: d.sentAt,
-      failedAt: d.failedAt,
-    })),
+    deliveries: (byEnrollment.get(enrollment.id) ?? [])
+      .sort((a, b) => a.dueAt.getTime() - b.dueAt.getTime())
+      .map(toDeliveryJson),
   }));
+}
+
+/** A delivery as either side sees it. */
+export function toDeliveryJson(d: {
+  id: number;
+  kind: string;
+  dayOffset: number;
+  dueAt: Date;
+  sentAt: Date | null;
+  failedAt: Date | null;
+  sentVia: string | null;
+}) {
+  return {
+    id: d.id,
+    kind: d.kind,
+    dayOffset: d.dayOffset,
+    dueAt: d.dueAt,
+    sentAt: d.sentVia === "withdrawn" ? null : d.sentAt,
+    failedAt: d.failedAt,
+    sentVia: d.sentVia,
+  };
 }

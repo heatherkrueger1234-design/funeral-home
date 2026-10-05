@@ -120,13 +120,21 @@ async function customerFor(home: FuneralHome, email: string): Promise<string> {
   return customer.id;
 }
 
+/** Whether the annual price (and its yearly funeral meter) exist here. */
+export function isAnnualConfigured(): boolean {
+  return Boolean(process.env["STRIPE_PRICE_ID_ANNUAL"]?.trim());
+}
+
 export async function createCheckoutSession(options: {
   home: FuneralHome;
   email: string;
   returnUrl: string;
   /** Add-ons the director ticked on the way to checkout. */
   addOns?: AddOnKey[];
+  /** `year` bills twelve months for the price of ten. */
+  interval?: "month" | "year";
 }): Promise<string> {
+  const annual = options.interval === "year" && isAnnualConfigured();
   const customer = await customerFor(options.home, options.email);
 
   const body: Record<string, string> = {
@@ -153,7 +161,9 @@ export async function createCheckoutSession(options: {
   // is tracked rather than hard-coded because the lines below are optional
   // and a gap in `line_items[n]` is a request Stripe rejects.
   let line = 0;
-  body[`line_items[${line}][price]`] = process.env["STRIPE_PRICE_ID"]!;
+  body[`line_items[${line}][price]`] = annual
+    ? process.env["STRIPE_PRICE_ID_ANNUAL"]!
+    : process.env["STRIPE_PRICE_ID"]!;
   body[`line_items[${line}][quantity]`] = "1";
   line += 1;
 
@@ -175,7 +185,10 @@ export async function createCheckoutSession(options: {
    * funerals a year pays for nine, which is what makes the base rate low
    * enough for them to say yes to at all.
    */
-  const casePrice = process.env["STRIPE_PRICE_ID_CASE"];
+  // One interval per subscription: an annual plan meters funerals yearly.
+  const casePrice = annual
+    ? process.env["STRIPE_PRICE_ID_CASE_ANNUAL"]
+    : process.env["STRIPE_PRICE_ID_CASE"];
   if (casePrice && isCaseMeteringConfigured()) {
     body[`line_items[${line}][price]`] = casePrice;
     line += 1;

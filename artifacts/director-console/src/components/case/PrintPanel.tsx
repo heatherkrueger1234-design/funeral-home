@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import {
   useGetPrintTemplates,
+  useGetPrintThemes,
   useGetPrintItems,
   useCreatePrintItem,
   useUpdatePrintItem,
@@ -25,7 +26,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
-import { Check, Loader2, MessageSquareWarning, Printer, Send, Trash2, Plus } from "lucide-react";
+import { Check, MessageSquareWarning, Printer, Send, Trash2, Plus } from "lucide-react";
 import { Confirm, LoadFailed, Loading } from "@/components/page";
 
 /**
@@ -101,6 +102,7 @@ function Studio({
   const queryClient = useQueryClient();
   const photos = useGetCasePhotos(caseId);
   const snippets = useGetSnippets();
+  const themes = useGetPrintThemes();
   const [nonce, setNonce] = useState(0);
 
   const refresh = () => {
@@ -176,6 +178,38 @@ function Studio({
             Approved{item.approvedByName ? ` by ${item.approvedByName}` : ""}, so the
             wording is set. Reopen it below to change anything.
           </p>
+        )}
+        {(themes.data ?? []).length > 0 && (
+          <fieldset className="space-y-2" disabled={locked || update.isPending}>
+            <legend className="text-sm font-medium">Look</legend>
+            <div className="grid grid-cols-2 gap-2">
+              {themes.data!.map((theme) => (
+                <button
+                  key={theme.key}
+                  type="button"
+                  title={theme.description}
+                  aria-pressed={item.themeKey === theme.key}
+                  onClick={() =>
+                    update.mutate({ printItemId: item.id, data: { themeKey: theme.key } })
+                  }
+                  className={`flex items-center gap-2 rounded-lg border px-2.5 py-2 text-left text-sm transition-colors disabled:opacity-60 ${
+                    item.themeKey === theme.key
+                      ? "border-[var(--accent)] bg-[var(--accent-soft)]"
+                      : "border-border bg-card hover:bg-muted"
+                  }`}
+                >
+                  <span
+                    aria-hidden
+                    className="size-5 shrink-0 rounded-full border border-border"
+                    style={{
+                      background: `linear-gradient(135deg, ${theme.paper} 50%, ${theme.accent ?? "var(--accent)"} 50%)`,
+                    }}
+                  />
+                  {theme.name}
+                </button>
+              ))}
+            </div>
+          </fieldset>
         )}
         {template.slots
           .filter((slot) => slot.kind === "photo")

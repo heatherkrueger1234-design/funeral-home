@@ -24,6 +24,7 @@ Two audiences, two authentication schemes, and the split is load-bearing:
 export interface CertificateFilingUpdate {
   custodyTakenAt?: Date | null;
   physicianRequestedAt?: Date | null;
+  physicianCertifiedAt?: Date | null;
   /** @maxLength 200 */
   certifyingPhysician?: string | null;
   /** When the home filed it. Recording it notes who did; clearing it

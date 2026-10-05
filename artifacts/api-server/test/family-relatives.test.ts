@@ -195,18 +195,12 @@ describe("a relative added by the family", () => {
     );
   });
 
-  it("does not hand back the link when the text actually went", async () => {
+  it("never texts a relative the family added, and hands the inviter the link", async () => {
     vi.stubEnv("TWILIO_ACCOUNT_SID", "AC_test");
     vi.stubEnv("TWILIO_AUTH_TOKEN", "secret");
     vi.stubEnv("TWILIO_FROM_NUMBER", "+13035550100");
-    const sent: string[] = [];
-    vi.stubGlobal(
-      "fetch",
-      vi.fn(async (_url: string, init: { body: URLSearchParams }) => {
-        sent.push(init.body.get("Body") ?? "");
-        return new Response(JSON.stringify({ sid: "SM1" }), { status: 201 });
-      }),
-    );
+    const calls = vi.fn(async () => new Response(JSON.stringify({ sid: "SM1" }), { status: 201 }));
+    vi.stubGlobal("fetch", calls);
 
     const staff = await signUpHome();
     const row = await createCase(staff);
@@ -217,13 +211,12 @@ describe("a relative added by the family", () => {
       .send({ name: "Tom Hale", phone: "3035550199" })
       .expect(201);
 
-    expect(res.body.sentBySms).toBe(true);
-    expect(res.body.link).toBeNull();
-    expect(sent).toHaveLength(1);
-    expect(sent[0]).toContain("Anne Hale asked us to send you your own link");
+    // Tom never agreed to texts from the home; Anne typing his number is not consent.
+    expect(res.body.sentBySms).toBe(false);
+    expect(calls).not.toHaveBeenCalled();
 
-    // The text carried a working link to the same case.
-    const token = sent[0]!.split("/f/")[1]!.trim();
+    // Anne gets a working link to pass on herself.
+    const token = String(res.body.link).split("/f/")[1]!;
     const tom = await asFamily(token).get("/api/family/session").expect(200);
     expect(tom.body.case.id).toBe(row.id);
   });

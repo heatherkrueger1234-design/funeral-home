@@ -26,6 +26,8 @@ export interface PrintItem {
   caseId: number;
   templateKey: string;
   templateName: string;
+  /** The look, from GET /print/themes. */
+  themeKey: string;
   title: string | null;
   photoId: number | null;
   photoUploadId: number | null;

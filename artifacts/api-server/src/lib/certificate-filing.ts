@@ -109,6 +109,7 @@ export async function toFilingJson(
     dueAt,
     physicianRequestedAt: filing.physicianRequestedAt,
     physicianDueAt: physicianDueAt(filing.physicianRequestedAt),
+    physicianCertifiedAt: filing.physicianCertifiedAt,
     certifyingPhysician: filing.certifyingPhysician,
     filedAt: filing.filedAt,
     filedByName,

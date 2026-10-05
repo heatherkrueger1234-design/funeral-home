@@ -6,6 +6,7 @@ import {
   caseMessagesTable,
   casePhotosTable,
   familyContactsTable,
+  obituaryDraftsTable,
   usersTable,
   snippetsTable,
   uploadsTable,
@@ -34,6 +35,7 @@ import {
 import { currentUser, tenant } from "../middleware/require-auth";
 import { PRINT_TEMPLATES, findTemplate } from "../lib/print-templates";
 import { renderPrintItem, resolveSlots } from "../lib/print-render";
+import { PRINT_THEMES, isThemeKey } from "../lib/print-themes";
 import { loadCase } from "./cases";
 import {
   cropInstructionsOf,
@@ -60,6 +62,33 @@ router.get("/print/templates", (_req, res) => {
     })),
   );
 });
+
+router.get("/print/themes", (_req, res) => {
+  res.json(
+    PRINT_THEMES.map(({ key, name, description, accent, paper, ink, photoShape }) => ({
+      key,
+      name,
+      description,
+      accent,
+      paper,
+      ink,
+      photoShape,
+    })),
+  );
+});
+
+/**
+ * The case's obituary text, for a programme's inside page. Whatever the
+ * draft says now; the card's own proof is where the family checks it.
+ */
+async function obituaryTextFor(caseId: number): Promise<string | null> {
+  const [row] = await db
+    .select({ text: obituaryDraftsTable.draftText })
+    .from(obituaryDraftsTable)
+    .where(eq(obituaryDraftsTable.caseId, caseId))
+    .limit(1);
+  return row?.text ?? null;
+}
 
 /* ------------------------------------------------------------- snippets -- */
 
@@ -255,9 +284,12 @@ export async function toPrintItemJson(
   timeZone: string,
 ) {
   const template = findTemplate(item.templateKey);
-  const [{ photoId, uploadId }, people] = await Promise.all([
+  const [{ photoId, uploadId }, people, obituary] = await Promise.all([
     photoUploadFor(item, row),
     peopleFor(item),
+    template?.slots.some((slot) => slot.from === "obituary")
+      ? obituaryTextFor(row.id)
+      : Promise.resolve(null),
   ]);
   const values = (item.values ?? {}) as Record<string, string>;
 
@@ -266,6 +298,7 @@ export async function toPrintItemJson(
     caseId: item.caseId,
     templateKey: item.templateKey,
     templateName: template?.name ?? item.templateKey,
+    themeKey: item.themeKey,
     title: item.title,
     photoId,
     photoUploadId: uploadId,
@@ -273,7 +306,7 @@ export async function toPrintItemJson(
     // What the card will actually say, with the case's own details filled
     // in — so the preview needs no second round trip.
     resolved: template
-      ? resolveSlots({ template, case: row, values, timeZone })
+      ? resolveSlots({ template, case: row, values, timeZone, obituary })
       : values,
     quantity: item.quantity,
     status: item.status,
@@ -331,6 +364,7 @@ router.post("/cases/:caseId/print", async (req, res) => {
       caseId: row.id,
       templateKey: template.key,
       title: values.title ?? template.name,
+      ...(values.themeKey && isThemeKey(values.themeKey) ? { themeKey: values.themeKey } : {}),
       values: {},
     })
     .returning();
@@ -376,6 +410,10 @@ router.put("/print/:printItemId", async (req, res) => {
 
   const template = findTemplate(existing.templateKey);
 
+  if (patch.themeKey !== undefined && !isThemeKey(patch.themeKey)) {
+    throw badRequest("That is not one of the themes.");
+  }
+
   /*
    * An approved card is the one the family signed off. Changing its words or
    * its photograph afterwards would print something nobody checked, so the
@@ -389,6 +427,7 @@ router.put("/print/:printItemId", async (req, res) => {
     !reopening &&
     (patch.values !== undefined ||
       patch.photoId !== undefined ||
+      patch.themeKey !== undefined ||
       patch.title !== undefined)
   ) {
     throw new HttpError(
@@ -584,6 +623,10 @@ export async function renderPrintItemHtml(
     values: (item.values ?? {}) as Record<string, string>,
     photoDataUri: await dataUri(uploadId, home.id, crop),
     logoDataUri: await dataUri(home.logoUploadId, home.id),
+    themeKey: item.themeKey,
+    obituary: template.slots.some((slot) => slot.from === "obituary")
+      ? await obituaryTextFor(row.id)
+      : null,
   });
 }
 

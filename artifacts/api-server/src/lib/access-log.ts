@@ -36,6 +36,7 @@ const DESCRIPTIONS: Record<string, string> = {
   "home.staff.reset": "Sent a sign-in email to one of your staff",
   "home.owner.invite": "Invited your account's owner",
   "home.trial.extend": "Extended your free trial",
+  "home.sms.update": "Changed your texting setup",
 };
 
 /**

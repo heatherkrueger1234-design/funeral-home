@@ -35,7 +35,6 @@ export type CaseCounts = {
 export async function countsForCases(
   caseIds: number[],
   funeralHomeId: number,
-  now = new Date(),
 ): Promise<Map<number, CaseCounts>> {
   const result = new Map<number, CaseCounts>();
 

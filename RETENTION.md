@@ -173,9 +173,13 @@ copy somewhere that is neither the application host nor the backup.
 | Email (your SMTP) | Password resets, staff invites, aftercare check-ins, intake notifications | As above; aftercare carries the message the home wrote |
 | Stripe | Subscription only | Your billing details. No case data, ever |
 | Google Places | Only if you set a key, only when a vendor search runs | The search terms and a ZIP code. No family details |
+| Anthropic (text suggestions) | Only if the deployment sets `ANTHROPIC_API_KEY`, and only when a director asks for a suggested obituary and confirms | That one obituary's fields: names, dates, places and the family's own words. Never photographs, messages, vital statistics or SSNs |
 
 Case content — photographs, obituaries, messages, vital statistics — is sent to
-none of them.
+none of them, with the one opt-in exception above: a director who asks for a
+suggested obituary sends that obituary's fields, after saying yes to a dialog
+that says so. The suggestion is kept beside the draft and never shown to the
+family unless the director uses it.
 
 The case export is the one deliberate exception, and you are the one who
 triggers it. Once a zip is on somebody's laptop it is outside all of this.

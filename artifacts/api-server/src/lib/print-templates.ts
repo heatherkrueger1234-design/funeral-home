@@ -23,7 +23,7 @@ export type TemplateSlot = {
   /** Shown under the field, in the words a director would use. */
   hint?: string;
   /** Filled from the case unless the director types over it. */
-  from?: "decedentName" | "dates" | "serviceLine" | "portrait";
+  from?: "decedentName" | "dates" | "serviceLine" | "portrait" | "obituary";
   /** Roughly what fits before it stops looking like a card. */
   maxLength?: number;
 };
@@ -58,6 +58,15 @@ const DATES_SLOT: TemplateSlot = {
   from: "dates",
   hint: "Filled in from the case. Type over it if you'd rather.",
   maxLength: 60,
+};
+
+const OBITUARY_SLOT: TemplateSlot = {
+  key: "obituary",
+  label: "Obituary",
+  kind: "longText",
+  from: "obituary",
+  hint: "Filled in from the obituary once it is written. Type over it to shorten it for print.",
+  maxLength: 4000,
 };
 
 const PHOTO_SLOT: TemplateSlot = {
@@ -123,7 +132,7 @@ export const PRINT_TEMPLATES: readonly PrintTemplate[] = [
     key: "program-folded",
     name: "Order of service",
     description:
-      "A letter sheet folded once: cover, the order inside, and a closing page.",
+      "A letter sheet folded once: cover, the obituary and the order inside, and a closing page.",
     width: 5.5,
     height: 8.5,
     panels: 4,
@@ -140,6 +149,7 @@ export const PRINT_TEMPLATES: readonly PrintTemplate[] = [
         hint: "Filled in from the case.",
         maxLength: 160,
       },
+      OBITUARY_SLOT,
       {
         key: "order",
         label: "The order of service",
@@ -197,6 +207,17 @@ export const PRINT_TEMPLATES: readonly PrintTemplate[] = [
         maxLength: 1400,
       },
     ],
+  },
+  {
+    key: "obituary-page",
+    name: "Obituary page",
+    description:
+      "The obituary on its own letter page, with the portrait — for the register table or an insert.",
+    width: 8.5,
+    height: 11,
+    panels: 1,
+    perSheet: 1,
+    slots: [PHOTO_SLOT, NAME_SLOT, DATES_SLOT, OBITUARY_SLOT],
   },
   {
     key: "register-page",

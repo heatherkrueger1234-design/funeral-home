@@ -131,15 +131,7 @@ function useAddPhotos(caseId: number, onDone: () => void) {
  * Hiding rather than deleting is the default action. A photograph that is
  * too dark to project is still a family's picture of their own mother.
  */
-export function PhotosPanel({
-  caseId,
-  portraitPhotoId,
-  referencePhotoId,
-}: {
-  caseId: number;
-  portraitPhotoId: number | null;
-  referencePhotoId: number | null;
-}) {
+export function PhotosPanel({ caseId }: { caseId: number }) {
   const queryClient = useQueryClient();
   const photos = useGetCasePhotos(caseId);
 

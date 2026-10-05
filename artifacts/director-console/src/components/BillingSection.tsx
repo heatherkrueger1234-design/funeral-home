@@ -1,3 +1,4 @@
+import { PRICE_BOOK, dollars } from "../../../../lib/db/src/price-book";
 import { useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { getGetBillingQueryKey, useGetBilling } from "@workspace/api-client-react";
@@ -25,7 +26,7 @@ export function useBillingHandoff() {
   const queryClient = useQueryClient();
   const [busy, setBusy] = useState(false);
 
-  const go = async (path: string) => {
+  const go = async (path: string, extra: Record<string, string> = {}) => {
     setBusy(true);
     try {
       const response = await fetch(path, {
@@ -34,6 +35,7 @@ export function useBillingHandoff() {
         credentials: "include",
         body: JSON.stringify({
           returnUrl: `${window.location.origin}${BASE_PATH}/settings`,
+          ...extra,
         }),
       });
 
@@ -87,6 +89,7 @@ export function BillingSection({ readOnly }: { readOnly: boolean }) {
     hasSubscription,
     freeTrialDays,
     trialEnded,
+    annualAvailable,
   } = billing.data;
   const canStartTrial = !billingConfigured && freeTrialDays > 0;
 
@@ -114,6 +117,11 @@ export function BillingSection({ readOnly }: { readOnly: boolean }) {
     <section className="space-y-4 rounded-xl border border-border bg-card p-5 shadow-[var(--elevation-1)]">
       <h2 className="font-display text-lg">Subscription</h2>
       <p className="text-sm text-muted-foreground">{describe()}</p>
+      <p className="text-sm">
+        {dollars(PRICE_BOOK.locationMonthlyCents)} a location a month, plus{" "}
+        {dollars(PRICE_BOOK.perFuneralCents)} a funeral served. Aftercare, texts and
+        email are included; no activation fee. Annual is two months free.
+      </p>
 
       {canStartTrial && !readOnly && (subscriptionStatus === "canceled" || trialEnded) ? (
         <Button disabled={busy} onClick={() => void go("/api/billing/checkout")}>
@@ -140,12 +148,23 @@ export function BillingSection({ readOnly }: { readOnly: boolean }) {
               Cards and invoices
             </Button>
           ) : (
-            <Button disabled={busy} onClick={() => void go("/api/billing/checkout")}>
-              {busy && <Loader2 className="size-4 animate-spin" />}
-              {freeTrialDays > 0
-                ? `Subscribe — first ${freeTrialDays} days free, no card`
-                : "Start a subscription"}
-            </Button>
+            <>
+              <Button disabled={busy} onClick={() => void go("/api/billing/checkout")}>
+                {busy && <Loader2 className="size-4 animate-spin" />}
+                {freeTrialDays > 0
+                  ? `Subscribe monthly — first ${freeTrialDays} days free, no card`
+                  : "Subscribe monthly"}
+              </Button>
+              {annualAvailable && (
+                <Button
+                  variant="outline"
+                  disabled={busy}
+                  onClick={() => void go("/api/billing/checkout", { interval: "year" })}
+                >
+                  Annual — two months free
+                </Button>
+              )}
+            </>
           )}
         </div>
       )}

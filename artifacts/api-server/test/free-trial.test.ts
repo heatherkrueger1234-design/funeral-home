@@ -112,4 +112,36 @@ describe("the free trial behind every subscribe button", () => {
     expect(checkout.get("subscription_data[trial_period_days]")).toBe("30");
     expect(checkout.get("payment_method_collection")).toBe("if_required");
   });
+
+  it("offers annual billing at the annual price, and says so when it is not set up", async () => {
+    process.env["STRIPE_SECRET_KEY"] = "sk_test_x";
+    process.env["STRIPE_PRICE_ID"] = "price_base";
+    const bodies: string[] = [];
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (url: string, init?: { body?: URLSearchParams }) => {
+        bodies.push(String(init?.body ?? ""));
+        const payload = String(url).endsWith("/customers")
+          ? { id: "cus_1" }
+          : { url: "https://checkout.stripe.test/s" };
+        return new Response(JSON.stringify(payload), { status: 200 });
+      }),
+    );
+    const staff = await signUpHome();
+
+    await staff.agent
+      .post("/api/billing/checkout")
+      .send({ returnUrl: "https://example.com/settings", interval: "year" })
+      .expect(400);
+
+    process.env["STRIPE_PRICE_ID_ANNUAL"] = "price_annual";
+    await staff.agent
+      .post("/api/billing/checkout")
+      .send({ returnUrl: "https://example.com/settings", interval: "year" })
+      .expect(200);
+    const checkout = new URLSearchParams(bodies.at(-1));
+    expect(checkout.get("line_items[0][price]")).toBe("price_annual");
+    expect(checkout.get("subscription_data[trial_period_days]")).toBe("30");
+    delete process.env["STRIPE_PRICE_ID_ANNUAL"];
+  });
 });

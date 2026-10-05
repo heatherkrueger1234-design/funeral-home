@@ -17,8 +17,11 @@ Two audiences, two authentication schemes, and the split is load-bearing:
 
  * OpenAPI spec version: 0.1.0
  */
+import type { BillingReturnInputInterval } from "./billingReturnInputInterval";
 
 export interface BillingReturnInput {
   /** Where Stripe sends them back to. */
   returnUrl: string;
+  /** Checkout only. Annual is twelve months for the price of ten. */
+  interval?: BillingReturnInputInterval;
 }

@@ -27,4 +27,8 @@ export interface FamilyContactInput {
   email?: string | null;
   role?: FamilyContactInputRole;
   canInvite?: boolean;
+  /** The director confirms this person agreed to be texted. Recorded
+with the time and `director` as the source; false withdraws it.
+ */
+  smsConsent?: boolean;
 }

@@ -96,8 +96,20 @@ describe("the death certificate clock", () => {
       asked.getTime() + 72 * HOUR,
     );
     expect(saved.body.certifyingPhysician).toBe("Dr. Lena Ortiz");
+    expect(saved.body.physicianCertifiedAt).toBeNull();
     // The physician being asked does not start the home's own clock.
     expect(saved.body.standing).toBe("no_custody");
+
+    // Recorded from EDRS once they have certified: it is what says the home
+    // can now file.
+    const certified = hoursAgo(1);
+    const after = await staff.agent
+      .put(`/api/cases/${row.id}/certificate-filing`)
+      .send({ physicianCertifiedAt: certified.toISOString() })
+      .expect(200);
+    expect(new Date(after.body.physicianCertifiedAt).getTime()).toBe(
+      certified.getTime(),
+    );
   });
 
   it("refuses a time in the future, because the deadline counts from it", async () => {
@@ -105,7 +117,12 @@ describe("the death certificate clock", () => {
     const row = await createCase(staff);
     const tomorrow = new Date(Date.now() + 24 * HOUR).toISOString();
 
-    for (const field of ["custodyTakenAt", "physicianRequestedAt", "filedAt"]) {
+    for (const field of [
+      "custodyTakenAt",
+      "physicianRequestedAt",
+      "physicianCertifiedAt",
+      "filedAt",
+    ]) {
       await staff.agent
         .put(`/api/cases/${row.id}/certificate-filing`)
         .send({ [field]: tomorrow })
