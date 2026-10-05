@@ -49,6 +49,7 @@ import { isPlatformAdmin } from "../lib/platform-auth";
 import { seedTimelineTemplate } from "../lib/timeline";
 import { seedPolicyPrompts } from "../lib/storefront";
 import { currentUser, requireAuth, tenant } from "../middleware/require-auth";
+import { toDirectorHome } from "./home";
 
 /**
  * Staff accounts. Families never reach this file — they have no account at
@@ -67,11 +68,16 @@ const router: IRouter = Router();
  * be told which of them they can use — not sent back to guess. It is a fact
  * about the caller's own account, so it discloses nothing: a director learns
  * `false`, which they could work out by trying.
+ *
+ * The home goes through `toDirectorHome` like every other director-facing
+ * copy of that row. This is the copy the console actually keeps — it is sent
+ * on every sign-in and every page load, to every member of staff — so it was
+ * the one place the platform's own notes on the customer still reached them.
  */
 async function authPayload(user: User, home: FuneralHome) {
   return {
     user: toPublicUser(user),
-    home,
+    home: toDirectorHome(home),
     platformAdmin: await isPlatformAdmin(user.email),
   };
 }

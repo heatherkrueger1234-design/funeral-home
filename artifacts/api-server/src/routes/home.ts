@@ -61,7 +61,7 @@ const ADMIN_ONLY_HOME_FIELDS = [
   "adminNotes",
 ] as const;
 
-function toDirectorHome(home: FuneralHome) {
+export function toDirectorHome(home: FuneralHome) {
   const stripped: Record<string, unknown> = { ...home };
   for (const field of ADMIN_ONLY_HOME_FIELDS) delete stripped[field];
   return stripped;
