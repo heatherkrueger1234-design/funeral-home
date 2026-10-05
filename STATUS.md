@@ -1,18 +1,25 @@
 # Status — where things stand
 
-Last checked: **5 October 2026**, against `origin` as it stood that morning.
+Last checked: **5 October 2026**, against `origin` as it stood that evening.
 Update this file when any of it changes; a stale status page is worse than
 none. (The 23 September version listed six "left for an owner" items that
 had in fact been built. Check before you trust a list.)
 
 ## The short version
 
-- **The code is healthy, and in one place again.** Everything is on main:
-  4 October's work (PR #38), then the twelve stranded commits from 2 October
-  with main's 72-hour clock kept and 5 October's fixes on top (PR #39).
-  Typecheck and lint are clean and every suite passes (counts in `LAUNCH.md`).
-- **What is left for launch is not code.** A price, a lawyer, a real
-  deployment, and four accounts (mail, Twilio, Stripe, a backup bucket).
+- **Every suite was green, and the code still was not finished.** A launch
+  review on the evening of 5 October — five independent audits, each finding
+  checked against the code before anything changed — found defects 770
+  passing tests had not: an outsider could take over the platform console;
+  every member of staff was sent the platform's private notes on their home;
+  imported service times printed six hours early; a late "yes" to check-ins
+  sent three grief notes in a minute; a STOP could be forgotten. Branch
+  `ccr-159a35a1-xifk0k` fixes twenty, each with a test that fails on the old
+  code (*What the launch review changed*, below). One pull request takes it
+  to main. What was found and not fixed is under *Open findings*.
+- **What is left for launch is mostly not code.** A price, a lawyer, a real
+  deployment, and four accounts (mail, Twilio, Stripe, a backup bucket) —
+  and, before the first charge, the billing findings below.
 - **Two things to do this week that cost nothing:** make this repository
   private, and switch off Replit's analytics injection. Both are below.
 - **Nothing live runs current code.** Both Replit apps serve builds from
@@ -26,6 +33,7 @@ had in fact been built. Check before you trust a list.)
 | Where | What it holds | State |
 | --- | --- | --- |
 | `claude/funeral-home-portal-uj9bik` | **Main**, GitHub's default branch. Everything through PR #39 (5 October). | Green |
+| `ccr-159a35a1-xifk0k` | The launch review's twenty fixes on top of main, and `3636527` (hourly uptime, this file's PR #39 update), which was pushed to `ccr-7f48fd16-gacxdi` after PR #39 merged and never reached main. | Green; pull request to open |
 | `ccr-7f48fd16-gacxdi` | Merged as PR #39: the step-up work (price book, recorded SMS consent, aftercare by text, print themes, obituary composer, ESLint, router splits, case sections) integrated with main's clock, plus everything in *What changed on 5 October*. Reused since for small follow-ups. | Merged |
 | `claude/step-up-app-launch-prep-j18yry` | Its twelve commits are all on main (PR #39). | Delete |
 | PR #36 `claude/rescued-launch-readiness` | Launch-readiness fixes rescued from stranded branches, from 28 September. | Open; check what main has since |
@@ -117,6 +125,52 @@ why this is an owner's job and not an agent's.
 
 ---
 
+## What the launch review changed, 5 October (evening)
+
+On `ccr-159a35a1-xifk0k`. Each is its own commit with the reasoning, and
+each comes with a test that fails on the code before it.
+
+- **The platform console could be taken over.** Confirming an address
+  proved the inbox, not the password: whoever registered a listed address
+  first kept their password and session, and the owner's click on the
+  confirmation let them in. Now a listed address being confirmed, or a
+  confirmed one being listed, clears its password, sessions and outstanding
+  links, and emails the inbox a link to choose a password. Each platform
+  admin gets that email once (`replit.md`, "How you get in").
+- **Every member of staff was sent the platform's notes on their home**
+  (plan, amount, discount, admin notes) with every sign-in and page load.
+- **Imported service times were six hours early** — read in the server's
+  UTC — and "1:00 PM" was read as 1:00 AM; impossible dates rolled into the
+  next month. Imports now use the home's clock and refuse what they cannot
+  read; a service given only a day is left blank and listed.
+- **Late grief notes went out together.** A family who said yes ten weeks
+  on got "Thinking of you", "Two months on" and a birthday note seven weeks
+  late in one minute; the same would have happened the day SMTP is switched
+  on. A note now goes inside its window (a day for birthdays and
+  anniversaries, a week for the holidays, a fortnight for the monthly ones)
+  or is marked missed, which the director sees.
+- **A STOP from the number a family gave for check-in texts** was forgotten
+  when the home moved to its own number; so was a carrier-level STOP.
+- **The director console stayed signed in** after its session ended, cases
+  on screen and saves failing silently. The family portal now shows the
+  expired-link screen on a refused save, and "Forget it here" forgets an
+  unsent message too.
+- **Backups over 2 GiB could not be restored or verified**; a failed dump
+  left plaintext behind; nginx's access logs held every family link and
+  reset token.
+- **Query values reached the logs and the error tracker** (a front-door
+  request's names, email and note), and malformed requests were 500s anyone
+  could send to drain the tracker's quota.
+- **Uploads and password checks are capped for the whole process** — the
+  two denial-of-service edges listed below on 5 October morning.
+- **IPv6 callers are counted by their /64**, and DEPLOY.md no longer advises
+  AAAA records the compose network cannot honour.
+- Also: deactivating staff ends their sessions; "forgot password" no longer
+  takes longer for real accounts; a photo pack too large for one archive is
+  refused before it starts; a blank `STRIPE_PRICE_ID` no longer switches the
+  no-card trial off; every Stripe signature is checked during a secret roll;
+  "your trial ends tomorrow" is no longer sent on the day it ends.
+
 ## What changed on 5 October
 
 Each is its own commit, merged in PR #39, with the reasoning in the
@@ -164,13 +218,70 @@ message.
   counsel, with the brief, rather than rewritten here.
 - **Replit pages have no security headers.** The Docker path's nginx sets
   them (`deploy/security-headers.conf`); Replit's static hosting does not.
-- **Two denial-of-service edges, older than this branch** (found by its
-  security review): uploads are read into memory whole (up to 50 MB each)
-  before any check, so one forwarded family link sending forty at once
-  could hold 2 GB; and each sign-in attempt costs about 240 ms of a
-  four-thread pool, limited only per address. Both want a process-wide
-  concurrency cap (uploads waiting their turn with a 429 the portal already
-  retries, sign-ins queueing) before the platform is advertised.
 - **Infrastructure, sized for a pilot:** uploads in Postgres (about 0.6 MB a
   photograph, in every backup), one API instance, an in-memory rate limiter.
+
+## Open findings from the launch review
+
+Found, checked against the code, and not fixed — each needs a decision, a
+live account to test against, or more than a review should change unasked.
+
+**Billing — before the first charge** (Stripe has never taken one):
+
+- Two subscription events in the same second: the second is dropped
+  (`lib/billing.ts` skips `created <=` the last applied), and `incomplete`
+  maps to `canceled`. A group checkout, which has no trial, can be left
+  canceled after paying. Fetch the subscription's current state from Stripe
+  on each event instead of trusting the event's order.
+- A Stripe no-card trial reads as "Active" (`trialing` → active), so no
+  reminder is sent, `trial_will_end` is ignored, and the home is refused new
+  cases the day Stripe cancels it.
+- The usage reporter picks the oldest 500 unreported funerals each run and
+  skips any home with no Stripe customer, so 500 of those stop the meter
+  for everybody, and the run stays green. Cases created by CSV import are
+  never counted at all (`routes/import.ts`). A group's seat count is set at
+  checkout and never again. Every checkout grants a fresh no-card trial,
+  including to a home that cancelled.
+
+**For the lawyer:**
+
+- A reply over six words that asks to stop — "Please stop sending these,
+  it is too painful" — is not treated as a STOP (`revokesConsent`). The FCC
+  accepts revocation "by any reasonable means"; honouring every "stop" also
+  opts out "can you stop by?". A decision, not a bug fix.
+
+**Families:**
+
+- A relative's link that a family member minted survives the revocation or
+  re-minting of that member's link (`routes/contacts.ts`). The director can
+  see and revoke the relative; nothing points it out.
+- "Forget it here" cannot remove `/f/<token>` from the browser's own history
+  and address-bar suggestions on a borrowed device.
+- The photographs page keeps every full-size image it has drawn in memory;
+  a bin of several hundred may be too much for an older iPhone's Safari.
+
+**Abuse, before the platform is advertised:**
+
+- "Account exists", confirmation and reset emails can be sent to any
+  address, twenty per fifteen minutes per caller: enough, from a few
+  addresses, to harass somebody from our sending domain and get the mail
+  account suspended. Wants a per-recipient cooldown.
+- The front door's hourly ceilings count, then insert, so concurrent
+  requests overrun them (8 accepted of 30 at once). An advisory lock per
+  home closes it.
+- Registration still answers 201 for a new address and 202 for a taken one.
+
+**Operations:**
+
+- nginx's error log and Caddy's log of a 5xx keep the full URL and
+  Referer: treat them as holding family links.
+- `verify-backup` compares the restored row counts with live counts taken
+  at verify time, so any write since the dump reads as a broken backup in
+  production; DEPLOY.md says it checks more than it does.
+- On Replit, `TRUST_PROXY_HOPS` is the default 1, unmeasured. Log `req.ip`
+  and `X-Forwarded-For` for one request there to settle whether every
+  visitor shares one rate limit.
+
+**Copy:** the website says a family link "expires after 90 days";
+`RETENTION.md`, correctly, says it is extended while a memory book is open.
   `DEPLOY.md`, "What this is not".

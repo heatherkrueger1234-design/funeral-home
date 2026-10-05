@@ -25,9 +25,11 @@ import {
  * edited with curl or SQL, which is the stale, traceless arrangement the table
  * was introduced to end.
  *
- * Deliberately plain. Adding somebody records an address and nothing else: no
- * account is created and no email is sent, and the person still needs a staff
- * account with that address, *confirmed*, before the console opens for them.
+ * Deliberately plain. Adding somebody records an address: no account is
+ * created, and the person still needs a staff account with that address,
+ * *confirmed*, before the console opens for them. If they already have one,
+ * they are signed out of it and emailed a link to choose a new password, so
+ * the password on the console is theirs (`reclaimForInbox` in the API).
  * Taking somebody off is immediate, on their existing session. You cannot take
  * yourself off; the API refuses, and so does this page, rather than offering a
  * button that only ever fails.
@@ -221,8 +223,10 @@ function GrantAccess() {
           />
         </div>
         <p className="max-w-prose text-sm text-[var(--muted-foreground)]">
-          This sends nothing and creates no account. They get in once they have
-          a staff account with this address and have confirmed it.
+          This creates no account. They get in once they have a staff account
+          with this address and have confirmed it. When that happens — or now,
+          if they already have — they are emailed a link to choose their own
+          password and signed out until they do.
         </p>
         <div className="flex flex-wrap items-center gap-3">
           <Button
