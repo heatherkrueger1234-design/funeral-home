@@ -4469,6 +4469,70 @@ export const GetAftercareResponseItem = zod.object({
 export const GetAftercareResponse = zod.array(GetAftercareResponseItem);
 
 /**
+ * What the unsubscribe page promises a family who telephones: the home
+can stop the notes for them. Final, exactly as the family's own "no"
+and the unsubscribe link are - nothing sets it back. Stopping a
+stopped enrolment changes nothing. Returns the case's enrolments as
+they now stand.
+
+ * @summary Stop one person's check-ins, at the family's request
+ */
+export const StopAftercareParams = zod.object({
+  caseId: zod.coerce.number(),
+  enrollmentId: zod.coerce.number(),
+});
+
+export const StopAftercareResponseItem = zod.object({
+  id: zod.number(),
+  caseId: zod.number(),
+  contactId: zod.number(),
+  contactName: zod.string().nullable(),
+  email: zod.string().nullable(),
+  phone: zod.string().nullable(),
+  brandedAs: zod.string(),
+  status: zod.enum(["pending", "active", "done"]),
+  startsAt: zod.date(),
+  consentedAt: zod.date().nullable(),
+  unsubscribedAt: zod.date().nullable(),
+  smsConsentAt: zod.date().nullish(),
+  touchpointsConsentAt: zod.date().nullish(),
+  touchpointsOffered: zod
+    .array(
+      zod.object({
+        kind: zod.enum(["birthday", "holidays", "death_anniversary"]),
+        dueAt: zod.date(),
+      }),
+    )
+    .optional()
+    .describe(
+      "Extra notes the home offers and when they would land; only while the family has not answered, and only on the family's view.",
+    ),
+  smsAvailable: zod
+    .boolean()
+    .optional()
+    .describe(
+      "Whether texts can be sent on this deployment. Family view only.",
+    ),
+  deliveries: zod.array(
+    zod.object({
+      id: zod.number(),
+      kind: zod.enum(["checkin", "birthday", "holidays", "death_anniversary"]),
+      dayOffset: zod.number(),
+      dueAt: zod.date(),
+      sentAt: zod.date().nullable(),
+      failedAt: zod.date().nullable(),
+      sentVia: zod
+        .string()
+        .nullable()
+        .describe(
+          "`email`, `sms`, `email,sms`, or `withdrawn` when consent lapsed before it was due.",
+        ),
+    }),
+  ),
+});
+export const StopAftercareResponse = zod.array(StopAftercareResponseItem);
+
+/**
  * @summary The notes this home sends, and which extra touchpoints it offers
  */
 export const GetAftercareSettingsResponse = zod.object({

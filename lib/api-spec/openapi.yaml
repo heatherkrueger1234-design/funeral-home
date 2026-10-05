@@ -2215,6 +2215,34 @@ paths:
                 items:
                   $ref: "#/components/schemas/AftercareEnrollment"
 
+  /cases/{caseId}/aftercare/{enrollmentId}/stop:
+    post:
+      operationId: stopAftercare
+      tags: [aftercare]
+      summary: Stop one person's check-ins, at the family's request
+      description: |
+        What the unsubscribe page promises a family who telephones: the home
+        can stop the notes for them. Final, exactly as the family's own "no"
+        and the unsubscribe link are - nothing sets it back. Stopping a
+        stopped enrolment changes nothing. Returns the case's enrolments as
+        they now stand.
+      parameters:
+        - $ref: "#/components/parameters/CaseId"
+        - name: enrollmentId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: The case's enrolments, afterwards
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/AftercareEnrollment"
+
   /home/aftercare:
     get:
       operationId: getAftercareSettings

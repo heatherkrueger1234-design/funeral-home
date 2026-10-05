@@ -9651,6 +9651,100 @@ export function useGetAftercare<
 }
 
 /**
+ * What the unsubscribe page promises a family who telephones: the home
+can stop the notes for them. Final, exactly as the family's own "no"
+and the unsubscribe link are - nothing sets it back. Stopping a
+stopped enrolment changes nothing. Returns the case's enrolments as
+they now stand.
+
+ * @summary Stop one person's check-ins, at the family's request
+ */
+export const getStopAftercareUrl = (caseId: number, enrollmentId: number) => {
+  return `/api/cases/${caseId}/aftercare/${enrollmentId}/stop`;
+};
+
+export const stopAftercare = async (
+  caseId: number,
+  enrollmentId: number,
+  options?: RequestInit,
+): Promise<AftercareEnrollment[]> => {
+  return customFetch<AftercareEnrollment[]>(
+    getStopAftercareUrl(caseId, enrollmentId),
+    {
+      ...options,
+      method: "POST",
+    },
+  );
+};
+
+export const getStopAftercareMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof stopAftercare>>,
+    TError,
+    { caseId: number; enrollmentId: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof stopAftercare>>,
+  TError,
+  { caseId: number; enrollmentId: number },
+  TContext
+> => {
+  const mutationKey = ["stopAftercare"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof stopAftercare>>,
+    { caseId: number; enrollmentId: number }
+  > = (props) => {
+    const { caseId, enrollmentId } = props ?? {};
+
+    return stopAftercare(caseId, enrollmentId, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type StopAftercareMutationResult = NonNullable<
+  Awaited<ReturnType<typeof stopAftercare>>
+>;
+
+export type StopAftercareMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Stop one person's check-ins, at the family's request
+ */
+export const useStopAftercare = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof stopAftercare>>,
+    TError,
+    { caseId: number; enrollmentId: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof stopAftercare>>,
+  TError,
+  { caseId: number; enrollmentId: number },
+  TContext
+> => {
+  return useMutation(getStopAftercareMutationOptions(options));
+};
+
+/**
  * @summary The notes this home sends, and which extra touchpoints it offers
  */
 export const getGetAftercareSettingsUrl = () => {

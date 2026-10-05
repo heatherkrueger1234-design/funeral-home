@@ -124,3 +124,44 @@ describe("the aftercare loop closes", () => {
     expect(session.body.aftercare.unsubscribedAt).not.toBeNull();
   });
 });
+
+describe("a home stopping a family's check-ins", () => {
+  it("stops them for good when somebody telephones and asks", async () => {
+    const staff = await signUpHome();
+    const row = await createCase(staff, {
+      serviceAt: new Date(Date.now() - 2 * DAY).toISOString(),
+    });
+    const { token } = await inviteFamily(staff, row.id, { email: "anne@example.com" });
+    await staff.agent.post(`/api/cases/${row.id}/close`).expect(200);
+    await asFamily(token).post("/api/family/aftercare").send({ consent: true }).expect(200);
+
+    const [enrollment] = (await staff.agent.get(`/api/cases/${row.id}/aftercare`).expect(200)).body;
+    const stopped = await staff.agent
+      .post(`/api/cases/${row.id}/aftercare/${enrollment.id}/stop`)
+      .expect(200);
+    expect(stopped.body[0].unsubscribedAt).not.toBeNull();
+    expect(stopped.body[0].status).toBe("done");
+
+    // Final: the family cannot say yes again behind it.
+    await asFamily(token).post("/api/family/aftercare").send({ consent: true }).expect(409);
+
+    // Stopping again changes nothing.
+    const again = await staff.agent
+      .post(`/api/cases/${row.id}/aftercare/${enrollment.id}/stop`)
+      .expect(200);
+    expect(again.body[0].unsubscribedAt).toBe(stopped.body[0].unsubscribedAt);
+  });
+
+  it("cannot stop another home's", async () => {
+    const a = await signUpHome("Home A");
+    const b = await signUpHome("Home B");
+    const row = await createCase(a, { serviceAt: new Date(Date.now() - 2 * DAY).toISOString() });
+    await inviteFamily(a, row.id, { email: "anne@example.com" });
+    await a.agent.post(`/api/cases/${row.id}/close`).expect(200);
+    const [enrollment] = (await a.agent.get(`/api/cases/${row.id}/aftercare`).expect(200)).body;
+
+    await b.agent.post(`/api/cases/${row.id}/aftercare/${enrollment.id}/stop`).expect(404);
+    const still = (await a.agent.get(`/api/cases/${row.id}/aftercare`).expect(200)).body;
+    expect(still[0].unsubscribedAt).toBeNull();
+  });
+});

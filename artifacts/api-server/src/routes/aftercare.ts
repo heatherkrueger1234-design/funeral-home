@@ -1,7 +1,8 @@
 import { Router, type IRouter } from "express";
-import { eq } from "drizzle-orm";
+import { and, eq, isNull } from "drizzle-orm";
 import {
   db,
+  aftercareEnrollmentsTable,
   funeralHomesTable,
   AFTERCARE_COPY_KEYS,
   AFTERCARE_TOUCHPOINTS,
@@ -12,7 +13,7 @@ import { UpdateAftercareSettingsBody } from "@workspace/api-zod";
 import { AFTERCARE_DEFAULT_COPY } from "@workspace/mailer/aftercare";
 import { currentUser, tenant } from "../middleware/require-auth";
 import { aftercareForCase, offeredTouchpoints } from "../lib/aftercare";
-import { assertHasUpdates, badRequest, parseBody } from "../lib/http";
+import { assertHasUpdates, badRequest, parseBody, parseId, requireRow } from "../lib/http";
 import { loadCase } from "./cases";
 
 const router: IRouter = Router();
@@ -20,6 +21,47 @@ const router: IRouter = Router();
 router.get("/cases/:caseId/aftercare", async (req, res) => {
   const home = tenant(req);
   const row = await loadCase(req, req.params.caseId);
+  res.json(await aftercareForCase(row.id, home.id));
+});
+
+/**
+ * Stop one person's check-ins, because they telephoned and asked.
+ *
+ * The unsubscribe page has always told a family "the funeral home can stop
+ * them for you if you telephone", and until 5 October the console had no
+ * way to. Final, like the family's own "no": `unsubscribedAt` is set once
+ * and nothing clears it, so a mistaken click cannot be undone here either —
+ * the console asks first.
+ */
+router.post("/cases/:caseId/aftercare/:enrollmentId/stop", async (req, res) => {
+  const home = tenant(req);
+  const row = await loadCase(req, req.params.caseId);
+  const id = parseId(req.params.enrollmentId);
+
+  const [enrollment] = await db
+    .select({ id: aftercareEnrollmentsTable.id })
+    .from(aftercareEnrollmentsTable)
+    .where(
+      and(
+        eq(aftercareEnrollmentsTable.id, id),
+        eq(aftercareEnrollmentsTable.caseId, row.id),
+        eq(aftercareEnrollmentsTable.funeralHomeId, home.id),
+      ),
+    )
+    .limit(1);
+  requireRow(enrollment, "Those check-ins could not be found.");
+
+  const now = new Date();
+  await db
+    .update(aftercareEnrollmentsTable)
+    .set({ status: "done", unsubscribedAt: now, updatedAt: now })
+    .where(
+      and(
+        eq(aftercareEnrollmentsTable.id, id),
+        isNull(aftercareEnrollmentsTable.unsubscribedAt),
+      ),
+    );
+
   res.json(await aftercareForCase(row.id, home.id));
 });
 
