@@ -41,7 +41,13 @@ export function gateScreen(
     return { screen: "error" };
   }
 
-  if (!session.data) return { screen: "sign-in" };
+  /*
+   * Signed out even while it still holds an answer. A query whose refetch
+   * fails keeps the data it had, so a session that expired with the console
+   * open still "had" a user: the gate let them through, and every panel
+   * behind it failed one at a time instead of the sign-in form appearing.
+   */
+  if (isUnauthorized(session.error) || !session.data) return { screen: "sign-in" };
 
   if (access.isPending) return { screen: "nothing" };
 

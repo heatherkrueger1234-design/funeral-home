@@ -1,12 +1,14 @@
 import { useCallback, useState } from "react";
 import { Route, Router, Switch, useLocation, useParams } from "wouter";
 import {
+  MutationCache,
+  QueryCache,
   QueryClient,
   QueryClientProvider,
   useQuery,
   useQueryClient,
 } from "@tanstack/react-query";
-import { api, worthRetrying } from "@/lib/api";
+import { api, isUnauthorized, worthRetrying } from "@/lib/api";
 import { gateScreen, type Session } from "@/lib/gate";
 import { Shell } from "@/components/Shell";
 import { CrashBoundary } from "@/components/CrashBoundary";
@@ -22,7 +24,32 @@ import { Admins } from "@/pages/Admins";
 import { Plans } from "@/pages/Plans";
 import { BASE_PATH } from "@/lib/base";
 
+/** The gate's own two questions, which answer a 401 by themselves. */
+const GATE_QUERIES = new Set(["session", "platform-access"]);
+
+/*
+ * A 401 from any panel means the session has gone -- it expired with the
+ * console open overnight, or the admin was taken off the access list -- so
+ * the gate asks again, and the sign-in form replaces the console. Before
+ * this, each panel failed on its own with "Sign in again", and the console's
+ * navigation stayed up around the failures until somebody reloaded.
+ */
+function sessionEnded() {
+  void queryClient.invalidateQueries({ queryKey: ["session"] });
+}
+
 const queryClient = new QueryClient({
+  queryCache: new QueryCache({
+    onError: (error, query) => {
+      if (GATE_QUERIES.has(String(query.queryKey[0]))) return;
+      if (isUnauthorized(error)) sessionEnded();
+    },
+  }),
+  mutationCache: new MutationCache({
+    onError: (error) => {
+      if (isUnauthorized(error)) sessionEnded();
+    },
+  }),
   defaultOptions: {
     queries: {
       retry: worthRetrying,
