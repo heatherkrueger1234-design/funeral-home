@@ -24,9 +24,19 @@ const scrypt = promisify(scryptCallback) as (
   options: { N: number; r: number; p: number },
 ) => Promise<Buffer>;
 
-// OWASP's floor for scrypt at the time of writing. Kept in the stored hash
-// string so these can be raised later without invalidating existing passwords.
-const SCRYPT_PARAMS = { N: 16384, r: 8, p: 1 };
+/*
+ * OWASP's scrypt configuration for a 16 MiB memory cost: N=2^14, r=8, p=5,
+ * the listed equivalent of its N=2^17, p=1 floor. Not that floor itself:
+ * 2^17 costs 128 MiB per hash, and a sign-in form that anybody can submit —
+ * including for addresses that do not exist, which `fakeVerify` pays for
+ * too — would let a few hundred requests take a 2 GB server's memory. Five
+ * passes at 16 MiB cost the same in time to an attacker guessing offline.
+ *
+ * These were N=2^14, p=1 until 5 October, which is below the floor. The
+ * parameters are kept in each stored hash, so old ones still verify, and
+ * `needsRehash` upgrades them at the next sign-in.
+ */
+const SCRYPT_PARAMS = { N: 16384, r: 8, p: 5 };
 const KEY_LENGTH = 64;
 const SALT_LENGTH = 16;
 
@@ -96,6 +106,17 @@ export async function verifyPassword(
   // Lengths must match before timingSafeEqual, which throws otherwise.
   return (
     derived.length === expected.length && timingSafeEqual(derived, expected)
+  );
+}
+
+/** Whether a stored hash was made with weaker settings than today's. */
+export function needsRehash(stored: string): boolean {
+  const [scheme, rawN, rawR, rawP] = stored.split("$");
+  return (
+    scheme !== "scrypt" ||
+    Number(rawN) < SCRYPT_PARAMS.N ||
+    Number(rawR) < SCRYPT_PARAMS.r ||
+    Number(rawP) < SCRYPT_PARAMS.p
   );
 }
 
