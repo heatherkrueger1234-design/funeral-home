@@ -136,7 +136,12 @@ two things this stack depends on:
   *and* a load balancer *and* nginx it is 3. Too low and every visitor shares
   the proxy's address, so one person's failed sign-ins lock every director
   out. Too high and a visitor can pick the address the rate limiter sees by
-  sending a header. The API refuses to start on anything but a whole number.
+  sending a header. The API refuses to start on anything but a whole number,
+  and warns in its log, once a day, when a request arrives from a private
+  address with a public one further back in `X-Forwarded-For` than the
+  number reaches: that is too low, caught in the act, and the warning says
+  the least it should be. It cannot see a count short of a proxy whose own
+  address is public, such as a CDN's edge.
 
 ## Email
 

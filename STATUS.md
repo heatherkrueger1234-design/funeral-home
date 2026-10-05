@@ -283,9 +283,12 @@ live account to test against, or more than a review should change unasked.
   stop token while the API is down, a family link only if nginx cannot read
   `index.html`, and a staff search's terms (`DEPLOY.md`, on logs). Caddy's
   log now keeps none of them.
-- On Replit, `TRUST_PROXY_HOPS` is the default 1, unmeasured. Log `req.ip`
-  and `X-Forwarded-For` for one request there to settle whether every
-  visitor shares one rate limit.
+- On Replit, `TRUST_PROXY_HOPS` is the default 1, unmeasured. The API now
+  warns in its log, once a day, when a request shows the number is too low
+  (a private `req.ip`, a public address further back): after the first real
+  visit to a deployment of current code, look for `TRUST_PROXY_HOPS` in its
+  log. None means 1 is right, unless the API sees Replit's router at a
+  public address, which the check cannot tell from a visitor.
 
 **Copy:** the website says a family link "expires after 90 days";
 `RETENTION.md`, correctly, says it is extended while a memory book is open.
