@@ -316,6 +316,7 @@ type StripeSubscription = {
     data?: Array<{
       id?: string;
       quantity?: number;
+      current_period_end?: number;
       price?: { id?: string; recurring?: { usage_type?: string } | null };
     }>;
   };
@@ -388,6 +389,22 @@ function mapStatus(stripeStatus: string): string | null {
 function isLive(subscription: StripeSubscription): boolean {
   const status = mapStatus(subscription.status);
   return status !== null && status !== "canceled";
+}
+
+/**
+ * When the subscription next renews.
+ *
+ * On the subscription in older API versions, and on each item since
+ * 2025-03-31, which is the version a Stripe account opened now is given.
+ * Read from the subscription alone, the renewal date was blank on every
+ * new account. The items can differ when one was added mid-period; the
+ * latest is when the whole bill has renewed.
+ */
+function periodEndOf(subscription: StripeSubscription): Date | null {
+  const seconds =
+    subscription.current_period_end ??
+    Math.max(0, ...(subscription.items?.data ?? []).map((item) => item.current_period_end ?? 0));
+  return seconds > 0 ? new Date(seconds * 1000) : null;
 }
 
 /** Stripe's trial end for a trial it holds; otherwise the one already set. */
@@ -512,9 +529,7 @@ export async function applySubscription(
       subscriptionStatus: mapStatus(subscription.status)!,
       stripeSubscriptionId: subscription.id,
       trialEndsAt: trialEndOf(subscription, home.trialEndsAt),
-      currentPeriodEndsAt: subscription.current_period_end
-        ? new Date(subscription.current_period_end * 1000)
-        : null,
+      currentPeriodEndsAt: periodEndOf(subscription),
       entitlements: entitlementsFrom(subscription),
       stripeEventCreatedAt: latest(home.stripeEventCreatedAt, eventCreatedAt),
       updatedAt: new Date(),
@@ -592,9 +607,7 @@ async function applyGroupSubscription(
   const status = mapStatus(subscription.status)!;
   const entitlements = entitlementsFrom(subscription);
   const trialEndsAt = trialEndOf(subscription, group.trialEndsAt);
-  const periodEnd = subscription.current_period_end
-    ? new Date(subscription.current_period_end * 1000)
-    : null;
+  const periodEnd = periodEndOf(subscription);
   const stamped = latest(group.stripeEventCreatedAt, eventCreatedAt);
   const now = new Date();
 

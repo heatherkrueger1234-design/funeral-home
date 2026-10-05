@@ -422,6 +422,9 @@ describe("the Stripe webhook, asking Stripe", () => {
     customer: string;
     metadata: { funeralHomeId: string };
     trial_end?: number;
+    items?: {
+      data: Array<{ id: string; current_period_end?: number; price?: { id: string } }>;
+    };
   };
 
   /**
@@ -614,6 +617,23 @@ describe("the Stripe webhook, asking Stripe", () => {
       .from(billableCasesTable)
       .where(eq(billableCasesTable.caseId, row.id));
     expect(counted!.waivedReason).toBe("trial");
+  });
+
+  it("finds the renewal date where newer Stripe API versions keep it", async () => {
+    const staff = await signUpHome();
+    const renews = Math.floor((Date.now() + 30 * DAY) / 1000);
+    // Since the 2025-03-31 API version the period is on each item, not on
+    // the subscription, and an account opened now gets that version.
+    const paid = {
+      ...subscriptionOf(staff.homeId, "sub_basil", "active"),
+      items: { data: [{ id: "si_1", current_period_end: renews, price: { id: "price_base" } }] },
+    };
+    stripeHas([paid]);
+
+    await deliver("customer.subscription.updated", paid).expect(200);
+
+    const home = await homeRow(staff.homeId);
+    expect(home.currentPeriodEndsAt?.getTime()).toBe(renews * 1000);
   });
 
   it("asks Stripe to send the event again when Stripe cannot be reached", async () => {
