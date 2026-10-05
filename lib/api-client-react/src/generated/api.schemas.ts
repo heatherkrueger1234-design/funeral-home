@@ -1044,6 +1044,12 @@ export interface FamilyContact {
   email: string | null;
   role: FamilyContactRole;
   canInvite: boolean;
+  /** This person is the one the file is about: a planner reading their
+own plan. Only ever true on a pre-need file, and it is what the
+portal asks before it says "your plan" - a relative on somebody
+else's plan is spoken to about them, not as them.
+ */
+  isSubject: boolean;
   expiresAt: string;
   revokedAt: string | null;
   firstSeenAt: string | null;
@@ -1211,6 +1217,11 @@ export interface FamilyContactInput {
   email?: string | null;
   role?: FamilyContactInputRole;
   canInvite?: boolean;
+  /** This is the person the plan is for. Pre-need files only - refused
+on an at-need one - and at most one per file: marking somebody
+moves it from whoever had it.
+ */
+  isSubject?: boolean;
   /** The director confirms this person agreed to be texted. Recorded
 with the time and `director` as the source; false withdraws it.
  */
@@ -1233,6 +1244,11 @@ export interface FamilyContactUpdate {
   email?: string | null;
   role?: FamilyContactUpdateRole;
   canInvite?: boolean;
+  /** This is the person the plan is for. Pre-need files only - refused
+on an at-need one - and at most one per file: marking somebody
+moves it from whoever had it.
+ */
+  isSubject?: boolean;
   /** The director confirms this person agreed to be texted. Recorded
 with the time and `director` as the source; false withdraws it.
  */

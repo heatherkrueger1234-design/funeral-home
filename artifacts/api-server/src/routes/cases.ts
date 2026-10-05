@@ -396,6 +396,29 @@ router.post("/cases/:caseId/at-need", async (req, res) => {
    */
   await recordBillableCase(converted!, home);
 
+  /*
+   * And close the planner's own link. They have died; their phone and their
+   * inbox are in somebody else's hand now, and a message sent through that
+   * link would appear in the chat under the name of the person whose
+   * funeral it is. They stay on the file, as a contact nobody can text,
+   * invite from, or count as the next of kin. Whoever picks up their phone
+   * is added as themselves.
+   */
+  await db
+    .update(familyContactsTable)
+    .set({
+      revokedAt: new Date(),
+      role: "contributor",
+      canInvite: false,
+      updatedAt: new Date(),
+    })
+    .where(
+      and(
+        eq(familyContactsTable.caseId, converted!.id),
+        eq(familyContactsTable.isSubject, true),
+      ),
+    );
+
   // The obituary a planner may have started in their own words gets the
   // date of death on its empty line, and keeps everything they wrote.
   await prefillObituaryDates(converted!);

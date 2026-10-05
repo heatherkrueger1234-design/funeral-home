@@ -39,6 +39,11 @@ export async function enrolCaseInAftercare(
   // email nor a phone number cannot be checked in on, and a row that could
   // never be delivered would sit in the director's aftercare list looking
   // like a failure.
+  //
+  // And never the person who died. A file that began as their own plan has
+  // them on it as a contact, with their own phone and email, and "thinking
+  // of you, a month on" sent to the dead person's inbox, about their own
+  // funeral, is exactly the message this product exists not to send.
   const contacts = await db
     .select()
     .from(familyContactsTable)
@@ -46,6 +51,7 @@ export async function enrolCaseInAftercare(
       and(
         eq(familyContactsTable.caseId, row.id),
         eq(familyContactsTable.funeralHomeId, home.id),
+        eq(familyContactsTable.isSubject, false),
         or(
           isNotNull(familyContactsTable.email),
           isNotNull(familyContactsTable.phone),

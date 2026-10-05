@@ -96,8 +96,9 @@ export default function Obituary() {
   const queryClient = useQueryClient();
   const obituary = useGetFamilyObituary();
   const session = useGetFamilySession();
-  // On a plan this is somebody writing their own, about a life still going.
-  const voice = voiceFor(session.data?.case.kind);
+  // On a plan this is a life still going, written by the person living it
+  // or by their family.
+  const voice = voiceFor(session.data?.case.kind, session.data?.contact.isSubject);
   const [savedAt, setSavedAt] = useState<number | null>(null);
 
   const refresh = () => {
@@ -185,7 +186,7 @@ export default function Obituary() {
 
         <fieldset disabled={locked}>
           <legend className="text-sm font-medium">
-            {voice.preNeed ? "How should it refer to you?" : "How should it refer to them?"}
+            {voice.self ? "How should it refer to you?" : "How should it refer to them?"}
           </legend>
           <p className="mt-1 text-sm leading-snug text-muted-foreground">
             Used in sentences like &ldquo;She was born in Pueblo&rdquo;.
@@ -196,7 +197,7 @@ export default function Obituary() {
                 ["she", "She"],
                 ["he", "He"],
                 ["they", "They"],
-                ["", voice.preNeed ? "Just my name" : "Just their name"],
+                ["", voice.self ? "Just my name" : "Just their name"],
               ] as const
             ).map(([key, label]) => {
               const chosen = (draft.pronouns ?? "") === key;
@@ -231,7 +232,7 @@ export default function Obituary() {
           />
           <Field
             id="birthPlace"
-            label={voice.preNeed ? "Where you were born" : "Where they were born"}
+            label={voice.self ? "Where you were born" : "Where they were born"}
             hint="A town, or a hospital — “Pueblo, Colorado”."
             value={draft.birthPlace}
             disabled={locked}
@@ -273,11 +274,11 @@ export default function Obituary() {
         <Field
           id="biography"
           label={`${voice.Their} life`}
-          hint={
-            voice.preNeed
-              ? "Work, where you've lived, what you love, what matters to you. A few sentences is plenty."
-              : "Work, where they lived, what they loved, what they were like. A few sentences is plenty."
-          }
+          hint={voice.say({
+            self: "Work, where you've lived, what you love, what matters to you. A few sentences is plenty.",
+            living: "Work, where they've lived, what they love, what matters to them. A few sentences is plenty.",
+            died: "Work, where they lived, what they loved, what they were like. A few sentences is plenty.",
+          })}
           value={draft.biography}
           multiline
           disabled={locked}
@@ -297,12 +298,12 @@ export default function Obituary() {
         */}
         <Field
           id="survivedBy"
-          label={voice.preNeed ? "Your family" : "Survived by"}
-          hint={
-            voice.preNeed
-              ? "Names, and how each of them is related to you. Take your time over the spellings."
-              : "Names, and how they were related. Take your time over the spellings."
-          }
+          label={voice.say({ self: "Your family", living: "Their family", died: "Survived by" })}
+          hint={voice.say({
+            self: "Names, and how each of them is related to you. Take your time over the spellings.",
+            living: "Names, and how they are related. Take your time over the spellings.",
+            died: "Names, and how they were related. Take your time over the spellings.",
+          })}
           value={draft.survivedBy}
           multiline
           disabled={locked}
@@ -334,11 +335,11 @@ export default function Obituary() {
           id="specialThanks"
           label="Anyone to thank"
           // The care at the end of a life has not happened on a plan.
-          hint={
-            voice.preNeed
-              ? "Friends, neighbors, anyone you would like thanked by name."
-              : "Who, and what for — “the nurses at Denver Hospice, for their kindness”."
-          }
+          hint={voice.say({
+            self: "Friends, neighbors, anyone you would like thanked by name.",
+            living: "Friends, neighbors, anyone they would like thanked by name.",
+            died: "Who, and what for — “the nurses at Denver Hospice, for their kindness”.",
+          })}
           value={draft.specialThanks}
           multiline
           disabled={locked}

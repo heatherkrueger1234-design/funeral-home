@@ -11,6 +11,11 @@ import { Check, Circle, X } from "lucide-react";
  * The order most homes work a case in, ticked off from what the case
  * already shows. For a director's first few cases; hidden for good with
  * one click, or once every step is done.
+ *
+ * Not shown on a plan. Every step after the first hangs off a death — a
+ * service date, a custody time, an obituary to sign off for print — and a
+ * plan has none of those and nothing due. It appears the day the plan
+ * becomes a case.
  */
 
 const STORAGE_KEY = "continuum.firstCaseGuide.hidden";
@@ -38,13 +43,17 @@ export function FirstCaseGuide({
     query: { queryKey: getGetCertificateFilingQueryKey(detail.id), enabled: atNeed && !hidden },
   });
 
-  if (hidden || detail.status === "closed") return null;
+  if (hidden || detail.status === "closed" || !atNeed) return null;
 
   const steps: Step[] = [
     {
       label: "Add the next of kin",
       detail: "They get a private link; text it once they agree to texts.",
-      done: detail.contacts.length > 0,
+      // A live one. On a file that began as a plan the planner is still on
+      // the list, with their link closed, and is nobody's next of kin now.
+      done: detail.contacts.some(
+        (contact) => contact.role === "next_of_kin" && contact.revokedAt === null,
+      ),
       tab: "family",
     },
     {

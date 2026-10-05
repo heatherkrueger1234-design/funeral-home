@@ -42,10 +42,10 @@ type Section = { title: string; blurb?: string; fields: Field[] };
 /**
  * The sections, in the voice this file needs.
  *
- * On a plan every fact here is the reader's own: the labels say "your", the
- * present is the present ("Where you live"), and the reason to answer is
- * that a family will not have to hunt for it later, rather than that a
- * certificate is waiting on it.
+ * On a plan every fact here is about somebody alive: the present is the
+ * present ("Where they live"), and the reason to answer is that a family
+ * will not have to hunt for it later, rather than that a certificate is
+ * waiting on it. When the planner is the one reading, the labels say "your".
  */
 function sectionsFor(voice: CaseVoice): Section[] {
   const { preNeed } = voice;
@@ -60,13 +60,15 @@ function sectionsFor(voice: CaseVoice): Section[] {
         {
           name: "suffix",
           label: "Suffix",
-          hint: preNeed
-            ? "Jr., Sr., III — only if you use one."
-            : "Jr., Sr., III — only if they used one.",
+          hint: voice.say({
+            self: "Jr., Sr., III — only if you use one.",
+            living: "Jr., Sr., III — only if they use one.",
+            died: "Jr., Sr., III — only if they used one.",
+          }),
         },
         {
           name: "nameAtBirth",
-          label: preNeed ? "Your name at birth" : "Name at birth",
+          label: voice.self ? "Your name at birth" : "Name at birth",
           hint: "If it was different — a maiden name, or a name that changed.",
         },
         { name: "dateOfBirth", label: "Date of birth", type: "date" },
@@ -82,9 +84,11 @@ function sectionsFor(voice: CaseVoice): Section[] {
     },
     {
       title: `${voice.Their} parents`,
-      blurb: preNeed
-        ? "Both parents are asked for. Your mother's name before she married is the one a family most often has to hunt for."
-        : "Both parents are asked for, however long ago they died. The mother's name before marriage is the one that most often holds a certificate up.",
+      blurb: voice.say({
+        self: "Both parents are asked for. Your mother's name before she married is the one a family most often has to hunt for.",
+        living: "Both parents are asked for. Their mother's name before she married is the one a family most often has to hunt for.",
+        died: "Both parents are asked for, however long ago they died. The mother's name before marriage is the one that most often holds a certificate up.",
+      }),
       fields: [
         { name: "fatherFirstName", label: "Father's first name" },
         { name: "fatherMiddleName", label: "Father's middle name" },
@@ -131,7 +135,11 @@ function sectionsFor(voice: CaseVoice): Section[] {
       ],
     },
     {
-      title: preNeed ? "Where you live" : "Where they lived",
+      title: voice.say({
+        self: "Where you live",
+        living: "Where they live",
+        died: "Where they lived",
+      }),
       fields: [
         { name: "residenceLine1", label: "Address" },
         { name: "residenceCity", label: "Town or city" },
@@ -161,9 +169,11 @@ function sectionsFor(voice: CaseVoice): Section[] {
         {
           name: "veteranDischargeDocument",
           label: "Discharge papers",
-          hint: preNeed
-            ? "A DD-214, if you have one. Say where it is kept, so your family can find it."
-            : "A DD-214, if you can find one. Tell us where it is and we'll take it from there.",
+          hint: voice.say({
+            self: "A DD-214, if you have one. Say where it is kept, so your family can find it.",
+            living: "A DD-214, if they have one. Say where it is kept, so it can be found.",
+            died: "A DD-214, if you can find one. Tell us where it is and we'll take it from there.",
+          }),
         },
       ],
     },
@@ -173,11 +183,11 @@ function sectionsFor(voice: CaseVoice): Section[] {
    * "About you" — the informant — is not asked on a plan. The informant is
    * whoever gives these facts to the registrar after a death, and the
    * person the registrar rings with a question. Somebody reading their own
-   * plan is the person the facts are about, so cannot be that, and who it
-   * will be is not known yet; asking them to name who will report their
-   * death would be the one question on this page about their death rather
-   * than their life. When the file becomes at-need, whoever opens this page
-   * then is asked, with their own details already filled in.
+   * plan is the person the facts are about, so cannot be that, and for
+   * anybody else it is not known yet; asking who will report a death would
+   * be the one question on this page about the death rather than the life.
+   * When the file becomes at-need, whoever opens this page then is asked,
+   * with their own details already filled in.
    */
   return preNeed ? sections : [...sections, INFORMANT];
 }
@@ -202,7 +212,7 @@ export default function Vitals() {
   const [ssn, setSsn] = useState("");
   const session = useGetFamilySession();
   const contact = session.data?.contact;
-  const voice = voiceFor(session.data?.case.kind);
+  const voice = voiceFor(session.data?.case.kind, contact?.isSubject);
   const sections = sectionsFor(voice);
 
   /*
@@ -281,9 +291,11 @@ export default function Vitals() {
         saying, is why it helps to answer now.
       */}
       <PageHeader title="Details for the certificate">
-        {voice.preNeed
-          ? "The state will ask for these one day, and they are the details a family most often has to hunt for. Anything you can put down now spares them the search — it saves as you go, and you can stop and come back."
-          : "The state asks for these before a death certificate can be issued, and almost none of it is anything we would know. Answer what you can — it saves as you go, and you can stop and come back."}
+        {voice.say({
+          self: "The state will ask for these one day, and they are the details a family most often has to hunt for. Anything you can put down now spares them the search — it saves as you go, and you can stop and come back.",
+          living: "The state will ask for these one day, and they are the details a family most often has to hunt for. Anything you can put down now is one less thing to look for later — it saves as you go, and you can stop and come back.",
+          died: "The state asks for these before a death certificate can be issued, and almost none of it is anything we would know. Answer what you can — it saves as you go, and you can stop and come back.",
+        })}
       </PageHeader>
 
       {locked && (
@@ -400,7 +412,7 @@ export default function Vitals() {
         */}
         {vitals.data.hasSocialSecurityNumber ? (
           <p className="text-sm font-medium">
-            {voice.preNeed ? "Yours is on file." : "One is on file."}
+            {voice.self ? "Yours is on file." : "One is on file."}
             {!locked && " Type a new one below to replace it."}
           </p>
         ) : null}

@@ -135,7 +135,9 @@ export const DEFAULT_BELONGING_PROMPTS: ReadonlyArray<{
   { kind: "undergarments", description: "Undergarments", disposition: "with_deceased" },
   { kind: "shoes", description: "Shoes or slippers", disposition: "with_deceased" },
   { kind: "glasses", description: "Glasses", disposition: "undecided" },
-  { kind: "jewellery", description: "Jewellery — rings, watch, necklace", disposition: "undecided" },
+  // The kind keeps the schema's spelling; the description is read by the
+  // family, who read US English.
+  { kind: "jewellery", description: "Jewelry — rings, watch, necklace", disposition: "undecided" },
 ];
 
 export const insertBelongingSchema = createInsertSchema(

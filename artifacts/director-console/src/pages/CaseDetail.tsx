@@ -406,7 +406,12 @@ export default function CaseDetail() {
 
         <div className="mt-6">
           <TabsContent value="family">
-            <FamilyPanel caseId={caseId} contacts={detail.contacts} />
+            <FamilyPanel
+              caseId={caseId}
+              contacts={detail.contacts}
+              kind={detail.kind}
+              subjectName={detail.displayName}
+            />
           </TabsContent>
           <TabsContent value="photos">
             <PhotosPanel caseId={caseId} />

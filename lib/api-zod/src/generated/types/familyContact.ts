@@ -29,6 +29,12 @@ export interface FamilyContact {
   email: string | null;
   role: FamilyContactRole;
   canInvite: boolean;
+  /** This person is the one the file is about: a planner reading their
+own plan. Only ever true on a pre-need file, and it is what the
+portal asks before it says "your plan" - a relative on somebody
+else's plan is spoken to about them, not as them.
+ */
+  isSubject: boolean;
   expiresAt: Date;
   revokedAt: Date | null;
   firstSeenAt: Date | null;

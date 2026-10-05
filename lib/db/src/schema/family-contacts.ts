@@ -8,6 +8,7 @@ import {
   index,
   uniqueIndex,
 } from "drizzle-orm/pg-core";
+import { sql } from "drizzle-orm";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
 import { casesTable } from "./cases";
@@ -83,6 +84,24 @@ export const familyContactsTable = pgTable(
     /** Whether this contact can generate a link for somebody else. */
     canInvite: boolean("can_invite").notNull().default(false),
 
+    /**
+     * This contact is the person the file is about — only ever true on a
+     * plan, where the planner reads the portal themselves.
+     *
+     * The case's kind says whether the person is alive; it cannot say who
+     * is holding the phone. On a plan that is usually the planner, and the
+     * portal says "your plan" and "where you live". But a planner can invite
+     * a daughter, and a director can add a son, and either one being told
+     * "your plan" about their mother's funeral is the portal speaking to the
+     * wrong person. So the portal asks this flag, not the role: a planner's
+     * next of kin and the planner are different people.
+     *
+     * It also outlives the plan. When the file becomes at-need this person
+     * has died, and the flag is what stops the home texting them a link, or
+     * a grief check-in, about their own funeral (`cases.ts`, `aftercare.ts`).
+     */
+    isSubject: boolean("is_subject").notNull().default(false),
+
     /* -------------------------------------------------------- the link */
 
     /**
@@ -120,6 +139,14 @@ export const familyContactsTable = pgTable(
   },
   (table) => [
     uniqueIndex("family_contacts_token_hash_unique").on(table.tokenHash),
+    /**
+     * A plan is about one person. The handler moves the flag rather than
+     * adding a second, and this is what holds if two directors tick two
+     * different names in the same second.
+     */
+    uniqueIndex("family_contacts_one_subject")
+      .on(table.caseId)
+      .where(sql`${table.isSubject}`),
     index("family_contacts_case_id_idx").on(table.caseId),
     index("family_contacts_funeral_home_id_idx").on(table.funeralHomeId),
   ],

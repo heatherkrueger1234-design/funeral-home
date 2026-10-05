@@ -1675,6 +1675,11 @@ standard schedule that a pre-need file deliberately never had. It does
 not invite anybody: who the family is, is a conversation, not a
 field.
 
+It does close one link: the planner's own (`isSubject`). They have
+died, and their phone is now in somebody else's hand; a message sent
+from it would appear in the chat under their name. They stay on the
+file, as a contact who can no longer be texted or sent a link.
+
 Refused on a file that is already at-need. There is no way back - a
 death is not an editing mistake, and if it really was one, the case
 can be deleted.
@@ -1992,6 +1997,11 @@ export const GetCaseResponse = zod
           email: zod.string().nullable(),
           role: zod.enum(["next_of_kin", "contributor"]),
           canInvite: zod.boolean(),
+          isSubject: zod
+            .boolean()
+            .describe(
+              'This person is the one the file is about: a planner reading their\nown plan. Only ever true on a pre-need file, and it is what the\nportal asks before it says \"your plan\" - a relative on somebody\nelse\'s plan is spoken to about them, not as them.\n',
+            ),
           expiresAt: zod.date(),
           revokedAt: zod.date().nullable(),
           firstSeenAt: zod.date().nullable(),
@@ -2156,6 +2166,11 @@ export const CloseCaseResponse = zod
           email: zod.string().nullable(),
           role: zod.enum(["next_of_kin", "contributor"]),
           canInvite: zod.boolean(),
+          isSubject: zod
+            .boolean()
+            .describe(
+              'This person is the one the file is about: a planner reading their\nown plan. Only ever true on a pre-need file, and it is what the\nportal asks before it says \"your plan\" - a relative on somebody\nelse\'s plan is spoken to about them, not as them.\n',
+            ),
           expiresAt: zod.date(),
           revokedAt: zod.date().nullable(),
           firstSeenAt: zod.date().nullable(),
@@ -2207,6 +2222,11 @@ export const GetCaseContactsResponseItem = zod.object({
   email: zod.string().nullable(),
   role: zod.enum(["next_of_kin", "contributor"]),
   canInvite: zod.boolean(),
+  isSubject: zod
+    .boolean()
+    .describe(
+      'This person is the one the file is about: a planner reading their\nown plan. Only ever true on a pre-need file, and it is what the\nportal asks before it says \"your plan\" - a relative on somebody\nelse\'s plan is spoken to about them, not as them.\n',
+    ),
   expiresAt: zod.date(),
   revokedAt: zod.date().nullable(),
   firstSeenAt: zod.date().nullable(),
@@ -2258,6 +2278,12 @@ export const CreateCaseContactBody = zod.object({
   email: zod.string().nullish(),
   role: zod.enum(["next_of_kin", "contributor"]).optional(),
   canInvite: zod.boolean().optional(),
+  isSubject: zod
+    .boolean()
+    .optional()
+    .describe(
+      "This is the person the plan is for. Pre-need files only - refused\non an at-need one - and at most one per file: marking somebody\nmoves it from whoever had it.\n",
+    ),
   smsConsent: zod
     .boolean()
     .optional()
@@ -2280,6 +2306,12 @@ export const UpdateContactBody = zod.object({
   email: zod.string().nullish(),
   role: zod.enum(["next_of_kin", "contributor"]).optional(),
   canInvite: zod.boolean().optional(),
+  isSubject: zod
+    .boolean()
+    .optional()
+    .describe(
+      "This is the person the plan is for. Pre-need files only - refused\non an at-need one - and at most one per file: marking somebody\nmoves it from whoever had it.\n",
+    ),
   smsConsent: zod
     .boolean()
     .optional()
@@ -2297,6 +2329,11 @@ export const UpdateContactResponse = zod.object({
   email: zod.string().nullable(),
   role: zod.enum(["next_of_kin", "contributor"]),
   canInvite: zod.boolean(),
+  isSubject: zod
+    .boolean()
+    .describe(
+      'This person is the one the file is about: a planner reading their\nown plan. Only ever true on a pre-need file, and it is what the\nportal asks before it says \"your plan\" - a relative on somebody\nelse\'s plan is spoken to about them, not as them.\n',
+    ),
   expiresAt: zod.date(),
   revokedAt: zod.date().nullable(),
   firstSeenAt: zod.date().nullable(),
@@ -2367,6 +2404,11 @@ export const SendContactLinkResponse = zod
     email: zod.string().nullable(),
     role: zod.enum(["next_of_kin", "contributor"]),
     canInvite: zod.boolean(),
+    isSubject: zod
+      .boolean()
+      .describe(
+        'This person is the one the file is about: a planner reading their\nown plan. Only ever true on a pre-need file, and it is what the\nportal asks before it says \"your plan\" - a relative on somebody\nelse\'s plan is spoken to about them, not as them.\n',
+      ),
     expiresAt: zod.date(),
     revokedAt: zod.date().nullable(),
     firstSeenAt: zod.date().nullable(),
@@ -2433,6 +2475,11 @@ export const ReissueContactLinkResponse = zod
     email: zod.string().nullable(),
     role: zod.enum(["next_of_kin", "contributor"]),
     canInvite: zod.boolean(),
+    isSubject: zod
+      .boolean()
+      .describe(
+        'This person is the one the file is about: a planner reading their\nown plan. Only ever true on a pre-need file, and it is what the\nportal asks before it says \"your plan\" - a relative on somebody\nelse\'s plan is spoken to about them, not as them.\n',
+      ),
     expiresAt: zod.date(),
     revokedAt: zod.date().nullable(),
     firstSeenAt: zod.date().nullable(),
@@ -5750,6 +5797,11 @@ export const GetFamilySessionResponse = zod
       email: zod.string().nullable(),
       role: zod.enum(["next_of_kin", "contributor"]),
       canInvite: zod.boolean(),
+      isSubject: zod
+        .boolean()
+        .describe(
+          'This person is the one the file is about: a planner reading their\nown plan. Only ever true on a pre-need file, and it is what the\nportal asks before it says \"your plan\" - a relative on somebody\nelse\'s plan is spoken to about them, not as them.\n',
+        ),
       expiresAt: zod.date(),
       revokedAt: zod.date().nullable(),
       firstSeenAt: zod.date().nullable(),

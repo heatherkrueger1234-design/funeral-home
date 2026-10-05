@@ -4319,6 +4319,11 @@ standard schedule that a pre-need file deliberately never had. It does
 not invite anybody: who the family is, is a conversation, not a
 field.
 
+It does close one link: the planner's own (`isSubject`). They have
+died, and their phone is now in somebody else's hand; a message sent
+from it would appear in the chat under their name. They stay on the
+file, as a contact who can no longer be texted or sent a link.
+
 Refused on a file that is already at-need. There is no way back - a
 death is not an editing mistake, and if it really was one, the case
 can be deleted.

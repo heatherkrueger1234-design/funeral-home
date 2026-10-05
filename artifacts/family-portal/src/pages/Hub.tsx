@@ -189,7 +189,7 @@ export default function Hub() {
   } = session.data;
 
   const serviceWhen = splitWhen(deceased.serviceAt, home.timezone);
-  const voice = voiceFor(deceased.kind);
+  const voice = voiceFor(deceased.kind, contact.isSubject);
 
   // Soonest thing still ahead; what slipped by is counted, not headlined.
   // See `nextDue` for why the two are no longer the same thing.
@@ -405,24 +405,26 @@ export default function Hub() {
                 ? "Approved by the funeral home"
                 : obituaryStatus === "submitted"
                   ? "With the funeral home"
-                  : voice.preNeed
-                    ? "In your own words, if you like"
-                    : "Tell us about them"
+                  : voice.say({
+                      self: "In your own words, if you like",
+                      living: "In their words, or yours",
+                      died: "Tell us about them",
+                    })
             }
           />
           <Card
             href="/belongings"
             icon={Shirt}
             title="Clothing and belongings"
-            detail={
-              voice.preNeed
-                ? "What you'd like to wear, and how you like to look"
-                : "What they'll wear, and how they looked"
-            }
+            detail={voice.say({
+              self: "What you'd like to wear, and how you like to look",
+              living: "What they'd like to wear, and how they like to look",
+              died: "What they'll wear, and how they looked",
+            })}
           />
           {/*
             Not offered on a pre-need file: a book of memories is written
-            about somebody who has died, and the person reading this one is
+            about somebody who has died, and the person this one is about is
             alive and planning their own funeral.
           */}
           {!voice.preNeed && (
@@ -479,9 +481,11 @@ export default function Hub() {
             detail={
               // Nothing is being issued for somebody who is alive. What is
               // worth saying is why to do it now.
-              voice.preNeed
-                ? "Written down now, so your family won't have to search for them"
-                : "What the state needs before it can be issued"
+              voice.say({
+                self: "Written down now, so your family won't have to search for them",
+                living: "Written down now, so nobody has to search for them later",
+                died: "What the state needs before it can be issued",
+              })
             }
           />
           <Card

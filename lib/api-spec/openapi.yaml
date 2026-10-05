@@ -1047,6 +1047,11 @@ paths:
         not invite anybody: who the family is, is a conversation, not a
         field.
 
+        It does close one link: the planner's own (`isSubject`). They have
+        died, and their phone is now in somebody else's hand; a message sent
+        from it would appear in the chat under their name. They stay on the
+        file, as a contact who can no longer be texted or sent a link.
+
         Refused on a file that is already at-need. There is no way back - a
         death is not an editing mistake, and if it really was one, the case
         can be deleted.
@@ -5278,6 +5283,13 @@ components:
           enum: [next_of_kin, contributor]
         canInvite:
           type: boolean
+        isSubject:
+          type: boolean
+          description: |
+            This person is the one the file is about: a planner reading their
+            own plan. Only ever true on a pre-need file, and it is what the
+            portal asks before it says "your plan" - a relative on somebody
+            else's plan is spoken to about them, not as them.
         expiresAt:
           type: string
           format: date-time
@@ -5325,6 +5337,7 @@ components:
           email,
           role,
           canInvite,
+          isSubject,
           expiresAt,
           revokedAt,
           firstSeenAt,
@@ -5476,6 +5489,12 @@ components:
           enum: [next_of_kin, contributor]
         canInvite:
           type: boolean
+        isSubject:
+          type: boolean
+          description: |
+            This is the person the plan is for. Pre-need files only - refused
+            on an at-need one - and at most one per file: marking somebody
+            moves it from whoever had it.
         smsConsent:
           type: boolean
           description: |
@@ -5503,6 +5522,12 @@ components:
           enum: [next_of_kin, contributor]
         canInvite:
           type: boolean
+        isSubject:
+          type: boolean
+          description: |
+            This is the person the plan is for. Pre-need files only - refused
+            on an at-need one - and at most one per file: marking somebody
+            moves it from whoever had it.
         smsConsent:
           type: boolean
           description: |
