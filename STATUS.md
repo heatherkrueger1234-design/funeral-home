@@ -278,8 +278,11 @@ live account to test against, or more than a review should change unasked.
 
 **Operations:**
 
-- nginx's error log and Caddy's log of a 5xx keep the full URL and
-  Referer: treat them as holding family links.
+- nginx's error log keeps a failing request's whole address and cannot be
+  told otherwise. With the apps sending no Referer, that means an aftercare
+  stop token while the API is down, a family link only if nginx cannot read
+  `index.html`, and a staff search's terms (`DEPLOY.md`, on logs). Caddy's
+  log now keeps none of them.
 - `verify-backup` compares the restored row counts with live counts taken
   at verify time, so any write since the dump reads as a broken backup in
   production; DEPLOY.md says it checks more than it does.

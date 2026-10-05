@@ -14,6 +14,7 @@ matters at 3am:
 | Run, for real | `backup-database` with `BACKUP_OFFSITE` set: the encrypted dump copied with rclone and its size checked on the far side, the local copy deleted, the far copy fetched back and restored with every table matching (5 Oct 2026, against a directory standing in for the bucket; the weekly drill does the same). An unreachable destination fails the run. The tools image's `apt` step was built on `node:24-bookworm-slim` and gives `pg_dump` 16.15 and rclone 1.60.1. |
 | Run, for real | `docker build` for all four images, then `docker compose up`: four containers healthy, migrations applied through `tools`, a home registered and a real iPhone HEIC uploaded and served back through nginx, and a backup taken and restored inside the containers. A full `docker compose restart` left the photograph byte-for-byte identical. |
 | Run, for real | Caddy → this `nginx.conf` → the API, with TLS from Caddy's own CA on `*.localhost`: HTTPS reaches the API as HTTPS, plain HTTP redirects, and one visitor exhausting the sign-in limit does not lock out another. The same test against the previous config locked both out. |
+| Run, for real | Caddy 2.10.2 on this Caddyfile, with each app's nginx refused and then unresolvable: the error log's line for every failed request, `/f/<token>?token=…` with a Referer and `/reset-password?token=…` among them, keeps `/f/REDACTED` or `?REDACTED` in place of the token and no Referer, and Cookie and Authorization as `REDACTED`. `caddy validate` passes with the example values from `.env.example` (5 Oct 2026). |
 | Run, for real | Each app's production build with no headers at all, as Replit serves it, and Replit's analytics tag appended where Replit puts it: Chromium refuses the script, reports no other violation while the app is signed into and used, and sends no Referer with any request (`page-policy.spec.ts`, in the browser suite). The same builds behind this `nginx.conf` on nginx 1.24, header and page policy together: signed into each, no violation and no Referer (5 Oct 2026). |
 | Run, for real | `send-test-email` against an SMTP server on 587 with STARTTLS: delivered over TLS; a wrong password, a half-set config and an API key with no `SMTP_FROM` each fail with the reason; a server that refuses STARTTLS is refused rather than sent the password in clear. |
 | **Not run** | A real Let's Encrypt certificate on a real domain, a real mail provider, a real Stripe key, or a real bucket for the backups. Those need your DNS and your accounts. |
@@ -356,11 +357,37 @@ blank page nobody can explain.
 nginx's access logs hold no links. Its default line has the whole request and
 the Referer, which between them carry every family's link and every reset,
 invitation and confirmation token, so both templates log the path without its
-query string, a family link as `/f/REDACTED`, and no Referer. Caddy keeps no
-access log at all: the Caddyfile has no `log`. Error logs are another matter.
-A request that fails at nginx (the API unreachable, an upload over 50 MB) or
-at Caddy (an app's nginx unreachable) is written to its error log in full,
-Referer and all, so treat those as holding links.
+query string, a family link as `/f/REDACTED`, and no Referer.
+
+Caddy's logs hold none either. It keeps no access log (no site in the
+Caddyfile has `log`), and its error log, which writes out each request that
+fails there (an app's nginx down or restarting) with its address and headers,
+goes through a filter in the Caddyfile's global options: everything after the
+address's first `/f/` or `?` is written as `REDACTED`, and the Referer not at
+all. Caddy itself writes the `Cookie`, `Authorization` and
+`Proxy-Authorization` headers as `REDACTED` — its default, confirmed on 2.10.2,
+unless a server sets `log_credentials`, and none here does.
+
+nginx's error log cannot be given a format. For each request that fails at
+nginx — the API unreachable, an upload over 50 MB — it writes the client's
+address (Caddy's, in compose), the request line with its query string, the
+address it was passing the request on to (the same path and query), the Host,
+and the Referer if there was one. It never writes a cookie or an
+`Authorization` header. The apps send no Referer (`no-referrer`, in the header
+and in each page), and no call they make to the API has a token in its
+address: a family's link travels in the `Authorization` header, and a reset,
+invitation or confirmation token in the request body. What it can still hold:
+
+- the aftercare stop token (`?token=`, which can stop those notes and do
+  nothing else), when the stop page or a mail provider's one-click
+  unsubscribe asks the API while it is down;
+- a family's `/f/<token>` or a `?token=` page, only if nginx fails to read
+  `index.html` to serve it;
+- whatever a staff screen puts in a query, such as a case search for a name;
+- the Referer of a link from another site, which browsers by default cut
+  down to that site's origin.
+
+Keep it, and Caddy's, as you would any log with names in it.
 
 ## Website
 
