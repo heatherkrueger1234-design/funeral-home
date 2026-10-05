@@ -1,4 +1,6 @@
 import { describe, expect, it } from "vitest";
+import { eq } from "drizzle-orm";
+import { casesTable, db } from "@workspace/db";
 import { parseCsv, parseDate, guessMapping } from "../src/lib/csv";
 import { createCase, signUpHome } from "./helpers";
 
@@ -52,19 +54,52 @@ describe("reading a real export", () => {
   });
 
   it("reads the dates these systems emit, and refuses to guess", () => {
-    expect(parseDate("2026-03-04")?.getMonth()).toBe(2);
-    expect(parseDate("3/4/2026")?.getMonth()).toBe(2); // US month/day
-    expect(parseDate("03-04-26")?.getFullYear()).toBe(2026);
+    expect(parseDate("2026-03-04")).toMatchObject({ year: 2026, month: 3, day: 4, time: null });
+    expect(parseDate("3/4/2026")).toMatchObject({ month: 3, day: 4 }); // US month/day
+    expect(parseDate("03-04-26")?.year).toBe(2026);
 
     // 13 cannot be a month, so it can only be a day.
-    const unambiguous = parseDate("13/4/2026");
-    expect(unambiguous?.getMonth()).toBe(3);
-    expect(unambiguous?.getDate()).toBe(13);
+    expect(parseDate("13/4/2026")).toMatchObject({ month: 4, day: 13 });
 
     // Nonsense is null, not a confident wrong date.
     expect(parseDate("next Tuesday")).toBeNull();
     expect(parseDate("99/99/9999")).toBeNull();
     expect(parseDate("")).toBeNull();
+  });
+
+  it("refuses a day that does not exist rather than rolling it into the next month", () => {
+    expect(parseDate("2026-02-31")).toBeNull();
+    expect(parseDate("02/30/2026")).toBeNull();
+    expect(parseDate("0/15/2026")).toBeNull();
+    expect(parseDate("3/4/202")).toBeNull();
+    // A leap day is a real day.
+    expect(parseDate("2/29/2024")).toMatchObject({ month: 2, day: 29 });
+  });
+
+  it("reads the time of day as written, morning or afternoon", () => {
+    expect(parseDate("9/18/2026 1:00 PM")?.time).toEqual({ hour: 13, minute: 0 });
+    expect(parseDate("09/18/2026 11:30 a.m.")?.time).toEqual({ hour: 11, minute: 30 });
+    expect(parseDate("9/18/2026 12:15 AM")?.time).toEqual({ hour: 0, minute: 15 });
+    expect(parseDate("9/18/2026 12:00 PM")?.time).toEqual({ hour: 12, minute: 0 });
+    expect(parseDate("9/18/2026 2 PM")?.time).toEqual({ hour: 14, minute: 0 });
+    expect(parseDate("2026-09-18 13:00:00")?.time).toEqual({ hour: 13, minute: 0 });
+    expect(parseDate("9/18/2026 1:00 PM MDT")?.time).toEqual({ hour: 13, minute: 0 });
+
+    // A time that cannot be is not quietly some other time.
+    expect(parseDate("9/18/2026 13:00 PM")).toBeNull();
+    expect(parseDate("9/18/2026 25:00")).toBeNull();
+    expect(parseDate("9/18/2026 1300")).toBeNull();
+  });
+
+  it("keeps an instant the export named with its own offset", () => {
+    expect(parseDate("2026-09-18T19:00:00Z")?.instant?.toISOString()).toBe(
+      "2026-09-18T19:00:00.000Z",
+    );
+    expect(parseDate("2026-09-18T13:00:00-06:00")?.instant?.toISOString()).toBe(
+      "2026-09-18T19:00:00.000Z",
+    );
+    // Without one, the time is on the home's clock, which only the importer knows.
+    expect(parseDate("9/18/2026 1:00 PM")?.instant).toBeNull();
   });
 });
 
@@ -170,6 +205,54 @@ describe("importing cases", () => {
 
     // Two people with the same name in different years are two cases.
     expect(result.body.created).toBe(2);
+  });
+
+  /*
+   * The cards, the family's page and the export all show a service on the
+   * home's clock, and the file's "1:00 PM" is that clock. It used to be read
+   * as one o'clock UTC: seven in the morning in Colorado, on every card.
+   */
+  it("puts each service at the time the file says, on the home's clock", async () => {
+    const staff = await signUpHome(); // America/Denver, the default
+    const file =
+      "Last Name,First Name,Service Date,Date of Birth\r\n" +
+      "Hale,Margaret,9/18/2026 1:00 PM,4/2/1941\r\n" +
+      "Lee,Grace,12/5/2026 2:30 PM,\r\n" +
+      "Vance,Edith,2026-07-04,\r\n" +
+      "Ruiz,Tomas,2026-12-05T14:30:00-05:00,\r\n" +
+      "Ng,Amy,,4/12/38\r\n";
+
+    const result = await staff.agent
+      .post("/api/cases/import")
+      .attach("file", Buffer.from(file, "utf8"), "export.csv")
+      .expect(200);
+    expect(result.body.created).toBe(5);
+
+    const rows = await db
+      .select()
+      .from(casesTable)
+      .where(eq(casesTable.funeralHomeId, staff.homeId));
+    const named = (last: string) => rows.find((row) => row.decedentLastName === last)!;
+    const said = (text: string) =>
+      result.body.issues.some((issue: { message: string }) => issue.message.includes(text));
+
+    // 1:00 PM in September is MDT, six hours behind UTC; 2:30 PM in
+    // December is MST, seven.
+    expect(named("Hale").serviceAt?.toISOString()).toBe("2026-09-18T19:00:00.000Z");
+    expect(named("Lee").serviceAt?.toISOString()).toBe("2026-12-05T21:30:00.000Z");
+    // A birthday is a calendar day, kept at UTC midnight like the console's.
+    expect(named("Hale").dateOfBirth?.toISOString()).toBe("1941-04-02T00:00:00.000Z");
+
+    // A day with no time is left for the director, and they are told.
+    expect(named("Vance").serviceAt).toBeNull();
+    expect(said('"2026-07-04" has no time')).toBe(true);
+
+    // An offset the file gave itself is believed over the home's clock.
+    expect(named("Ruiz").serviceAt?.toISOString()).toBe("2026-12-05T19:30:00.000Z");
+
+    // "38" read as 2038 is nobody's birthday: blank, and said so.
+    expect(named("Ng").dateOfBirth).toBeNull();
+    expect(said("in the future")).toBe(true);
   });
 
   it("refuses a file with no name column rather than importing blanks", async () => {

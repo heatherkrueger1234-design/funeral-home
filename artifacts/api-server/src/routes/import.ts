@@ -7,6 +7,7 @@ import {
   cannotOpenCasesReason,
   casesTable,
   familyContactsTable,
+  localTime,
   obituaryDraftsTable,
 } from "@workspace/db";
 import { badRequest, HttpError } from "../lib/http";
@@ -93,6 +94,8 @@ function readCsv(file: Express.Multer.File | undefined) {
 function buildCandidates(
   rows: CsvRow[],
   mapping: Record<string, string | null>,
+  /** The home's, because a service time in the file is on its clock. */
+  timeZone: string,
 ): { candidates: Candidate[]; issues: Issue[] } {
   const candidates: Candidate[] = [];
   const issues: Issue[] = [];
@@ -124,7 +127,7 @@ function buildCandidates(
       return;
     }
 
-    const readDate = (field: string, label: string): Date | null => {
+    const readWritten = (field: string, label: string) => {
       const raw = get(row, field);
       if (!raw.trim()) return null;
 
@@ -138,7 +141,58 @@ function buildCandidates(
           message: `Couldn't read the ${label} "${raw}" — left blank.`,
         });
       }
-      return parsed;
+      return parsed && { raw, ...parsed };
+    };
+
+    /*
+     * Birth and death are calendar days, kept at UTC midnight like the
+     * console keeps them, so they read the same in every zone. One in the
+     * future is not a date anybody has lived; it is usually a two-digit year
+     * read into the wrong century ("4/12/38"), and left blank rather than
+     * guessed.
+     */
+    const readDay = (field: string, label: string): Date | null => {
+      const written = readWritten(field, label);
+      if (!written) return null;
+
+      const day = new Date(Date.UTC(written.year, written.month - 1, written.day));
+      if (day.getTime() > Date.now()) {
+        issues.push({
+          row: lineNumber,
+          message: `The ${label} "${written.raw}" is in the future — left blank.`,
+        });
+        return null;
+      }
+      return day;
+    };
+
+    /*
+     * A service is a moment, written on the home's clock. One given only a
+     * day is left blank and said so: inventing a time would put "12:00 AM"
+     * on a family's page and on the cards, which is worse than an empty field
+     * a director will fill in.
+     */
+    const readService = (): Date | null => {
+      const written = readWritten("serviceAt", "service date");
+      if (!written) return null;
+      if (written.instant) return written.instant;
+
+      if (!written.time) {
+        issues.push({
+          row: lineNumber,
+          message: `The service date "${written.raw}" has no time, so it was left blank — add it on the case.`,
+        });
+        return null;
+      }
+
+      return localTime(
+        written.year,
+        written.month - 1,
+        written.day,
+        written.time.hour,
+        written.time.minute,
+        timeZone,
+      );
     };
 
     candidates.push({
@@ -146,9 +200,9 @@ function buildCandidates(
       decedentFirstName: first || last,
       decedentLastName: last,
       decedentPreferredName: get(row, "decedentPreferredName").trim() || null,
-      dateOfBirth: readDate("dateOfBirth", "date of birth"),
-      dateOfDeath: readDate("dateOfDeath", "date of death"),
-      serviceAt: readDate("serviceAt", "service date"),
+      dateOfBirth: readDay("dateOfBirth", "date of birth"),
+      dateOfDeath: readDay("dateOfDeath", "date of death"),
+      serviceAt: readService(),
       serviceLocation: get(row, "serviceLocation").trim() || null,
       postalCode: get(row, "postalCode").replace(/\D/g, "").slice(0, 5) || null,
       contactName: get(row, "contactName").trim() || null,
@@ -196,7 +250,7 @@ router.post(
     const home = tenant(req);
     const parsed = readCsv(req.file);
     const mapping = guessMapping(parsed.headers);
-    const { candidates, issues } = buildCandidates(parsed.rows, mapping);
+    const { candidates, issues } = buildCandidates(parsed.rows, mapping, home.timezone);
 
     const mappedHeaders = new Set(
       Object.values(mapping).filter((header): header is string => header !== null),
@@ -272,7 +326,7 @@ router.post("/cases/import", upload.single("file"), async (req, res) => {
     );
   }
 
-  const { candidates, issues } = buildCandidates(parsed.rows, mapping);
+  const { candidates, issues } = buildCandidates(parsed.rows, mapping, home.timezone);
 
   const caseIds: number[] = [];
   let skipped = 0;
