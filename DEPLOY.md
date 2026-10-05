@@ -189,10 +189,13 @@ the settings are complete, but only this proves the provider accepts them.
 ## Scheduled work
 
 Aftercare sends nothing unless something triggers it. Either the GitHub
-workflow in `.github/workflows/aftercare.yml`, or a cron line on the host:
+workflow in `.github/workflows/aftercare.yml`, or a cron line on the host.
+Run it **hourly**: each check-in falls due at mid-morning in the home's own
+time zone, and the sender only sends between nine and seven there, so an
+hourly run sends each one in the morning of the day it is about.
 
 ```sh
-0 14 * * *  docker compose -f /srv/funeral-home/docker-compose.yml \
+17 * * * *  docker compose -f /srv/funeral-home/docker-compose.yml \
               run --rm tools pnpm --filter @workspace/scripts run send-aftercare
 ```
 

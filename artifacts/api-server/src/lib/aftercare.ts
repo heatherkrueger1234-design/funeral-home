@@ -6,6 +6,8 @@ import {
   familyContactsTable,
   AFTERCARE_OFFSETS_DAYS,
   AFTERCARE_TOUCHPOINTS,
+  calendarDayIn,
+  localMorning,
   type AftercareTouchpoint,
   type Case,
   type FuneralHome,
@@ -25,6 +27,17 @@ import {
  */
 
 const DAY_MS = 24 * 60 * 60 * 1000;
+
+/**
+ * Mid-morning, where the home is, a number of days after the service: the
+ * service's own calendar day there, plus the days. Counted in days rather
+ * than in milliseconds so a daylight-saving change in between cannot move
+ * it onto the day before. See `AFTERCARE_DUE_HOUR`.
+ */
+export function checkInDueAt(startsAt: Date, dayOffset: number, timeZone: string): Date {
+  const { year, month, day } = calendarDayIn(startsAt, timeZone);
+  return localMorning(year, month, day + dayOffset, timeZone);
+}
 
 export async function enrolCaseInAftercare(
   row: Case,
@@ -93,7 +106,7 @@ export async function enrolCaseInAftercare(
         AFTERCARE_OFFSETS_DAYS.map((dayOffset) => ({
           enrollmentId: enrollment.id,
           dayOffset,
-          dueAt: new Date(startsAt.getTime() + dayOffset * DAY_MS),
+          dueAt: checkInDueAt(startsAt, dayOffset, home.timezone),
         })),
       );
     }
@@ -106,22 +119,22 @@ export function offeredTouchpoints(home: Pick<FuneralHome, "aftercareTouchpoints
   return AFTERCARE_TOUCHPOINTS.filter((kind) => chosen.includes(kind));
 }
 
-/** 15:00 UTC: mid-morning across the continental US. */
-function atMorning(year: number, month: number, day: number): Date {
-  return new Date(Date.UTC(year, month, day, 15));
-}
-
 /**
  * When each offered touchpoint lands in the first year after `startsAt`,
  * or is left out when the case does not know the date or it falls outside
  * the year. Dates of birth and death are calendar days stored at UTC
- * midnight, so they are read in UTC.
+ * midnight, so they are read in UTC; the note goes at mid-morning on that
+ * day where the home is, so "Today would have been her birthday" arrives on
+ * her birthday.
  */
 export function touchpointDates(
   row: Pick<Case, "dateOfBirth" | "dateOfDeath">,
   startsAt: Date,
   kinds: AftercareTouchpoint[],
+  timeZone: string,
 ): Array<{ kind: AftercareTouchpoint; dueAt: Date }> {
+  const atMorning = (year: number, month: number, day: number) =>
+    localMorning(year, month, day, timeZone);
   const end = startsAt.getTime() + 365 * DAY_MS;
   const within = (date: Date) => date.getTime() > startsAt.getTime() && date.getTime() <= end;
   const out: Array<{ kind: AftercareTouchpoint; dueAt: Date }> = [];
@@ -161,9 +174,9 @@ export function touchpointDates(
 export async function scheduleTouchpoints(
   enrollment: { id: number; startsAt: Date },
   row: Pick<Case, "dateOfBirth" | "dateOfDeath">,
-  home: Pick<FuneralHome, "aftercareTouchpoints">,
+  home: Pick<FuneralHome, "aftercareTouchpoints" | "timezone">,
 ): Promise<void> {
-  const dates = touchpointDates(row, enrollment.startsAt, offeredTouchpoints(home));
+  const dates = touchpointDates(row, enrollment.startsAt, offeredTouchpoints(home), home.timezone);
   if (dates.length === 0) return;
   await db
     .insert(aftercareDeliveriesTable)

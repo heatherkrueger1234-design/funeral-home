@@ -174,6 +174,7 @@ router.get("/session", async (req, res) => {
                   row,
                   aftercare[0].startsAt,
                   offeredTouchpoints(home),
+                  home.timezone,
                 )
               : [],
           smsAvailable: isSmsConfigured(),

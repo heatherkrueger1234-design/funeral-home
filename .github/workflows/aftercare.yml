@@ -11,10 +11,13 @@ name: Aftercare
 
 on:
   schedule:
-    # 14:00 UTC daily. Chosen so check-ins land mid-morning across the US
-    # rather than at 3am, which is a bad time to receive a message about
-    # somebody who died.
-    - cron: "0 14 * * *"
+    # Hourly. Each check-in falls due at mid-morning in the home's own time
+    # zone, and the sender only sends between nine and seven there
+    # (`isAftercareHour`), so an hourly run sends each one on its day, in
+    # the morning, wherever the home is. Once a day at 14:00 UTC sent
+    # anything due after two in the afternoon UTC a day late, and was six
+    # in the morning on the Pacific coast. Off the hour, as GitHub asks.
+    - cron: "17 * * * *"
   workflow_dispatch:
     inputs:
       dryRun:

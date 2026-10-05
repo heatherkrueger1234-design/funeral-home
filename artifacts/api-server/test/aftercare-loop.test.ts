@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { asFamily, createCase, inviteFamily, signUpHome } from "./helpers";
+import { checkInDueAt } from "../src/lib/aftercare";
 
 const DAY = 24 * 60 * 60 * 1000;
 
@@ -32,9 +33,15 @@ describe("the aftercare loop closes", () => {
     );
     expect(offsets).toEqual([30, 60, 90, 365]);
 
-    const thirty = session.body.aftercare.deliveries[0];
-    expect(new Date(thirty.dueAt).getTime()).toBe(
-      serviceAt.getTime() + 30 * DAY,
+    // Mid-morning where the home is, thirty days on from the service's own
+    // day: the day the family was shown is the day it arrives.
+    const thirty = new Date(session.body.aftercare.deliveries[0].dueAt);
+    expect(thirty.getTime()).toBe(checkInDueAt(serviceAt, 30, "America/Denver").getTime());
+    const there = (options: Intl.DateTimeFormatOptions) =>
+      new Intl.DateTimeFormat("en-US", { timeZone: "America/Denver", ...options });
+    expect(there({ hour: "numeric", hourCycle: "h23" }).format(thirty)).toBe("10");
+    expect(there({ dateStyle: "short" }).format(thirty)).toBe(
+      there({ dateStyle: "short" }).format(new Date(serviceAt.getTime() + 30 * DAY)),
     );
   });
 

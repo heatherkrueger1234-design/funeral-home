@@ -35,7 +35,7 @@ import {
   familyContactsTable,
 } from "@workspace/db";
 import { touchpointDates } from "../src/lib/aftercare";
-import { asFamily, createCase, inviteFamily, signUpHome } from "./helpers";
+import { asFamily, createCase, inviteFamily, signUpHome, homesAtMidday } from "./helpers";
 
 const DAY = 24 * 60 * 60 * 1000;
 let texts: URLSearchParams[] = [];
@@ -91,6 +91,7 @@ async function closedCase(options: { touchpoints?: string[]; email?: string | nu
 async function run() {
   mail.length = 0;
   texts = [];
+  await homesAtMidday();
   const res = await request(app)
     .post("/api/tasks/aftercare")
     .set("Authorization", "Bearer a-real-secret-value")
@@ -244,14 +245,17 @@ describe("the harder days", () => {
       { dateOfBirth: new Date(Date.UTC(1941, 2, 19)), dateOfDeath: new Date(Date.UTC(2026, 7, 25)) },
       start,
       ["birthday", "holidays", "death_anniversary"],
+      "America/Denver",
     );
-    expect(dates.map((d) => [d.kind, d.dueAt.toISOString().slice(0, 10)])).toEqual([
-      ["birthday", "2027-03-19"],
-      ["holidays", "2026-12-15"],
-      ["death_anniversary", "2027-08-25"],
+    // Mid-morning in Denver on the day itself: 10:00 MDT is 16:00 UTC in
+    // summer, 10:00 MST is 17:00 UTC in winter.
+    expect(dates.map((d) => [d.kind, d.dueAt.toISOString()])).toEqual([
+      ["birthday", "2027-03-19T16:00:00.000Z"],
+      ["holidays", "2026-12-15T17:00:00.000Z"],
+      ["death_anniversary", "2027-08-25T16:00:00.000Z"],
     ]);
     expect(
-      touchpointDates({ dateOfBirth: null, dateOfDeath: null }, start, ["birthday", "death_anniversary"]),
+      touchpointDates({ dateOfBirth: null, dateOfDeath: null }, start, ["birthday", "death_anniversary"], "America/Denver"),
     ).toEqual([]);
   });
 

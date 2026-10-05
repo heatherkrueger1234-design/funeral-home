@@ -171,3 +171,91 @@ export type InsertAftercareEnrollment = z.infer<
 >;
 export type AftercareEnrollment = typeof aftercareEnrollmentsTable.$inferSelect;
 export type AftercareDelivery = typeof aftercareDeliveriesTable.$inferSelect;
+
+/* ------------------------------------------------- when a message goes -- */
+
+/*
+ * Every check-in and every note falls due at mid-morning, in the home's own
+ * time zone, on the calendar day it is about, and goes out only between
+ * nine in the morning and seven in the evening there.
+ *
+ * They used to fall due at the time of day the service was held (check-ins)
+ * or at 15:00 UTC (notes), and the sender ran once a day at 14:00 UTC. So
+ * anything due after two in the afternoon UTC waited until the next day:
+ * "Today would have been Eleanor's birthday" arrived the day after her
+ * birthday, and the run itself landed at six in the morning on the Pacific
+ * coast. The sender now runs hourly and keeps to these hours.
+ */
+export const AFTERCARE_DUE_HOUR = 10;
+export const AFTERCARE_SEND_FROM_HOUR = 9;
+export const AFTERCARE_SEND_UNTIL_HOUR = 19;
+/** Where a home with an unusable time zone is assumed to be. */
+const FALLBACK_ZONE = "America/Denver";
+
+function usableZone(timeZone: string | null | undefined): string {
+  if (!timeZone) return FALLBACK_ZONE;
+  try {
+    new Intl.DateTimeFormat("en-US", { timeZone });
+    return timeZone;
+  } catch {
+    return FALLBACK_ZONE;
+  }
+}
+
+/** The wall clock in a time zone at an instant. */
+function wallClock(at: Date, timeZone: string) {
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone: usableZone(timeZone),
+    hourCycle: "h23",
+    year: "numeric",
+    month: "numeric",
+    day: "numeric",
+    hour: "numeric",
+    minute: "numeric",
+    second: "numeric",
+  }).formatToParts(at);
+  const get = (type: string) => Number(parts.find((part) => part.type === type)?.value ?? 0);
+  return {
+    year: get("year"),
+    month: get("month") - 1,
+    day: get("day"),
+    hour: get("hour") % 24,
+    minute: get("minute"),
+    second: get("second"),
+  };
+}
+
+/** The calendar day an instant falls on, where the home is. */
+export function calendarDayIn(at: Date, timeZone: string): { year: number; month: number; day: number } {
+  const { year, month, day } = wallClock(at, timeZone);
+  return { year, month, day };
+}
+
+/** The hour of the day an instant is, where the home is. */
+export function hourIn(at: Date, timeZone: string): number {
+  return wallClock(at, timeZone).hour;
+}
+
+/**
+ * Mid-morning on a calendar day, where the home is, as an instant. `month`
+ * counts from 0, and a day past the month's end rolls over, as Date.UTC's
+ * does, so a day can be found by adding to it.
+ */
+export function localMorning(year: number, month: number, day: number, timeZone: string): Date {
+  const target = Date.UTC(year, month, day, AFTERCARE_DUE_HOUR);
+  // Guess, see what the clock there says, and correct; twice, so a guess
+  // that lands across a daylight-saving change still comes out right.
+  let instant = target;
+  for (let i = 0; i < 2; i += 1) {
+    const seen = wallClock(new Date(instant), timeZone);
+    const shown = Date.UTC(seen.year, seen.month, seen.day, seen.hour, seen.minute, seen.second);
+    instant += target - shown;
+  }
+  return new Date(instant);
+}
+
+/** Whether a message may go out now, where the home is. */
+export function isAftercareHour(at: Date, timeZone: string): boolean {
+  const hour = hourIn(at, timeZone);
+  return hour >= AFTERCARE_SEND_FROM_HOUR && hour < AFTERCARE_SEND_UNTIL_HOUR;
+}

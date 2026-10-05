@@ -205,21 +205,23 @@ This is the part that earns the subscription, and it does nothing unless
 something triggers it. Pick one:
 
 ```sh
-# 1. Anything that can make an HTTP request, once a day. This is the one to
-#    use — it works on an autoscale deployment that sleeps when idle.
+# 1. Anything that can make an HTTP request, once an hour. This is the one
+#    to use — it works on an autoscale deployment that sleeps when idle.
 curl -X POST "$API_URL/api/tasks/aftercare" -H "Authorization: Bearer $TASK_SECRET"
 
 # 2. From a machine with the repo checked out.
 pnpm --filter @workspace/scripts run send-aftercare -- --dry-run
 
 # 3. A plain cron line.
-0 14 * * * curl -fsS -X POST "$API_URL/api/tasks/aftercare" \
+17 * * * * curl -fsS -X POST "$API_URL/api/tasks/aftercare" \
              -H "Authorization: Bearer $TASK_SECRET"
 ```
 
-`.github/workflows/aftercare.yml` already does (1) daily at 14:00 UTC —
-mid-morning across the US, because 3am is a bad time to receive a message
-about somebody who died. It needs two repository secrets, `API_URL` and
+`.github/workflows/aftercare.yml` already does (1) hourly. Each check-in
+falls due at mid-morning in the home's own time zone and only goes out
+between nine and seven there, because 3am is a bad time to receive a message
+about somebody who died, and "Today would have been her birthday" belongs on
+her birthday. It needs two repository secrets, `API_URL` and
 `TASK_SECRET`, and `TASK_SECRET` must match the server's. **Without
 `TASK_SECRET` set on the server the endpoint refuses every request**, which
 is deliberate: an unauthenticated endpoint that sends email is not something

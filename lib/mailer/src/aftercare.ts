@@ -1,4 +1,4 @@
-import { and, eq, isNull, lte } from "drizzle-orm";
+import { and, asc, eq, isNull, lte } from "drizzle-orm";
 import {
   db,
   aftercareDeliveriesTable,
@@ -11,6 +11,7 @@ import {
   AFTERCARE_COPY_KEYS,
   AFTERCARE_TOUCHPOINTS,
   FAMILY_LINK_TTL_MS,
+  isAftercareHour,
   type AftercareCopyKey,
 } from "@workspace/db";
 import { signId } from "@workspace/db/crypto";
@@ -315,6 +316,7 @@ export async function runAftercare(
       },
       homeCopy: funeralHomesTable.aftercareCopy,
       homeTouchpoints: funeralHomesTable.aftercareTouchpoints,
+      homeTimezone: funeralHomesTable.timezone,
       bookClosesAt: memoryBooksTable.closesAt,
       bookId: memoryBooksTable.id,
     })
@@ -348,9 +350,24 @@ export async function runAftercare(
         isNull(aftercareEnrollmentsTable.unsubscribedAt),
       ),
     )
-    // Bounded, so one very overdue backlog cannot turn a scheduled run into
-    // an hour-long request that the scheduler kills half-way through.
-    .limit(options.limit ?? 200);
+    .orderBy(asc(aftercareDeliveriesTable.dueAt))
+    // Read with room to spare, because some of it is for homes where it is
+    // the middle of the night and waits for the next run (below).
+    .limit((options.limit ?? 200) * 5)
+    .then((rows) =>
+      rows
+        /*
+         * Only between nine and seven, where the home is (`isAftercareHour`).
+         * The sender runs every hour, so whatever falls due overnight goes
+         * out the next morning, and nothing lands at six o'clock in Oregon.
+         * Checked here rather than in SQL so one home with a time zone the
+         * database does not know cannot fail every family's check-in.
+         */
+        .filter((row) => isAftercareHour(now, row.homeTimezone))
+        // Bounded, so one very overdue backlog cannot turn a scheduled run
+        // into an hour-long request that the scheduler kills half-way.
+        .slice(0, options.limit ?? 200),
+    );
 
   const result: AftercareRunResult = {
     due: due.length,
