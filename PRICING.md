@@ -89,6 +89,15 @@ while a director is opening a case. A funeral home at eight in the morning with
 a family on the way in must never be waiting on `api.stripe.com`, and must
 never be refused by it.
 
+A funeral is stamped, in Stripe, with the day it reached Stripe rather than
+the day it was counted, so one counted on the last night of a billing period,
+or held up by an outage, lands on the next invoice instead of on none. The
+console's monthly count goes by the day it was counted, so around the turn of
+a month the two can differ by a funeral. The job goes red when a funeral has
+been failing to reach Stripe for more than three days, and reports, without
+failing, the funerals at homes with no Stripe customer (those paying outside
+Stripe), which are nobody's to send.
+
 ## Aftercare is in the price
 
 It used to be sketched as an add-on. It is included now: it is the feature

@@ -85,7 +85,9 @@ jobs:
               result = json.load(f)
           print(f"due={result['due']} reported={result['reported']} "
                 f"duplicates={result['duplicates']} failed={result['failed']} "
-                f"skipped={result['skipped']}")
+                f"skipped={result['skipped']} "
+                f"awaitingCustomer={result.get('awaitingCustomer', 0)} "
+                f"stuck={result.get('stuck', 0)}")
 
           # A deployment with no metered price skips everything, every day,
           # and that is a flat-subscription product working correctly.
@@ -93,8 +95,21 @@ jobs:
               print("No metered price configured; nothing to report.")
               sys.exit(0)
 
+          # Funerals at homes with no Stripe customer -- paying outside
+          # Stripe -- are nobody's to send. Worth seeing; not a failure.
+          if result.get("awaitingCustomer", 0) > 0:
+              print(f"{result['awaitingCustomer']} funeral(s) at homes with no "
+                    "Stripe customer; invoice those outside Stripe.")
+
           # Everything that was owed failing to reach Stripe is a month of
           # revenue going missing quietly. That should go red.
           if result["failed"] > 0 and result["reported"] == 0 and result["due"] > 0:
               sys.exit("Every funeral that was due to be reported failed.")
+
+          # So should one funeral that has been failing for days, however
+          # many others went through: that is one home never being billed.
+          if result.get("stuck", 0) > 0:
+              sys.exit(f"{result['stuck']} funeral(s) counted over three days ago "
+                       "still have not reached Stripe; the last attempt failed. "
+                       "The reason is in billable_cases.failure_reason.")
           PY
