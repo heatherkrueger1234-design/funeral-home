@@ -199,6 +199,39 @@ describe("the Stripe webhook", () => {
     expect(home!.subscriptionStatus).toBe("active");
   });
 
+  it("accepts an event signed with the old and the new secret while one is rolled", async () => {
+    process.env["STRIPE_WEBHOOK_SECRET"] = "whsec_new_secret";
+    const staff = await signUpHome();
+
+    const { payload, header } = signedWebhook(
+      "whsec_new_secret",
+      subscriptionEvent(
+        "customer.subscription.updated",
+        staff.homeId,
+        "active",
+        Math.floor(Date.now() / 1000),
+      ),
+    );
+    // Stripe adds the old secret's signature too, and promises no order.
+    const timestamp = header.split(",")[0]!.slice(2);
+    const old = createHmac("sha256", "whsec_old_secret")
+      .update(`${timestamp}.${payload}`)
+      .digest("hex");
+
+    await request(app)
+      .post("/api/billing/webhook")
+      .set("Content-Type", "application/json")
+      .set("Stripe-Signature", `${header},v1=${old}`)
+      .send(payload)
+      .expect(200);
+
+    const [home] = await db
+      .select()
+      .from(funeralHomesTable)
+      .where(eq(funeralHomesTable.id, staff.homeId));
+    expect(home!.subscriptionStatus).toBe("active");
+  });
+
   it("does not let an event delivered out of order move the status backwards", async () => {
     process.env["STRIPE_WEBHOOK_SECRET"] = "whsec_test_secret";
     const staff = await signUpHome();

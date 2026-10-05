@@ -86,6 +86,25 @@ describe("the free trial behind every subscribe button", () => {
       .expect(400);
   });
 
+  it("still starts the no-card trial when the key is set but the price is blank", async () => {
+    // What docker-compose hands the API before stripe-setup has been run:
+    // every setting is passed through, so an unset price arrives empty.
+    process.env["STRIPE_SECRET_KEY"] = "sk_test_x";
+    process.env["STRIPE_PRICE_ID"] = "";
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => new Response(JSON.stringify({ error: { message: "No such price: ''" } }), { status: 400 })),
+    );
+
+    const staff = await signUpHome();
+    const started = await staff.agent
+      .post("/api/billing/checkout")
+      .send({ returnUrl: "https://example.com/settings" })
+      .expect(200);
+    expect(started.body.url).toBeNull();
+    expect(started.body.trialStarted).toBe(true);
+  });
+
   it("asks Stripe for the same trial, with no card, once Stripe is live", async () => {
     process.env["STRIPE_SECRET_KEY"] = "sk_test_x";
     process.env["STRIPE_PRICE_ID"] = "price_base";

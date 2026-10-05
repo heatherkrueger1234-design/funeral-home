@@ -33,11 +33,18 @@ import { logger } from "./logger";
 const API = "https://api.stripe.com/v1";
 
 function secretKey(): string | null {
-  return process.env["STRIPE_SECRET_KEY"] || null;
+  return process.env["STRIPE_SECRET_KEY"]?.trim() || null;
 }
 
+/*
+ * A price that is set, not merely present. docker-compose passes every
+ * setting through, so an unset STRIPE_PRICE_ID arrives as an empty string;
+ * checking for `undefined` switched card billing on with no price the moment
+ * a key was added, every checkout failed at Stripe, and the no-card trial
+ * the subscribe button otherwise starts was gone with it.
+ */
 export function isBillingConfigured(): boolean {
-  return secretKey() !== null && process.env["STRIPE_PRICE_ID"] !== undefined;
+  return secretKey() !== null && Boolean(process.env["STRIPE_PRICE_ID"]?.trim());
 }
 
 /**
@@ -620,16 +627,21 @@ export async function verifyWebhook(
   const secret = process.env["STRIPE_WEBHOOK_SECRET"];
   if (!secret || !signatureHeader) return null;
 
-  const parts = Object.fromEntries(
-    signatureHeader.split(",").map((part) => {
-      const [key, ...rest] = part.split("=");
-      return [key?.trim() ?? "", rest.join("=")];
-    }),
-  );
+  const fields = signatureHeader.split(",").map((part) => {
+    const [key, ...rest] = part.split("=");
+    return [key?.trim() ?? "", rest.join("=")] as const;
+  });
 
-  const timestamp = parts["t"];
-  const provided = parts["v1"];
-  if (!timestamp || !provided) return null;
+  const timestamp = fields.find(([key]) => key === "t")?.[1];
+  /*
+   * Every v1, not the last one. While a webhook secret is being rolled,
+   * Stripe signs each event with the old secret and the new, in no promised
+   * order; keeping only the last meant that for the length of the rollover
+   * every event signed in the other order was refused, and a home that paid
+   * was never marked as paying.
+   */
+  const provided = fields.filter(([key]) => key === "v1").map(([, value]) => value);
+  if (!timestamp || provided.length === 0) return null;
 
   // Five minutes, Stripe's own recommendation: long enough for a slow
   // delivery, short enough that a captured request cannot be replayed later.
@@ -643,8 +655,11 @@ export async function verifyWebhook(
     .digest("hex");
 
   const a = Buffer.from(expected);
-  const b = Buffer.from(provided);
-  if (a.length !== b.length || !timingSafeEqual(a, b)) return null;
+  const signed = provided.some((signature) => {
+    const b = Buffer.from(signature);
+    return a.length === b.length && timingSafeEqual(a, b);
+  });
+  if (!signed) return null;
 
   try {
     return JSON.parse(rawBody.toString("utf8"));
