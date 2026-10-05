@@ -22,7 +22,7 @@ import { badRequest, HttpError, parseBody } from "../lib/http";
 import { logger } from "../lib/logger";
 import { currentUser, tenant } from "../middleware/require-auth";
 import {
-  applySubscription,
+  applySubscriptionEvent,
   createCheckoutSession,
   createPortalSession,
   isAnnualConfigured,
@@ -94,13 +94,15 @@ billingWebhookRouter.post(
       type === "customer.subscription.updated" ||
       type === "customer.subscription.deleted"
     ) {
-      await applySubscription(data.object as never, new Date(created * 1000));
+      // Throws a 503 when Stripe cannot be asked what the subscription is
+      // now, which is the one failure worth Stripe sending the event again.
+      await applySubscriptionEvent(data.object as never, new Date(created * 1000));
     } else {
       logger.debug({ type }, "Ignoring a Stripe event we do not act on");
     }
 
-    // Always 200 once verified. A non-2xx makes Stripe retry for days, and
-    // an event we chose not to act on is not a failure.
+    // Otherwise 200 once verified. A non-2xx makes Stripe retry for days,
+    // and an event we chose not to act on is not a failure.
     res.json({ received: true });
   },
 );

@@ -1,7 +1,7 @@
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import request from "supertest";
 import { createHmac } from "node:crypto";
-import { eq } from "drizzle-orm";
+import { eq, sql } from "drizzle-orm";
 import app from "../src/app";
 import { db, funeralHomesTable } from "@workspace/db";
 import { createCase, signUpHome } from "./helpers";
@@ -277,6 +277,337 @@ describe("the Stripe webhook", () => {
       .from(funeralHomesTable)
       .where(eq(funeralHomesTable.id, staff.homeId));
     expect(home!.subscriptionStatus).toBe("canceled");
+  });
+
+  it("leaves a trial alone while the first payment is still going through", async () => {
+    process.env["STRIPE_WEBHOOK_SECRET"] = "whsec_test_secret";
+    const staff = await signUpHome();
+    const before = await homeRow(staff.homeId);
+
+    // What checkout creates when a card needs the bank's say-so: a
+    // subscription that exists, and has not been paid for yet.
+    const { payload, header } = signedWebhook(
+      "whsec_test_secret",
+      subscriptionEvent(
+        "customer.subscription.created",
+        staff.homeId,
+        "incomplete",
+        Math.floor(Date.now() / 1000),
+      ),
+    );
+    await request(app)
+      .post("/api/billing/webhook")
+      .set("Content-Type", "application/json")
+      .set("Stripe-Signature", header)
+      .send(payload)
+      .expect(200);
+
+    const after = await homeRow(staff.homeId);
+    expect(after.subscriptionStatus).toBe("trial");
+    expect(after.trialEndsAt).toEqual(before.trialEndsAt);
+    expect(after.stripeSubscriptionId).toBeNull();
+    await staff.agent
+      .post("/api/cases")
+      .send({ decedentFirstName: "Still", decedentLastName: "Open" })
+      .expect(201);
+  });
+
+  it("does not let an old subscription's end cancel the one that replaced it", async () => {
+    process.env["STRIPE_WEBHOOK_SECRET"] = "whsec_test_secret";
+    const staff = await signUpHome();
+    await db
+      .update(funeralHomesTable)
+      .set({ subscriptionStatus: "active", stripeSubscriptionId: "sub_new" })
+      .where(eq(funeralHomesTable.id, staff.homeId));
+
+    const { payload, header } = signedWebhook("whsec_test_secret", {
+      id: "evt_old_end",
+      type: "customer.subscription.deleted",
+      created: Math.floor(Date.now() / 1000),
+      data: {
+        object: {
+          id: "sub_old",
+          status: "canceled",
+          metadata: { funeralHomeId: String(staff.homeId) },
+        },
+      },
+    });
+    await request(app)
+      .post("/api/billing/webhook")
+      .set("Content-Type", "application/json")
+      .set("Stripe-Signature", header)
+      .send(payload)
+      .expect(200);
+
+    const home = await homeRow(staff.homeId);
+    expect(home.subscriptionStatus).toBe("active");
+    expect(home.stripeSubscriptionId).toBe("sub_new");
+  });
+});
+
+async function homeRow(homeId: number) {
+  const [home] = await db
+    .select()
+    .from(funeralHomesTable)
+    .where(eq(funeralHomesTable.id, homeId));
+  return home!;
+}
+
+/**
+ * With an API key, the webhook asks Stripe what the subscription is now
+ * rather than believing the event, because the event is only what it was
+ * when Stripe queued it, and Stripe promises nothing about the order events
+ * arrive in. Two events stamped with the same second -- a subscription
+ * created unpaid and paid a moment later -- cannot be ordered by their
+ * timestamps at all.
+ */
+describe("the Stripe webhook, asking Stripe", () => {
+  const SECRET = "whsec_test_secret";
+
+  beforeEach(() => {
+    vi.stubEnv("STRIPE_WEBHOOK_SECRET", SECRET);
+    vi.stubEnv("STRIPE_SECRET_KEY", "sk_test_notreal");
+  });
+
+  afterEach(() => {
+    vi.unstubAllEnvs();
+    vi.unstubAllGlobals();
+  });
+
+  type Subscription = {
+    id: string;
+    status: string;
+    customer: string;
+    metadata: { funeralHomeId: string };
+  };
+
+  /**
+   * Stripe, as much of it as the webhook uses: one subscription by id, and
+   * a customer's subscriptions that have not been cancelled.
+   */
+  function stripeHas(subscriptions: Subscription[]) {
+    const asked: string[] = [];
+    vi.stubGlobal("fetch", async (url: string) => {
+      const { pathname, searchParams } = new URL(url);
+      asked.push(pathname);
+      if (pathname === "/v1/subscriptions") {
+        return Response.json({
+          object: "list",
+          data: subscriptions.filter(
+            (row) =>
+              row.customer === searchParams.get("customer") &&
+              row.status !== "canceled",
+          ),
+        });
+      }
+      const id = decodeURIComponent(pathname.slice("/v1/subscriptions/".length));
+      const found = subscriptions.find((row) => row.id === id);
+      return found
+        ? Response.json(found)
+        : Response.json({ error: { message: "No such subscription" } }, { status: 404 });
+    });
+    return asked;
+  }
+
+  function deliver(type: string, object: Subscription, created = Math.floor(Date.now() / 1000)) {
+    const { payload, header } = signedWebhook(SECRET, {
+      id: `evt_${Math.random().toString(36).slice(2)}`,
+      type,
+      created,
+      data: { object },
+    });
+    return request(app)
+      .post("/api/billing/webhook")
+      .set("Content-Type", "application/json")
+      .set("Stripe-Signature", header)
+      .send(payload);
+  }
+
+  function subscriptionOf(homeId: number, id: string, status: string): Subscription {
+    return {
+      id,
+      status,
+      customer: `cus_${homeId}`,
+      metadata: { funeralHomeId: String(homeId) },
+    };
+  }
+
+  it("applies what Stripe says now, whichever of two same-second events lands first", async () => {
+    const second = Math.floor(Date.now() / 1000);
+
+    for (const order of [
+      ["created", "updated"],
+      ["updated", "created"],
+    ] as const) {
+      const staff = await signUpHome();
+      stripeHas([subscriptionOf(staff.homeId, "sub_paid", "active")]);
+
+      // Created unpaid, paid a moment later, both stamped with one second.
+      const sent = { created: "incomplete", updated: "active" };
+      for (const kind of order) {
+        await deliver(
+          `customer.subscription.${kind}`,
+          subscriptionOf(staff.homeId, "sub_paid", sent[kind]),
+          second,
+        ).expect(200);
+      }
+
+      const home = await homeRow(staff.homeId);
+      expect(home.subscriptionStatus, order.join(" then ")).toBe("active");
+      expect(home.stripeSubscriptionId).toBe("sub_paid");
+    }
+  });
+
+  it("leaves a trial alone while Stripe still waits on the first payment", async () => {
+    const staff = await signUpHome();
+    const before = await homeRow(staff.homeId);
+    stripeHas([subscriptionOf(staff.homeId, "sub_waiting", "incomplete")]);
+
+    await deliver(
+      "customer.subscription.created",
+      subscriptionOf(staff.homeId, "sub_waiting", "incomplete"),
+    ).expect(200);
+
+    const after = await homeRow(staff.homeId);
+    expect(after.subscriptionStatus).toBe("trial");
+    expect(after.trialEndsAt).toEqual(before.trialEndsAt);
+    expect(after.stripeSubscriptionId).toBeNull();
+  });
+
+  it("does not let an old subscription's end cancel the one that replaced it", async () => {
+    const staff = await signUpHome();
+    await db
+      .update(funeralHomesTable)
+      .set({
+        subscriptionStatus: "active",
+        stripeCustomerId: `cus_${staff.homeId}`,
+        stripeSubscriptionId: "sub_new",
+      })
+      .where(eq(funeralHomesTable.id, staff.homeId));
+    stripeHas([
+      subscriptionOf(staff.homeId, "sub_old", "canceled"),
+      subscriptionOf(staff.homeId, "sub_new", "active"),
+    ]);
+
+    await deliver(
+      "customer.subscription.deleted",
+      subscriptionOf(staff.homeId, "sub_old", "canceled"),
+    ).expect(200);
+
+    const home = await homeRow(staff.homeId);
+    expect(home.subscriptionStatus).toBe("active");
+    expect(home.stripeSubscriptionId).toBe("sub_new");
+  });
+
+  it("moves a home onto its other subscription when the one it was on ends", async () => {
+    const staff = await signUpHome();
+    await db
+      .update(funeralHomesTable)
+      .set({
+        subscriptionStatus: "active",
+        stripeCustomerId: `cus_${staff.homeId}`,
+        stripeSubscriptionId: "sub_second",
+      })
+      .where(eq(funeralHomesTable.id, staff.homeId));
+    // Two checkouts finished in two tabs, and the director cancelled the
+    // newer one. They are still paying for the first.
+    stripeHas([
+      subscriptionOf(staff.homeId, "sub_second", "canceled"),
+      subscriptionOf(staff.homeId, "sub_first", "active"),
+    ]);
+
+    await deliver(
+      "customer.subscription.deleted",
+      subscriptionOf(staff.homeId, "sub_second", "canceled"),
+    ).expect(200);
+
+    const home = await homeRow(staff.homeId);
+    expect(home.subscriptionStatus).toBe("active");
+    expect(home.stripeSubscriptionId).toBe("sub_first");
+  });
+
+  it("cancels a home whose only subscription has ended", async () => {
+    const staff = await signUpHome();
+    await db
+      .update(funeralHomesTable)
+      .set({
+        subscriptionStatus: "active",
+        stripeCustomerId: `cus_${staff.homeId}`,
+        stripeSubscriptionId: "sub_only",
+      })
+      .where(eq(funeralHomesTable.id, staff.homeId));
+    stripeHas([subscriptionOf(staff.homeId, "sub_only", "canceled")]);
+
+    await deliver(
+      "customer.subscription.deleted",
+      subscriptionOf(staff.homeId, "sub_only", "canceled"),
+    ).expect(200);
+
+    expect((await homeRow(staff.homeId)).subscriptionStatus).toBe("canceled");
+  });
+
+  it("asks Stripe to send the event again when Stripe cannot be reached", async () => {
+    const staff = await signUpHome();
+    vi.stubGlobal("fetch", async () => {
+      throw new TypeError("fetch failed");
+    });
+
+    // Anything but a 2xx and Stripe retries, for days. A 200 here would
+    // have been the last anyone heard of this payment.
+    await deliver(
+      "customer.subscription.updated",
+      subscriptionOf(staff.homeId, "sub_unheard", "active"),
+    ).expect(503);
+
+    const home = await homeRow(staff.homeId);
+    expect(home.subscriptionStatus).toBe("trial");
+    expect(home.stripeSubscriptionId).toBeNull();
+  });
+
+  it("takes two deliveries for one customer in turn, so a slow answer cannot land last", async () => {
+    const staff = await signUpHome();
+    const subscription = subscriptionOf(staff.homeId, "sub_turns", "active");
+    let truth = "active";
+    let answered = 0;
+    let releaseFirst!: () => void;
+    const firstHeld = new Promise<void>((resolve) => (releaseFirst = resolve));
+
+    vi.stubGlobal("fetch", async (url: string) => {
+      if (new URL(url).pathname === "/v1/subscriptions") {
+        return Response.json({ object: "list", data: [] });
+      }
+      // What Stripe said is fixed when it said it; the first answer is
+      // then slow to arrive.
+      const status = truth;
+      answered += 1;
+      if (answered === 1) await firstHeld;
+      return Response.json({ ...subscription, status });
+    });
+
+    const first = deliver("customer.subscription.updated", subscription).then((res) => res);
+    await vi.waitFor(() => expect(answered).toBe(1));
+
+    // The director cancels while the first answer is still on its way.
+    truth = "canceled";
+    const second = deliver(
+      "customer.subscription.deleted",
+      { ...subscription, status: "canceled" },
+    ).then((res) => res);
+
+    // The second delivery waits its turn rather than asking Stripe now.
+    await vi.waitFor(async () => {
+      const [waiting] = (
+        await db.execute(
+          sql`select count(*)::int as n from pg_locks where locktype = 'advisory' and not granted`,
+        )
+      ).rows as Array<{ n: number }>;
+      expect(waiting!.n).toBe(1);
+    });
+    releaseFirst();
+
+    expect((await first).status).toBe(200);
+    expect((await second).status).toBe(200);
+    expect((await homeRow(staff.homeId)).subscriptionStatus).toBe("canceled");
   });
 });
 
