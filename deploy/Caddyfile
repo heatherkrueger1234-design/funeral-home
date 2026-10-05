@@ -8,9 +8,11 @@
 # texts and emails, so the certificate and the links cannot disagree.
 #
 # For certificates to be issued, before the first `docker compose up`:
-#   - each hostname's DNS A (and AAAA, if you have IPv6) record points here.
-#     That is five: the portal, the console, the admin console, the bare
-#     domain and www;
+#   - each hostname's DNS A record points here -- not AAAA, unless the
+#     compose network has IPv6 of its own (DEPLOY.md says why: otherwise
+#     every IPv6 visitor reaches Caddy from one address and they share every
+#     rate limit). That is five: the portal, the console, the admin console,
+#     the bare domain and www;
 #   - ports 80 and 443 reach this host. Port 80 is not optional: Let's
 #     Encrypt proves you own the name over it, and Caddy uses it to redirect
 #     plain-HTTP visitors to HTTPS.

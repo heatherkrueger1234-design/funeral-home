@@ -27,10 +27,19 @@ Then fill in the ones the stack refuses to start without: `POSTGRES_PASSWORD`,
 `ENCRYPTION_KEY`, `FAMILY_PORTAL_URL`, `CONSOLE_URL`, `ADMIN_CONSOLE_URL` and
 `ACME_EMAIL`.
 
-And point DNS at the host **before** the first `up`: an A record (and AAAA,
-if the host has IPv6) for each of the five hostnames in those URLs — the
-three front ends, the bare domain and www — and
-ports 80 and 443 open to the internet. Caddy asks Let's Encrypt for the
+And point DNS at the host **before** the first `up`: an A record for each of
+the five hostnames in those URLs — the three front ends, the bare domain and
+www — and ports 80 and 443 open to the internet.
+
+**No AAAA records**, unless you have given the compose network IPv6 of its
+own (Docker's `enable_ipv6`, which needs IPv6 set up in the Docker daemon
+first — Docker's "IPv6 networking" documentation). Without it, Docker's port
+proxy accepts an IPv6 visitor and hands the connection to Caddy from one
+internal IPv4 address, so every IPv6 visitor looks like the same person to
+every rate limit: twenty mistyped passwords from anybody on IPv6 lock every
+director on IPv6 out of signing in for fifteen minutes, and one family's
+uploads count against every other's. With IPv6 really reaching the API, the
+limits count each household's /64 as one caller. Caddy asks Let's Encrypt for the
 certificates the first time each name is requested; if DNS is not there yet
 it fails, retries with back-off, and Let's Encrypt starts rate-limiting after
 a handful of failures.

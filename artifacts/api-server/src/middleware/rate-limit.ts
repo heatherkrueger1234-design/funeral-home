@@ -1,3 +1,4 @@
+import { isIP } from "node:net";
 import type { Request, RequestHandler } from "express";
 import { HttpError } from "../lib/http";
 import { tenant } from "./require-auth";
@@ -66,7 +67,49 @@ export function rateLimit(options: {
 
 function clientKey(req: Request): string {
   // `req.ip` honours `trust proxy`, which app.ts sets from TRUST_PROXY_HOPS.
-  return req.ip ?? req.socket.remoteAddress ?? "unknown";
+  return addressKey(req.ip ?? req.socket.remoteAddress ?? "unknown");
+}
+
+/**
+ * What an address is counted as: itself for IPv4, its /64 for IPv6.
+ *
+ * Every IPv6 connection a household or a phone has comes with a /64 --
+ * eighteen quintillion addresses, any of which the device can use -- so
+ * counting by the whole address gave anybody with an ordinary home
+ * connection a fresh bucket per request, and the sign-in limiter guarding
+ * against password guessing guarded nothing. A /64 is one customer's line,
+ * the unit a provider hands out, so it is also not too wide: two families
+ * are not counted together because they share an ISP.
+ */
+export function addressKey(ip: string): string {
+  const bare = ip.split("%")[0]!; // a zone id: fe80::1%eth0
+  if (isIP(bare) !== 6) return ip;
+
+  // An IPv4 client on a dual-stack socket arrives as ::ffff:a.b.c.d.
+  const mapped = /^::ffff:(\d{1,3}(?:\.\d{1,3}){3})$/i.exec(bare);
+  if (mapped) return mapped[1]!;
+
+  // A dotted tail (64:ff9b::1.2.3.4) stands for the last two groups.
+  const dotted = /(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/.exec(bare);
+  const text = dotted
+    ? bare.slice(0, dotted.index) +
+      ((Number(dotted[1]) << 8) | Number(dotted[2])).toString(16) +
+      ":" +
+      ((Number(dotted[3]) << 8) | Number(dotted[4])).toString(16)
+    : bare;
+
+  const [head = "", tail] = text.split("::");
+  const left = head ? head.split(":") : [];
+  const right = tail ? tail.split(":") : [];
+  const groups =
+    tail === undefined
+      ? left
+      : [...left, ...Array<string>(8 - left.length - right.length).fill("0"), ...right];
+
+  return `${groups
+    .slice(0, 4)
+    .map((group) => parseInt(group, 16).toString(16))
+    .join(":")}::/64`;
 }
 
 /**
