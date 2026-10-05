@@ -32,9 +32,18 @@ const SYSTEM =
   "Plain prose in paragraphs, no headings, no markdown, no quotation marks " +
   "around the whole text. Reply with the obituary text only.";
 
+/*
+ * What is sent is capped, because it is paid for by the token. A family's
+ * life story runs to a few thousand characters; the fields themselves take
+ * up to the request size, and a 600 KB "biography" would otherwise bill
+ * about 150,000 tokens to the platform's key on every press.
+ */
+const FIELD_LIMIT = 8_000;
+const NOTES_LIMIT = 20_000;
+
 function notes(fields: ObituaryFields): string {
   const line = (label: string, value: string | null | undefined) =>
-    value?.trim() ? `${label}: ${value.trim()}` : null;
+    value?.trim() ? `${label}: ${value.trim().slice(0, FIELD_LIMIT)}` : null;
   return [
     line("Full name", fields.fullName),
     line("Pronoun", fields.pronouns),
@@ -49,7 +58,8 @@ function notes(fields: ObituaryFields): string {
     line("In lieu of flowers", fields.inLieuOfFlowers),
   ]
     .filter(Boolean)
-    .join("\n");
+    .join("\n")
+    .slice(0, NOTES_LIMIT);
 }
 
 /** Ask for one suggested rewrite. Throws `ObituaryAiError` with a sentence a director can read. */

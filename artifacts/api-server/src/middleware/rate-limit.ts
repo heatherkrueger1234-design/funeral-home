@@ -1,5 +1,6 @@
 import type { Request, RequestHandler } from "express";
 import { HttpError } from "../lib/http";
+import { tenant } from "./require-auth";
 
 type Bucket = { count: number; resetAt: number };
 
@@ -16,11 +17,14 @@ export function rateLimit(options: {
   windowMs: number;
   max: number;
   message?: string;
+  /** What is counted: the caller's address unless something else is given. */
+  key?: (req: Request) => string;
 }): RateLimiter {
   const {
     windowMs,
     max,
     message = "Too many attempts. Please wait a moment.",
+    key: keyOf = clientKey,
   } = options;
   const buckets = new Map<string, Bucket>();
 
@@ -36,7 +40,7 @@ export function rateLimit(options: {
 
   const handler: RequestHandler = (req, res, next) => {
     const now = Date.now();
-    const key = clientKey(req);
+    const key = keyOf(req);
     const bucket = buckets.get(key);
 
     if (!bucket || bucket.resetAt <= now) {
@@ -173,4 +177,21 @@ export const clientErrorRateLimit: RateLimiter = rateLimit({
   windowMs: 60_000,
   max: 20,
   message: "Too many reports at once.",
+});
+
+/**
+ * A suggested obituary, per home rather than per address.
+ *
+ * Each one is paid for by the platform, by the token, and anybody can
+ * register a home: twenty an hour is generous for a director redrafting a
+ * few obituaries and useless for running up a bill. Counted per home so a
+ * home's staff share it, and one home's use never spends another's. Only
+ * mounted behind sign-in (`routes/obituary.ts`), where `tenant` is set.
+ */
+export const suggestionRateLimit: RateLimiter = rateLimit({
+  windowMs: 60 * 60 * 1000,
+  max: 20,
+  key: (req) => `home:${tenant(req).id}`,
+  message:
+    "That is a lot of suggestions for one hour. The composed draft is unchanged; try again later.",
 });

@@ -40,7 +40,7 @@ const { sql } = await import("drizzle-orm");
  * auth ceiling and fail the *next* file's first test, which is the kind of
  * flake that gets blamed on the database.
  */
-const { authRateLimit, familyRateLimit, publicRateLimit } = await import(
+const { authRateLimit, familyRateLimit, publicRateLimit, suggestionRateLimit } = await import(
   "../src/middleware/rate-limit"
 );
 
@@ -54,6 +54,7 @@ beforeEach(async () => {
   authRateLimit.reset();
   familyRateLimit.reset();
   publicRateLimit.reset();
+  suggestionRateLimit.reset();
 
   await db.execute(
     sql`TRUNCATE TABLE

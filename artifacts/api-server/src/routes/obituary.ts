@@ -21,6 +21,7 @@ import {
   suggestObituary,
 } from "../lib/obituary-ai";
 import { loadCase } from "./cases";
+import { suggestionRateLimit } from "../middleware/rate-limit";
 
 const router: IRouter = Router();
 
@@ -199,6 +200,19 @@ router.post("/cases/:caseId/obituary/reopen", async (req, res) => {
  * leave for a third party. The suggestion is kept beside the draft; nothing
  * changes until `accept`.
  */
+/*
+ * Each suggestion is paid for by the platform, per token, and anybody can
+ * register a home. So: a ceiling per home per hour (`suggestionRateLimit`),
+ * one suggestion at a time per obituary, a capped prompt (`obituary-ai.ts`),
+ * and a confirmed address — the same gate the public request form has.
+ */
+const suggesting = new Set<number>();
+
+// Counted on the request for a suggestion only, not on accepting one.
+router.use("/cases/:caseId/obituary/suggestion", (req, res, next) => {
+  if (req.method === "POST" && req.path === "/") suggestionRateLimit(req, res, next);
+  else next();
+});
 router.post("/cases/:caseId/obituary/suggestion", async (req, res) => {
   const home = tenant(req);
   const user = currentUser(req);
@@ -208,16 +222,28 @@ router.post("/cases/:caseId/obituary/suggestion", async (req, res) => {
   if (!isObituaryAiConfigured()) {
     throw new HttpError(409, "Suggested drafts are not switched on for this deployment.");
   }
+  if (!user.emailVerified) {
+    throw new HttpError(
+      403,
+      "Confirm your email address first — the link is in the email we sent when you joined.",
+    );
+  }
   if ((req.body as { confirm?: unknown })?.confirm !== true) {
     throw badRequest("Confirm that the family's notes may be sent for a suggestion.");
   }
+  if (suggesting.has(existing.id)) {
+    throw new HttpError(409, "A suggestion for this obituary is already being written.");
+  }
 
   let text: string;
+  suggesting.add(existing.id);
   try {
     text = await suggestObituary(existing);
   } catch (error) {
     if (error instanceof ObituaryAiError) throw new HttpError(502, error.message);
     throw error;
+  } finally {
+    suggesting.delete(existing.id);
   }
 
   req.log?.info(
