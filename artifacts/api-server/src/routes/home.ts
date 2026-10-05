@@ -29,9 +29,11 @@ import {
 import { currentUser, tenant } from "../middleware/require-auth";
 import {
   createPasswordReset,
+  destroyAllSessions,
   INVITE_TTL_DAYS,
   INVITE_TTL_MS,
   normaliseEmail,
+  revokePasswordResets,
 } from "../lib/auth";
 import { sendStaffInviteEmail } from "@workspace/mailer";
 import { templateFor, toTemplateJson } from "../lib/timeline";
@@ -382,6 +384,19 @@ router.put("/home/staff/:userId", async (req, res) => {
     })
     .where(eq(usersTable.id, found.id))
     .returning();
+
+  /*
+   * Taking somebody's access away ends what they already have, not only what
+   * they might start. The gate refuses a deactivated account while it stays
+   * that way, but a session is thirty days long and a reset or invitation
+   * link a week: putting them back -- a mistaken click, or a rehire --
+   * brought every one of those back with them, including a session left
+   * open on the front desk's browser.
+   */
+  if (active === false) {
+    await destroyAllSessions(found.id);
+    await revokePasswordResets(found.id);
+  }
 
   res.json(toPublicUser(updated!));
 });

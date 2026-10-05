@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
+import request from "supertest";
 import { eq } from "drizzle-orm";
 import { db, uploadsTable, casePhotosTable } from "@workspace/db";
+import app from "../src/app";
 import {
   asFamily,
   createCase,
@@ -149,6 +151,32 @@ describe("the home can grow", () => {
 
     // Still working.
     await staff.agent.get("/api/cases").expect(200);
+  });
+
+  it("ends a deactivated person's sessions, so putting them back does not revive one", async () => {
+    const owner = await signUpHome();
+    const invited = await owner.agent
+      .post("/api/home/staff")
+      .send({ email: "second@example.com", displayName: "Ray Ochoa", role: "director" })
+      .expect(201);
+    const token = new URL(invited.body.inviteLink, "http://x").searchParams.get("token")!;
+    await request(app)
+      .post("/api/auth/reset-password")
+      .send({ token, password: "rays-own-password" })
+      .expect(204);
+
+    // Signed in on the front desk's browser, and left there.
+    const frontDesk = request.agent(app);
+    await frontDesk
+      .post("/api/auth/login")
+      .send({ email: "second@example.com", password: "rays-own-password" })
+      .expect(200);
+
+    await owner.agent.put(`/api/home/staff/${invited.body.id}`).send({ active: false }).expect(200);
+    await owner.agent.put(`/api/home/staff/${invited.body.id}`).send({ active: true }).expect(200);
+
+    // Back at work, and the session from before is not.
+    await frontDesk.get("/api/auth/me").expect(401);
   });
 
   it("does not let a non-owner add people", async () => {
