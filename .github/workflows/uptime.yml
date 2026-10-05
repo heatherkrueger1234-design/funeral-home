@@ -1,4 +1,4 @@
-# Is it up? Asked every fifteen minutes, from outside.
+# Is it up? Asked every hour, from outside.
 #
 # LAUNCH.md: "When it breaks at 2am before an 11am funeral, we find out from
 # the director." This is the backstop that tells us first. It asks the API's
@@ -9,13 +9,19 @@
 # It is a backstop, not the pager. GitHub delays scheduled runs under load and
 # only emails whoever last edited this file's schedule when one fails. A
 # phone-paging monitor (DEPLOY.md, "Knowing when it breaks") is the real
-# answer; this one costs nothing and catches the outage that monitor was
-# never set up for.
+# answer; this one catches the outage that monitor was never set up for.
+#
+# Hourly, not every fifteen minutes, because a private repository pays for
+# Actions by the minute and GitHub bills every run as at least one. Every
+# fifteen minutes was about 2,900 minutes a month on its own; a free account
+# includes 2,000, and when they run out every workflow stops, the aftercare
+# sender included. A backstop that could switch off aftercare is worse than
+# a slower one.
 name: Uptime
 
 on:
   schedule:
-    - cron: "*/15 * * * *"
+    - cron: "47 * * * *"
   workflow_dispatch:
 
 concurrency:
@@ -31,7 +37,7 @@ jobs:
     timeout-minutes: 5
     steps:
       # The same rule as the other scheduled jobs: before there is a server,
-      # skip with a notice rather than going red every fifteen minutes and
+      # skip with a notice rather than going red every hour and
       # teaching everyone to ignore the colour.
       - name: Check there is a server to ask
         id: config

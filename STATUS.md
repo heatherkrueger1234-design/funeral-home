@@ -7,11 +7,10 @@ had in fact been built. Check before you trust a list.)
 
 ## The short version
 
-- **The code is healthy, and in one place again.** Everything from 4 October
-  is on main (PR #38). Branch `ccr-7f48fd16-gacxdi` now holds the twelve
-  stranded commits from 2 October, merged with main's 72-hour clock kept, and
-  5 October's fixes on top; one pull request takes it to main. Typecheck and
-  lint are clean and every suite passes (counts in `LAUNCH.md`).
+- **The code is healthy, and in one place again.** Everything is on main:
+  4 October's work (PR #38), then the twelve stranded commits from 2 October
+  with main's 72-hour clock kept and 5 October's fixes on top (PR #39).
+  Typecheck and lint are clean and every suite passes (counts in `LAUNCH.md`).
 - **What is left for launch is not code.** A price, a lawyer, a real
   deployment, and four accounts (mail, Twilio, Stripe, a backup bucket).
 - **Two things to do this week that cost nothing:** make this repository
@@ -26,9 +25,9 @@ had in fact been built. Check before you trust a list.)
 
 | Where | What it holds | State |
 | --- | --- | --- |
-| `claude/funeral-home-portal-uj9bik` | **Main**, GitHub's default branch. Everything through PR #38 (4 October). | Green |
-| `ccr-7f48fd16-gacxdi` | The step-up work (price book, recorded SMS consent, aftercare by text, print themes, obituary composer, ESLint, router splits, case sections) integrated with main's clock, plus everything in *What changed on 5 October*. | Green, pull request open |
-| `claude/step-up-app-launch-prep-j18yry` | Its twelve commits are all in the branch above. | Delete once that merges |
+| `claude/funeral-home-portal-uj9bik` | **Main**, GitHub's default branch. Everything through PR #39 (5 October). | Green |
+| `ccr-7f48fd16-gacxdi` | Merged as PR #39: the step-up work (price book, recorded SMS consent, aftercare by text, print themes, obituary composer, ESLint, router splits, case sections) integrated with main's clock, plus everything in *What changed on 5 October*. Reused since for small follow-ups. | Merged |
+| `claude/step-up-app-launch-prep-j18yry` | Its twelve commits are all on main (PR #39). | Delete |
 | PR #36 `claude/rescued-launch-readiness` | Launch-readiness fixes rescued from stranded branches, from 28 September. | Open; check what main has since |
 | PR #34 `claude/launch-sprint-catalogue` | The Funeral Rule catalogue, storefront and itemised statement. | Open — the keep-or-drop decision |
 | PR #8 `claude/component-5-forms` | Forms and authorisations into the **old** integration branch. | Open since 14 Sep; wait on a lawyer, then close |
@@ -51,18 +50,25 @@ In the order that unblocks the most:
    `LEGAL/`, `PRICING.md` and everything in the history can be read and
    copied by anyone. GitHub also switches off a public repository's
    scheduled workflows after sixty days without activity, which would quietly
-   stop the aftercare sender. Settings → General → Danger Zone → Change
-   visibility. Nothing in the code depends on it being public.
+   stop the aftercare sender. On github.com in a browser: Settings → General
+   → Danger Zone → Change visibility. Nothing in the code depends on it being
+   public, but **Actions minutes stop being free.** A free account includes
+   2,000 a month, and when they run out every workflow stops until the month
+   turns, the aftercare sender included. The scheduled jobs use about 1,500
+   a month (uptime and aftercare hourly, the rest daily or weekly) and CI
+   about 18 a push to an open pull request. Before aftercare matters, put a
+   card on file with a small Actions spending limit, or take GitHub Pro
+   (3,000 minutes), so a busy month cannot switch it off.
 2. **Switch off Replit's analytics** on both apps (the deployment's settings).
    It sends each page's full address to Replit, and a family's address
    carries their link, which is their credential. Until it is off, do not
    send a real family a link to a Replit deployment.
-3. **Choose the price.** The branch shows $169 a location a month plus $7 a
+3. **Choose the price.** Main shows $169 a location a month plus $7 a
    funeral on the website and in every home's Settings. The pricing research
    (delivered separately, not in this public repository) recommends keeping
    that level with a cap of 25 funerals per location per month, a 60-day
    trial instead of 30, and about ten founding pilots at 30% off for two
-   years. Decide, or hide that line, before the branch is deployed.
+   years. Decide, or hide that line, before main is deployed.
 4. **A lawyer.** The brief for counsel (delivered separately) lists about
    thirty sentences in the drafts that are not true of the code, eight of
    them since fixed in code, and the questions to settle: what reaches which
@@ -70,7 +76,7 @@ In the order that unblocks the most:
    requires public privacy and terms URLs before it registers a sender, so
    texting waits on this too. Keep `ANTHROPIC_API_KEY` unset until the DPA
    names Anthropic.
-5. **Deploy this branch for real**, or at least republish Replit from it and
+5. **Deploy main for real**, or at least republish Replit from it and
    point the domain at that app. `DEPLOY.md` is the Docker path; give the API
    container 2 GB at least (`DEPLOY.md`, "How it holds up under
    photographs").
@@ -103,8 +109,7 @@ pnpm --filter @workspace/scripts run dead-branches
 
 On 4 October, 22 branches contained nothing main does not have; the script
 prints the exact `git push origin --delete …` command. Add
-`claude/step-up-app-launch-prep-j18yry` and this branch once the pull request
-merges. Old polish branches whose work landed in another form
+`claude/step-up-app-launch-prep-j18yry`, whose work merged in PR #39. Old polish branches whose work landed in another form
 (`claude/polish-*`, `claude/design-polish-*`, `claude/publishing-issue-alvr9f`,
 `claude/multi-repo-loading-business-wqd37k`): read the one or two commits,
 then delete. Deleting a branch is not reversible from the GitHub UI, which is
@@ -114,7 +119,7 @@ why this is an owner's job and not an agent's.
 
 ## What changed on 5 October
 
-Each is its own commit on `ccr-7f48fd16-gacxdi`, with the reasoning in the
+Each is its own commit, merged in PR #39, with the reasoning in the
 message.
 
 - **The stranded 2 October work is merged**, keeping main's 72-hour clock and

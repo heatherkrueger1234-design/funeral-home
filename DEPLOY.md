@@ -404,8 +404,9 @@ Better Stack both do this on a free plan; one check every five minutes, alert
 by SMS or push to whoever is on call. Add a second check on the family portal's
 `/healthz` if you want to know nginx is serving.
 
-`.github/workflows/uptime.yml` asks the same question every fifteen minutes
-from GitHub, as a backstop. It skips with a notice until the `API_URL`
+`.github/workflows/uptime.yml` asks the same question every hour from
+GitHub, as a backstop. (Hourly because a private repository pays for Actions
+by the minute; see `STATUS.md`.) It skips with a notice until the `API_URL`
 repository secret is set, and also checks the front ends when the
 `FAMILY_PORTAL_URL` and `CONSOLE_URL` repository variables are. It is not the
 pager: GitHub delays scheduled runs under load, and a failed run only emails

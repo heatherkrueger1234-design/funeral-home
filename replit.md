@@ -616,7 +616,7 @@ every data-collection category off, no breadcrumbs, the route pattern rather
 than the URL, and messages scrubbed of addresses, tokens and numbers;
 `error-tracking.test.ts` reads the envelopes. Each app has a `CrashBoundary`
 and `lib/crash-report.ts`. `.github/workflows/uptime.yml` asks
-`/api/healthz` every fifteen minutes once `API_URL` is set. Add Sentry to the
+`/api/healthz` every hour once `API_URL` is set. Add Sentry to the
 DPA's sub-processors before setting the DSN.
 
 **Colour.** No red anywhere in the family portal, and in the console only to
