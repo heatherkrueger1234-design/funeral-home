@@ -330,6 +330,15 @@ If you put a CDN or a WAF in front of these containers, check it is not adding
 a second `Content-Security-Policy`: two of them are intersected, not
 overridden, and the result is usually a blank page nobody can explain.
 
+nginx's access logs hold no links. Its default line has the whole request and
+the Referer, which between them carry every family's link and every reset,
+invitation and confirmation token, so both templates log the path without its
+query string, a family link as `/f/REDACTED`, and no Referer. Caddy keeps no
+access log at all: the Caddyfile has no `log`. Error logs are another matter.
+A request that fails at nginx (the API unreachable, an upload over 50 MB) or
+at Caddy (an app's nginx unreachable) is written to its error log in full,
+Referer and all, so treat those as holding links.
+
 ## Website
 
 `artifacts/website` is the public page for funeral homes deciding whether to

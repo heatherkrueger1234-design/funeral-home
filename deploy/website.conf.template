@@ -14,9 +14,25 @@
 # Holds no NGINX_ variables, so the image's envsubst step passes it through
 # unchanged; it is a .template only so it lands where the image expects one.
 
+# The apps' access log (nginx.conf.template says why), so that no nginx in
+# this stack keeps a query string or a Referer. No link the product sends
+# points here, but one opened at this address by mistake would be kept whole.
+map $request_uri $loggable_path {
+    "~*^(?<log_link_prefix>[^?]*?/f/)" "${log_link_prefix}REDACTED";
+    "~^(?<log_bare_path>[^?]*)"        $log_bare_path;
+}
+
+log_format redacted '$remote_addr - - [$time_local] '
+                    '"$request_method $loggable_path $server_protocol" '
+                    '$status $body_bytes_sent "-" '
+                    '"$http_user_agent" "$http_x_forwarded_for"';
+
 server {
     listen 80;
     server_name _;
+
+    # In place of the image's own access log, as in nginx.conf.template.
+    access_log /var/log/nginx/access.log redacted;
 
     root /usr/share/nginx/html;
     index index.html;
