@@ -48,7 +48,7 @@ export const platformAuditTable = pgTable(
      */
     actorEmail: text("actor_email").notNull(),
 
-    /** What they did. Short, stable, and enumerated in `admin.ts`. */
+    /** What they did. Short, stable, and enumerated in `routes/admin/shared.ts`. */
     action: text("action").notNull(),
 
     /**

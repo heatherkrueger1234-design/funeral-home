@@ -116,6 +116,7 @@ export function FamilyPanel({ caseId, contacts }: Props) {
   const [phone, setPhone] = useState("");
   const [email, setEmail] = useState("");
   const [role, setRole] = useState<"next_of_kin" | "contributor">("next_of_kin");
+  const [smsConsent, setSmsConsent] = useState(false);
 
   const refresh = () => {
     void queryClient.invalidateQueries({ queryKey: getGetCaseQueryKey(caseId) });
@@ -133,6 +134,7 @@ export function FamilyPanel({ caseId, contacts }: Props) {
         setPhone("");
         setEmail("");
         setRole("contributor");
+        setSmsConsent(false);
         refresh();
       },
     },
@@ -249,6 +251,13 @@ export function FamilyPanel({ caseId, contacts }: Props) {
                       ""
                     )}
                     {contact.email ? ` · ${contact.email}` : ""}
+                    {contact.phone
+                      ? contact.smsOptedOutAt
+                        ? " · replied STOP, not texted"
+                        : contact.smsConsentAt
+                          ? " · agreed to texts"
+                          : ""
+                      : ""}
                     {/* Whether the text ever landed — otherwise invisible
                         until the family fails to do anything. */}
                     {revoked
@@ -266,21 +275,7 @@ export function FamilyPanel({ caseId, contacts }: Props) {
                     asks, for the same reason "New link" does.
                   */}
                   {contact.phone &&
-                    (revoked ? (
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        disabled={textingThis}
-                        onClick={() => sendLink.mutate({ contactId: contact.id })}
-                      >
-                        {textingThis ? (
-                          <Loader2 className="size-4 animate-spin" />
-                        ) : (
-                          <MessageSquare className="size-4" />
-                        )}
-                        Text a new link
-                      </Button>
-                    ) : (
+                    (contact.smsOptedOutAt ? null : (
                       <Confirm
                         trigger={
                           <Button variant="ghost" size="sm" disabled={textingThis}>
@@ -289,13 +284,22 @@ export function FamilyPanel({ caseId, contacts }: Props) {
                             ) : (
                               <MessageSquare className="size-4" />
                             )}
-                            Text it
+                            {revoked ? "Text a new link" : "Text it"}
                           </Button>
                         }
                         title={`Text ${who} a new link?`}
-                        description={`It goes to ${contact.phone}. The link ${who} already has stops working, so the one in this text is the one to use.`}
+                        description={
+                          (revoked
+                            ? `It goes to ${contact.phone}.`
+                            : `It goes to ${contact.phone}. The link ${who} already has stops working, so the one in this text is the one to use.`) +
+                          (contact.smsConsentAt
+                            ? ""
+                            : ` By sending, you confirm ${who} agreed to receive texts from you; that is recorded with today's date.`)
+                        }
                         confirmLabel="Text it"
-                        onConfirm={() => sendLink.mutate({ contactId: contact.id })}
+                        onConfirm={() =>
+                          sendLink.mutate({ contactId: contact.id, data: { smsConsent: true } })
+                        }
                       />
                     ))}
                   {/*
@@ -378,6 +382,7 @@ export function FamilyPanel({ caseId, contacts }: Props) {
               email: email.trim() || null,
               role,
               canInvite: role === "next_of_kin",
+              ...(phone.trim() && smsConsent ? { smsConsent: true } : {}),
             },
           });
         }}
@@ -421,6 +426,22 @@ export function FamilyPanel({ caseId, contacts }: Props) {
               value={phone}
               onChange={(event) => setPhone(event.target.value)}
             />
+            {phone.trim() && (
+              <label className="flex items-start gap-2 text-sm leading-snug">
+                <input
+                  type="checkbox"
+                  className="mt-0.5"
+                  checked={smsConsent}
+                  onChange={(event) => setSmsConsent(event.target.checked)}
+                />
+                <span>
+                  They agreed to get texts from us about the arrangements.
+                  <span className="block text-muted-foreground">
+                    Recorded with today&rsquo;s date. Nobody is texted without it.
+                  </span>
+                </span>
+              </label>
+            )}
           </div>
           <div className="space-y-1.5">
             <Label htmlFor="email">Email</Label>

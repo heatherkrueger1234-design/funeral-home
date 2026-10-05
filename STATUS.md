@@ -1,75 +1,82 @@
 # Status — where things stand
 
-Last checked: **4 October 2026**, against `origin` as it stood that evening.
+Last checked: **5 October 2026**, against `origin` as it stood that morning.
 Update this file when any of it changes; a stale status page is worse than
 none. (The 23 September version of this file listed six "left for an owner"
 items that had in fact been built since. Check before you trust a list.)
 
 ## The short version
 
-- **The code is healthy.** Typecheck is clean, and on branch
-  `ccr-7f48fd16-gacxdi` every suite passes: 545 API integration tests against
-  real Postgres, 60 platform-console, 53 family-portal and 24 director-console
-  unit tests, and the 7 Playwright browser tests.
-- **The 4 October pass fixed everything in its audit that code could fix** —
-  see *What changed on 4 October* below. What is left for launch is not code.
-- **The work now lives in too many places**, and sorting that out is the most
-  important thing to do next. It is an owner's call. **Problem 1.**
+- **Whatever Replit is serving is old.** The live app was published from
+  `demo/2026-10-04`, a "Published your App" commit on top of **28 September's**
+  main. Nothing since — the 4 October leak fixes, the 72-hour clock, the
+  access log, error tracking, and everything on the step-up branch — is live.
+  Publishing again from an up-to-date main is the fix. **Problem 1.**
+- **The step-up branch is merged** (on `ccr-525b8716-xwvpm4`, 5 October), so
+  once that reaches main, main holds all the work. 723 unit and integration
+  tests pass (584 API against real Postgres, 60 platform console, 53 family
+  portal, 26 director console), lint and typecheck are clean, codegen is in
+  step with the spec, and every app builds.
 - **Nothing here can take a real home's money or a real family's link yet**,
   for reasons that are accounts and decisions, not bugs. **Problem 2.**
 
 ---
 
-## Problem 1 — the work is in seven places
+## Problem 1 — getting the newest code live
 
-| Where | What it holds | State |
-| --- | --- | --- |
-| `claude/funeral-home-portal-uj9bik` | **Main.** GitHub's default branch. Everything up to PR #37 and the Phase 1 admin work (PR #35's content). | Green |
-| `ccr-7f48fd16-gacxdi` | The 4 October pass: the leak fixes, the 72-hour clock, the access log, error tracking, the calm-colour and pre-need work, the border fix, the platform console's tests. Built against main. | Green, pushed, no PR yet |
-| `claude/step-up-app-launch-prep-j18yry` | **12 commits main never received** (2 October): the $169-a-location-plus-$7-a-funeral price book, recorded SMS consent with STOP/HELP, aftercare by text, seven print themes, the obituary composer, ESLint and a large dead-code removal, the family and admin router splits, a texting setup panel, its own port of the 72-hour clock, and the case tabs grouped into four sections. | CI green on 2 Oct, **no PR** |
-| PR #36 `claude/rescued-launch-readiness` | Launch-readiness fixes rescued from stranded branches. | Open |
-| PR #34 `claude/launch-sprint-catalogue` | The Funeral Rule catalogue, storefront and itemised statement, brought across from the old integration branch. | Open — the old keep-or-drop decision |
-| PR #8 `claude/component-5-forms` | Forms, authorisations and the 72-hour clock, into the **old** integration branch. | Open since 14 Sep, stale |
-| `demo/2026-10-04` | A Replit "Published your App" commit built from **28 September's** main. | Whatever is live on Replit predates all of the above |
+Replit publishes **whatever is checked out in the Replit workspace**, not
+GitHub's default branch. Its last publish (`demo/2026-10-04`, 4 Oct 12:51 UTC)
+sat on 28 September's main. To publish what is here now:
 
-### This branch and the step-up branch overlap
+1. Merge `ccr-525b8716-xwvpm4` into main (`claude/funeral-home-portal-uj9bik`).
+2. In the Replit workspace: `git fetch origin` and check out main at its new
+   head. `scripts/post-merge.sh` runs `pnpm install --frozen-lockfile` and
+   `db push`; run both by hand if the workspace did not merge through Replit.
+   **`db push` matters**: this release adds `sms_opt_outs`, SMS consent
+   columns on contacts, texting and aftercare settings on homes, pronouns
+   and a suggested draft on obituaries, and a theme on print items.
+   The API starts without them and then 500s.
+3. Publish. Check `/api/healthz`, sign in, open a case's Certificate tab.
 
-Both were built without knowing about the other, and a trial merge of
-`claude/step-up-app-launch-prep-j18yry` into `ccr-7f48fd16-gacxdi` conflicts
-in 25 files. Three of the overlaps are real choices; the rest are mechanical.
+**One thing to decide before publishing.** On main, every
+`.replit-artifact/artifact.toml` points the apps at each other on
+`https://continuumaftercare.com`. The 4 October publish rewrote all four to
+`https://funeral-home.replit.app`. If the custom domain is not attached to the
+Replit deployment yet, publishing main as it stands sends password resets,
+family links and the cross-app buttons to a domain that does not answer.
+Attach the domain first, or publish with the `replit.app` URLs.
 
-1. **Both port the 72-hour certificate clock, into a table with the same name
-   and different columns** (`death_certificate_filings`). Only one may ever
-   reach a database: `db push` would turn one into the other and drop columns
-   doing it. Recommended: keep this branch's — it applies Colorado's 72 hours
-   only to Colorado homes, refuses a pre-need file and a time in the future,
-   attributes a filing only when it is recorded, has no duplicate notes field,
-   and has 12 tests to the other's 4 — and port the other's `certifiedAt` (the
-   physician's certification, as seen in EDRS) onto it if wanted. Drop the
-   step-up branch's `routes/certificate.ts`, `schema/certificates.ts`,
-   `certificate-clock.test.ts`, its `certificatesDue` dashboard field and its
-   `CertificateClock.tsx`.
-2. **Both regroup the case tabs.** This branch draws a hairline between five
-   groups in one bar; the step-up branch makes four named sections with the
-   tabs beneath them. Recommended: keep the step-up branch's, which goes
-   further, and drop this branch's `GroupBreak`.
-3. **The step-up branch deletes unused UI primitives** (`field.tsx`,
-   `form.tsx`, `input-group.tsx`, and the family portal's `alert.tsx` and
-   `badge.tsx`) that this branch recoloured. Take the deletions.
+The same publish also dropped `orval` from `lib/api-spec/package.json` and
+pruned the lockfile. Both are Replit's own edits on that branch, not on main,
+and do not need carrying back.
 
-The mechanical ones: `openapi.yaml` and the generated code (resolve the spec,
-then rerun codegen — never hand-merge generated files), `pnpm-lock.yaml`
-(rerun `pnpm install`), the two dashboard certificate lists, Settings (both
-edit it), `Obituary.tsx` (pre-need wording against the new composer — reapply
-the wording on the composer), and the router splits (this branch's changes to
-`family.ts`, `home.ts` and `admin.ts` move into the split files).
+### What the step-up merge decided
 
-**Recommended order:** merge this branch into main; then bring the step-up
-branch across in one pull request, resolving the above; then decide PR #34
-(it is the storefront keep-or-drop below); then close PR #8 (its clock is now
-built on main, and its forms and authorisations need a lawyer first — see
-`COLORADO.md`). Nothing new should be based on the old
-`claude/app-capability-check-mvfn8x`.
+The step-up branch and the 4 October pass were built without knowing about
+each other. Resolved as `STATUS.md` recommended on 4 October:
+
+1. **The 72-hour certificate clock:** kept main's (`death_certificate_filings`
+   as `routes/vitals.ts` writes it, Colorado-only, 12 tests). Dropped the
+   step-up branch's `routes/certificate.ts`, `schema/certificates.ts`, its
+   test, its `certificatesDue` dashboard field, its `/cases/{id}/certificate`
+   endpoints and its `CertificateClock.tsx`. Its first-case guide now reads
+   custody from main's filing record. Its `certifiedAt` was not ported.
+2. **The case tabs:** kept the step-up branch's four named sections; dropped
+   main's hairline `GroupBreak`.
+3. **Unused UI primitives:** took the step-up branch's deletions.
+4. **The router splits:** taken. Main's 4 October fix that stops the family's
+   certificate reads carrying `staffNotes` and the SSN's last four was
+   re-applied in `routes/family/arrangements.ts` — the split would otherwise
+   have quietly undone it. `vitals.test.ts` covers it.
+5. **Smaller things the merge caught:** the step-up branch's new
+   `home.sms.update` action had no words in a home's own access log (now it
+   does, with a test that every `home.*` action has a sentence); its toasts
+   used red (`destructive`) where main had moved to the notice colour; the
+   new obituary composer said "they" to someone writing their own pre-need
+   obituary, and asked them when they died; and a suggested draft cut off by
+   the token limit would have been offered as finished.
+
+---
 
 ### The old integration branch
 
@@ -87,9 +94,9 @@ a feature across in its own pull request, never the branch.
 
 In the order that unblocks the most:
 
-1. **Choose the price**, then create it in Stripe and run one test-mode cycle.
-   The step-up branch proposes $169 a location plus $7 a funeral and builds
-   the price book for it; nothing on main has a price. `PRICING.md` has the
+1. **Confirm the price**, then create it in Stripe and run one test-mode cycle.
+   The price book now says $169 a location plus $7 a funeral (from the
+   step-up branch); `stripe-setup` creates the prices from it. `PRICING.md` has the
    five-step checklist.
 2. **Deploy for real, or confirm what Replit is serving.** The stack has never
    run on a host with real TLS, mail or a payment. `DEPLOY.md` is the path:

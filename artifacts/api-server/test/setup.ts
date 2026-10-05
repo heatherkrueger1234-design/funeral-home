@@ -59,6 +59,8 @@ beforeEach(async () => {
     sql`TRUNCATE TABLE
       platform_plans,
       platform_running_costs,
+      sms_opt_outs,
+      death_certificate_filings,
       platform_admins,
       platform_audit,
       billable_cases,

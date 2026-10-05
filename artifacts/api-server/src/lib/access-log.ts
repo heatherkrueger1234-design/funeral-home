@@ -22,7 +22,7 @@ import {
  * record of something the log never recorded.
  */
 
-/** Plain words for the codes `admin.ts` writes about a single home. */
+/** Plain words for the codes `routes/admin/` writes about a single home. */
 const DESCRIPTIONS: Record<string, string> = {
   "home.open": "Opened your account",
   "home.create": "Set up your account",
@@ -36,6 +36,7 @@ const DESCRIPTIONS: Record<string, string> = {
   "home.staff.reset": "Sent a sign-in email to one of your staff",
   "home.owner.invite": "Invited your account's owner",
   "home.trial.extend": "Extended your free trial",
+  "home.sms.update": "Changed your account's texting setup",
 };
 
 /**

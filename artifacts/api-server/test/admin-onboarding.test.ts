@@ -7,7 +7,6 @@ import {
   funeralHomesTable,
   platformAdminsTable,
   platformAuditTable,
-  platformRunningCostsTable,
   usersTable,
 } from "@workspace/db";
 import { createPasswordReset } from "../src/lib/auth";
@@ -24,7 +23,6 @@ import { markEmailVerified } from "./helpers";
  */
 
 const ADMIN_EMAIL = "heather@continuumaftercare.example";
-const ADMIN_PASSWORD = "correct-horse-battery-staple";
 const OWNER_EMAIL = "director-onboarding@example.com";
 const PASSWORD = "correct-horse-battery-staple";
 
@@ -273,7 +271,9 @@ describe("the financials", () => {
       .set({ subscriptionStatus: "active" })
       .where(eq(funeralHomesTable.id, annual.id));
 
-    const trial = await createHome(admin, {
+    // Never read back: it exists to be left out of the total, since a
+    // trial is not revenue yet.
+    await createHome(admin, {
       ...fullTemplate("trial@example.com"),
       name: "Trial Home",
       billingAmountCents: 9900,

@@ -11,7 +11,14 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { PasteLink } from "@/components/PasteLink";
 import { useBrandColor } from "@/lib/brand-color";
-import { Loader2, Phone, ArrowLeft, ArrowRight, Check } from "lucide-react";
+import {
+  Loader2,
+  Phone,
+  ArrowLeft,
+  ArrowRight,
+  Check,
+  ChevronDown,
+} from "lucide-react";
 
 /**
  * The home's front door: which of the three situations is this, and where
@@ -73,7 +80,7 @@ function UrgentLine({
       <span className="text-sm">
         <span className="block font-semibold text-[var(--accent-deep)]">
           If this cannot wait, telephone{" "}
-          <span className="tabular">{number}</span>
+          <span className="tabular whitespace-nowrap">{number}</span>
         </span>
         <span className="mt-0.5 block text-muted-foreground">
           A death in the night, or anything urgent. Someone answers.
@@ -365,10 +372,23 @@ function Policies({
         {policies.map((policy) => (
           <details
             key={policy.id}
-            className="rounded-lg border border-border px-4 py-3 [&_summary]:cursor-pointer"
+            className="group rounded-xl border border-border bg-card shadow-[var(--elevation-1)]"
           >
-            <summary className="font-medium">{policy.title}</summary>
-            <p className="mt-2 whitespace-pre-wrap text-sm leading-snug text-muted-foreground">
+            {/* The browser's own triangle sits flush against the text and
+                reads as a bullet; a chevron at the far edge reads as "open
+                this", and the whole row is the target. */}
+            <summary
+              className="flex min-h-11 cursor-pointer list-none items-center justify-between
+                         gap-3 px-4 py-3 font-medium [&::-webkit-details-marker]:hidden"
+            >
+              {policy.title}
+              <ChevronDown
+                className="size-4 shrink-0 text-muted-foreground transition-transform duration-200 ease-out group-open:rotate-180"
+                strokeWidth={1.75}
+                aria-hidden
+              />
+            </summary>
+            <p className="whitespace-pre-wrap px-4 pb-4 text-sm leading-snug text-muted-foreground">
               {policy.body}
             </p>
           </details>

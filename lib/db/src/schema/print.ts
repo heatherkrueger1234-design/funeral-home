@@ -63,6 +63,9 @@ export const casePrintItemsTable = pgTable(
      */
     photoId: integer("photo_id"),
 
+    /** The look: a key in `PRINT_THEMES` (api-server `lib/print-themes.ts`). */
+    themeKey: text("theme_key").notNull().default("classic"),
+
     /** Slot contents: `{ verse: "...", closing: "..." }`. */
     values: jsonb("values").notNull().default({}),
 

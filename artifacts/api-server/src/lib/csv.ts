@@ -7,7 +7,7 @@
  * again — which means:
  *
  *  - a UTF-8 BOM on the first header, so `"Last Name"` silently becomes
- *    `"﻿Last Name"` and matches nothing;
+ *    `"\uFEFFLast Name"` and matches nothing;
  *  - CRLF line endings;
  *  - quoted fields containing commas and newlines (an address, a note);
  *  - doubled quotes inside quoted fields;
@@ -106,7 +106,7 @@ function parseRows(text: string): string[][] {
 /** Normalise a header so "Last Name", "last_name" and "LASTNAME" all match. */
 export function normaliseHeader(header: string): string {
   return header
-    .replace(/^﻿/, "")
+    .replace(/^\uFEFF/, "")
     .trim()
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, "");
@@ -117,7 +117,7 @@ export function parseCsv(text: string): ParsedCsv {
 
   if (rows.length === 0) return { headers: [], rows: [] };
 
-  const headers = rows[0]!.map((header) => header.replace(/^﻿/, "").trim());
+  const headers = rows[0]!.map((header) => header.replace(/^\uFEFF/, "").trim());
 
   const parsed = rows.slice(1).map((cells) => {
     const row: CsvRow = {};
@@ -216,4 +216,21 @@ export function parseDate(raw: string): Date | null {
   }
 
   return null;
+}
+
+/**
+ * One CSV cell. Quoted when it must be, and a leading = + - @ (or tab/CR)
+ * is prefixed with an apostrophe so a spreadsheet opens it as text rather
+ * than running it as a formula.
+ */
+export function csvCell(value: string | number | null | undefined): string {
+  let text = value === null || value === undefined ? "" : String(value);
+  if (/^[=+\-@\t\r]/.test(text)) text = `'${text}`;
+  return /[",\r\n]/.test(text) ? `"${text.replace(/"/g, '""')}"` : text;
+}
+
+/** A whole CSV: CRLF line ends and a BOM, which is what Excel expects. */
+export function toCsv(headers: string[], rows: Array<Array<string | number | null | undefined>>): string {
+  const lines = [headers, ...rows].map((row) => row.map(csvCell).join(","));
+  return `\uFEFF${lines.join("\r\n")}\r\n`;
 }

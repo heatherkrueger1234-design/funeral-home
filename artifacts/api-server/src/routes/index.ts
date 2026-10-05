@@ -20,6 +20,7 @@ import storefrontRouter from "./storefront";
 import pricingRouter from "./pricing";
 import casesRouter from "./cases";
 import exportRouter from "./export";
+import caseListExportRouter from "./case-list-export";
 import importRouter from "./import";
 import contactsRouter from "./contacts";
 import photosRouter from "./photos";
@@ -36,6 +37,7 @@ import aftercareRouter from "./aftercare";
 import memoryBookRouter from "./memory-book";
 import uploadsRouter from "./uploads";
 import adminRouter from "./admin";
+import smsWebhookRouter from "./sms-webhook";
 
 const router: IRouter = Router();
 
@@ -91,6 +93,9 @@ router.use("/client-errors", clientErrorRateLimit, clientErrorsRouter);
  */
 router.use(tasksRouter);
 
+/** Twilio's STOP/HELP replies. Signed by Twilio instead of a session. */
+router.use(smsWebhookRouter);
+
 /**
  * Stripe's webhook is not mounted here. It has no session and needs the raw
  * request body, which the global JSON parser in `app.ts` would already have
@@ -132,6 +137,7 @@ router.use(pricingRouter);
 router.use(importRouter);
 router.use(casesRouter);
 router.use(exportRouter);
+router.use(caseListExportRouter);
 router.use(intakeRouter);
 router.use(contactsRouter);
 router.use(photosRouter);

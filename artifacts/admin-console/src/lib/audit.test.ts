@@ -99,18 +99,18 @@ describe("what the log names", () => {
      * -- on the page shown to an insurer, and cannot be chosen in the filter;
      * a label for an action the server does not know is a filter the API
      * refuses. Nothing else checks that the two lists agree, so this reads
-     * the server's own: the closed list in `routes/admin.ts`.
+     * the server's own: the closed list in `routes/admin/shared.ts`.
      */
     const source = readFileSync(
       fileURLToPath(
-        new URL("../../../api-server/src/routes/admin.ts", import.meta.url),
+        new URL("../../../api-server/src/routes/admin/shared.ts", import.meta.url),
       ),
       "utf8",
     );
     const list = /const AUDIT_ACTIONS = \[([^\]]*)\] as const;/.exec(source);
     expect(
       list,
-      "AUDIT_ACTIONS has moved out of routes/admin.ts; point this test at it",
+      "AUDIT_ACTIONS has moved out of routes/admin/shared.ts; point this test at it",
     ).not.toBeNull();
     const actions = [...list![1]!.matchAll(/"([^"]+)"/g)].map(
       (match) => match[1],

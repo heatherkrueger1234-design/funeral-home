@@ -18,6 +18,7 @@ import { BillingSection } from "@/components/BillingSection";
 import { SnippetLibrary } from "@/components/SnippetLibrary";
 import { StaffSection } from "@/components/StaffSection";
 import { AccessLogSection } from "@/components/AccessLogSection";
+import { AftercareNotes } from "@/components/AftercareNotes";
 import { LoadFailed, Loading, PageHeader } from "@/components/page";
 
 /** Every zone this browser can format in; the home's clock must be one. */
@@ -123,8 +124,8 @@ export default function Settings() {
             }}
           />
           <p className="text-sm leading-snug text-muted-foreground">
-            The person families reach for the practical questions. Heather
-            entered this when your home joined; keep it current.
+            Who we contact about your account — renewals, and anything we need
+            to ask the home. Families never see it.
           </p>
         </div>
 
@@ -437,6 +438,16 @@ export default function Settings() {
             Leave blank to use the home's name.
           </p>
         </div>
+
+        {row.aftercareEnabled && <AftercareNotes readOnly={readOnly} />}
+
+        {row.textingStatus && (
+          <p className="text-sm leading-snug text-muted-foreground">
+            <span className="font-medium text-foreground">Texts. </span>
+            {row.textingStatus} Families are only texted after they agree,
+            and a STOP reply is honoured for good.
+          </p>
+        )}
       </section>
 
       {!readOnly && <AccessLogSection />}

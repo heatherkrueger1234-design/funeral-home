@@ -114,8 +114,10 @@ describe("a case from intake to aftercare", () => {
       .expect(200);
 
     expect(composed.body.draftText).toContain("Margaret Ellen Hale died on 2 September 2026");
-    expect(composed.body.draftText).toContain("Preceded in death by her husband");
-    expect(composed.body.draftText).toContain("In lieu of flowers, donations to Marie Curie");
+    expect(composed.body.draftText).toContain("Margaret was preceded in death by her husband");
+    expect(composed.body.draftText).toContain(
+      "In lieu of flowers, donations may be made to Marie Curie",
+    );
     // Nothing was invented: a field left blank produces no sentence.
     expect(composed.body.draftText).not.toContain("undefined");
     expect(composed.body.draftText).not.toContain("null");

@@ -12,6 +12,7 @@
   },
   "dependencies": {
     "@sentry/node": "^11.4.0",
+    "@anthropic-ai/sdk": "^0.128.0",
     "@workspace/api-zod": "workspace:*",
     "@workspace/db": "workspace:*",
     "@workspace/mailer": "workspace:*",

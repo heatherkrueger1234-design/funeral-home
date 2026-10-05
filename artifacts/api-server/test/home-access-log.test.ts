@@ -9,6 +9,8 @@ import {
   usersTable,
 } from "@workspace/db";
 import { markEmailVerified, signUpHome, type StaffSession } from "./helpers";
+import { describeAccess } from "../src/lib/access-log";
+import { AUDIT_ACTIONS } from "../src/routes/admin/shared";
 
 /**
  * A home reading the platform's access log about itself.
@@ -179,5 +181,18 @@ describe("the access log a home can read about itself", () => {
     const home = await signUpHome();
     await home.agent.get("/api/home/access-log?before=99999999999").expect(400);
     await home.agent.get("/api/home/access-log?limit=500").expect(400);
+  });
+});
+
+describe("the words an owner reads", () => {
+  it("has a sentence for every action the platform can record about one home", () => {
+    // A code with no sentence still shows, as `Recorded as "home.sms.update"`,
+    // which is honest and unreadable. Every new home.* action needs words.
+    const missing = AUDIT_ACTIONS.filter(
+      (action) =>
+        action.startsWith("home.") &&
+        describeAccess(action).startsWith("Recorded as"),
+    );
+    expect(missing).toEqual([]);
   });
 });

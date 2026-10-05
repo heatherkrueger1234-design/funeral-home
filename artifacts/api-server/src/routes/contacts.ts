@@ -7,7 +7,11 @@ import {
   toPublicFamilyContact,
   type FamilyContact,
 } from "@workspace/db";
-import { CreateCaseContactBody, UpdateContactBody } from "@workspace/api-zod";
+import {
+  CreateCaseContactBody,
+  SendContactLinkBody,
+  UpdateContactBody,
+} from "@workspace/api-zod";
 import {
   assertHasUpdates,
   badRequest,
@@ -17,11 +21,18 @@ import {
 } from "../lib/http";
 import { currentUser, tenant } from "../middleware/require-auth";
 import { linkUrl, mintLink } from "../lib/family-link";
-import { sendSms, SmsNotSentError } from "../lib/sms";
+import { sendSms, smsBlockReason, SmsNotSentError } from "../lib/sms";
 import { markOnboarding } from "../lib/onboarding";
 import { loadCase } from "./cases";
 
 const router: IRouter = Router();
+
+/** The columns a director's "they agreed to texts" tick writes. */
+function consentFields(consent: boolean | undefined) {
+  if (consent === true) return { smsConsentAt: new Date(), smsConsentSource: "director" };
+  if (consent === false) return { smsConsentAt: null, smsConsentSource: null };
+  return {};
+}
 
 /** Load a contact, scoped to the signed-in home. */
 async function loadContact(
@@ -88,6 +99,7 @@ router.post("/cases/:caseId/contacts", async (req, res) => {
       email: values.email ?? null,
       role: values.role ?? "contributor",
       canInvite: values.canInvite ?? false,
+      ...consentFields(values.smsConsent),
       tokenHash: link.tokenHash,
       expiresAt: link.expiresAt,
       invitedByUserId: user.id,
@@ -111,11 +123,16 @@ router.post("/cases/:caseId/contacts", async (req, res) => {
 
 router.put("/contacts/:contactId", async (req, res) => {
   const existing = await loadContact(req, req.params.contactId);
-  const values = assertHasUpdates(parseBody(UpdateContactBody, req.body));
+  const { smsConsent, ...values } = assertHasUpdates(parseBody(UpdateContactBody, req.body));
 
   const [updated] = await db
     .update(familyContactsTable)
-    .set({ ...values, updatedAt: new Date() })
+    .set({
+      ...values,
+      // Recording consent again keeps the original moment it was given.
+      ...(smsConsent === true && existing.smsConsentAt ? {} : consentFields(smsConsent)),
+      updatedAt: new Date(),
+    })
     .where(eq(familyContactsTable.id, existing.id))
     .returning();
 
@@ -178,6 +195,8 @@ router.post("/contacts/:contactId/send-link", async (req, res) => {
   const home = tenant(req);
   const existing = await loadContact(req, req.params.contactId);
 
+  const values = parseBody(SendContactLinkBody, req.body ?? {});
+
   if (!existing.phone?.trim()) {
     throw badRequest("There is no mobile number for this person.");
   }
@@ -190,6 +209,7 @@ router.post("/contacts/:contactId/send-link", async (req, res) => {
       tokenHash: link.tokenHash,
       expiresAt: link.expiresAt,
       revokedAt: null,
+      ...(values.smsConsent === true && !existing.smsConsentAt ? consentFields(true) : {}),
       updatedAt: new Date(),
     })
     .where(eq(familyContactsTable.id, existing.id))
@@ -199,19 +219,24 @@ router.post("/contacts/:contactId/send-link", async (req, res) => {
 
   // Short, and it names the home. A link arriving from an unknown number
   // three days after a death reads like a scam unless it says who it is.
-  const body = `${home.name}: here is your private page for the arrangements. ${url}`;
+  // Opt-out wording on every link text, as carriers expect.
+  const body = `${home.name}: here is your private page for the arrangements. ${url} Reply STOP to opt out.`;
 
   let sent = false;
-  let smsError: string | null = null;
+  // Consent is checked on the row as saved, so a tick sent with this
+  // request counts and a STOP reply always wins.
+  let smsError: string | null = smsBlockReason(updated!);
 
-  try {
-    await sendSms({ to: existing.phone, body });
-    sent = true;
-  } catch (error) {
-    if (error instanceof SmsNotSentError) {
-      smsError = error.message;
-    } else {
-      throw error;
+  if (!smsError) {
+    try {
+      await sendSms({ to: existing.phone, body, home });
+      sent = true;
+    } catch (error) {
+      if (error instanceof SmsNotSentError) {
+        smsError = error.message;
+      } else {
+        throw error;
+      }
     }
   }
 

@@ -20,10 +20,11 @@ import { funeralHomesTable } from "./funeral-homes";
  * on top. Volume pays more, which is how this category prices and what a
  * small home with nine funerals a year needs in order to afford it at all.
  *
- * The rule this file keeps is the same rule `billing.ts` keeps: **we store no
- * prices.** Not the base rate, not the per-case rate, not a currency. What is
- * stored here is a *count of funerals served* and a set of *entitlement keys*.
- * Stripe turns those into money. A second source of truth for money is always
+ * The rule this file keeps is the same rule `billing.ts` keeps: **no price is
+ * stored per home and nothing here bills.** What is stored is a *count of
+ * funerals served* and a set of *entitlement keys*; Stripe turns those into
+ * money. The published numbers live once, in `price-book.ts`, for the website
+ * and the Stripe setup script. A second source of truth for money is always
  * the wrong one, and the version of it that quietly disagrees with the invoice
  * is the worst thing a vendor can hand a customer's bookkeeper.
  *
