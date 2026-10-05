@@ -17,6 +17,7 @@ import {
   VerifyEmailBody,
 } from "@workspace/api-zod";
 import { badRequest, HttpError, parseBody } from "../lib/http";
+import { logger } from "../lib/logger";
 import { uniqueSlug } from "../lib/slug";
 import {
   EMAIL_VERIFICATION_TTL_MS,
@@ -346,22 +347,35 @@ router.post("/auth/forgot-password", authRateLimit, async (req, res) => {
     .where(eq(usersTable.email, email))
     .limit(1);
 
+  /*
+   * Not awaited, and that is the point. The answer was always the same 202,
+   * but it came after a fresh connection to the mail server -- hundreds of
+   * milliseconds -- only when the address had an account, so how long it
+   * took said what the status code would not. The reset is issued and sent
+   * after the answer has gone, as the front door's notice to a home is.
+   */
   if (user && user.deactivatedAt === null) {
-    const token = await createPasswordReset(user.id);
-
-    // The console's own origin, so the link lands on the staff sign-in app
-    // rather than on the family portal.
-    const base = process.env["CONSOLE_URL"]?.replace(/\/+$/, "") ?? "";
-
-    await sendPasswordResetEmail({
-      to: user.email,
-      resetUrl: `${base}/reset-password?token=${encodeURIComponent(token)}`,
-      expiresInMinutes: Math.round(PASSWORD_RESET_TTL_MS / 60000),
+    void sendResetLink(user).catch((err: unknown) => {
+      logger.error({ err, userId: user.id }, "Could not send a password reset link");
     });
   }
 
   res.status(202).end();
 });
+
+async function sendResetLink(user: User): Promise<void> {
+  const token = await createPasswordReset(user.id);
+
+  // The console's own origin, so the link lands on the staff sign-in app
+  // rather than on the family portal.
+  const base = process.env["CONSOLE_URL"]?.replace(/\/+$/, "") ?? "";
+
+  await sendPasswordResetEmail({
+    to: user.email,
+    resetUrl: `${base}/reset-password?token=${encodeURIComponent(token)}`,
+    expiresInMinutes: Math.round(PASSWORD_RESET_TTL_MS / 60000),
+  });
+}
 
 router.post("/auth/reset-password", authRateLimit, async (req, res) => {
   const values = parseBody(ResetPasswordBody, req.body);
