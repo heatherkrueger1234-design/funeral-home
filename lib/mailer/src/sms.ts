@@ -222,8 +222,20 @@ export async function sendSms(options: {
     throw new SmsNotSentError("Text messaging is not set up on this deployment.");
   }
 
-  if (await isOptedOut(to, route.scope)) {
-    throw new SmsNotSentError("This number replied STOP, so it is not texted any more.");
+  /*
+   * The STOP list of the sender in use, and the home's own, whichever number
+   * it came through. A STOP is a request to the funeral home, not to a
+   * number (the FCC's rule is about the caller), and a home's sender
+   * changes: shared number while its registration is pending, its own
+   * afterwards, shared again if that lapses. Checking only the sender's
+   * list let a STOP given on one number be forgotten on the next.
+   */
+  const scopes = new Set([route.scope]);
+  if (options.home?.id) scopes.add(`home:${options.home.id}`);
+  for (const scope of scopes) {
+    if (await isOptedOut(to, scope)) {
+      throw new SmsNotSentError("This number replied STOP, so it is not texted any more.");
+    }
   }
 
   const form = new URLSearchParams({ To: to, Body: options.body });

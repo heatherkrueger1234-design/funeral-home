@@ -113,7 +113,10 @@ describe("the inbound webhook", () => {
 
     const [row] = await db.select().from(familyContactsTable).where(eq(familyContactsTable.id, anne.id));
     expect(row!.smsOptedOutAt).not.toBeNull();
-    expect(await db.select().from(smsOptOutsTable)).toHaveLength(1);
+    // On the shared number: that number's list, and the home's own, so the
+    // STOP holds when the home texts from a number of its own later.
+    const scopes = (await db.select().from(smsOptOutsTable)).map((r) => r.scope).sort();
+    expect(scopes).toEqual([`home:${staff.homeId}`, "platform"]);
 
     const res = await staff.agent
       .post(`/api/contacts/${anne.id}/send-link`)
@@ -235,6 +238,48 @@ describe("the inbound webhook", () => {
 
     // Naming the home's account is not enough without its signature.
     await inbound(params, twilioSignature("not-the-token", HOOK, params)).expect(403);
+  });
+
+  it("keeps a STOP to the shared number when the home moves to its own", async () => {
+    const staff = await signUpHome("Aspen Grove");
+    await contact(staff, { phone: "(303) 555-0147", smsConsent: true });
+
+    // While the home texts from the shared number, the family says stop.
+    await inbound({ From: "+13035550147", To: "+13035550100", Body: "STOP" }).expect(200);
+
+    // Then the home's own number is verified, and the same person is added
+    // to a new case, with a director ticking that they agreed.
+    await db
+      .update(funeralHomesTable)
+      .set({ smsTollFreeNumber: "+18885550100", smsTollFreeStatus: "verified" })
+      .where(eq(funeralHomesTable.id, staff.homeId));
+    const again = await contact(staff, { phone: "(303) 555-0147", smsConsent: true });
+
+    const res = await staff.agent.post(`/api/contacts/${again.id}/send-link`).expect(200);
+    expect(res.body.sent).toBe(false);
+    expect(res.body.smsError).toMatch(/STOP/);
+    expect(sent).toHaveLength(0);
+  });
+
+  it("keeps a STOP to the home's own number when it falls back to the shared one", async () => {
+    const staff = await signUpHome("Aspen Grove");
+    await db
+      .update(funeralHomesTable)
+      .set({ smsTollFreeNumber: "+18885550100", smsTollFreeStatus: "verified" })
+      .where(eq(funeralHomesTable.id, staff.homeId));
+    await contact(staff, { phone: "(303) 555-0148", smsConsent: true });
+    await inbound({ From: "+13035550148", To: "+18885550100", Body: "STOP" }).expect(200);
+
+    // The verification lapses and texts go from the shared number again.
+    await db
+      .update(funeralHomesTable)
+      .set({ smsTollFreeStatus: "pending" })
+      .where(eq(funeralHomesTable.id, staff.homeId));
+    const again = await contact(staff, { phone: "(303) 555-0148", smsConsent: true });
+
+    const res = await staff.agent.post(`/api/contacts/${again.id}/send-link`).expect(200);
+    expect(res.body.sent).toBe(false);
+    expect(sent).toHaveLength(0);
   });
 
   it("keeps a STOP to one home's number to that home", async () => {

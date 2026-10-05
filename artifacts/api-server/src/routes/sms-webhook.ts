@@ -57,23 +57,29 @@ async function homeFor(params: Record<string, string>): Promise<FuneralHome | nu
   return home ?? null;
 }
 
+/** Every home that has this number as a contact. */
+async function homeIdsOf(phone: string): Promise<number[]> {
+  const ids = await contactIdsFor(phone, null);
+  if (ids.length === 0) return [];
+  const homes = await db
+    .selectDistinct({ id: familyContactsTable.funeralHomeId })
+    .from(familyContactsTable)
+    .where(inArray(familyContactsTable.id, ids));
+  return homes.map((row) => row.id);
+}
+
 /**
  * The home a reply to the shared number is really about, when only one home
  * has this person as a contact. Their HELP is answered with that home's name
  * and telephone rather than ours, which is who they need.
  */
 async function onlyHomeOf(phone: string): Promise<FuneralHome | null> {
-  const ids = await contactIdsFor(phone, null);
-  if (ids.length === 0) return null;
-  const homes = await db
-    .selectDistinct({ id: familyContactsTable.funeralHomeId })
-    .from(familyContactsTable)
-    .where(inArray(familyContactsTable.id, ids));
+  const homes = await homeIdsOf(phone);
   if (homes.length !== 1) return null;
   const [home] = await db
     .select()
     .from(funeralHomesTable)
-    .where(eq(funeralHomesTable.id, homes[0]!.id))
+    .where(eq(funeralHomesTable.id, homes[0]!))
     .limit(1);
   return home ?? null;
 }
@@ -138,6 +144,12 @@ router.post("/webhooks/twilio/sms", async (req, res) => {
 
   if (keyword === "stop" || (!keyword && revokesConsent(body))) {
     await recordOptOut(from, scope);
+    // On the shared number, the STOP is also to every home this person
+    // hears from, so it holds when that home later texts from its own
+    // number (`sendSms` checks the home's list as well as the sender's).
+    for (const homeId of home ? [] : await homeIdsOf(from)) {
+      await recordOptOut(from, `home:${homeId}`);
+    }
     const ids = await contactIdsFor(from, home);
     if (ids.length > 0) {
       await db
@@ -159,6 +171,9 @@ router.post("/webhooks/twilio/sms", async (req, res) => {
 
   if (keyword === "start") {
     await clearOptOut(from, scope);
+    for (const homeId of home ? [] : await homeIdsOf(from)) {
+      await clearOptOut(from, `home:${homeId}`);
+    }
     const ids = await contactIdsFor(from, home);
     if (ids.length > 0) {
       await db
