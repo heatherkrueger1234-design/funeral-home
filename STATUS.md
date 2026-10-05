@@ -70,7 +70,9 @@ In the order that unblocks the most:
 2. **Switch off Replit's analytics** on both apps (the deployment's settings).
    It sends each page's full address to Replit, and a family's address
    carries their link, which is their credential. Until it is off, do not
-   send a real family a link to a Replit deployment.
+   send a real family a link to a Replit deployment. A build of current code
+   refuses the script by itself (each page now carries its own
+   Content-Security-Policy), but nothing live is current code.
 3. **Choose the price.** Main shows $169 a location a month plus $7 a
    funeral on the website and in every home's Settings. The pricing research
    (delivered separately, not in this public repository) recommends keeping
@@ -218,6 +220,9 @@ message.
   counsel, with the brief, rather than rewritten here.
 - **Replit pages have no security headers.** The Docker path's nginx sets
   them (`deploy/security-headers.conf`); Replit's static hosting does not.
+  Each app's HTML now carries the two a page can, the Content-Security-Policy
+  and `no-referrer`, so what is missing there is what only a header can do:
+  X-Frame-Options and `frame-ancestors`, nosniff, HSTS.
 - **Infrastructure, sized for a pilot:** uploads in Postgres (about 0.6 MB a
   photograph, in every backup), one API instance, an in-memory rate limiter.
 

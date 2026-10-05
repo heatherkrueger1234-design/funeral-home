@@ -3,6 +3,7 @@ import react from "@vitejs/plugin-react";
 import tailwindcss from "@tailwindcss/vite";
 import path from "path";
 import runtimeErrorOverlay from "@replit/vite-plugin-runtime-error-modal";
+import { securityMeta } from "../../deploy/security-meta";
 
 /*
  * PORT is a dev-and-preview-server concern, so it is only demanded when one of
@@ -78,6 +79,10 @@ export default defineConfig({
     react(),
     tailwindcss(),
     preloadLatinFonts(),
+    // The Content-Security-Policy and the referrer policy, written into the
+    // built index.html from deploy/security-headers.conf for hosts that send
+    // no headers of their own. See deploy/security-meta.ts.
+    securityMeta(),
     runtimeErrorOverlay(),
     ...(process.env.NODE_ENV !== "production" &&
     process.env.REPL_ID !== undefined
