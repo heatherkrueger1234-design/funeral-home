@@ -6011,6 +6011,17 @@ export const GetUploadParams = zod.object({
   uploadId: zod.coerce.number(),
 });
 
+export const getUploadQuerySizeDefault = `full`;
+
+export const GetUploadQueryParams = zod.object({
+  size: zod
+    .enum(["full", "thumb"])
+    .default(getUploadQuerySizeDefault)
+    .describe(
+      "`thumb` for a photograph drawn small - in a grid, a row or a picker:\na JPEG about 320 pixels on its long edge, made the first time it is\nasked for and kept. Anything already that small, or that is not a\nphotograph, comes back as it is. Who may have it is exactly who may\nhave the photograph.\n",
+    ),
+});
+
 /**
  * The first call the portal makes. Returns the home (for branding and
 the urgent number), the person who died, the service details, what is
@@ -7272,6 +7283,17 @@ export const DeleteFamilyLifeChapterParams = zod.object({
  */
 export const GetFamilyUploadParams = zod.object({
   uploadId: zod.coerce.number(),
+});
+
+export const getFamilyUploadQuerySizeDefault = `full`;
+
+export const GetFamilyUploadQueryParams = zod.object({
+  size: zod
+    .enum(["full", "thumb"])
+    .default(getFamilyUploadQuerySizeDefault)
+    .describe(
+      "`thumb` for a photograph drawn small - in a grid, a row or a picker:\na JPEG about 320 pixels on its long edge, made the first time it is\nasked for and kept. Anything already that small, or that is not a\nphotograph, comes back as it is. Who may have it is exactly who may\nhave the photograph.\n",
+    ),
 });
 
 /**

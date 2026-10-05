@@ -44,6 +44,7 @@ import {
   Undo2,
 } from "lucide-react";
 import { Divider, Empty, Loading } from "@/components/page";
+import { PhotoImg } from "@/components/PhotoImg";
 import { MemoryBookSettings, PhotoYears } from "@/components/case/MemoryBookSettings";
 import { formatAtHome } from "@/lib/utils";
 import { useHomeZone } from "@/lib/session";
@@ -237,8 +238,9 @@ function Words({ text }: { text: string }) {
 function Thumb({ photo }: { photo: CasePhoto | null }) {
   if (!photo) return null;
   return (
-    <img
-      src={`/api/uploads/${photo.uploadId}`}
+    <PhotoImg
+      uploadId={photo.uploadId}
+      size="thumb"
       alt={photo.caption ?? "Photograph attached to this entry"}
       loading="lazy"
       className="size-16 shrink-0 rounded-md bg-muted object-cover"

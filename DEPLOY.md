@@ -452,7 +452,8 @@ What follows from it:
   mozjpeg (`images.ts`). Turning mozjpeg off makes that 3.7× faster and the
   files about 55% larger; with every photograph in every backup, smaller won.
 - **Plan storage at about 0.6 MB a photograph,** in the database and again in
-  every backup. A case at the 1,000 cap is about 600 MB.
+  every backup. A case at the 1,000 cap is about 600 MB. The thumbnail made
+  the first time a photograph is drawn small adds about 20 KB to it.
 - Two things the test found are fixed: converting a photograph used to hold a
   database connection for the whole second (ten families uploading held the
   whole pool, and everyone else waited), and photographs arriving together at

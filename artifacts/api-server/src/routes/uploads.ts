@@ -1,5 +1,6 @@
 import { Router, type IRouter } from "express";
-import { badRequest, parseId } from "../lib/http";
+import { GetUploadQueryParams } from "@workspace/api-zod";
+import { badRequest, parseId, parseQuery } from "../lib/http";
 import { currentUser, tenant } from "../middleware/require-auth";
 import { photoUpload, serveUpload, storeUpload } from "../lib/media";
 
@@ -31,9 +32,11 @@ router.post("/uploads", photoUpload.single("file"), async (req, res) => {
 
 router.get("/uploads/:uploadId", async (req, res) => {
   const home = tenant(req);
+  const { size } = parseQuery(GetUploadQueryParams, req.query);
   await serveUpload(res, {
     uploadId: parseId(req.params.uploadId),
     funeralHomeId: home.id,
+    size,
   });
 });
 

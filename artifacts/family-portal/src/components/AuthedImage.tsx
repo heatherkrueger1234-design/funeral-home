@@ -1,5 +1,10 @@
 import { useEffect, useRef, useState, type CSSProperties } from "react";
-import { useGetFamilyUpload } from "@workspace/api-client-react";
+import {
+  getGetFamilyUploadQueryKey,
+  useGetFamilyUpload,
+  type UploadSizeParameter,
+} from "@workspace/api-client-react";
+import { askAgainForPhoto, waitBeforeAskingAgain } from "@/lib/photo-patience";
 
 /**
  * A photograph from behind the family link.
@@ -31,6 +36,7 @@ import { useGetFamilyUpload } from "@workspace/api-client-react";
  */
 export function AuthedImage({
   uploadId,
+  size,
   alt,
   className = "",
   imgStyle,
@@ -38,6 +44,14 @@ export function AuthedImage({
   draggable,
 }: {
   uploadId: number;
+  /**
+   * `thumb` wherever the picture is drawn small -- a row, a grid, a picker
+   * -- for a JPEG about 320 pixels across instead of the whole photograph:
+   * a bin of several hundred whole ones was enough to bring an older
+   * iPhone's browser down. `full` where it is shown large, or framed through
+   * a crop that can magnify it.
+   */
+  size: UploadSizeParameter;
   alt: string;
   className?: string;
   /** Applied to the picture once it has arrived, e.g. a portrait crop. */
@@ -81,15 +95,27 @@ export function AuthedImage({
     return () => observer.disconnect();
   }, [near]);
 
-  const { data: blob, isPending, isError } = useGetFamilyUpload(uploadId, {
+  // The photograph keeps the address it always had; the thumbnail has its own.
+  const params = size === "thumb" ? { size } : undefined;
+  const { data: blob, isPending, isError } = useGetFamilyUpload(uploadId, params, {
     query: {
-      queryKey: [`/api/family/uploads/${uploadId}`],
+      queryKey: getGetFamilyUploadQueryKey(uploadId, params),
       enabled: near,
       // Rows are never rewritten, only added and deleted, so a photograph
       // fetched once on this screen is good for as long as the tab is open.
       staleTime: Infinity,
-      gcTime: 30 * 60_000,
-      retry: 1,
+      /*
+       * How long a picture no screen is drawing is kept. A thumbnail is a
+       * few kilobytes, and is kept half an hour so going back to a page
+       * costs nothing. A whole photograph is half a megabyte or more, and is
+       * let go a minute after the last screen showing it closes, rather than
+       * every one a family has opened piling up for half an hour.
+       */
+      gcTime: size === "thumb" ? 30 * 60_000 : 60_000,
+      // A thumbnail not made yet is a "not yet", waited out (see
+      // `photo-patience.ts`), not a photograph that failed.
+      retry: askAgainForPhoto,
+      retryDelay: waitBeforeAskingAgain,
     },
   });
 

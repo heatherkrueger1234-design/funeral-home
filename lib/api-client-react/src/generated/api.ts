@@ -84,10 +84,12 @@ import type {
   FuneralHomeUpdate,
   GetAftercareUnsubscribeParams,
   GetCasesParams,
+  GetFamilyUploadParams,
   GetFamilyVendorsParams,
   GetHomeAccessLogParams,
   GetIntakeRequestsParams,
   GetSnippetsParams,
+  GetUploadParams,
   GetVendorsParams,
   HealthStatus,
   HomeAccessLog,
@@ -13064,29 +13066,46 @@ export const useUploadFile = <
 /**
  * @summary Serve stored bytes
  */
-export const getGetUploadUrl = (uploadId: number) => {
-  return `/api/uploads/${uploadId}`;
+export const getGetUploadUrl = (uploadId: number, params?: GetUploadParams) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? "null" : value.toString());
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0
+    ? `/api/uploads/${uploadId}?${stringifiedParams}`
+    : `/api/uploads/${uploadId}`;
 };
 
 export const getUpload = async (
   uploadId: number,
+  params?: GetUploadParams,
   options?: RequestInit,
 ): Promise<Blob> => {
-  return customFetch<Blob>(getGetUploadUrl(uploadId), {
+  return customFetch<Blob>(getGetUploadUrl(uploadId, params), {
     ...options,
     method: "GET",
   });
 };
 
-export const getGetUploadQueryKey = (uploadId: number) => {
-  return [`/api/uploads/${uploadId}`] as const;
+export const getGetUploadQueryKey = (
+  uploadId: number,
+  params?: GetUploadParams,
+) => {
+  return [`/api/uploads/${uploadId}`, ...(params ? [params] : [])] as const;
 };
 
 export const getGetUploadQueryOptions = <
   TData = Awaited<ReturnType<typeof getUpload>>,
-  TError = ErrorType<unknown>,
+  TError = ErrorType<void>,
 >(
   uploadId: number,
+  params?: GetUploadParams,
   options?: {
     query?: UseQueryOptions<
       Awaited<ReturnType<typeof getUpload>>,
@@ -13098,11 +13117,12 @@ export const getGetUploadQueryOptions = <
 ) => {
   const { query: queryOptions, request: requestOptions } = options ?? {};
 
-  const queryKey = queryOptions?.queryKey ?? getGetUploadQueryKey(uploadId);
+  const queryKey =
+    queryOptions?.queryKey ?? getGetUploadQueryKey(uploadId, params);
 
   const queryFn: QueryFunction<Awaited<ReturnType<typeof getUpload>>> = ({
     signal,
-  }) => getUpload(uploadId, { signal, ...requestOptions });
+  }) => getUpload(uploadId, params, { signal, ...requestOptions });
 
   return {
     queryKey,
@@ -13117,7 +13137,7 @@ export const getGetUploadQueryOptions = <
 export type GetUploadQueryResult = NonNullable<
   Awaited<ReturnType<typeof getUpload>>
 >;
-export type GetUploadQueryError = ErrorType<unknown>;
+export type GetUploadQueryError = ErrorType<void>;
 
 /**
  * @summary Serve stored bytes
@@ -13125,9 +13145,10 @@ export type GetUploadQueryError = ErrorType<unknown>;
 
 export function useGetUpload<
   TData = Awaited<ReturnType<typeof getUpload>>,
-  TError = ErrorType<unknown>,
+  TError = ErrorType<void>,
 >(
   uploadId: number,
+  params?: GetUploadParams,
   options?: {
     query?: UseQueryOptions<
       Awaited<ReturnType<typeof getUpload>>,
@@ -13137,7 +13158,7 @@ export function useGetUpload<
     request?: SecondParameter<typeof customFetch>;
   },
 ): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
-  const queryOptions = getGetUploadQueryOptions(uploadId, options);
+  const queryOptions = getGetUploadQueryOptions(uploadId, params, options);
 
   const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
     queryKey: QueryKey;
@@ -15602,29 +15623,52 @@ export function useRenderFamilyMemoryBook<
 /**
  * @summary Serve a photograph on this case, or the home's logo
  */
-export const getGetFamilyUploadUrl = (uploadId: number) => {
-  return `/api/family/uploads/${uploadId}`;
+export const getGetFamilyUploadUrl = (
+  uploadId: number,
+  params?: GetFamilyUploadParams,
+) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? "null" : value.toString());
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0
+    ? `/api/family/uploads/${uploadId}?${stringifiedParams}`
+    : `/api/family/uploads/${uploadId}`;
 };
 
 export const getFamilyUpload = async (
   uploadId: number,
+  params?: GetFamilyUploadParams,
   options?: RequestInit,
 ): Promise<Blob> => {
-  return customFetch<Blob>(getGetFamilyUploadUrl(uploadId), {
+  return customFetch<Blob>(getGetFamilyUploadUrl(uploadId, params), {
     ...options,
     method: "GET",
   });
 };
 
-export const getGetFamilyUploadQueryKey = (uploadId: number) => {
-  return [`/api/family/uploads/${uploadId}`] as const;
+export const getGetFamilyUploadQueryKey = (
+  uploadId: number,
+  params?: GetFamilyUploadParams,
+) => {
+  return [
+    `/api/family/uploads/${uploadId}`,
+    ...(params ? [params] : []),
+  ] as const;
 };
 
 export const getGetFamilyUploadQueryOptions = <
   TData = Awaited<ReturnType<typeof getFamilyUpload>>,
-  TError = ErrorType<unknown>,
+  TError = ErrorType<void>,
 >(
   uploadId: number,
+  params?: GetFamilyUploadParams,
   options?: {
     query?: UseQueryOptions<
       Awaited<ReturnType<typeof getFamilyUpload>>,
@@ -15637,11 +15681,11 @@ export const getGetFamilyUploadQueryOptions = <
   const { query: queryOptions, request: requestOptions } = options ?? {};
 
   const queryKey =
-    queryOptions?.queryKey ?? getGetFamilyUploadQueryKey(uploadId);
+    queryOptions?.queryKey ?? getGetFamilyUploadQueryKey(uploadId, params);
 
   const queryFn: QueryFunction<Awaited<ReturnType<typeof getFamilyUpload>>> = ({
     signal,
-  }) => getFamilyUpload(uploadId, { signal, ...requestOptions });
+  }) => getFamilyUpload(uploadId, params, { signal, ...requestOptions });
 
   return {
     queryKey,
@@ -15658,7 +15702,7 @@ export const getGetFamilyUploadQueryOptions = <
 export type GetFamilyUploadQueryResult = NonNullable<
   Awaited<ReturnType<typeof getFamilyUpload>>
 >;
-export type GetFamilyUploadQueryError = ErrorType<unknown>;
+export type GetFamilyUploadQueryError = ErrorType<void>;
 
 /**
  * @summary Serve a photograph on this case, or the home's logo
@@ -15666,9 +15710,10 @@ export type GetFamilyUploadQueryError = ErrorType<unknown>;
 
 export function useGetFamilyUpload<
   TData = Awaited<ReturnType<typeof getFamilyUpload>>,
-  TError = ErrorType<unknown>,
+  TError = ErrorType<void>,
 >(
   uploadId: number,
+  params?: GetFamilyUploadParams,
   options?: {
     query?: UseQueryOptions<
       Awaited<ReturnType<typeof getFamilyUpload>>,
@@ -15678,7 +15723,11 @@ export function useGetFamilyUpload<
     request?: SecondParameter<typeof customFetch>;
   },
 ): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
-  const queryOptions = getGetFamilyUploadQueryOptions(uploadId, options);
+  const queryOptions = getGetFamilyUploadQueryOptions(
+    uploadId,
+    params,
+    options,
+  );
 
   const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
     queryKey: QueryKey;

@@ -1,5 +1,5 @@
 import { Router, type IRouter } from "express";
-import { and, asc, eq } from "drizzle-orm";
+import { and, asc, eq, inArray } from "drizzle-orm";
 import {
   caseBelongingsTable,
   caseDeletionsTable,
@@ -204,12 +204,14 @@ router.get("/cases/:caseId/export", async (req, res) => {
    * truncated file it thinks is a backup, so the check happens here where a
    * real status code is still possible.
    */
+  // The photographs that go in, by their own ids: the case's other uploads,
+  // the thumbnails among them, are not in the archive and are not counted.
   const uploadIds = photos.map((p) => p.uploadId);
   const sizes = uploadIds.length
     ? await db
         .select({ id: uploadsTable.id, bytes: uploadsTable.sizeBytes })
         .from(uploadsTable)
-        .where(eq(uploadsTable.caseId, row.id))
+        .where(and(eq(uploadsTable.caseId, row.id), inArray(uploadsTable.id, uploadIds)))
     : [];
   const totalBytes = sizes.reduce((sum, s) => sum + (s.bytes ?? 0), 0);
 

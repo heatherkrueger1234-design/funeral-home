@@ -276,6 +276,8 @@ export function PortalShell({ children }: { children: ReactNode }) {
             {home.logoUploadId !== null ? (
               <AuthedImage
                 uploadId={home.logoUploadId}
+                // A logo is not a photograph; it is drawn as the home made it.
+                size="full"
                 alt={home.name}
                 className="h-10 w-10 shrink-0 rounded-lg bg-white object-contain p-1.5 shadow-[0_1px_3px_rgb(0_0_0/0.18)] ring-1 ring-white/25"
               />

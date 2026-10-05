@@ -56,6 +56,10 @@ export function CroppedPhoto({
     >
       <AuthedImage
         uploadId={photo.uploadId}
+        // Whole, even in a 96-pixel square: the framing can zoom four times,
+        // and a thumbnail magnified four times is a blur of somebody's face.
+        // There is only ever one main photograph to hold.
+        size="full"
         alt={alt}
         className="absolute inset-0 h-full w-full"
         // Hidden for the moment between the bytes arriving and their shape
@@ -273,6 +277,7 @@ export function PortraitCropper({
           >
             <AuthedImage
               uploadId={photo.uploadId}
+              size="full"
               alt={photo.caption ?? "The main photograph"}
               className="pointer-events-none absolute inset-0 h-full w-full"
               draggable={false}

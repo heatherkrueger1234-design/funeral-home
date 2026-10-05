@@ -107,7 +107,8 @@ that exists anywhere outside your backups, and an "OK" button is something a
 tired person dismisses without reading.
 
 When it completes, the following are gone from the database: the case, every
-photograph and the encrypted bytes behind them, the obituary draft, the service
+photograph and the encrypted bytes behind them, the small copies of them the
+photograph grids are drawn from, the obituary draft, the service
 selections, the belongings and their chain of custody, the vital statistics
 including the encrypted social security number, the message thread, the
 timeline, the family's contact details and their link, any aftercare

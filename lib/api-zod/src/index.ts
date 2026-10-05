@@ -12,6 +12,8 @@ export * from "./generated/types";
  * added here.
  */
 export {
+  GetFamilyUploadParams,
+  GetUploadParams,
   ReissueContactLinkParams,
   RevokeContactParams,
   SendContactLinkParams,

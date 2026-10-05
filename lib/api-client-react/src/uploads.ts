@@ -91,6 +91,17 @@ export async function postFamilyPhotoMultipart(
 }
 
 /**
+ * How long a "not yet" (a 429) asked to be given, in milliseconds: its
+ * Retry-After, kept between a second and a minute, or ten seconds when it
+ * named none. Null for any other answer, which waiting will not change.
+ */
+export function waitAsked(error: unknown): number | null {
+  if ((error as { status?: number } | null)?.status !== 429) return null;
+  const header = (error as { headers?: Headers }).headers?.get("retry-after");
+  return Math.min(60, Math.max(1, Number(header) || 10)) * 1000;
+}
+
+/**
  * Send, and when the server says "not yet" (a 429), wait as long as it says
  * and send the same thing again -- up to four more times.
  *
@@ -106,12 +117,9 @@ export async function withPatience<T>(send: () => Promise<T>): Promise<T> {
     try {
       return await send();
     } catch (error) {
-      const status = (error as { status?: number }).status;
-      if (status !== 429 || attempt >= 4) throw error;
-
-      const header = (error as { headers?: Headers }).headers?.get("retry-after");
-      const seconds = Math.min(60, Math.max(1, Number(header) || 10));
-      await new Promise((resolve) => setTimeout(resolve, seconds * 1000));
+      const wait = waitAsked(error);
+      if (wait === null || attempt >= 4) throw error;
+      await new Promise((resolve) => setTimeout(resolve, wait));
     }
   }
 }

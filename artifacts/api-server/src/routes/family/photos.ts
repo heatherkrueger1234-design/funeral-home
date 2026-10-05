@@ -4,7 +4,7 @@ import {
   SetFamilyReferencePhotoBody,
   UpdateFamilyPhotoBody,
 } from "@workspace/api-zod";
-import { casePhotosTable, casesTable, db, uploadsTable } from "@workspace/db";
+import { casePhotosTable, casesTable, db } from "@workspace/db";
 import { and, eq } from "drizzle-orm";
 import { Router, type IRouter } from "express";
 import {
@@ -16,6 +16,7 @@ import {
 } from "../../lib/http";
 import {
   addPhotoToCase,
+  deleteUpload,
   mergeCrop,
   photosForCase,
   photoUpload,
@@ -160,14 +161,7 @@ router.delete("/photos/:photoId", async (req, res) => {
         ),
       );
     await tx.delete(casePhotosTable).where(eq(casePhotosTable.id, photo.id));
-    await tx
-      .delete(uploadsTable)
-      .where(
-        and(
-          eq(uploadsTable.id, photo.uploadId),
-          eq(uploadsTable.funeralHomeId, home.id),
-        ),
-      );
+    await deleteUpload(tx, photo.uploadId, home.id);
   });
 
   res.status(204).end();

@@ -30,6 +30,7 @@ import {
 } from "lucide-react";
 import { Confirm, Empty, LoadFailed, Loading } from "@/components/page";
 import { CroppedImg } from "@/components/CroppedImg";
+import { PhotoImg } from "@/components/PhotoImg";
 
 /** A crop that is not simply "the whole photograph". */
 function hasFraming(photo: {
@@ -270,7 +271,9 @@ export function PhotosPanel({ caseId }: { caseId: number }) {
             {/*
               The portrait is drawn as it will print: a 4:5 frame through the
               family's crop, set in the same 4:3 space as every other card so
-              the grid does not jump.
+              the grid does not jump. It is fetched whole, because the crop
+              can magnify it four times; every other card is a thumbnail
+              unless the screen is sharp enough to need more.
             */}
             {photo.isPortrait ? (
               <div
@@ -285,8 +288,9 @@ export function PhotosPanel({ caseId }: { caseId: number }) {
                 />
               </div>
             ) : (
-              <img
-                src={`/api/uploads/${photo.uploadId}`}
+              <PhotoImg
+                uploadId={photo.uploadId}
+                size="card"
                 alt={photo.caption ?? ""}
                 loading="lazy"
                 className={`mb-3 aspect-[4/3] w-full rounded-lg object-cover bg-muted ${

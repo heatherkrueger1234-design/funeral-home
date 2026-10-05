@@ -6,6 +6,7 @@ import {
   timestamp,
   customType,
   index,
+  type AnyPgColumn,
 } from "drizzle-orm/pg-core";
 import { funeralHomesTable } from "./funeral-homes";
 import { casesTable } from "./cases";
@@ -15,7 +16,8 @@ const bytea = customType<{ data: Buffer; default: false }>({
 });
 
 /**
- * Uploaded bytes: family photographs, and the home's own logo.
+ * Uploaded bytes: family photographs, the home's own logo, and the small
+ * copies of photographs that grids are drawn from (`thumbnailUploadId`).
  *
  * Stored in Postgres rather than on disk because this deploys to an autoscale
  * target with an ephemeral filesystem — files written beside the process are
@@ -59,11 +61,31 @@ export const uploadsTable = pgTable(
     mimeType: text("mime_type").notNull(),
     sizeBytes: integer("size_bytes").notNull(),
     data: bytea("data").notNull(),
+
+    /**
+     * A small JPEG of this photograph, for drawing it in a grid, a row or a
+     * picker (`?size=thumb`, in `lib/media.ts`). Made the first time it is
+     * asked for and kept as an upload of its own, carrying this one's home
+     * and case, so it is scoped, erased and left out of an export exactly as
+     * this one is. It points back at this row itself when the photograph is
+     * already as small as a thumbnail would be. Null until anybody asks.
+     *
+     * Kept here rather than on the thumbnail because the question is always
+     * asked from this side -- "has this photograph got one yet?" -- and it
+     * is answered without reading anything but the row already in hand.
+     */
+    thumbnailUploadId: integer("thumbnail_upload_id").references(
+      (): AnyPgColumn => uploadsTable.id,
+      { onDelete: "set null" },
+    ),
     createdAt: timestamp("created_at").notNull().defaultNow(),
   },
   (table) => [
     index("uploads_funeral_home_id_idx").on(table.funeralHomeId),
     index("uploads_case_id_idx").on(table.caseId),
+    // Without it, every upload deleted -- a thousand when a case is erased --
+    // would search the whole table for rows pointing at it.
+    index("uploads_thumbnail_upload_id_idx").on(table.thumbnailUploadId),
   ],
 );
 

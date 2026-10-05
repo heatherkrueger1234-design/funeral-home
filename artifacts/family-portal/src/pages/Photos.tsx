@@ -524,6 +524,7 @@ export default function Photos() {
                   ) : (
                     <AuthedImage
                       uploadId={photo.uploadId}
+                      size="thumb"
                       alt={photo.caption ?? "Photograph"}
                       className="size-full rounded-lg bg-muted object-cover ring-1 ring-inset ring-black/5"
                     />

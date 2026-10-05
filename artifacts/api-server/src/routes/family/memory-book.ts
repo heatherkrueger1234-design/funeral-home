@@ -1,3 +1,4 @@
+import { GetFamilyUploadQueryParams } from "@workspace/api-zod";
 import { db, lifeChaptersTable, memoryEntriesTable } from "@workspace/db";
 import { and, asc, eq } from "drizzle-orm";
 import { Router, type IRouter } from "express";
@@ -6,6 +7,7 @@ import {
   HttpError,
   parseBody,
   parseId,
+  parseQuery,
   requireRow,
 } from "../../lib/http";
 import { serveUpload } from "../../lib/media";
@@ -435,14 +437,17 @@ router.delete("/memory-book/chapters/:chapterId", async (req, res) => {
 router.get("/uploads/:uploadId", async (req, res) => {
   const row = familyCase(req);
   const home = familyHome(req);
+  const { size } = parseQuery(GetFamilyUploadQueryParams, req.query);
 
   // Scoped to this case, plus the home's logo and nothing else. However the
-  // id is mangled, no other family's file is reachable.
+  // id is mangled, no other family's file is reachable -- nor its thumbnail,
+  // which is only ever served on the photograph's say-so.
   await serveUpload(res, {
     uploadId: parseId(req.params.uploadId),
     funeralHomeId: home.id,
     caseId: row.id,
     logoUploadId: home.logoUploadId,
+    size,
   });
 });
 

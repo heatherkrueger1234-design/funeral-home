@@ -3016,6 +3016,7 @@ paths:
       summary: Serve stored bytes
       parameters:
         - $ref: "#/components/parameters/UploadId"
+        - $ref: "#/components/parameters/UploadSize"
       responses:
         "200":
           description: The file
@@ -3024,6 +3025,11 @@ paths:
               schema:
                 type: string
                 format: binary
+        "429":
+          description: |
+            Too many thumbnails are being made at once. Ask again after the
+            seconds in Retry-After; one already made, and the photograph
+            itself, never wait.
 
   # ---------------------------------------------------------------- family --
   #
@@ -3597,6 +3603,7 @@ paths:
       summary: Serve a photograph on this case, or the home's logo
       parameters:
         - $ref: "#/components/parameters/UploadId"
+        - $ref: "#/components/parameters/UploadSize"
       responses:
         "200":
           description: The file
@@ -3605,6 +3612,11 @@ paths:
               schema:
                 type: string
                 format: binary
+        "429":
+          description: |
+            Too many thumbnails are being made at once. Ask again after the
+            seconds in Retry-After; one already made, and the photograph
+            itself, never wait.
 
   /family/print/{printItemId}/approve:
     post:
@@ -3746,6 +3758,20 @@ components:
       required: true
       schema:
         type: integer
+    UploadSize:
+      name: size
+      in: query
+      required: false
+      description: |
+        `thumb` for a photograph drawn small - in a grid, a row or a picker:
+        a JPEG about 320 pixels on its long edge, made the first time it is
+        asked for and kept. Anything already that small, or that is not a
+        photograph, comes back as it is. Who may have it is exactly who may
+        have the photograph.
+      schema:
+        type: string
+        enum: [full, thumb]
+        default: full
     OfferId:
       name: offerId
       in: path

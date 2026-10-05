@@ -87,6 +87,7 @@ export function PhotoChoice({
         {chosen && (
           <AuthedImage
             uploadId={chosen.uploadId}
+            size="thumb"
             alt={chosen.caption ?? "The photograph you chose"}
             className="size-14 shrink-0 rounded-lg object-cover"
           />
@@ -130,6 +131,7 @@ export function PhotoChoice({
             />
             <AuthedImage
               uploadId={photo.uploadId}
+              size="thumb"
               alt={photo.caption ?? `Photograph ${index + 1}`}
               className="aspect-square w-full rounded-lg object-cover ring-offset-2 ring-offset-[var(--sunken)] peer-checked:ring-2 peer-checked:ring-[var(--accent)] peer-focus-visible:ring-2 peer-focus-visible:ring-[var(--accent)]"
             />

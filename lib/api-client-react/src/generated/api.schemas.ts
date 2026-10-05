@@ -3139,6 +3139,14 @@ export const PassedOnParameter = {
   keep: "keep",
 } as const;
 
+export type UploadSizeParameter =
+  (typeof UploadSizeParameter)[keyof typeof UploadSizeParameter];
+
+export const UploadSizeParameter = {
+  full: "full",
+  thumb: "thumb",
+} as const;
+
 export type GetAftercareUnsubscribeParams = {
   token: string;
 };
@@ -3327,3 +3335,27 @@ export const GetSnippetsKind = {
   closing: "closing",
   hymn: "hymn",
 } as const;
+
+export type GetUploadParams = {
+  /**
+ * `thumb` for a photograph drawn small - in a grid, a row or a picker:
+a JPEG about 320 pixels on its long edge, made the first time it is
+asked for and kept. Anything already that small, or that is not a
+photograph, comes back as it is. Who may have it is exactly who may
+have the photograph.
+
+ */
+  size?: UploadSizeParameter;
+};
+
+export type GetFamilyUploadParams = {
+  /**
+ * `thumb` for a photograph drawn small - in a grid, a row or a picker:
+a JPEG about 320 pixels on its long edge, made the first time it is
+asked for and kept. Anything already that small, or that is not a
+photograph, comes back as it is. Who may have it is exactly who may
+have the photograph.
+
+ */
+  size?: UploadSizeParameter;
+};

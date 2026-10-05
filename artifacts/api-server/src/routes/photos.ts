@@ -25,6 +25,7 @@ import {
 import { currentUser, tenant } from "../middleware/require-auth";
 import {
   addPhotoToCase,
+  deleteUpload,
   mergeCrop,
   photoUpload,
   photosForCase,
@@ -255,16 +256,10 @@ router.delete("/photos/:photoId", async (req, res) => {
       );
 
     await tx.delete(casePhotosTable).where(eq(casePhotosTable.id, existing.id));
-    // The photo row references the upload with `cascade`, so the bytes have
-    // to go explicitly rather than being orphaned in the uploads table.
-    await tx
-      .delete(uploadsTable)
-      .where(
-        and(
-          eq(uploadsTable.id, existing.uploadId),
-          eq(uploadsTable.funeralHomeId, home.id),
-        ),
-      );
+    // The photo row references the upload with `cascade`, so the bytes, and
+    // the thumbnail made of them, have to go explicitly rather than being
+    // orphaned in the uploads table.
+    await deleteUpload(tx, existing.uploadId, home.id);
   });
 
   res.status(204).end();
