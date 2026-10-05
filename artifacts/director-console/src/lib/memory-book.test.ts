@@ -57,15 +57,18 @@ describe("putting the pages in order", () => {
   });
 
   it("only lets a chapter trade places inside its own year", () => {
-    const chapters = [
+    type Chapter = { id: number; position: number; startYear: number | null };
+    const chapters: Chapter[] = [
       { id: 1, position: 1, startYear: 1961 },
       { id: 2, position: 2, startYear: 1974 },
       { id: 3, position: 3, startYear: 1974 },
       { id: 4, position: 4, startYear: null },
     ];
-    expect(moveWrites(chapters, 2, -1, sameYear)).toEqual([]);
-    expect(moveWrites(chapters, 3, -1, sameYear)).toHaveLength(2);
-    expect(moveWrites(chapters, 4, -1, sameYear)).toEqual([]);
+    // Named, as the panel names it: left to infer, the compiler takes the
+    // rows' type from `sameYear`, which knows nothing of ids or positions.
+    expect(moveWrites<Chapter>(chapters, 2, -1, sameYear)).toEqual([]);
+    expect(moveWrites<Chapter>(chapters, 3, -1, sameYear)).toHaveLength(2);
+    expect(moveWrites<Chapter>(chapters, 4, -1, sameYear)).toEqual([]);
   });
 });
 
