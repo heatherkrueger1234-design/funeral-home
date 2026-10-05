@@ -64,7 +64,7 @@ Volume pays more. That is how this category prices, and more to the point it
 is what lets a rural home with nine funerals a year afford the base rate at
 all.
 
-Three decisions inside it are worth knowing before you quote anybody:
+Four decisions inside it are worth knowing before you quote anybody:
 
 **A pre-need file is not a funeral.** Somebody writing down what they want at
 their own funeral is not work done, and a home charged for every pre-need
@@ -77,6 +77,13 @@ a `waived_reason`, so "we handled four funerals and you billed us for one" is
 a question with an answer rather than an absence a customer has to take on
 trust. The director can see the running count in their own console, labelled
 in as many words as *a count of funerals, not a bill*.
+
+**Imported history is not a funeral served.** A case brought in from a
+spreadsheet is counted like one opened by hand, unless the file says it
+happened more than a month before the import (its service, or its death when
+there is no service). Those are counted and waived as `imported_history`, and
+dated when they happened, so a home moving its last two years across is not
+billed for them, and its monthly count is not two hundred this morning.
 
 **A case is billed once, ever.** Enforced by a unique index rather than by the
 code that writes it, and again by an idempotency key on the Stripe meter

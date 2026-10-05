@@ -20,6 +20,9 @@ import { logger } from "./logger";
  * on `billableCasesTable` for why.
  */
 
+/** An imported case dated longer ago than this is a record, not a funeral served. */
+const IMPORTED_HISTORY_MS = 30 * 24 * 60 * 60 * 1000;
+
 /**
  * Count a case, once.
  *
@@ -40,6 +43,7 @@ export async function recordBillableCase(
   row: Case,
   home: FuneralHome,
   now = new Date(),
+  options: { imported?: boolean } = {},
 ): Promise<void> {
   if (row.kind === "pre_need") return;
 
@@ -51,14 +55,28 @@ export async function recordBillableCase(
     home.subscriptionStatus === "trial" &&
     (home.trialEndsAt === null || home.trialEndsAt > now);
 
+  /*
+   * A case brought in from a spreadsheet is counted like any other -- the
+   * import was a side door past the meter, never counting anything -- unless
+   * the file says it happened more than a month before: by its service, or
+   * by the death when there is no service. That is a home moving its records
+   * across, not serving two hundred funerals this morning. Counted, waived,
+   * and dated when it happened, so it is not this month's.
+   */
+  const happened = row.serviceAt ?? row.dateOfDeath;
+  const history =
+    options.imported === true &&
+    happened !== null &&
+    happened.getTime() < now.getTime() - IMPORTED_HISTORY_MS;
+
   try {
     await db
       .insert(billableCasesTable)
       .values({
         funeralHomeId: home.id,
         caseId: row.id,
-        countedAt: now,
-        waivedReason: onTrial ? "trial" : null,
+        countedAt: history ? happened : now,
+        waivedReason: history ? "imported_history" : onTrial ? "trial" : null,
       })
       // Converting a pre-need file that somehow already has a row, or any
       // other second look at the same case, must not count it twice.

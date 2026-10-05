@@ -198,7 +198,9 @@ export const billableCasesTable = pgTable(
 
     /**
      * Set when this case is counted but not chargeable, with the reason in
-     * the home's language: `trial` while they are still trying it.
+     * the home's language: `trial` while they are still trying it, and
+     * `imported_history` for a case brought in from a spreadsheet that
+     * happened more than a month before it was.
      *
      * A waived row is still written rather than skipped, so that "how many
      * funerals did we handle in here" and "how many did you bill us for" are

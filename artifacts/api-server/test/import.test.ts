@@ -1,8 +1,10 @@
 import { describe, expect, it } from "vitest";
 import { eq } from "drizzle-orm";
-import { casesTable, db } from "@workspace/db";
+import { billableCasesTable, casesTable, db, funeralHomesTable } from "@workspace/db";
 import { parseCsv, parseDate, guessMapping } from "../src/lib/csv";
 import { createCase, signUpHome } from "./helpers";
+
+const DAY = 24 * 60 * 60 * 1000;
 
 /**
  * Importing what a home's existing system actually exports.
@@ -168,6 +170,66 @@ describe("importing cases", () => {
       .expect(200);
     expect(contacts.body).toHaveLength(1);
     expect(contacts.body[0].firstSeenAt).toBeNull();
+  });
+
+  it("counts the funerals it brings in, and waives the history it brings across", async () => {
+    const staff = await signUpHome();
+    await db
+      .update(funeralHomesTable)
+      .set({
+        subscriptionStatus: "active",
+        trialEndsAt: new Date(Date.now() - 2 * DAY),
+        stripeCustomerId: "cus_importer",
+        stripeSubscriptionId: "sub_importer",
+      })
+      .where(eq(funeralHomesTable.id, staff.homeId));
+
+    const day = (offset: number) => new Date(Date.now() + offset * DAY).toISOString().slice(0, 10);
+    const file =
+      "Last Name,First Name,Date of Death,Service Date\r\n" +
+      `Hale,Margaret,${day(-2)},${day(5)} 13:00\r\n` + // this week's funeral
+      `Okafor,James,${day(-95)},${day(-90)} 11:00\r\n` + // last spring's
+      `Lindqvist,Ingrid,${day(-60)},\r\n` + // a death long ago, no service
+      "Nguyen,Lan,,\r\n"; // nothing to go on: a case like any other
+
+    await staff.agent
+      .post("/api/cases/import")
+      .attach("file", Buffer.from(file, "utf8"), "export.csv")
+      .expect(200);
+
+    const rows = await db
+      .select({
+        lastName: casesTable.decedentLastName,
+        serviceAt: casesTable.serviceAt,
+        dateOfDeath: casesTable.dateOfDeath,
+        waivedReason: billableCasesTable.waivedReason,
+        countedAt: billableCasesTable.countedAt,
+      })
+      .from(casesTable)
+      .leftJoin(billableCasesTable, eq(billableCasesTable.caseId, casesTable.id))
+      .where(eq(casesTable.funeralHomeId, staff.homeId));
+    const byName = new Map(rows.map((row) => [row.lastName, row]));
+
+    // A spreadsheet was a side door past the meter: imported cases were
+    // never counted at all, however current.
+    expect(byName.get("Hale")!.countedAt).not.toBeNull();
+    expect(byName.get("Hale")!.waivedReason).toBeNull();
+    expect(byName.get("Nguyen")!.countedAt).not.toBeNull();
+    expect(byName.get("Nguyen")!.waivedReason).toBeNull();
+
+    // But a home bringing last year across is moving its records, not
+    // serving two hundred funerals this morning. Counted, waived, and dated
+    // when they happened, so they are not this month's.
+    const okafor = byName.get("Okafor")!;
+    expect(okafor.waivedReason).toBe("imported_history");
+    expect(okafor.countedAt!.getTime()).toBe(okafor.serviceAt!.getTime());
+    const lindqvist = byName.get("Lindqvist")!;
+    expect(lindqvist.waivedReason).toBe("imported_history");
+    expect(lindqvist.countedAt!.getTime()).toBe(lindqvist.dateOfDeath!.getTime());
+
+    const billing = await staff.agent.get("/api/billing").expect(200);
+    expect(billing.body.cases.billableThisMonth).toBe(2);
+    expect(billing.body.cases.waivedThisMonth).toBe(0);
   });
 
   it("is safe to run twice on the same daily export", async () => {

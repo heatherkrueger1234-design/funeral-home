@@ -22,6 +22,7 @@ import {
 } from "../lib/csv";
 import { linkUrl, mintLink } from "../lib/family-link";
 import { applyTemplateToCase } from "../lib/timeline";
+import { recordBillableCase } from "../lib/metering";
 import { obituaryDate } from "../lib/obituary";
 
 /**
@@ -394,6 +395,10 @@ router.post("/cases/import", upload.single("file"), async (req, res) => {
       });
 
       await applyTemplateToCase(created);
+
+      // Counted like a case opened by hand, outside its transaction for the
+      // same reason; history the file brings across is waived (`metering.ts`).
+      await recordBillableCase(created, home, new Date(), { imported: true });
 
       caseIds.push(created.id);
     } catch (error) {
