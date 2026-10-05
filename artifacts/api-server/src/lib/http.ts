@@ -148,7 +148,8 @@ function asHttpError(err: unknown): HttpError | null {
    * `status`; `type: "entity.too.large"` is the separate case of a body past
    * the configured limit.
    */
-  if (code === "entity.too.large") {
+  const parser = err as { type?: unknown; status?: unknown; expose?: unknown };
+  if (parser.type === "entity.too.large") {
     return new HttpError(413, "That request was too large.");
   }
 
@@ -158,6 +159,25 @@ function asHttpError(err: unknown): HttpError | null {
     (err as { status?: number }).status === 400
   ) {
     return new HttpError(400, "That request body was not valid JSON.");
+  }
+
+  /*
+   * Everything else the body parsers refuse is the client's: an encoding
+   * they do not read (415), too many form fields (413), a body that stopped
+   * half-way (400). They say so with `expose` and a 4xx `status`. The check
+   * above for a body that was too large read `code`, where the parsers put
+   * nothing, so all of these were 500s -- each one an error log line and an
+   * error-tracker event that anybody could send in a loop, before any rate
+   * limiter had run, until the quota was gone and a real fault went unseen.
+   */
+  if (
+    typeof parser.type === "string" &&
+    parser.expose === true &&
+    typeof parser.status === "number" &&
+    parser.status >= 400 &&
+    parser.status < 500
+  ) {
+    return new HttpError(parser.status, "That request could not be read.");
   }
 
   /*
@@ -201,7 +221,61 @@ function asHttpError(err: unknown): HttpError | null {
     );
   }
 
+  /*
+   * 22007, 22008 and 22009: a date the database cannot hold, such as the
+   * year 200000, which every `z.coerce.date()` in the spec accepts and which
+   * reaches Postgres as "+200000-01-01T00:00:00.000Z" -- read there as a
+   * time-zone displacement (22009). From the public front door that was a
+   * 500 a stranger could send at will.
+   */
+  if (code === "22007" || code === "22008" || code === "22009") {
+    return new HttpError(400, "One of those dates is not one we can store. Please check it.");
+  }
+
   return null;
+}
+
+/**
+ * An error as it may be written down: to the log, or to the error tracker.
+ *
+ * Drizzle wraps a failed query in an error whose message is the SQL and then
+ * every bound parameter -- a family's names, an email address, the note
+ * somebody typed on the front door -- and the logger writes the `params`
+ * property out as well. replit.md and the privacy policy both say no case
+ * content reaches either, and this is where it did. What anyone fixing the
+ * fault needs is kept: the SQLSTATE, the constraint, table and column it
+ * names, the database's own sentence with any quoted value taken out, and
+ * the stack frames without the message they used to begin with.
+ */
+export function loggableError(err: unknown): unknown {
+  const failed = err as { query?: unknown; params?: unknown; cause?: unknown };
+  if (!(err instanceof Error) || (failed.query === undefined && failed.params === undefined)) {
+    return err;
+  }
+
+  const cause = (failed.cause ?? {}) as {
+    code?: unknown;
+    message?: unknown;
+    constraint?: unknown;
+    table?: unknown;
+    column?: unknown;
+  };
+  const sentence = typeof cause.message === "string" ? cause.message.replace(/"[^"]*"/g, '"…"') : "";
+  const code = typeof cause.code === "string" ? cause.code : undefined;
+
+  const safe = new Error(`Database query failed${code ? ` (${code})` : ""}${sentence ? `: ${sentence}` : ""}`);
+  safe.name = err.name;
+  safe.stack = [
+    `${safe.name}: ${safe.message}`,
+    ...(err.stack ?? "").split("\n").filter((line) => /^\s+at /.test(line)),
+  ].join("\n");
+
+  return Object.assign(safe, {
+    code,
+    constraint: cause.constraint,
+    table: cause.table,
+    column: cause.column,
+  });
 }
 
 export const notFoundHandler: RequestHandler = (req, res) => {
@@ -215,13 +289,14 @@ export const errorHandler: ErrorRequestHandler = (err, req, res, next) => {
 
   const httpError = asHttpError(err);
   const status = httpError?.status ?? 500;
+  const written = loggableError(err);
 
   if (status >= 500) {
-    req.log.error({ err }, "Unhandled error");
+    req.log.error({ err: written }, "Unhandled error");
     // The route as declared ("/api/cases/:caseId"), never the URL, which on
     // the family surface carries nothing, and elsewhere carries ids nobody
     // outside the home needs. Unmatched paths fall back to a scrubbed path.
-    reportError(err, {
+    reportError(written, {
       source: "api",
       method: req.method,
       status,
@@ -230,7 +305,7 @@ export const errorHandler: ErrorRequestHandler = (err, req, res, next) => {
         : scrubPath(req.originalUrl),
     });
   } else {
-    req.log.warn({ err: { message: err?.message } }, "Request rejected");
+    req.log.warn({ err: { message: (written as Error | undefined)?.message } }, "Request rejected");
   }
 
   res.status(status).json({
