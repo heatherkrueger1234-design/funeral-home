@@ -14,12 +14,18 @@ had in fact been built. Check before you trust a list.)
   every member of staff was sent the platform's private notes on their home;
   imported service times printed six hours early; a late "yes" to check-ins
   sent three grief notes in a minute; a STOP could be forgotten. Branch
-  `ccr-159a35a1-xifk0k` fixes twenty, each with a test that fails on the old
-  code (*What the launch review changed*, below). One pull request takes it
-  to main. What was found and not fixed is under *Open findings*.
+  `ccr-159a35a1-xifk0k` fixes them: twenty that evening, and that night every
+  finding the review had left open but two that are decisions — billing
+  before the first charge, a STOP written as a sentence, links passed on,
+  photographs on old phones, the abuse ceilings, backups that could not be
+  trusted, logs holding family links. Each comes with a test that fails on
+  the old code (*What the launch review changed* and *What the second pass
+  changed*, below). One pull request takes it to main. What is still open is
+  under *Still open*.
 - **What is left for launch is mostly not code.** A price, a lawyer, a real
   deployment, and four accounts (mail, Twilio, Stripe, a backup bucket) —
-  and, before the first charge, the billing findings below.
+  and, before the first charge, Stripe's dashboard set as `PRICING.md` says
+  and one cycle in test mode.
 - **Two things to do this week that cost nothing:** make this repository
   private, and switch off Replit's analytics injection. Both are below.
 - **Nothing live runs current code.** Both Replit apps serve builds from
@@ -33,7 +39,7 @@ had in fact been built. Check before you trust a list.)
 | Where | What it holds | State |
 | --- | --- | --- |
 | `claude/funeral-home-portal-uj9bik` | **Main**, GitHub's default branch. Everything through PR #39 (5 October). | Green |
-| `ccr-159a35a1-xifk0k` | The launch review's twenty fixes on top of main, and `3636527` (hourly uptime, this file's PR #39 update), which was pushed to `ccr-7f48fd16-gacxdi` after PR #39 merged and never reached main. | Green; pull request to open |
+| `ccr-159a35a1-xifk0k` | The launch review's fixes on top of main — twenty that evening and twenty-seven that night — and `3636527` (hourly uptime, this file's PR #39 update), which was pushed to `ccr-7f48fd16-gacxdi` after PR #39 merged and never reached main. | Green; pull request to open |
 | `ccr-7f48fd16-gacxdi` | Merged as PR #39: the step-up work (price book, recorded SMS consent, aftercare by text, print themes, obituary composer, ESLint, router splits, case sections) integrated with main's clock, plus everything in *What changed on 5 October*. Reused since for small follow-ups. | Merged |
 | `claude/step-up-app-launch-prep-j18yry` | Its twelve commits are all on main (PR #39). | Delete |
 | PR #36 `claude/rescued-launch-readiness` | Launch-readiness fixes rescued from stranded branches, from 28 September. | Open; check what main has since |
@@ -92,8 +98,10 @@ In the order that unblocks the most:
    photographs").
 6. **Accounts.** A mail provider (then `send-test-email` until it lands in an
    inbox); a bucket for `BACKUP_OFFSITE` and the encryption key in a password
-   manager; Stripe test keys, `stripe-setup -- --apply`, one test-mode cycle
-   including a per-funeral invoice; a Twilio number after the lawyer.
+   manager; Stripe test keys, `stripe-setup -- --apply`, the four dashboard
+   settings in `PRICING.md` ("Before you charge a single home"), and one
+   test-mode cycle with a per-funeral invoice, a subscription started during
+   a trial, and a cancellation; a Twilio number after the lawyer.
 7. **Know when it breaks.** A Sentry project and `SENTRY_DSN` (after the DPA
    lists Sentry), a phone-paging monitor on `/api/healthz`, and the `API_URL`
    secret so `uptime.yml` runs.
@@ -173,6 +181,85 @@ each comes with a test that fails on the code before it.
   no-card trial off; every Stripe signature is checked during a secret roll;
   "your trial ends tomorrow" is no longer sent on the day it ends.
 
+## What the second pass changed, 5 October (night)
+
+Also on `ccr-159a35a1-xifk0k`: the findings the evening's review had left
+open, each its own commit with a test that fails on the code before it.
+
+**Billing, before the first charge.**
+
+- **The webhook believes Stripe, not the event.** It fetches the
+  subscription as it is now and applies that, one delivery per customer at a
+  time. Checkout's "created, unpaid" and "updated, paid" often share a
+  second, and the second of the two was dropped as stale, with "incomplete"
+  read as cancelled: a home that paid could be left unable to open a case.
+  An old subscription ending no longer cancels its replacement, a home whose
+  subscription ends moves onto another of its own that is still running,
+  and an unreachable Stripe is a 503 so Stripe sends the event again.
+- **A trial Stripe holds is a trial**, not "Active": its funerals are waived
+  as the price list promises, the console says when the first payment is
+  taken, and the home is not refused a case in the minutes Stripe takes to
+  take it. A home whose subscription ended can subscribe again; it was sent
+  to Stripe's portal, which cannot start one.
+- **Checkout gives the trial a home has left**, not thirty fresh days from
+  every button (and another month after every cancellation), asks for a
+  card, and refuses a second subscription.
+- **The meter cannot stall or lose a funeral quietly.** Homes with nobody to
+  bill no longer fill its pages, failures go after new funerals, a funeral
+  is stamped when it reaches Stripe (one stamped 35 days back, or in an
+  invoiced period, was never billed), and `usage.yml` goes red on one that
+  has failed for three days.
+- **Imported cases are counted**; history a spreadsheet brings across is
+  waived. **A group is charged for the locations it has**, as they come and
+  go. **Trial reminders survive a mail failure**, are not crowded out by
+  finished trials, are not sent to a group's locations, and start again for
+  a location that leaves its group. The renewal date is read where Stripe's
+  current API keeps it.
+
+**Texting and abuse.**
+
+- **A STOP written as a sentence** — "Please stop sending these, it is too
+  painful" — opts out, and "please cancel the viewing" and "can we stop by"
+  do not: a table of fifty-two replies pins it (*Still open*, for the
+  lawyer).
+- **Twilio's signature is believed** with the default port in the URL or
+  out of it; a STOP signed the other way was refused.
+- **Account emails are capped per address** — "account exists", resets,
+  confirmations — counted by a hash of the address in `sent_emails`, without
+  changing any answer or how long it takes.
+- **The front door's hourly ceilings hold** when requests arrive together.
+- **Invitations** are emailed only once somebody at the home has confirmed
+  an address, three an hour and six a day to one address, to at most twenty
+  new people a day; the owner always has the link, and is told when and why
+  it was not emailed.
+
+**Families.**
+
+- **Stopping or replacing a link stops the links passed on from it**, and
+  says whose; the director can keep them for family.
+- **Grids draw from thumbnails**, made once and kept, erased with the case
+  and left out of exports, so a bin of hundreds no longer holds every
+  full-size photograph in an old iPhone's memory.
+- "Forget it here" asks a borrowed device's user to clear its history; the
+  expired-link screen says when the change being saved was not kept; the
+  console empties its cache when somebody else signs in, says when it cannot
+  reach the server instead of asking for a password, and takes HEIC by its
+  extension. The front ends' tests are now typechecked.
+
+**Operations.**
+
+- **Each app's HTML carries its own Content-Security-Policy and
+  `no-referrer`**: Replit's analytics script is refused and no request sends
+  a family's link as a Referer, with or without nginx in front.
+- **Caddy's log** writes `/f/REDACTED` and drops the Referer.
+- **`verify-backup` checks the restore against counts taken inside the
+  dump's own snapshot**, so a busy night no longer reads as a broken backup,
+  and decrypts a photograph and an SSN, which `DEPLOY.md` said it did and it
+  did not.
+- **A backup stopped part way leaves no plaintext**, whatever stops it.
+- **The API says when `TRUST_PROXY_HOPS` looks too low**, once a day.
+- The website says how long a family link really lasts.
+
 ## What changed on 5 October
 
 Each is its own commit, merged in PR #39, with the reasoning in the
@@ -227,57 +314,45 @@ message.
   photograph, in every backup), one API instance, an in-memory rate limiter.
   `DEPLOY.md`, "What this is not".
 
-## Open findings from the launch review
+## Still open
 
-Found, checked against the code, and not fixed — each needs a decision, a
-live account to test against, or more than a review should change unasked.
+Found, checked against the code, and not fixed: each needs a decision, a
+live account, or a measurement on the real host.
 
-**Billing — before the first charge** (Stripe has never taken one):
+**Billing.** Stripe has still never taken a payment. Set its dashboard as
+`PRICING.md` says ("Before you charge a single home") and run one cycle in
+test mode: monthly, annual, a per-funeral invoice, a subscription started
+during a trial, and a cancellation.
 
-- Two subscription events in the same second: the second is dropped
-  (`lib/billing.ts` skips `created <=` the last applied), and `incomplete`
-  maps to `canceled`. A group checkout, which has no trial, can be left
-  canceled after paying. Fetch the subscription's current state from Stripe
-  on each event instead of trusting the event's order.
-- A Stripe no-card trial reads as "Active" (`trialing` → active), so no
-  reminder is sent, `trial_will_end` is ignored, and the home is refused new
-  cases the day Stripe cancels it.
-- The usage reporter picks the oldest 500 unreported funerals each run and
-  skips any home with no Stripe customer, so 500 of those stop the meter
-  for everybody, and the run stays green. Cases created by CSV import are
-  never counted at all (`routes/import.ts`). A group's seat count is set at
-  checkout and never again. Every checkout grants a fresh no-card trial,
-  including to a home that cancelled.
+**For the lawyer.** How a reply is read as STOP (`revokesConsent`). A clause
+that asks for the texts to stop opts out, as does "stop" alone; "cancel" and
+"end" count only about the texts, so "please cancel the viewing" does not;
+a negative is not read, so "if you don't stop texting me" stops; and
+"revoke" anywhere opts out, so "revoke the cremation authorization" would.
+The FCC asks for "any reasonable means"; have counsel confirm this reading.
+Every opt-out is answered with how to undo it (START).
 
-**For the lawyer:**
+**Abuse.**
 
-- A reply over six words that asks to stop — "Please stop sending these,
-  it is too painful" — is not treated as a STOP (`revokesConsent`). The FCC
-  accepts revocation "by any reasonable means"; honouring every "stop" also
-  opts out "can you stop by?". A decision, not a bug fix.
+- **Registration answers 201 for a new address and 202 for a taken one**,
+  so whether an address has an account can be learned by trying to
+  register it. Kept on purpose: the per-address ceilings take away the
+  harassment it allowed, and closing it would mean nobody can use the
+  product until they have clicked a link in an email.
+- **Texts on the shared number have no ceiling per home.** A home on trial
+  can text a family link, from the platform's shared sender, to any number
+  it types and ticks consent for, and enough of that would get the number
+  filtered for every home on it. Before homes without their own registered
+  number are switched on, add a daily ceiling per home for the shared
+  sender, sized against a busy home's aftercare days; it needs a record of
+  texts sent, which does not exist yet.
+- **An address added as staff and never used is held by that home**: its
+  owner cannot register a home of their own until it is removed there.
 
-**Families:**
+**Families.** If a director ticks "keep" on stopping a link while a relative
+is being added from it, that new relative's link is kept too.
 
-- A relative's link that a family member minted survives the revocation or
-  re-minting of that member's link (`routes/contacts.ts`). The director can
-  see and revoke the relative; nothing points it out.
-- "Forget it here" cannot remove `/f/<token>` from the browser's own history
-  and address-bar suggestions on a borrowed device.
-- The photographs page keeps every full-size image it has drawn in memory;
-  a bin of several hundred may be too much for an older iPhone's Safari.
-
-**Abuse, before the platform is advertised:**
-
-- "Account exists", confirmation and reset emails can be sent to any
-  address, twenty per fifteen minutes per caller: enough, from a few
-  addresses, to harass somebody from our sending domain and get the mail
-  account suspended. Wants a per-recipient cooldown.
-- The front door's hourly ceilings count, then insert, so concurrent
-  requests overrun them (8 accepted of 30 at once). An advisory lock per
-  home closes it.
-- Registration still answers 201 for a new address and 202 for a taken one.
-
-**Operations:**
+**Operations.**
 
 - nginx's error log keeps a failing request's whole address and cannot be
   told otherwise. With the apps sending no Referer, that means an aftercare
@@ -290,3 +365,7 @@ live account to test against, or more than a review should change unasked.
   visit to a deployment of current code, look for `TRUST_PROXY_HOPS` in its
   log. None means 1 is right, unless the API sees Replit's router at a
   public address, which the check cannot tell from a visitor.
+- The tools container's init (`init: true`), which lets a stopped
+  backup clean up after itself, was checked as PID 1 of a PID namespace with
+  tini, not under Docker itself. Each run first clears what an earlier one
+  left, which is the backstop.

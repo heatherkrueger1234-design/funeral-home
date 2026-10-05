@@ -248,7 +248,13 @@ Each reminder is claimed with a conditional update before it is sent, so two
 overlapping runs cannot both send it. The trade is the same one aftercare
 makes, in the same direction: a crash losing one reminder is much better than
 its opposite, which is a proprietor receiving the same notice four times from
-the company holding their families' photographs.
+the company holding their families' photographs. A reminder the mail server
+refuses is given back for the next run, and the workflow goes red.
+
+Not every home on trial is written to. A home that subscribed during its
+trial hears about its end from Stripe, which charges the card it gave (turn
+on Stripe's own trial-ending email; `PRICING.md`), and a location in a group
+is the group's conversation, not its own.
 
 Add `?dryRun=1` to see what is due without sending or marking anything —
 that is how to check a new deployment is wired up without writing to a
