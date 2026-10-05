@@ -10,7 +10,14 @@ import {
 } from "@workspace/db";
 import app from "../src/app";
 import { keywordOf, revokesConsent, smsRouteFor, twilioSignature } from "../src/lib/sms";
-import { createCase, markEmailVerified, signUpHome } from "./helpers";
+import {
+  asFamily,
+  createCase,
+  homesAtMidday,
+  inviteFamily,
+  markEmailVerified,
+  signUpHome,
+} from "./helpers";
 
 /**
  * Texting rules a carrier, a regulator and a grieving family all care about:
@@ -257,6 +264,84 @@ describe("the inbound webhook", () => {
 
     const res = await staff.agent.post(`/api/contacts/${again.id}/send-link`).expect(200);
     expect(res.body.sent).toBe(false);
+    expect(res.body.smsError).toMatch(/STOP/);
+    expect(sent).toHaveLength(0);
+  });
+
+  /*
+   * The mobile a family gives for check-in texts is kept on the enrolment,
+   * and need not be the number the director has for them. A STOP from it on
+   * the shared number matched no contact, so it was held against the shared
+   * number alone -- and the texts started again the day the home's own
+   * number was approved.
+   */
+  it("keeps a STOP from the number given for check-ins when the home moves to its own", async () => {
+    vi.stubEnv("TASK_SECRET", "a-real-secret-value");
+    const staff = await signUpHome("Aspen Grove");
+    const row = await createCase(staff, {
+      serviceAt: new Date(Date.now() - 40 * 24 * 60 * 60 * 1000).toISOString(),
+    });
+    const { token } = await inviteFamily(staff, row.id, {
+      email: "anne@example.com",
+      phone: "(303) 555-0142",
+    });
+    await staff.agent.post(`/api/cases/${row.id}/close`).expect(200);
+    await asFamily(token)
+      .post("/api/family/aftercare")
+      .send({ consent: true, sms: true, phone: "(303) 555-0199" })
+      .expect(200);
+
+    await inbound({ From: "+13035550199", To: "+13035550100", Body: "STOP" }).expect(200);
+
+    await db
+      .update(funeralHomesTable)
+      .set({ smsTollFreeNumber: "+18885550100", smsTollFreeStatus: "verified" })
+      .where(eq(funeralHomesTable.id, staff.homeId));
+
+    sent = [];
+    await homesAtMidday();
+    await request(app)
+      .post("/api/tasks/aftercare")
+      .set("Authorization", "Bearer a-real-secret-value")
+      .expect(200);
+
+    expect(sent.filter((text) => text.body.get("To") === "+13035550199")).toHaveLength(0);
+  });
+
+  it("keeps a STOP the carrier reports on the shared number when the home moves to its own", async () => {
+    const staff = await signUpHome("Aspen Grove");
+    const first = await contact(staff, { phone: "(303) 555-0147", smsConsent: true });
+
+    // They replied STOP to the shared number at the carrier, so Twilio
+    // refuses the next text with 21610 and our webhook never hears of it.
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () =>
+        new Response(
+          JSON.stringify({ code: 21610, message: "Attempt to send to unsubscribed recipient" }),
+          { status: 400 },
+        ),
+      ),
+    );
+    await staff.agent.post(`/api/contacts/${first.id}/send-link`).expect(200);
+
+    const scopes = (await db.select().from(smsOptOutsTable)).map((row) => row.scope);
+    expect(scopes).toContain(`home:${staff.homeId}:shared`);
+
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (url: string, init: { body: URLSearchParams }) => {
+        sent.push({ url, body: init.body });
+        return new Response(JSON.stringify({ sid: "SM1" }), { status: 201 });
+      }),
+    );
+    await db
+      .update(funeralHomesTable)
+      .set({ smsTollFreeNumber: "+18885550100", smsTollFreeStatus: "verified" })
+      .where(eq(funeralHomesTable.id, staff.homeId));
+    const again = await contact(staff, { phone: "(303) 555-0147", smsConsent: true });
+
+    const res = await staff.agent.post(`/api/contacts/${again.id}/send-link`).expect(200);
     expect(res.body.smsError).toMatch(/STOP/);
     expect(sent).toHaveLength(0);
   });

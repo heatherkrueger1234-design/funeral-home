@@ -266,8 +266,16 @@ export async function sendSms(options: {
     try {
       const body = (await response.json()) as { message?: string; code?: number };
       if (body.message) detail = body.message;
-      // 21610: the recipient replied STOP to this sender at the carrier.
-      if (body.code === 21610) await recordOptOut(to, route.scope);
+      // 21610: the recipient replied STOP to this sender at the carrier. On
+      // the shared number it is held against the home too, as a STOP that
+      // reaches the webhook is, so it survives the home moving to a number
+      // of its own.
+      if (body.code === 21610) {
+        await recordOptOut(to, route.scope);
+        if (route.kind === "platform" && options.home?.id) {
+          await recordOptOut(to, `home:${options.home.id}:shared`);
+        }
+      }
     } catch {
       /* Non-JSON error body; the status is all we have. */
     }
