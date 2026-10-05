@@ -80,13 +80,27 @@ const queryClient = new QueryClient({
   }),
   mutationCache: new MutationCache({
     onError: (error, _variables, _context, mutation) => {
-      if (isUnauthorized(error)) return sessionEnded();
+      if (isUnauthorized(error)) sessionEnded();
       /*
        * A screen that handles its own failure says so in its own words — the
        * sign-in form, the print studio. Toasting here as well put two
        * messages about one mistake on screen, one of them generic.
        */
       if (mutation.options.onError || mutation.meta?.handlesOwnErrors) return;
+      /*
+       * Said, not only acted on. The sign-in form replacing the case somebody
+       * was typing into is otherwise the only sign, and nothing in it says the
+       * last change never arrived. A wrong password is a 401 as well, but the
+       * sign-in form says that in its own words and stops above.
+       */
+      if (isUnauthorized(error)) {
+        toast({
+          title: "You were signed out",
+          description: "That change wasn't saved. Sign in again to keep working.",
+          variant: "notice",
+        });
+        return;
+      }
       toast({
         title: "That didn't save",
         description: describeError(error),
