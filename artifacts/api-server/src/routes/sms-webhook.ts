@@ -59,14 +59,18 @@ async function homeFor(params: Record<string, string>): Promise<FuneralHome | nu
 
 /** Every home that has this number as a contact. */
 async function homeIdsOf(phone: string): Promise<number[]> {
-  const ids = await contactIdsFor(phone, null);
-  if (ids.length === 0) return [];
-  const homes = await db
-    .selectDistinct({ id: familyContactsTable.funeralHomeId })
-    .from(familyContactsTable)
-    .where(inArray(familyContactsTable.id, ids));
-  return homes.map((row) => row.id);
+  const contacts = await contactsWith(phone, null);
+  return [...new Set(contacts.map((contact) => contact.homeId))];
 }
+
+/*
+ * A STOP given on the shared number is held against each home this person
+ * hears from, under its own name, so that it holds when the home moves to a
+ * number of its own (`sendSms` checks it) — and so that a START on the
+ * shared number can take back exactly what a STOP there put down, and not a
+ * STOP the person gave to some home's own number.
+ */
+const viaShared = (homeId: number) => `home:${homeId}:shared`;
 
 /**
  * The home a reply to the shared number is really about, when only one home
@@ -94,10 +98,17 @@ const pointedAt = new Map<string, number>();
 const POINTER_GAP_MS = 12 * 60 * 60 * 1000;
 
 /** Contacts with this number, in this home (or every home, for the shared sender). */
-async function contactIdsFor(phone: string, home: FuneralHome | null): Promise<number[]> {
+async function contactsWith(
+  phone: string,
+  home: FuneralHome | null,
+): Promise<Array<{ id: number; homeId: number }>> {
   const last10 = phone.replace(/\D/g, "").slice(-10);
   const rows = await db
-    .select({ id: familyContactsTable.id, phone: familyContactsTable.phone })
+    .select({
+      id: familyContactsTable.id,
+      homeId: familyContactsTable.funeralHomeId,
+      phone: familyContactsTable.phone,
+    })
     .from(familyContactsTable)
     .where(
       and(
@@ -106,7 +117,13 @@ async function contactIdsFor(phone: string, home: FuneralHome | null): Promise<n
       ),
     );
   // The SQL narrows; the normaliser decides.
-  return rows.filter((r) => r.phone && normalisePhone(r.phone) === phone).map((r) => r.id);
+  return rows
+    .filter((r) => r.phone && normalisePhone(r.phone) === phone)
+    .map(({ id, homeId }) => ({ id, homeId }));
+}
+
+async function contactIdsFor(phone: string, home: FuneralHome | null): Promise<number[]> {
+  return (await contactsWith(phone, home)).map((contact) => contact.id);
 }
 
 router.post("/webhooks/twilio/sms", async (req, res) => {
@@ -145,10 +162,9 @@ router.post("/webhooks/twilio/sms", async (req, res) => {
   if (keyword === "stop" || (!keyword && revokesConsent(body))) {
     await recordOptOut(from, scope);
     // On the shared number, the STOP is also to every home this person
-    // hears from, so it holds when that home later texts from its own
-    // number (`sendSms` checks the home's list as well as the sender's).
+    // hears from (`viaShared`).
     for (const homeId of home ? [] : await homeIdsOf(from)) {
-      await recordOptOut(from, `home:${homeId}`);
+      await recordOptOut(from, viaShared(homeId));
     }
     const ids = await contactIdsFor(from, home);
     if (ids.length > 0) {
@@ -170,11 +186,30 @@ router.post("/webhooks/twilio/sms", async (req, res) => {
   }
 
   if (keyword === "start") {
-    await clearOptOut(from, scope);
-    for (const homeId of home ? [] : await homeIdsOf(from)) {
-      await clearOptOut(from, `home:${homeId}`);
+    /*
+     * A START takes back what a STOP to the same number put down, and no
+     * more. To a home's own number: that home's lists and its contacts. To
+     * the shared number: the shared list, the STOPs it held against each
+     * home, and the contacts at homes this person has not also stopped on
+     * their own number — a "yes" to one home on the shared number must not
+     * undo a STOP they sent to another.
+     */
+    let ids: number[];
+    if (home) {
+      await clearOptOut(from, scope);
+      await clearOptOut(from, viaShared(home.id));
+      ids = await contactIdsFor(from, home);
+    } else {
+      await clearOptOut(from, scope);
+      const released = new Set<number>();
+      for (const homeId of await homeIdsOf(from)) {
+        await clearOptOut(from, viaShared(homeId));
+        if (!(await isOptedOut(from, `home:${homeId}`))) released.add(homeId);
+      }
+      ids = (await contactsWith(from, null))
+        .filter((contact) => released.has(contact.homeId))
+        .map((contact) => contact.id);
     }
-    const ids = await contactIdsFor(from, home);
     if (ids.length > 0) {
       await db
         .update(familyContactsTable)

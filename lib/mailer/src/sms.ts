@@ -231,7 +231,11 @@ export async function sendSms(options: {
    * list let a STOP given on one number be forgotten on the next.
    */
   const scopes = new Set([route.scope]);
-  if (options.home?.id) scopes.add(`home:${options.home.id}`);
+  if (options.home?.id) {
+    scopes.add(`home:${options.home.id}`);
+    // A STOP given on the shared number while this home used it.
+    scopes.add(`home:${options.home.id}:shared`);
+  }
   for (const scope of scopes) {
     if (await isOptedOut(to, scope)) {
       throw new SmsNotSentError("This number replied STOP, so it is not texted any more.");

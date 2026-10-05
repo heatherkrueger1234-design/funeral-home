@@ -4,9 +4,12 @@ import { pgTable, text, serial, timestamp, uniqueIndex } from "drizzle-orm/pg-co
  * Numbers that replied STOP, per sender.
  *
  * `scope` is `home:<id>` for a home's own sender and `platform` for the
- * shared number, because a STOP applies to the number it was sent to.
+ * shared number, because a STOP applies to the number it was sent to; and
+ * `home:<id>:shared` for a STOP given on the shared number while that home
+ * used it, so it still holds when the home texts from a number of its own.
  * Checked before every send, whatever the contact row says, so a number
- * typed again on a new case is still not texted. START deletes the row.
+ * typed again on a new case is still not texted. START deletes what a STOP
+ * to the same number wrote, and nothing it did not.
  */
 export const smsOptOutsTable = pgTable(
   "sms_opt_outs",

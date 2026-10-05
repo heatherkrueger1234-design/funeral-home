@@ -116,7 +116,7 @@ describe("the inbound webhook", () => {
     // On the shared number: that number's list, and the home's own, so the
     // STOP holds when the home texts from a number of its own later.
     const scopes = (await db.select().from(smsOptOutsTable)).map((r) => r.scope).sort();
-    expect(scopes).toEqual([`home:${staff.homeId}`, "platform"]);
+    expect(scopes).toEqual([`home:${staff.homeId}:shared`, "platform"]);
 
     const res = await staff.agent
       .post(`/api/contacts/${anne.id}/send-link`)
@@ -280,6 +280,50 @@ describe("the inbound webhook", () => {
     const res = await staff.agent.post(`/api/contacts/${again.id}/send-link`).expect(200);
     expect(res.body.sent).toBe(false);
     expect(sent).toHaveLength(0);
+  });
+
+  it("never lets a yes to one home undo a STOP sent to another", async () => {
+    // Mesa texts from its own number; Aspen from the shared one.
+    const mesa = await signUpHome("Mesa Verde");
+    await db
+      .update(funeralHomesTable)
+      .set({ smsTollFreeNumber: "+18885550199", smsTollFreeStatus: "verified" })
+      .where(eq(funeralHomesTable.id, mesa.homeId));
+    const atMesa = await contact(mesa, { phone: "(303) 555-0149", smsConsent: true });
+    const aspen = await signUpHome("Aspen Grove");
+    const atAspen = await contact(aspen, { phone: "(303) 555-0149", smsConsent: true });
+
+    // The same person stops Mesa, then says yes on the shared number.
+    await inbound({ From: "+13035550149", To: "+18885550199", Body: "STOP" }).expect(200);
+    await inbound({ From: "+13035550149", To: "+13035550100", Body: "Yes" }).expect(200);
+
+    const rows = await db.select().from(familyContactsTable);
+    expect(rows.find((r) => r.id === atMesa.id)!.smsOptedOutAt).not.toBeNull();
+    const res = await mesa.agent.post(`/api/contacts/${atMesa.id}/send-link`).expect(200);
+    expect(res.body.sent).toBe(false);
+    expect(sent).toHaveLength(0);
+
+    // Aspen, on the shared number, may text them.
+    expect(rows.find((r) => r.id === atAspen.id)!.smsOptedOutAt).toBeNull();
+    const ok = await aspen.agent.post(`/api/contacts/${atAspen.id}/send-link`).expect(200);
+    expect(ok.body.sent).toBe(true);
+  });
+
+  it("lets a START on the shared number take back a STOP given there", async () => {
+    const staff = await signUpHome("Aspen Grove");
+    await contact(staff, { phone: "(303) 555-0150", smsConsent: true });
+    await inbound({ From: "+13035550150", To: "+13035550100", Body: "STOP" }).expect(200);
+    await inbound({ From: "+13035550150", To: "+13035550100", Body: "START" }).expect(200);
+    expect(await db.select().from(smsOptOutsTable)).toEqual([]);
+
+    // And it is gone for the home's own number too, once it has one.
+    await db
+      .update(funeralHomesTable)
+      .set({ smsTollFreeNumber: "+18885550100", smsTollFreeStatus: "verified" })
+      .where(eq(funeralHomesTable.id, staff.homeId));
+    const again = await contact(staff, { phone: "(303) 555-0150", smsConsent: true });
+    const res = await staff.agent.post(`/api/contacts/${again.id}/send-link`).expect(200);
+    expect(res.body.sent).toBe(true);
   });
 
   it("keeps a STOP to one home's number to that home", async () => {
