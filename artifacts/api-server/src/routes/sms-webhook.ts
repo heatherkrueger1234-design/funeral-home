@@ -3,23 +3,30 @@ import { and, eq, inArray, isNull, or, sql } from "drizzle-orm";
 import { db, familyContactsTable, funeralHomesTable, type FuneralHome } from "@workspace/db";
 import {
   clearOptOut,
+  isOptedOut,
   isValidTwilioSignature,
   keywordOf,
   normalisePhone,
   recordOptOut,
+  revokesConsent,
+  subaccountAuthToken,
 } from "../lib/sms";
 import { HttpError } from "../lib/http";
 
 /**
- * Replies to our texts: STOP, START and HELP.
+ * Replies to our texts: STOP, START and HELP, and everything else.
  *
  * Twilio signs every request with the auth token over the exact URL it
  * called, so `TWILIO_WEBHOOK_URL` should be set to that URL; without it the
  * URL is rebuilt from the request, which only works behind a proxy that
- * passes the original host and scheme. Unsigned requests are refused.
+ * passes the original host and scheme. Unsigned requests are refused. A
+ * reply to a home's own registered number is signed by that home's
+ * subaccount, and checked against its token.
  *
  * Twilio's own opt-out handling sends the carrier-required confirmation
- * text; this records the choice so nothing of ours texts the number again.
+ * for an exact keyword; this records the choice so nothing of ours texts
+ * the number again. When Twilio has answered (`OptOutType` is set), nothing
+ * here answers a second time.
  */
 const router: IRouter = Router();
 
@@ -50,6 +57,36 @@ async function homeFor(params: Record<string, string>): Promise<FuneralHome | nu
   return home ?? null;
 }
 
+/**
+ * The home a reply to the shared number is really about, when only one home
+ * has this person as a contact. Their HELP is answered with that home's name
+ * and telephone rather than ours, which is who they need.
+ */
+async function onlyHomeOf(phone: string): Promise<FuneralHome | null> {
+  const ids = await contactIdsFor(phone, null);
+  if (ids.length === 0) return null;
+  const homes = await db
+    .selectDistinct({ id: familyContactsTable.funeralHomeId })
+    .from(familyContactsTable)
+    .where(inArray(familyContactsTable.id, ids));
+  if (homes.length !== 1) return null;
+  const [home] = await db
+    .select()
+    .from(funeralHomesTable)
+    .where(eq(funeralHomesTable.id, homes[0]!.id))
+    .limit(1);
+  return home ?? null;
+}
+
+/**
+ * Who answered, recently, with "this number can't take replies". Once in
+ * twelve hours per number is enough to tell somebody where to go; a family
+ * writing five messages in a row does not need five of the same answer. In
+ * memory, so a restart forgets — the cost of that is one extra reply.
+ */
+const pointedAt = new Map<string, number>();
+const POINTER_GAP_MS = 12 * 60 * 60 * 1000;
+
 /** Contacts with this number, in this home (or every home, for the shared sender). */
 async function contactIdsFor(phone: string, home: FuneralHome | null): Promise<number[]> {
   const last10 = phone.replace(/\D/g, "").slice(-10);
@@ -79,23 +116,27 @@ router.post("/webhooks/twilio/sms", async (req, res) => {
   const url =
     process.env["TWILIO_WEBHOOK_URL"]?.trim() ||
     `${req.protocol}://${req.get("host")}${req.originalUrl}`;
-  if (!isValidTwilioSignature(url, params, req.get("x-twilio-signature"))) {
+  const signature = req.get("x-twilio-signature");
+  if (!(await isSignedByTwilio(url, params, signature))) {
     throw new HttpError(403, "That request was not signed by Twilio.");
   }
 
   res.type("text/xml");
   const from = params["From"] ? normalisePhone(params["From"]) : null;
-  const keyword = keywordOf(params["Body"] ?? "");
-  if (!from || !keyword) {
+  if (!from) {
     res.send(twiml());
     return;
   }
+  const body = params["Body"] ?? "";
+  const keyword = keywordOf(body);
+  // Twilio's Advanced Opt-Out has already answered this keyword itself.
+  const twilioAnswered = Boolean(params["OptOutType"]?.trim());
 
   const home = await homeFor(params);
   const scope = home ? `home:${home.id}` : "platform";
   const now = new Date();
 
-  if (keyword === "stop") {
+  if (keyword === "stop" || (!keyword && revokesConsent(body))) {
     await recordOptOut(from, scope);
     const ids = await contactIdsFor(from, home);
     if (ids.length > 0) {
@@ -104,8 +145,15 @@ router.post("/webhooks/twilio/sms", async (req, res) => {
         .set({ smsOptedOutAt: now, updatedAt: now })
         .where(inArray(familyContactsTable.id, ids));
     }
-    req.log?.info({ scope }, "SMS opt-out recorded");
-    res.send(twiml());
+    req.log?.info({ scope, exact: keyword === "stop" }, "SMS opt-out recorded");
+    // An exact keyword is confirmed by Twilio. "Stop please" is not one of
+    // Twilio's, so the confirmation — and the way back — is ours to send.
+    const who = home?.name ?? (await onlyHomeOf(from))?.name ?? "Continuum Aftercare";
+    res.send(
+      keyword === "stop" || twilioAnswered
+        ? twiml()
+        : twiml(`${who}: you won't get any more texts from us. Reply START if that was a mistake.`),
+    );
     return;
   }
 
@@ -128,14 +176,79 @@ router.post("/webhooks/twilio/sms", async (req, res) => {
     return;
   }
 
-  // HELP: who is texting them, how to reach a person, and how to stop.
-  const who = home?.name ?? "Continuum Aftercare";
-  const phone = home?.phone?.trim() ? ` Call ${home.phone.trim()}.` : "";
-  res.send(
-    twiml(
-      `${who}: texts about funeral arrangements and aftercare you agreed to.${phone} Msg frequency varies. Msg & data rates may apply. Reply STOP to opt out.`,
-    ),
-  );
+  // Who they hear from: the home whose number this is, or on the shared
+  // number the one home that has them as a contact.
+  const sender = home ?? (await onlyHomeOf(from));
+  const who = sender?.name ?? "Continuum Aftercare";
+  const call = sender?.phone?.trim() ? sender.phone.trim() : null;
+
+  if (keyword === "help") {
+    if (twilioAnswered) {
+      res.send(twiml());
+      return;
+    }
+    // Who is texting them, how to reach a person, and how to stop.
+    const reach = call
+      ? ` Call ${call}.`
+      : " For help, contact the funeral home that sent you the link.";
+    res.send(
+      twiml(
+        `${who}: texts about funeral arrangements and aftercare you agreed to.${reach} Msg frequency varies. Msg & data rates may apply. Reply STOP to opt out.`,
+      ),
+    );
+    return;
+  }
+
+  /*
+   * Anything else is somebody writing to the funeral home — "what time on
+   * Thursday?" — to a number nobody reads. It used to vanish without a word,
+   * leaving them waiting on an answer that could never come. Now they are
+   * told, once in a while, where a person is. Nothing they wrote is logged,
+   * and somebody who has asked not to be texted is not sent even this.
+   */
+  const last = pointedAt.get(from) ?? 0;
+  if (now.getTime() - last < POINTER_GAP_MS || (await isOptedOut(from, scope))) {
+    res.send(twiml());
+    return;
+  }
+  if (pointedAt.size > 10_000) {
+    for (const [number, at] of pointedAt) {
+      if (now.getTime() - at >= POINTER_GAP_MS) pointedAt.delete(number);
+    }
+  }
+  pointedAt.set(from, now.getTime());
+  req.log?.info({ scope }, "SMS reply pointed to the home");
+  const reach = call
+    ? `To reach us, call ${call}, or write to us on your private page.`
+    : "To reach the funeral home, write to them on your private page.";
+  res.send(twiml(`${who}: this number can't take replies. ${reach} Reply STOP to stop texts.`));
 });
+
+/**
+ * Signed with the platform's token, or — for a reply to a home's own
+ * registered number — with that home's subaccount token. The account is
+ * only believed after the signature is: an `AccountSid` that names a real
+ * home but was not signed with its token is refused like any forgery.
+ */
+async function isSignedByTwilio(
+  url: string,
+  params: Record<string, string>,
+  signature: string | undefined,
+): Promise<boolean> {
+  if (isValidTwilioSignature(url, params, signature)) return true;
+
+  const account = params["AccountSid"]?.trim();
+  const parent = process.env["TWILIO_ACCOUNT_SID"]?.trim();
+  if (!account || account === parent) return false;
+  const [owner] = await db
+    .select({ id: funeralHomesTable.id })
+    .from(funeralHomesTable)
+    .where(eq(funeralHomesTable.smsSubaccountSid, account))
+    .limit(1);
+  if (!owner) return false;
+
+  const token = await subaccountAuthToken(account);
+  return token !== null && isValidTwilioSignature(url, params, signature, token);
+}
 
 export default router;

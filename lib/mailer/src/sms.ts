@@ -285,12 +285,44 @@ export function isValidTwilioSignature(
   url: string,
   params: Record<string, string>,
   signature: string | undefined,
+  /** A subaccount's own token; the platform's by default. */
+  authToken?: string,
 ): boolean {
-  const creds = credentials();
-  if (!creds || !signature) return false;
-  const expected = Buffer.from(twilioSignature(creds.authToken, url, params));
+  const token = authToken ?? credentials()?.authToken;
+  if (!token || !signature) return false;
+  const expected = Buffer.from(twilioSignature(token, url, params));
   const given = Buffer.from(signature);
   return expected.length === given.length && timingSafeEqual(expected, given);
+}
+
+const subaccountTokens = new Map<string, { token: string; until: number }>();
+
+/**
+ * A home's subaccount signs the replies to its own number with its own auth
+ * token, not the platform's, so checking those against the platform's token
+ * refused every STOP sent to a home's registered number. The token is read
+ * from Twilio with the platform's credentials (a parent may read its
+ * subaccounts) and kept for an hour. Null when it cannot be had.
+ */
+export async function subaccountAuthToken(accountSid: string): Promise<string | null> {
+  const creds = credentials();
+  if (!creds || !/^AC[0-9a-f]{32}$/i.test(accountSid)) return null;
+  const cached = subaccountTokens.get(accountSid);
+  if (cached && cached.until > Date.now()) return cached.token;
+
+  try {
+    const response = await fetch(
+      `https://api.twilio.com/2010-04-01/Accounts/${accountSid}.json`,
+      { headers: { Authorization: basicAuth(creds) } },
+    );
+    if (!response.ok) return null;
+    const body = (await response.json()) as { auth_token?: string };
+    if (!body.auth_token) return null;
+    subaccountTokens.set(accountSid, { token: body.auth_token, until: Date.now() + 60 * 60 * 1000 });
+    return body.auth_token;
+  } catch {
+    return null;
+  }
 }
 
 export const STOP_WORDS = new Set([
@@ -312,6 +344,35 @@ export function keywordOf(body: string): "stop" | "start" | "help" | null {
   if (START_WORDS.has(word)) return "start";
   if (HELP_WORDS.has(word)) return "help";
   return null;
+}
+
+/** The FCC's own list (47 CFR 64.1200(a)(10)), and STOPALL. */
+const REVOKING_WORDS = new Set(["stop", "stopall", "quit", "end", "revoke", "cancel", "unsubscribe", "optout"]);
+
+/**
+ * A reply that withdraws consent in more words than a keyword: "Stop
+ * please", "please stop texting me", "no more texts".
+ *
+ * The FCC treats any of its revocation words in a reply as a request to stop
+ * — with other words around it — and a person who wrote "Stop please" and
+ * kept getting texts would be right to be angry. `keywordOf` alone missed
+ * every one of them: "Stop please" reads as STOPPLEASE.
+ *
+ * Short replies only. In a message of more than six words, "end" or "stop"
+ * is usually part of a sentence ("we'll stop by at the end of the day"), and
+ * the reply to anything that is not a keyword already says how to stop.
+ */
+export function revokesConsent(body: string): boolean {
+  if (keywordOf(body) === "stop") return true;
+  const words = body.toLowerCase().replace(/[’']/g, "").match(/[a-z]+/g) ?? [];
+  if (words.length === 0 || words.length > 6) return false;
+  const text = words.join(" ");
+  return (
+    words.some((word) => REVOKING_WORDS.has(word)) ||
+    /\bopt out\b/.test(text) ||
+    /\b(dont|do not) (text|message)\b/.test(text) ||
+    /\bno more (texts|messages)\b/.test(text)
+  );
 }
 
 /* ----------------------------------------------------- registration --- */

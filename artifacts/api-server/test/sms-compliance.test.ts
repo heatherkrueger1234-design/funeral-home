@@ -9,7 +9,7 @@ import {
   smsOptOutsTable,
 } from "@workspace/db";
 import app from "../src/app";
-import { keywordOf, smsRouteFor, twilioSignature } from "../src/lib/sms";
+import { keywordOf, revokesConsent, smsRouteFor, twilioSignature } from "../src/lib/sms";
 import { createCase, markEmailVerified, signUpHome } from "./helpers";
 
 /**
@@ -148,6 +148,95 @@ describe("the inbound webhook", () => {
     expect(res.text).toContain("Reply STOP to opt out");
   });
 
+  it("hears a stop in more words than the keyword, and says how to undo it", async () => {
+    const staff = await signUpHome("Aspen Grove");
+    const anne = await contact(staff, { smsConsent: true });
+
+    const res = await inbound({ From: "+13035550142", To: "+13035550100", Body: "Stop please" }).expect(200);
+
+    const [row] = await db.select().from(familyContactsTable).where(eq(familyContactsTable.id, anne.id));
+    expect(row!.smsOptedOutAt).not.toBeNull();
+    // Twilio does not confirm a phrase it does not know, so we do.
+    expect(res.text).toContain("Aspen Grove: you won&#39;t get any more texts from us");
+    expect(res.text).toContain("Reply START");
+  });
+
+  it("leaves Twilio's own answers to Twilio", async () => {
+    const staff = await signUpHome("Aspen Grove");
+    await db
+      .update(funeralHomesTable)
+      .set({ smsTollFreeNumber: "+18885550100", smsTollFreeStatus: "verified", phone: "303-555-0000" })
+      .where(eq(funeralHomesTable.id, staff.homeId));
+
+    const help = await inbound({
+      From: "+13035550143",
+      To: "+18885550100",
+      Body: "HELP",
+      OptOutType: "HELP",
+    }).expect(200);
+    expect(help.text).not.toContain("<Message>");
+  });
+
+  it("answers HELP on the shared number with the home they actually hear from", async () => {
+    const staff = await signUpHome("Aspen Grove");
+    await db.update(funeralHomesTable).set({ phone: "303-555-0000" }).where(eq(funeralHomesTable.id, staff.homeId));
+    await contact(staff, { phone: "(303) 555-0144" });
+
+    const res = await inbound({ From: "+13035550144", To: "+13035550100", Body: "help" }).expect(200);
+    expect(res.text).toContain("Aspen Grove");
+    expect(res.text).toContain("303-555-0000");
+  });
+
+  it("tells somebody writing to the number where a person is, once", async () => {
+    const staff = await signUpHome("Aspen Grove");
+    await db.update(funeralHomesTable).set({ phone: "303-555-0000" }).where(eq(funeralHomesTable.id, staff.homeId));
+    const anne = await contact(staff, { phone: "(303) 555-0145", smsConsent: true });
+
+    const message = "We will be there at the end of the service on Thursday, thank you";
+    const first = await inbound({ From: "+13035550145", To: "+13035550100", Body: message }).expect(200);
+    expect(first.text).toContain("this number can&#39;t take replies");
+    expect(first.text).toContain("303-555-0000");
+
+    // A sentence that happens to contain "end" is not a request to stop.
+    const [row] = await db.select().from(familyContactsTable).where(eq(familyContactsTable.id, anne.id));
+    expect(row!.smsOptedOutAt).toBeNull();
+
+    const second = await inbound({ From: "+13035550145", To: "+13035550100", Body: "And the flowers?" }).expect(200);
+    expect(second.text).not.toContain("<Message>");
+  });
+
+  it("checks a reply to a home's own number against that home's token", async () => {
+    const staff = await signUpHome("Aspen Grove");
+    const subaccount = "AC11111111111111111111111111111111";
+    await db
+      .update(funeralHomesTable)
+      .set({ smsSubaccountSid: subaccount, smsMessagingServiceSid: "MG22222222222222222222222222222222" })
+      .where(eq(funeralHomesTable.id, staff.homeId));
+    const anne = await contact(staff, { phone: "(303) 555-0146", smsConsent: true });
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (url: string) =>
+        url.endsWith(`/Accounts/${subaccount}.json`)
+          ? new Response(JSON.stringify({ auth_token: "subaccount-token" }), { status: 200 })
+          : new Response("{}", { status: 404 }),
+      ),
+    );
+
+    const params = {
+      From: "+13035550146",
+      To: "+17205550100",
+      AccountSid: subaccount,
+      MessagingServiceSid: "MG22222222222222222222222222222222",
+      Body: "STOP",
+    };
+    await inbound(params, twilioSignature("subaccount-token", HOOK, params)).expect(200);
+    const [row] = await db.select().from(familyContactsTable).where(eq(familyContactsTable.id, anne.id));
+    expect(row!.smsOptedOutAt).not.toBeNull();
+
+    // Naming the home's account is not enough without its signature.
+    await inbound(params, twilioSignature("not-the-token", HOOK, params)).expect(403);
+  });
+
   it("keeps a STOP to one home's number to that home", async () => {
     const aspen = await signUpHome("Aspen Grove");
     const mesa = await signUpHome("Mesa Verde");
@@ -199,6 +288,30 @@ describe("which number a home texts from", () => {
     expect(keywordOf("Start")).toBe("start");
     expect(keywordOf("help")).toBe("help");
     expect(keywordOf("thank you so much")).toBeNull();
+  });
+
+  it("hears the FCC's revocation words in a short reply, and not in a sentence", () => {
+    for (const reply of [
+      "Stop please",
+      "please stop texting me",
+      "STOP!!",
+      "Unsubscribe me",
+      "opt out",
+      "cancel",
+      "Don't text me",
+      "No more texts thanks",
+      "End",
+    ]) {
+      expect(revokesConsent(reply), reply).toBe(true);
+    }
+    for (const reply of [
+      "Thank you so much",
+      "We will stop by the office at the end of the day tomorrow",
+      "What time does it end on Thursday? Mom wanted to know",
+      "",
+    ]) {
+      expect(revokesConsent(reply), reply).toBe(false);
+    }
   });
 
   it("matches Twilio's documented signature", () => {
