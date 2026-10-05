@@ -1,5 +1,5 @@
 import { Router, type IRouter } from "express";
-import { and, eq } from "drizzle-orm";
+import { and, eq, inArray } from "drizzle-orm";
 import {
   db,
   casePhotosTable,
@@ -17,6 +17,7 @@ import {
 import {
   assertHasUpdates,
   badRequest,
+  HttpError,
   parseBody,
   parseId,
   requireRow,
@@ -323,6 +324,35 @@ router.get("/cases/:caseId/photo-pack", async (req, res) => {
   rows.sort(
     (a, b) => a.photo.position - b.photo.position || a.photo.id - b.photo.id,
   );
+
+  /*
+   * Asked before a byte is written, as the case export asks. An archive here
+   * cannot pass 4 GB, and finding that out part-way through, after the 200
+   * had gone, left a director with a file that downloaded without a word and
+   * would not open to the end -- the slideshow for tomorrow's service. A few
+   * hundred chosen photographs is enough when they are large PNGs or GIFs,
+   * which are kept as sent.
+   */
+  const sizes = await db
+    .select({ bytes: uploadsTable.sizeBytes })
+    .from(uploadsTable)
+    .where(
+      and(
+        eq(uploadsTable.funeralHomeId, home.id),
+        inArray(
+          uploadsTable.id,
+          rows.map((r) => r.photo.uploadId),
+        ),
+      ),
+    );
+  const totalBytes = sizes.reduce((sum, s) => sum + s.bytes, 0);
+  if (new ZipWriter(res).wouldOverflow(totalBytes, rows.length + 1)) {
+    throw new HttpError(
+      413,
+      "The photographs chosen for the slideshow are more than one download " +
+        "can carry. Choose fewer, or ask for a hand splitting them.",
+    );
+  }
 
   const name = decedentDisplayName(row).replace(/[^a-zA-Z0-9]+/g, "-");
   const filename = `${name || "photographs"}-photographs.zip`;
