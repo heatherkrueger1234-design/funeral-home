@@ -63,10 +63,15 @@ async function contact(
   return res.body as { id: number; smsConsentAt: string | null; smsConsentSource: string | null };
 }
 
-function inbound(params: Record<string, string>, signature?: string) {
+function inbound(
+  params: Record<string, string>,
+  signature?: string,
+  headers: Record<string, string> = {},
+) {
   return request(app)
     .post("/api/webhooks/twilio/sms")
     .type("form")
+    .set(headers)
     .set("X-Twilio-Signature", signature ?? twilioSignature(TOKEN, HOOK, params))
     .send(params);
 }
@@ -109,6 +114,58 @@ describe("consent before any text", () => {
 describe("the inbound webhook", () => {
   it("refuses a request Twilio did not sign", async () => {
     await inbound({ From: "+13035550142", Body: "STOP" }, "forged").expect(403);
+  });
+
+  /*
+   * Twilio signs the URL it called, but not always written the same way:
+   * sometimes with the default port in it and sometimes without. Its own
+   * library accepts either, and a reply signed the way we did not check for
+   * -- a STOP among them -- was refused.
+   */
+  it("accepts Twilio's signature with the default port written in or left out", async () => {
+    const params = { From: "+13035550142", To: "+13035550100", Body: "Thank you" };
+    const withPort = "https://api.example.test:443/api/webhooks/twilio/sms";
+
+    for (const [configured, signedOver] of [
+      [HOOK, HOOK],
+      [HOOK, withPort],
+      [withPort, HOOK],
+      [withPort, withPort],
+      ["http://api.example.test/api/webhooks/twilio/sms", "http://api.example.test:80/api/webhooks/twilio/sms"],
+      ["http://api.example.test:80/api/webhooks/twilio/sms", "http://api.example.test/api/webhooks/twilio/sms"],
+    ] as const) {
+      vi.stubEnv("TWILIO_WEBHOOK_URL", configured);
+      const res = await inbound(params, twilioSignature(TOKEN, signedOver, params));
+      expect(res.status, `${signedOver}, configured as ${configured}`).toBe(200);
+    }
+
+    // And with no TWILIO_WEBHOOK_URL, rebuilt from what the proxy passed on.
+    vi.stubEnv("TWILIO_WEBHOOK_URL", "");
+    for (const [host, signedOver] of [
+      ["api.example.test", withPort],
+      ["api.example.test:443", HOOK],
+    ] as const) {
+      const res = await inbound(params, twilioSignature(TOKEN, signedOver, params), {
+        Host: host,
+        "X-Forwarded-Proto": "https",
+      });
+      expect(res.status, `${signedOver}, arriving for ${host}`).toBe(200);
+    }
+  });
+
+  it("refuses a signature with the wrong token, or over another address", async () => {
+    const params = { From: "+13035550142", To: "+13035550100", Body: "STOP" };
+    for (const signature of [
+      twilioSignature("not-the-token", HOOK, params),
+      twilioSignature("not-the-token", "https://api.example.test:443/api/webhooks/twilio/sms", params),
+      twilioSignature(TOKEN, "https://api.example.test/api/webhooks/twilio/other", params),
+      twilioSignature(TOKEN, "https://api.example.test:443/api/webhooks/twilio/other", params),
+      twilioSignature(TOKEN, "https://api.example.test:8443/api/webhooks/twilio/sms", params),
+      twilioSignature(TOKEN, "https://elsewhere.example.test/api/webhooks/twilio/sms", params),
+    ]) {
+      await inbound(params, signature).expect(403);
+    }
+    expect(await db.select().from(smsOptOutsTable)).toEqual([]);
   });
 
   it("honours STOP for good, and START undoes it", async () => {

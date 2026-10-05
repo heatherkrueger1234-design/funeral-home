@@ -318,9 +318,52 @@ export function isValidTwilioSignature(
 ): boolean {
   const token = authToken ?? credentials()?.authToken;
   if (!token || !signature) return false;
-  const expected = Buffer.from(twilioSignature(token, url, params));
   const given = Buffer.from(signature);
-  return expected.length === given.length && timingSafeEqual(expected, given);
+  // Each in constant time; which form matched is no secret.
+  return signedForms(url).some((form) => {
+    const expected = Buffer.from(twilioSignature(token, form, params));
+    return expected.length === given.length && timingSafeEqual(expected, given);
+  });
+}
+
+/**
+ * The ways of writing our URL that Twilio may have signed.
+ *
+ * Twilio signs the URL it called, but its signing side does not always write
+ * it the same way: the scheme's default port (":443", or ":80" for plain
+ * http) is sometimes in it and sometimes not, whichever way the URL was
+ * configured. Its own library (`validateRequest` in twilio-node) therefore
+ * accepts a signature over the URL with the default port written in, and
+ * over it with the port taken out, and so does this. Checking the one form
+ * refused every reply signed the other way, STOPs among them.
+ *
+ * twilio-node also tries the query string re-encoded the way Node's old
+ * `querystring` did. The webhook is configured without one, so that is left
+ * out.
+ */
+function signedForms(url: string): string[] {
+  let parsed: URL;
+  try {
+    parsed = new URL(url);
+  } catch {
+    return [url];
+  }
+
+  const withoutPort = new URL(parsed);
+  withoutPort.port = "";
+
+  // The URL parser drops a default port, so it is written back by hand.
+  const userinfo =
+    parsed.username || parsed.password
+      ? `${parsed.username}${parsed.password ? `:${parsed.password}` : ""}@`
+      : "";
+  const defaultPort = parsed.protocol === "https:" ? ":443" : ":80";
+  const withPort = parsed.port
+    ? parsed.toString()
+    : `${parsed.protocol}//${userinfo}${parsed.host}${defaultPort}` +
+      `${parsed.pathname}${parsed.search}${parsed.hash}`;
+
+  return [...new Set([url, withoutPort.toString(), withPort])];
 }
 
 const subaccountTokens = new Map<string, { token: string; until: number }>();
