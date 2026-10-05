@@ -12,7 +12,7 @@ import {
   postCasePhotoMultipart,
   withPatience,
   MAX_UPLOAD_BYTES,
-  ACCEPTED_UPLOAD_TYPES,
+  PHOTO_PICKER_ACCEPT,
 } from "@workspace/api-client-react";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
@@ -97,7 +97,7 @@ function useAddPhotos(caseId: number, onDone: () => void) {
         ref={input}
         type="file"
         multiple
-        accept={ACCEPTED_UPLOAD_TYPES.join(",")}
+        accept={PHOTO_PICKER_ACCEPT}
         className="sr-only"
         tabIndex={-1}
         aria-hidden

@@ -15,7 +15,7 @@ import {
   postFamilyPhotoMultipart,
   withPatience,
   MAX_UPLOAD_BYTES,
-  ACCEPTED_UPLOAD_TYPES,
+  PHOTO_PICKER_ACCEPT,
 } from "@workspace/api-client-react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
@@ -79,13 +79,6 @@ function uploadProblem(error: unknown): string {
   }
   return describeError(error);
 }
-
-/*
- * What the picker offers. The file extensions as well as the types, because
- * some Android pickers report an iPhone's HEIC with no type at all and would
- * otherwise grey out exactly the photographs somebody's sister sent them.
- */
-const ACCEPT = [...ACCEPTED_UPLOAD_TYPES, ".heic", ".heif"].join(",");
 
 export default function Photos() {
   const { toast } = useToast();
@@ -382,7 +375,7 @@ export default function Photos() {
           ref={fileInput}
           type="file"
           multiple
-          accept={ACCEPT}
+          accept={PHOTO_PICKER_ACCEPT}
           className="sr-only"
           // The visible button below is what people press; this is only
           // reached through it, so it is kept out of the tab order.

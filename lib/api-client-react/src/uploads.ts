@@ -38,6 +38,16 @@ export const ACCEPTED_UPLOAD_TYPES = [
   "image/avif",
 ] as const;
 
+/**
+ * The `accept` of every photograph picker, in both apps.
+ *
+ * The extensions as well as the types, because some Android pickers report
+ * an iPhone's HEIC with no type at all and would otherwise grey out exactly
+ * the photographs somebody's sister sent them. The family portal said so
+ * and the console's picker did not, so it is said once, here.
+ */
+export const PHOTO_PICKER_ACCEPT = [...ACCEPTED_UPLOAD_TYPES, ".heic", ".heif"].join(",");
+
 /** Staff upload: the home's logo, or a photograph posted to the office. */
 export async function postUploadMultipart(file: File): Promise<UploadedFile> {
   const body = new FormData();
