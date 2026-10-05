@@ -44,10 +44,11 @@ production esbuild bundle, through the real nginx config:
   containers restores and verifies. A full restart leaves the photograph
   byte-for-byte identical.
 
-682 unit and integration tests (545 API against real Postgres, 60 platform
-console, 53 family portal, 24 director console) and 7 Playwright browser
-tests, every project typechecking and every app building — as of 4 October,
-on `ccr-7f48fd16-gacxdi`. `STATUS.md` says which branch holds what.
+770 unit and integration tests (619 API against real Postgres, 62 platform
+console, 57 family portal, 26 director console, 6 for the scripts) and 7
+Playwright browser tests, every project typechecking and every app building —
+as of 5 October, on `ccr-7f48fd16-gacxdi`. `STATUS.md` says which branch holds
+what.
 
 ## Lighthouse scores
 
