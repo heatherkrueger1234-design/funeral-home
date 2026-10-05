@@ -1,6 +1,13 @@
 import { describe, expect, it } from "vitest";
+import { QueryClient } from "@tanstack/react-query";
 import { ApiError, getGetCurrentUserQueryKey } from "@workspace/api-client-react";
-import { isSessionQuery, isUnauthorized, whoIsSignedIn } from "./session";
+import {
+  forgetCachedAnswers,
+  holdsSomebodyElses,
+  isSessionQuery,
+  isUnauthorized,
+  whoIsSignedIn,
+} from "./session";
 
 /**
  * Who the console thinks is at the keyboard decides whether it shows the
@@ -48,6 +55,41 @@ describe("isUnauthorized", () => {
     expect(isUnauthorized(new Error("boom"))).toBe(false);
     expect(isUnauthorized(null)).toBe(false);
     expect(isUnauthorized(undefined)).toBe(false);
+  });
+});
+
+/**
+ * What one person's session fetched must not be shown to the next. Signing
+ * out empties the cache; so must somebody else signing in, in another tab,
+ * without anybody signing out -- the same shared office computer, the same
+ * cookie, and until now the first person's cases still in the cache.
+ */
+describe("whose answers the cache holds", () => {
+  it("holds nobody else's before anyone has signed in, or while the same person stays", () => {
+    expect(holdsSomebodyElses(null, null)).toBe(false);
+    expect(holdsSomebodyElses(null, 7)).toBe(false);
+    expect(holdsSomebodyElses(7, 7)).toBe(false);
+  });
+
+  it("holds somebody else's once they have signed out", () => {
+    expect(holdsSomebodyElses(7, null)).toBe(true);
+  });
+
+  it("holds somebody else's once another person has signed in over them", () => {
+    expect(holdsSomebodyElses(7, 9)).toBe(true);
+  });
+
+  it("is emptied of everything but the session question itself", () => {
+    const client = new QueryClient();
+    client.setQueryData(getGetCurrentUserQueryKey(), { user: { id: 9 } });
+    client.setQueryData(["/api/cases"], [{ id: 1 }]);
+    client.setQueryData(["/api/cases/1"], { id: 1 });
+
+    forgetCachedAnswers(client);
+
+    expect(client.getQueryCache().getAll().map((query) => query.queryKey)).toEqual([
+      getGetCurrentUserQueryKey(),
+    ]);
   });
 });
 

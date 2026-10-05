@@ -2,10 +2,10 @@ import {
   createContext,
   useContext,
   useEffect,
-  useRef,
+  useState,
   type ReactNode,
 } from "react";
-import { useQueryClient } from "@tanstack/react-query";
+import { useQueryClient, type QueryClient } from "@tanstack/react-query";
 import {
   useGetCurrentUser,
   getGetCurrentUserQueryKey,
@@ -41,6 +41,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     },
   });
   const session = whoIsSignedIn(query);
+  const signedInAs = session?.user.id ?? null;
 
   /*
    * What a session could see goes when it does. The console is often open on
@@ -48,25 +49,28 @@ export function SessionProvider({ children }: { children: ReactNode }) {
    * cache still holding every case the last person opened, and whoever signed
    * in next would be shown them from it before the server had been asked
    * anything. Signing out from the menu reloads the page, which empties the
-   * cache the same way; this is for a session that ended anywhere else. The
-   * session question stays: it holds the 401 the sign-in form is drawn from,
-   * and removing it would only ask again, with a blank screen meanwhile.
+   * cache the same way; this is for a session that ended anywhere else.
+   *
+   * And when it changes hands without ending: somebody else signing in from
+   * another tab replaces the cookie this tab uses, and the next answer about
+   * who is here names them. The cache is kept by whose answers it holds, so
+   * it is emptied then too, and nothing is drawn from it in the meantime --
+   * the screens already open belong to the first person, and are taken down
+   * with what they fetched rather than shown to the second.
    */
-  const wasSignedIn = useRef(false);
+  const [cacheHolds, setCacheHolds] = useState(signedInAs);
   useEffect(() => {
-    if (wasSignedIn.current && !session) {
-      queryClient.removeQueries({
-        predicate: (cached) => !isSessionQuery(cached.queryKey),
-      });
-    }
-    wasSignedIn.current = session !== null;
-  }, [session, queryClient]);
+    if (cacheHolds === signedInAs) return;
+    if (holdsSomebodyElses(cacheHolds, signedInAs)) forgetCachedAnswers(queryClient);
+    setCacheHolds(signedInAs);
+  }, [cacheHolds, signedInAs, queryClient]);
+  const changingHands = signedInAs !== null && holdsSomebodyElses(cacheHolds, signedInAs);
 
   return (
     <SessionContext.Provider
       value={{
-        session,
-        isPending: query.isPending,
+        session: changingHands ? null : session,
+        isPending: query.isPending || changingHands,
         refresh: () => {
           void queryClient.invalidateQueries({
             queryKey: getGetCurrentUserQueryKey(),
@@ -121,4 +125,22 @@ export function isUnauthorized(error: unknown): boolean {
 /** The session query is allowed to fail quietly; nothing else is. */
 export function isSessionQuery(queryKey: readonly unknown[]): boolean {
   return queryKey[0] === getGetCurrentUserQueryKey()[0];
+}
+
+/**
+ * Whether the cache holds answers given to somebody other than whoever is
+ * signed in now: they signed out, or somebody else signed in over them.
+ * Both are user ids, null for nobody.
+ */
+export function holdsSomebodyElses(cacheHolds: number | null, signedInAs: number | null): boolean {
+  return cacheHolds !== null && cacheHolds !== signedInAs;
+}
+
+/**
+ * Empty the cache of one person's answers. The session question stays: it
+ * holds what the gate is drawn from, and removing it would only ask again,
+ * with a blank screen meanwhile.
+ */
+export function forgetCachedAnswers(queryClient: QueryClient): void {
+  queryClient.removeQueries({ predicate: (cached) => !isSessionQuery(cached.queryKey) });
 }
