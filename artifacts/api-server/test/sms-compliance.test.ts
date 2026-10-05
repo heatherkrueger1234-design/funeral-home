@@ -171,6 +171,28 @@ describe("the inbound webhook", () => {
     expect(res.text).toContain("Reply START");
   });
 
+  it("stops the texts for a stop written as a sentence", async () => {
+    const staff = await signUpHome("Aspen Grove");
+    const anne = await contact(staff, { smsConsent: true });
+
+    const res = await inbound({
+      From: "+13035550142",
+      To: "+13035550100",
+      Body: "Please stop sending these, it is too painful",
+    }).expect(200);
+
+    const [row] = await db.select().from(familyContactsTable).where(eq(familyContactsTable.id, anne.id));
+    expect(row!.smsOptedOutAt).not.toBeNull();
+    const scopes = (await db.select().from(smsOptOutsTable)).map((r) => r.scope).sort();
+    expect(scopes).toEqual([`home:${staff.homeId}:shared`, "platform"]);
+    expect(res.text).toContain("Aspen Grove: you won&#39;t get any more texts from us");
+    expect(res.text).toContain("Reply START");
+
+    const again = await staff.agent.post(`/api/contacts/${anne.id}/send-link`).expect(200);
+    expect(again.body.sent).toBe(false);
+    expect(sent).toHaveLength(0);
+  });
+
   it("leaves Twilio's own answers to Twilio", async () => {
     const staff = await signUpHome("Aspen Grove");
     await db
@@ -464,28 +486,74 @@ describe("which number a home texts from", () => {
     expect(keywordOf("thank you so much")).toBeNull();
   });
 
-  it("hears the FCC's revocation words in a short reply, and not in a sentence", () => {
-    for (const reply of [
-      "Stop please",
-      "please stop texting me",
-      "STOP!!",
-      "Unsubscribe me",
-      "opt out",
-      "cancel",
-      "Don't text me",
-      "No more texts thanks",
-      "End",
-    ]) {
-      expect(revokesConsent(reply), reply).toBe(true);
-    }
-    for (const reply of [
-      "Thank you so much",
-      "We will stop by the office at the end of the day tomorrow",
-      "What time does it end on Thursday? Mom wanted to know",
-      "",
-    ]) {
-      expect(revokesConsent(reply), reply).toBe(false);
-    }
+  /*
+   * Hearing a stop that was not one is the safe mistake: the reply says how
+   * to take it back. Missing one keeps texting somebody who asked us not to.
+   * But these are families arranging a funeral, and "stop by", "cancel the
+   * viewing" and "when does it end" are what they write all week.
+   */
+  const STOPS = [
+    "Please stop sending these, it is too painful",
+    "Stop please",
+    "please stop texting me",
+    "STOP!!",
+    "Unsubscribe me",
+    "opt out",
+    "cancel",
+    "Don't text me",
+    "No more texts thanks",
+    "End",
+    "wrong number stop",
+    "STOPPPP",
+    "Stop. Too painful.",
+    "You have the wrong number. Please stop.",
+    "My mother passed last week and I cannot read these. Please stop.",
+    "STOP SENDING ME THESE TEXTS, MY HUSBAND IS GONE",
+    "Please s​top sending these messages to my phone",
+    "I would like to opt-out of these messages, thank you for everything",
+    "Unsubscribe this number from the funeral home texts please",
+    "I revoke my consent to receive text messages from this number",
+    "Please cancel these texts, we have said our goodbyes",
+    "Kindly end these messages, it has been a difficult month",
+    "Quit texting me about the arrangements, I already called the home",
+    "Please cease all contact with this number",
+    "Do not contact me again about my father please",
+    "Please don’t call or text this number again",
+    "I don’t want any more of your messages, thank you",
+    "Can you please take me off your list, this is too hard right now",
+    "Please remove my number, we have everything we need from you",
+    "Leave me alone, I am not ready for any of this",
+  ];
+  const ORDINARY = [
+    "Can we stop by Thursday to drop off clothes?",
+    "Please cancel the viewing",
+    "What time will the service end?",
+    "We’ll stop at the florist on the way",
+    "Thank you so much",
+    "We will stop by the office at the end of the day tomorrow",
+    "What time does it end on Thursday? Mom wanted to know",
+    "",
+    "I’ll stop by after work",
+    "Can I stop in tomorrow to sign the papers?",
+    "We will stop this afternoon with the clothes",
+    "We had to stop on the way to pick up Grandma",
+    "Stopping by the funeral home at noon",
+    "I cant stop crying",
+    "I can't stop crying, thank you for checking on us",
+    "We need to cancel the flowers and order lilies instead",
+    "Could you cancel Thursday’s appointment and call me?",
+    "Is it possible to end the reception early?",
+    "At the end of your message there was a link that will not open",
+    "Will there be any more messages about the burial?",
+    "Please send more messages like this one, they help",
+    "Don't call me, text me instead",
+  ];
+
+  it("hears a stop however it is written, and not in what a family writes all week", () => {
+    expect({
+      missed: STOPS.filter((reply) => !revokesConsent(reply)),
+      misheard: ORDINARY.filter((reply) => revokesConsent(reply)),
+    }).toEqual({ missed: [], misheard: [] });
   });
 
   it("matches Twilio's documented signature", () => {
