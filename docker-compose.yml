@@ -71,12 +71,30 @@ services:
       SMTP_FROM: ${SMTP_FROM:-}
       TWILIO_ACCOUNT_SID: ${TWILIO_ACCOUNT_SID:-}
       TWILIO_AUTH_TOKEN: ${TWILIO_AUTH_TOKEN:-}
+      TWILIO_MESSAGING_SERVICE_SID: ${TWILIO_MESSAGING_SERVICE_SID:-}
       TWILIO_FROM_NUMBER: ${TWILIO_FROM_NUMBER:-}
+      # Exactly the URL Twilio calls for replies (STOP, HELP); signatures are
+      # checked against it.
+      TWILIO_WEBHOOK_URL: ${TWILIO_WEBHOOK_URL:-}
       SMS_DEFAULT_COUNTRY_CODE: ${SMS_DEFAULT_COUNTRY_CODE:-+1}
+      # Every price the API knows about, not just the base one. These were
+      # missing, and nothing complains about a missing one: the base
+      # subscription bills and every funeral goes uncounted, quietly.
       STRIPE_SECRET_KEY: ${STRIPE_SECRET_KEY:-}
       STRIPE_PRICE_ID: ${STRIPE_PRICE_ID:-}
+      STRIPE_PRICE_ID_ANNUAL: ${STRIPE_PRICE_ID_ANNUAL:-}
+      STRIPE_PRICE_ID_CASE: ${STRIPE_PRICE_ID_CASE:-}
+      STRIPE_PRICE_ID_CASE_ANNUAL: ${STRIPE_PRICE_ID_CASE_ANNUAL:-}
+      STRIPE_CASE_METER_EVENT: ${STRIPE_CASE_METER_EVENT:-}
+      STRIPE_PRICE_ID_AFTERCARE: ${STRIPE_PRICE_ID_AFTERCARE:-}
       STRIPE_WEBHOOK_SECRET: ${STRIPE_WEBHOOK_SECRET:-}
+      FREE_TRIAL_DAYS: ${FREE_TRIAL_DAYS:-}
       GOOGLE_PLACES_API_KEY: ${GOOGLE_PLACES_API_KEY:-}
+      # The optional obituary suggestion, which sends what the family wrote
+      # to Anthropic. Leave empty until the DPA names Anthropic as a
+      # sub-processor and counsel has signed that off (LEGAL/).
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      OBITUARY_AI_MODEL: ${OBITUARY_AI_MODEL:-}
       TASK_SECRET: ${TASK_SECRET:-}
       # Error tracking. Off when empty; see DEPLOY.md, "Knowing when it breaks".
       SENTRY_DSN: ${SENTRY_DSN:-}

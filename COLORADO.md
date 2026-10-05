@@ -320,9 +320,13 @@ the certificate wants it, with the things only the family knows flagged as
 blocking.
 
 Built: the Certificate tab keeps the clock (custody → 72 hours; EDRS request →
-the physician's 72 hours), lists what the vital statistics still lack, records
-the director's own filing, and the dashboard lists every clock still running
-(`routes/certificate.ts`). Not built: home-authored forms and authorisations.
+the physician's 72 hours, and when the physician certified), lists what the
+vital statistics still lack, records the director's own filing, and the
+dashboard lists every clock still running (`certificate-filing` in
+`routes/vitals.ts`, the `death_certificate_filings` table in
+`lib/db/src/schema/death-certificates.ts`). Colorado's 72 hours apply only to
+a Colorado home, and never to a plan. Not built: home-authored forms and
+authorisations.
 
 We do **not** integrate with EDRS and do not file anything. We help the
 director arrive at EDRS with every field already answered. Say that plainly in
