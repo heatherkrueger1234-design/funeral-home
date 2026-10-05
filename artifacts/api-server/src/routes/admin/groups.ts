@@ -306,6 +306,10 @@ router.put("/admin/homes/:homeId/group", async (req, res) => {
         groupId: null,
         subscriptionStatus: "trial",
         trialEndsAt: graceEnds,
+        // A new trial with a real end, so its reminders are owed again. Left
+        // as they were from the home's first trial, the fortnight ran out
+        // without a word.
+        trialRemindersSent: "",
         currentPeriodEndsAt: null,
         // The group's add-ons left with the group. The live trial above is
         // what keeps aftercare running for the next fortnight, and after

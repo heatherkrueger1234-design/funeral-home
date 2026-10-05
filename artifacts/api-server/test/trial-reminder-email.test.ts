@@ -14,10 +14,16 @@ const mail = vi.hoisted(() => {
   return [] as Array<Record<string, unknown>>;
 });
 
+/** Addresses the mail server refuses, as a provider does in an outage. */
+const refused = vi.hoisted(() => new Set<string>());
+
 vi.mock("nodemailer", () => ({
   default: {
     createTransport: () => ({
       sendMail: async (message: Record<string, unknown>) => {
+        if (refused.has(String(message["to"]))) {
+          throw new Error("421 Service not available, try again later");
+        }
         mail.push(message);
       },
       verify: async () => true,
@@ -25,12 +31,13 @@ vi.mock("nodemailer", () => ({
   },
 }));
 
-import { db, funeralHomesTable } from "@workspace/db";
+import { db, funeralHomesTable, usersTable } from "@workspace/db";
 import { runTrialReminders } from "../src/lib/trial-reminders";
 import { signUpHome } from "./helpers";
 
 beforeEach(() => {
   mail.length = 0;
+  refused.clear();
 });
 
 describe("a trial reminder", () => {
@@ -51,5 +58,49 @@ describe("a trial reminder", () => {
     await runTrialReminders({ now: new Date("2026-11-04T21:00:00Z") });
     expect(mail).toHaveLength(2);
     expect(mail[1]!["subject"]).toBe("Aspen & Vale: your trial has ended");
+  });
+
+  it("gives a reminder back when the mail server refuses it, and carries on with the next home", async () => {
+    const refusedHome = await signUpHome("Oakwood Chapel");
+    const nextHome = await signUpHome("Aspen & Vale");
+    for (const staff of [refusedHome, nextHome]) {
+      await db
+        .update(funeralHomesTable)
+        .set({ trialEndsAt: new Date(Date.now() + 3 * 86400000) })
+        .where(eq(funeralHomesTable.id, staff.homeId));
+    }
+    const [owner] = await db
+      .select({ email: usersTable.email })
+      .from(usersTable)
+      .where(eq(usersTable.id, refusedHome.userId));
+    refused.add(owner!.email);
+    mail.length = 0;
+
+    const result = await runTrialReminders();
+
+    /*
+     * Recorded as sent and never delivered was the one outcome this job
+     * exists to prevent: the home hears nothing, and no later run tries
+     * again. And the refusal stopped the run there, so every home after it
+     * heard nothing either.
+     */
+    expect(result.failed).toBe(1);
+    expect(result.sent).toBe(1);
+    expect(mail).toHaveLength(1);
+    const sentNow = async (homeId: number) =>
+      (
+        await db
+          .select({ sent: funeralHomesTable.trialRemindersSent })
+          .from(funeralHomesTable)
+          .where(eq(funeralHomesTable.id, homeId))
+      )[0]!.sent;
+    expect(await sentNow(refusedHome.homeId)).toBe("");
+    expect(await sentNow(nextHome.homeId)).toBe("trial-7");
+
+    // The next run, with the server answering again, sends it.
+    refused.clear();
+    const retried = await runTrialReminders();
+    expect(retried.sent).toBe(1);
+    expect(await sentNow(refusedHome.homeId)).toBe("trial-7");
   });
 });

@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { db, funeralHomesTable, usersTable } from "@workspace/db";
+import { db, funeralHomesTable, homeGroupsTable, usersTable } from "@workspace/db";
 import { eq } from "drizzle-orm";
 import request from "supertest";
 import app from "../src/app";
@@ -168,6 +168,48 @@ describe("when a reminder is due", () => {
 
     expect(result.due).toBe(0);
     expect(await remindersSent(staff)).toBe("");
+  });
+
+  it("says nothing to a location whose trial is its group's", async () => {
+    const staff = await signUpHome("Aspen & Vale");
+    const [group] = await db
+      .insert(homeGroupsTable)
+      .values({ name: "Front Range Group", slug: "front-range-group" })
+      .returning();
+    await db
+      .update(funeralHomesTable)
+      .set({ groupId: group!.id, trialEndsAt: new Date(Date.now() + 3 * 86400000) })
+      .where(eq(funeralHomesTable.id, staff.homeId));
+
+    // "Set up a subscription" to a branch whose subscribe button refuses it:
+    // the contract is the group's, and so is the conversation.
+    const result = await runTrialReminders();
+
+    expect(result.due).toBe(0);
+    expect(await remindersSent(staff)).toBe("");
+  });
+
+  it("leaves finished trials out, so they cannot crowd out the ones still running", async () => {
+    // Homes whose trials ended long ago, and were told so.
+    for (const name of ["Oakwood", "Elm Street", "Cedar Hill"]) {
+      const finished = await signUpHome(name);
+      await db
+        .update(funeralHomesTable)
+        .set({
+          trialEndsAt: new Date(Date.now() - 90 * 86400000),
+          trialRemindersSent: "trial-7,trial-1,trial-ended",
+        })
+        .where(eq(funeralHomesTable.id, finished.homeId));
+    }
+    const ending = await signUpHome("Aspen & Vale");
+    await trialEndsIn(ending, 3);
+
+    // A page at a time, and the finished ones were read first, every run,
+    // for ever: past a page of them, nobody new was reminded again.
+    const result = await runTrialReminders({ limit: 2 });
+
+    expect(result.sent).toBe(1);
+    expect(await remindersSent(ending)).toBe("trial-7");
   });
 
   it("says nothing to a suspended home, or to one of ours", async () => {

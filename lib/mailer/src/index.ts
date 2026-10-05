@@ -953,8 +953,13 @@ export async function sendTrialReminderEmail(options: {
   /** Over, rather than merely ending today. */
   ended: boolean;
   billingUrl: string;
+  /**
+   * Throw when the mail server refuses it, so the reminder job can give the
+   * reminder back for the next run instead of recording one never delivered.
+   */
+  rethrow?: boolean;
 }): Promise<void> {
-  const { to, homeName, daysLeft, ended, billingUrl } = options;
+  const { to, homeName, daysLeft, ended, billingUrl, rethrow } = options;
 
   const when = daysLeft <= 0 ? "today" : daysLeft === 1 ? "tomorrow" : `in ${daysLeft} days`;
 
@@ -1015,5 +1020,6 @@ export async function sendTrialReminderEmail(options: {
       : `${homeName}: your trial ends ${when}`,
     text,
     html,
+    rethrow,
   });
 }

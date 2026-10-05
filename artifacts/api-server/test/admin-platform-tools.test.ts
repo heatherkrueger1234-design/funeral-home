@@ -167,6 +167,37 @@ describe("groups from the console", () => {
       .expect(409);
   });
 
+  it("tells a location that leaves its group when its fortnight ends", async () => {
+    const admin = await signInAdmin();
+    const home = await signUpHome("Horan & McConaty");
+    const group = await admin.agent
+      .post("/api/admin/groups")
+      .send({ name: "Front Range Group" })
+      .expect(201);
+    await admin.agent
+      .put(`/api/admin/homes/${home.homeId}/group`)
+      .send({ groupId: group.body.id })
+      .expect(200);
+    // Its own trial, long before it joined, ran its course.
+    await db
+      .update(funeralHomesTable)
+      .set({ trialRemindersSent: "trial-7,trial-1,trial-ended" })
+      .where(eq(funeralHomesTable.id, home.homeId));
+
+    await admin.agent
+      .put(`/api/admin/homes/${home.homeId}/group`)
+      .send({ groupId: null })
+      .expect(200);
+
+    // A new trial with an end, so the reminders are owed again; left as they
+    // were, the fortnight ran out without a word.
+    const [row] = await db
+      .select()
+      .from(funeralHomesTable)
+      .where(eq(funeralHomesTable.id, home.homeId));
+    expect(row!.trialRemindersSent).toBe("");
+  });
+
   describe("and the group's bill", () => {
     afterEach(() => {
       vi.unstubAllEnvs();
