@@ -10,6 +10,7 @@ import {
   db,
   decedentDisplayName,
   familyContactsTable,
+  intakeRequestsTable,
   obituaryDraftsTable,
   serviceSelectionsTable,
   uploadsTable,
@@ -377,7 +378,11 @@ router.get("/cases/:caseId/export", async (req, res) => {
  *
  * Every table that carries a `caseId` cascades from this row, so one delete
  * takes the photographs, the messages, the obituary, the belongings and the
- * encrypted social security number with it.
+ * encrypted social security number with it. The one exception is the request
+ * a family sent through the home's public page, which only points at the
+ * case it became (and lets go, rather than going, when the case does): it
+ * holds the name of the person who died, the requester's telephone, email
+ * and IP address, and whatever they wrote at 2am. It is deleted first, here.
  *
  * The owner's decision, and nobody else's. The roles are deliberately few
  * (`users.ts`): the owner runs billing and who works here, and a director
@@ -437,6 +442,14 @@ router.post("/cases/:caseId/delete", async (req, res) => {
       reason: body.reason?.trim() || null,
     });
 
+    await tx
+      .delete(intakeRequestsTable)
+      .where(
+        and(
+          eq(intakeRequestsTable.caseId, row.id),
+          eq(intakeRequestsTable.funeralHomeId, home.id),
+        ),
+      );
     await tx.delete(casesTable).where(eq(casesTable.id, row.id));
   });
 
