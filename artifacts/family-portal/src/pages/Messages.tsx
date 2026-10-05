@@ -11,6 +11,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
 import { Check, Loader2, MessageCircle, Moon, Phone, Send } from "lucide-react";
 import { Empty, LoadFailed, Loading, PageHeader } from "@/components/page";
+import { readDraft, writeDraft } from "@/lib/message-draft";
 
 /**
  * One thread, with the funeral home.
@@ -92,33 +93,6 @@ function formatSent(value: string | Date): string {
   });
 }
 
-/*
- * What is being written, kept for this tab until it is sent.
- *
- * A long question typed with one thumb is lost in full by a stray tap on
- * "Everything else", and it is rarely typed a second time. Session storage
- * rather than local: a half-written message should not be sitting on a
- * borrowed phone tomorrow.
- */
-const DRAFT_KEY = "fh.family.message-draft";
-
-function readDraft(): string {
-  try {
-    return window.sessionStorage.getItem(DRAFT_KEY) ?? "";
-  } catch {
-    return "";
-  }
-}
-
-function writeDraft(text: string): void {
-  try {
-    if (text) window.sessionStorage.setItem(DRAFT_KEY, text);
-    else window.sessionStorage.removeItem(DRAFT_KEY);
-  } catch {
-    /* Storage blocked: the draft simply lives as long as the screen. */
-  }
-}
-
 export default function Messages() {
   const queryClient = useQueryClient();
   /*
@@ -134,14 +108,19 @@ export default function Messages() {
       refetchOnWindowFocus: true,
     },
   });
-  const [body, setBodyState] = useState(readDraft);
+  // Whose message this is. The shell has the session in hand before any
+  // screen inside it draws, so it is read here rather than asked for again.
+  const contactId = queryClient.getQueryData<FamilySession>(
+    getGetFamilySessionQueryKey(),
+  )?.contact.id;
+  const [body, setBodyState] = useState(() => readDraft(contactId));
   const [justSent, setJustSent] = useState(false);
   const endRef = useRef<HTMLDivElement>(null);
   const sending = useRef(false);
 
   const setBody = (text: string) => {
     setBodyState(text);
-    writeDraft(text);
+    writeDraft(contactId, text);
   };
 
   /*

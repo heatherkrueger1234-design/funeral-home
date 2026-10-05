@@ -8,6 +8,7 @@ import {
 } from "react";
 import { setAuthTokenGetter } from "@workspace/api-client-react";
 import { BASE_PATH } from "@/lib/base-path";
+import { forgetDrafts } from "@/lib/message-draft";
 
 /**
  * The family's credential, and where it lives.
@@ -131,6 +132,9 @@ export function LinkProvider({ children }: { children: ReactNode }) {
       token,
       forget: () => {
         writeStored(null);
+        // A message they had started goes too: the next person handed this
+        // device should find nothing of what this family was writing.
+        forgetDrafts();
         // Cleared before the re-render, not after it, so nothing that is
         // still mounted can fire one last request with a token the family
         // has just asked this device to forget.
