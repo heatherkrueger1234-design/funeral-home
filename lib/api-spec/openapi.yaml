@@ -3950,7 +3950,10 @@ components:
           nullable: true
         freeTrialDays:
           type: integer
-          description: Days a subscribe button gives with no card; 0 when switched off.
+          description: >-
+            Days of free trial a new home gets, with no card, and that the
+            subscribe button starts when card billing is not live; 0 when
+            switched off.
         trialEnded:
           type: boolean
         currentPeriodEndsAt:
@@ -3967,6 +3970,17 @@ components:
           description: Whether checkout offers annual billing (two months free).
         hasSubscription:
           type: boolean
+          description: >-
+            Stripe holds a subscription for this home that has not ended,
+            trial included. False after one ends, so a new one can be started.
+        checkoutTrialEndsAt:
+          type: string
+          format: date-time
+          nullable: true
+          description: >-
+            When a subscription started now would take its first payment: the
+            end of the trial this home has left. Null when checkout would
+            charge straight away, or card billing is not live here.
         onboarding:
           type: array
           items:
@@ -4001,6 +4015,7 @@ components:
           billingConfigured,
           annualAvailable,
           hasSubscription,
+          checkoutTrialEndsAt,
           onboarding,
           onboardingComplete,
         ]

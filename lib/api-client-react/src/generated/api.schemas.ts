@@ -202,7 +202,7 @@ export interface Billing {
   subscriptionStatus: BillingSubscriptionStatus;
   trialEndsAt: string | null;
   trialDaysLeft: number | null;
-  /** Days a subscribe button gives with no card; 0 when switched off. */
+  /** Days of free trial a new home gets, with no card, and that the subscribe button starts when card billing is not live; 0 when switched off. */
   freeTrialDays: number;
   trialEnded: boolean;
   currentPeriodEndsAt: string | null;
@@ -211,7 +211,10 @@ export interface Billing {
   billingConfigured: boolean;
   /** Whether checkout offers annual billing (two months free). */
   annualAvailable: boolean;
+  /** Stripe holds a subscription for this home that has not ended, trial included. False after one ends, so a new one can be started. */
   hasSubscription: boolean;
+  /** When a subscription started now would take its first payment: the end of the trial this home has left. Null when checkout would charge straight away, or card billing is not live here. */
+  checkoutTrialEndsAt: string | null;
   onboarding: OnboardingItem[];
   onboardingComplete: boolean;
   /** What is on the plan, and whether this home has it now. */

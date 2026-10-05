@@ -91,8 +91,16 @@ export function BillingSection({ readOnly }: { readOnly: boolean }) {
     trialEnded,
     trialEndsAt,
     annualAvailable,
+    checkoutTrialEndsAt,
   } = billing.data;
   const canStartTrial = !billingConfigured && freeTrialDays > 0;
+  // When a subscription started now takes its first payment, if not now.
+  const firstCharge = checkoutTrialEndsAt
+    ? new Date(checkoutTrialEndsAt).toLocaleDateString(undefined, {
+        day: "numeric",
+        month: "long",
+      })
+    : null;
 
   const describe = () => {
     switch (subscriptionStatus) {
@@ -145,7 +153,7 @@ export function BillingSection({ readOnly }: { readOnly: boolean }) {
           Only an owner can change billing.
         </p>
       ) : (
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2">
           {hasSubscription ? (
             <Button
               variant="outline"
@@ -159,8 +167,8 @@ export function BillingSection({ readOnly }: { readOnly: boolean }) {
             <>
               <Button disabled={busy} onClick={() => void go("/api/billing/checkout")}>
                 {busy && <Loader2 className="size-4 animate-spin" />}
-                {freeTrialDays > 0
-                  ? `Subscribe monthly — first ${freeTrialDays} days free, no card`
+                {firstCharge
+                  ? `Subscribe monthly — nothing charged until ${firstCharge}`
                   : "Subscribe monthly"}
               </Button>
               {annualAvailable && (
@@ -170,6 +178,17 @@ export function BillingSection({ readOnly }: { readOnly: boolean }) {
                   onClick={() => void go("/api/billing/checkout", { interval: "year" })}
                 >
                   Annual — two months free
+                </Button>
+              )}
+              {subscriptionStatus === "canceled" && (
+                // The invoices from the subscription that ended are still
+                // the accountant's to download.
+                <Button
+                  variant="outline"
+                  disabled={busy}
+                  onClick={() => void go("/api/billing/portal")}
+                >
+                  Past invoices
                 </Button>
               )}
             </>

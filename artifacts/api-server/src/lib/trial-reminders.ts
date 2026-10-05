@@ -133,7 +133,7 @@ export async function runTrialReminders(
    * subscribed during its trial: that trial is Stripe's now, with a card
    * behind it, and "set up a subscription before then" would be asking
    * them to do it twice. Stripe's own reminder before a trial it holds
-   * ends is switched on in its settings (DEPLOY.md). Internal accounts are
+   * ends is switched on in its settings (PRICING.md). Internal accounts are
    * excluded because emailing ourselves about our own trial is noise, and
    * suspended homes because a reminder to subscribe is not the conversation
    * that needs having with a home somebody switched off on purpose.

@@ -182,6 +182,7 @@ export function TrialBanner() {
     trialEnded,
     trialEndsAt,
     hasSubscription,
+    checkoutTrialEndsAt,
   } = billing.data;
   // The server lets only an owner start a subscription; anybody else is told
   // who can, rather than handed a button that fails.
@@ -221,14 +222,15 @@ export function TrialBanner() {
   const closing = onTrial && (trialDaysLeft ?? 99) <= 7;
   const ended = canceled || trialEnded;
   const offersTrial = freeTrialDays > 0;
+  // Subscribing keeps the days that are left: Stripe charges when they end.
   const buttonLabel =
     !billingConfigured && offersTrial
       ? ended
         ? `Start another ${freeTrialDays}-day free trial`
         : null
       : billingConfigured
-        ? offersTrial
-          ? `Subscribe — first ${freeTrialDays} days free`
+        ? checkoutTrialEndsAt
+          ? `Subscribe — free until ${new Date(checkoutTrialEndsAt).toLocaleDateString(undefined, { day: "numeric", month: "long" })}`
           : "Start a subscription"
         : null;
 

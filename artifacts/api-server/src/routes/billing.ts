@@ -25,6 +25,7 @@ import { logger } from "../lib/logger";
 import { currentUser, tenant } from "../middleware/require-auth";
 import {
   applySubscriptionEvent,
+  checkoutTrialEnd,
   createCheckoutSession,
   createPortalSession,
   isAnnualConfigured,
@@ -201,6 +202,12 @@ function toBillingJson(
     billingConfigured: isBillingConfigured(),
     annualAvailable: isBillingConfigured() && isAnnualConfigured(),
     /**
+     * When a subscription started now would take its first payment: the end
+     * of the trial this home has left. Null when checkout would charge
+     * straight away, or card billing is not live here.
+     */
+    checkoutTrialEndsAt: isBillingConfigured() ? checkoutTrialEnd(home) : null,
+    /**
      * A subscription that has not ended, trial included: the portal is the
      * place for it. False after one ends, so the console offers a new one.
      */
@@ -307,6 +314,16 @@ router.post("/billing/checkout", async (req, res) => {
   const { addOns, interval } = selection.data;
   if (interval === "year" && !isAnnualConfigured()) {
     throw badRequest("Annual billing is not set up yet. Monthly is, and you can switch later.");
+  }
+
+  // One at a time. A second subscription is a second bill, found by the
+  // home's bookkeeper rather than by us; the one they have is changed, or
+  // cancelled, in Stripe's portal.
+  if (hasLiveSubscription(home)) {
+    throw new HttpError(
+      409,
+      "This home already has a subscription. Cards, invoices and cancelling are under Cards and invoices.",
+    );
   }
 
   res.json({

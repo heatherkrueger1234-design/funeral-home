@@ -4,6 +4,7 @@ import {
   funeralHomesTable,
   homeGroupsTable,
   freeTrialDays,
+  hasLiveSubscription,
   serialiseEntitlements,
   type AddOnKey,
   type FuneralHome,
@@ -142,6 +143,29 @@ export function isAnnualConfigured(): boolean {
   return Boolean(process.env["STRIPE_PRICE_ID_ANNUAL"]?.trim());
 }
 
+/*
+ * Stripe refuses a checkout trial ending less than 48 hours after the
+ * request lands. Ten minutes over, so a slow request is not refused for it.
+ */
+const SHORTEST_CHECKOUT_TRIAL_MS = (48 * 60 + 10) * 60 * 1000;
+
+/**
+ * When a subscription started at checkout now would take its first payment:
+ * the end of the trial the home is on -- the days it has left, rounded up to
+ * the shortest trial Stripe will hold -- or null, to charge at checkout.
+ *
+ * Only a home on our own trial gets one. Every subscribe button used to give
+ * a fresh thirty days, so a home on the last day of its trial got another
+ * month, and one that cancelled and subscribed again got another month each
+ * time it did.
+ */
+export function checkoutTrialEnd(home: FuneralHome, now = new Date()): Date | null {
+  if (home.subscriptionStatus !== "trial" || hasLiveSubscription(home)) return null;
+  if (home.trialEndsAt === null || home.trialEndsAt <= now) return null;
+  const shortest = new Date(now.getTime() + SHORTEST_CHECKOUT_TRIAL_MS);
+  return home.trialEndsAt > shortest ? home.trialEndsAt : shortest;
+}
+
 export async function createCheckoutSession(options: {
   home: FuneralHome;
   email: string;
@@ -164,12 +188,17 @@ export async function createCheckoutSession(options: {
     "metadata[funeralHomeId]": String(options.home.id),
   };
 
-  // The free trial, with no card asked for. If nobody adds one by the end,
-  // Stripe cancels rather than raising an invoice nobody can pay.
-  const trialDays = freeTrialDays();
-  if (trialDays > 0) {
-    body["subscription_data[trial_period_days]"] = String(trialDays);
-    body["payment_method_collection"] = "if_required";
+  /*
+   * The rest of the home's own trial, if it is on one: Stripe takes the
+   * first payment when it ends. A card is asked for either way. Without one
+   * Stripe cancelled the subscription at the end of the trial, and a home
+   * that had pressed Subscribe had subscribed to nothing; the `cancel` below
+   * is for a card taken out again in the portal before then, so that is a
+   * clean end rather than an invoice nobody can pay.
+   */
+  const trialEnd = checkoutTrialEnd(options.home);
+  if (trialEnd) {
+    body["subscription_data[trial_end]"] = String(Math.floor(trialEnd.getTime() / 1000));
     body["subscription_data[trial_settings][end_behavior][missing_payment_method]"] =
       "cancel";
   }

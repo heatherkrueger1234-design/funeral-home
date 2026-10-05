@@ -14,7 +14,7 @@ still come from Stripe; this code never bills anybody.
 | Annual | **$1,690 a location a year**: twelve months for the price of ten |
 | Activation or setup fee | **None** |
 | Aftercare, texts and email to families | **Included**, not add-ons |
-| Free trial | **30 days, no card**, from every subscribe button |
+| Free trial | **30 days from registering, no card.** Subscribing during it keeps the days that are left; the card is first charged when they end |
 | Families | **Never charged, for anything, ever** |
 
 A home with ten funerals a month pays $169 + $70 = **$239**. A rural home
@@ -203,5 +203,19 @@ That is its sale to make, with its own disclosures attached.
 2. **Leave `STRIPE_PRICE_ID_AFTERCARE` unset**, so aftercare stays included.
 3. **Schedule `POST /api/tasks/usage`** (`usage.yml`), or funerals are never
    reported and every home is invoiced the flat rate only.
-4. **Run one real billing cycle in Stripe test mode**, monthly and annual,
-   including a metered invoice. Stripe has never taken a real payment here.
+4. **Point Stripe at the webhook, and set three things in its dashboard.**
+   The endpoint is `https://<api host>/api/billing/webhook`, sending
+   `customer.subscription.created`, `.updated` and `.deleted`; its signing
+   secret is `STRIPE_WEBHOOK_SECRET`. Then, under Billing:
+   - **The reminder email before a free trial ends: on.** A home that
+     subscribes during its trial hears about the end of it from Stripe, with
+     the amount, rather than from us (`lib/trial-reminders.ts` leaves it out).
+   - **Customer portal cancellations: at the end of the billing period.** A
+     home that cancels during its trial then keeps the days it has left.
+   - **When every retry of a failed payment has failed: cancel the
+     subscription.** Stripe's "unpaid" keeps a home opening cases, as
+     "past due" does, so "mark as unpaid" or "leave past due" would let a
+     home that has stopped paying carry on indefinitely.
+5. **Run one real billing cycle in Stripe test mode**, monthly and annual,
+   including a metered invoice, a subscription started during a trial, and
+   one cancelled. Stripe has never taken a real payment here.

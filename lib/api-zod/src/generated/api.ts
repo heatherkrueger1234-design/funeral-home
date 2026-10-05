@@ -659,7 +659,7 @@ export const GetBillingResponse = zod.object({
   freeTrialDays: zod
     .number()
     .describe(
-      "Days a subscribe button gives with no card; 0 when switched off.",
+      "Days of free trial a new home gets, with no card, and that the subscribe button starts when card billing is not live; 0 when switched off.",
     ),
   trialEnded: zod.boolean(),
   currentPeriodEndsAt: zod.date().nullable(),
@@ -670,7 +670,17 @@ export const GetBillingResponse = zod.object({
   annualAvailable: zod
     .boolean()
     .describe("Whether checkout offers annual billing (two months free)."),
-  hasSubscription: zod.boolean(),
+  hasSubscription: zod
+    .boolean()
+    .describe(
+      "Stripe holds a subscription for this home that has not ended, trial included. False after one ends, so a new one can be started.",
+    ),
+  checkoutTrialEndsAt: zod
+    .date()
+    .nullable()
+    .describe(
+      "When a subscription started now would take its first payment: the end of the trial this home has left. Null when checkout would charge straight away, or card billing is not live here.",
+    ),
   onboarding: zod.array(
     zod.object({
       key: zod.string(),
@@ -750,7 +760,7 @@ export const CompleteOnboardingStepResponse = zod.object({
   freeTrialDays: zod
     .number()
     .describe(
-      "Days a subscribe button gives with no card; 0 when switched off.",
+      "Days of free trial a new home gets, with no card, and that the subscribe button starts when card billing is not live; 0 when switched off.",
     ),
   trialEnded: zod.boolean(),
   currentPeriodEndsAt: zod.date().nullable(),
@@ -761,7 +771,17 @@ export const CompleteOnboardingStepResponse = zod.object({
   annualAvailable: zod
     .boolean()
     .describe("Whether checkout offers annual billing (two months free)."),
-  hasSubscription: zod.boolean(),
+  hasSubscription: zod
+    .boolean()
+    .describe(
+      "Stripe holds a subscription for this home that has not ended, trial included. False after one ends, so a new one can be started.",
+    ),
+  checkoutTrialEndsAt: zod
+    .date()
+    .nullable()
+    .describe(
+      "When a subscription started now would take its first payment: the end of the trial this home has left. Null when checkout would charge straight away, or card billing is not live here.",
+    ),
   onboarding: zod.array(
     zod.object({
       key: zod.string(),
