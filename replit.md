@@ -630,3 +630,30 @@ person on every page (`lib/voice.ts`) and no longer name the planner as the
 informant. The master page is headed "Today". The platform console has a
 test suite (`artifacts/admin-console/src/lib/*.test.ts`, run on a Denver
 clock).
+
+## The 5 October pass: who is reading, who is texting, and when
+
+`STATUS.md` has the whole list. What changes how a Replit deployment is run:
+
+**Switch off Replit's analytics injection** in the deployment's settings,
+before any real family opens a link. It sends each page's full address to
+Replit, and the family portal's address carries the family's link.
+
+**Run `fix-plan-records` once** against any database that held a plan
+before 5 October: `pnpm --filter @workspace/scripts run fix-plan-records`,
+then `-- --apply` once its report reads right. It marks each planner as the
+person their plan is for (`family_contacts.isSubject`), closes the link of a
+planner who has since died and stops their check-ins, and takes a planner
+off their own certificate as its informant.
+
+**Aftercare runs hourly now.** Each check-in falls due at 10:00 in the home's
+own time zone and only goes out between 9:00 and 19:00 there; point whatever
+calls `/api/tasks/aftercare` at it every hour.
+
+**Logs in production name only who a message was for.** With mail
+unconfigured, a password reset used to appear in full in the log; it no
+longer does, so on a deployment without SMTP a reset link goes nowhere.
+Configure mail before inviting a real home.
+
+**Texting replies:** "Stop please" and the FCC's other words opt out, HELP is
+answered once, and any other reply is told how to reach the home.
