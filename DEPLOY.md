@@ -10,10 +10,13 @@ matters at 3am:
 | --- | --- |
 | Run, for real | The production esbuild bundle: registration, a case, a family link, a genuine iPhone HEIC uploaded and served back as JPEG, twelve photos zipped into a slideshow pack — all of it through this exact `nginx.conf`, with `nginx -t` passing on the expanded template. |
 | Run, for real | `pnpm deploy --prod --legacy` produces a tree where `sharp`, `heic-decode` and `nodemailer` resolve and `esbuild`, `vitest` and `supertest` do not. |
-| Run, for real | `backup-database` → `DROP DATABASE` → `restore-database`, with an encrypted photo matching byte-for-byte and an encrypted SSN decrypting afterwards (`pnpm --filter @workspace/scripts run verify-backup`). |
+| Run, for real | `backup-database` → `DROP DATABASE` → `restore-database`, with an encrypted photo matching byte-for-byte and an encrypted SSN decrypting afterwards. |
+| Run, for real | `backup-database` → off the host and back with rclone → `verify-backup`, with rows written after the dump: every table matched the counts taken with it, and the photograph and SSN in the restored copy decrypted; the photograph, decrypted, was byte-for-byte the live one. With 1,127 rows written while the backup ran, its counts still matched its dump exactly. A wrong key was refused, and so was a backup whose newest photograph had been stored under a key since replaced, which the old check passed. A backup from before counts were kept was restored and reported, compared with nothing (5 Oct 2026, pg_dump 16, rclone 1.60.1). |
 | Run, for real | `backup-database` with `BACKUP_OFFSITE` set: the encrypted dump copied with rclone and its size checked on the far side, the local copy deleted, the far copy fetched back and restored with every table matching (5 Oct 2026, against a directory standing in for the bucket; the weekly drill does the same). An unreachable destination fails the run. The tools image's `apt` step was built on `node:24-bookworm-slim` and gives `pg_dump` 16.15 and rclone 1.60.1. |
 | Run, for real | `docker build` for all four images, then `docker compose up`: four containers healthy, migrations applied through `tools`, a home registered and a real iPhone HEIC uploaded and served back through nginx, and a backup taken and restored inside the containers. A full `docker compose restart` left the photograph byte-for-byte identical. |
 | Run, for real | Caddy → this `nginx.conf` → the API, with TLS from Caddy's own CA on `*.localhost`: HTTPS reaches the API as HTTPS, plain HTTP redirects, and one visitor exhausting the sign-in limit does not lock out another. The same test against the previous config locked both out. |
+| Run, for real | Caddy 2.10.2 on this Caddyfile, with each app's nginx refused and then unresolvable: the error log's line for every failed request, `/f/<token>?token=…` with a Referer and `/reset-password?token=…` among them, keeps `/f/REDACTED` or `?REDACTED` in place of the token and no Referer, and Cookie and Authorization as `REDACTED`. `caddy validate` passes with the example values from `.env.example` (5 Oct 2026). |
+| Run, for real | Each app's production build with no headers at all, as Replit serves it, and Replit's analytics tag appended where Replit puts it: Chromium refuses the script, reports no other violation while the app is signed into and used, and sends no Referer with any request (`page-policy.spec.ts`, in the browser suite). The same builds behind this `nginx.conf` on nginx 1.24, header and page policy together: signed into each, no violation and no Referer (5 Oct 2026). |
 | Run, for real | `send-test-email` against an SMTP server on 587 with STARTTLS: delivered over TLS; a wrong password, a half-set config and an API key with no `SMTP_FROM` each fail with the reason; a server that refuses STARTTLS is refused rather than sent the password in clear. |
 | **Not run** | A real Let's Encrypt certificate on a real domain, a real mail provider, a real Stripe key, or a real bucket for the backups. Those need your DNS and your accounts. |
 
@@ -27,10 +30,19 @@ Then fill in the ones the stack refuses to start without: `POSTGRES_PASSWORD`,
 `ENCRYPTION_KEY`, `FAMILY_PORTAL_URL`, `CONSOLE_URL`, `ADMIN_CONSOLE_URL` and
 `ACME_EMAIL`.
 
-And point DNS at the host **before** the first `up`: an A record (and AAAA,
-if the host has IPv6) for each of the five hostnames in those URLs — the
-three front ends, the bare domain and www — and
-ports 80 and 443 open to the internet. Caddy asks Let's Encrypt for the
+And point DNS at the host **before** the first `up`: an A record for each of
+the five hostnames in those URLs — the three front ends, the bare domain and
+www — and ports 80 and 443 open to the internet.
+
+**No AAAA records**, unless you have given the compose network IPv6 of its
+own (Docker's `enable_ipv6`, which needs IPv6 set up in the Docker daemon
+first — Docker's "IPv6 networking" documentation). Without it, Docker's port
+proxy accepts an IPv6 visitor and hands the connection to Caddy from one
+internal IPv4 address, so every IPv6 visitor looks like the same person to
+every rate limit: twenty mistyped passwords from anybody on IPv6 lock every
+director on IPv6 out of signing in for fifteen minutes, and one family's
+uploads count against every other's. With IPv6 really reaching the API, the
+limits count each household's /64 as one caller. Caddy asks Let's Encrypt for the
 certificates the first time each name is requested; if DNS is not there yet
 it fails, retries with back-off, and Let's Encrypt starts rate-limiting after
 a handful of failures.
@@ -124,7 +136,12 @@ two things this stack depends on:
   *and* a load balancer *and* nginx it is 3. Too low and every visitor shares
   the proxy's address, so one person's failed sign-ins lock every director
   out. Too high and a visitor can pick the address the rate limiter sees by
-  sending a header. The API refuses to start on anything but a whole number.
+  sending a header. The API refuses to start on anything but a whole number,
+  and warns in its log, once a day, when a request arrives from a private
+  address with a public one further back in `X-Forwarded-For` than the
+  number reaches: that is too low, caught in the act, and the warning says
+  the least it should be. It cannot see a count short of a proxy whose own
+  address is public, such as a CDN's edge.
 
 ## Email
 
@@ -211,6 +228,16 @@ That volume is on this host's disk, which means it is not a backup on its
 own — it does not survive the failure it exists for. Set `BACKUP_OFFSITE` and
 every run copies its dump off the host as well.
 
+Until a dump is encrypted it is plain SQL, kept under a `.partial` name. A
+backup stopped part-way — a deploy, `docker compose stop`, a reboot, Ctrl-C —
+removes it before it exits (the `tools` container runs an init that passes
+the signal to the script, which pnpm would not). One killed outright, by the
+out-of-memory killer or a power cut, cannot; the next run removes what it
+left before it starts. `verify-backup` and `restore-database` decrypt a
+backup to plain SQL beside it and remove that the same way, but nothing
+sweeps up after one killed outright: a `.verify-…tmp` or `.restore-…tmp`
+file in the backups volume is one of those. Delete it.
+
 ### Backups off the host
 
 `backup-database` hands each finished dump to [rclone](https://rclone.org),
@@ -265,19 +292,40 @@ and the settings) and restore as usual:
 
 ```sh
 docker compose run --rm tools sh -c \
-  'rclone copy offsite:continuum-backups /backups/from-offsite --include "holding-today-*.sql.enc" && ls /backups/from-offsite'
+  'rclone copy offsite:continuum-backups /backups/from-offsite --include "holding-today-*" && ls /backups/from-offsite'
 docker compose run --rm tools pnpm --filter @workspace/scripts run \
   restore-database -- --file /backups/from-offsite/<newest>.sql.enc
 ```
+
+Each backup has a `<backup>.counts.json` beside it, which that fetch brings
+back too: the row count of every table when the dump was taken, and nothing
+anybody wrote. It is pruned with its backup and copied off the host with it,
+and it is what the check below compares a restore with.
 
 ### Prove the restore works before you need it
 
 A backup nobody has restored is a belief, not a backup.
 `scripts/src/verify-backup.ts` restores the newest dump into a scratch
-database and checks that an encrypted photo comes back byte-identical and an
-encrypted SSN still decrypts. It refuses to run when `VERIFY_DATABASE_URL`
-equals `DATABASE_URL`, and treats zero rows restored as a failure rather than
-a clean empty database.
+database and checks two things, and only these:
+
+- **Every table has the rows it had when the dump was taken.**
+  `backup-database` counts them in the same snapshot `pg_dump` reads, so the
+  counts are of exactly what the dump holds, however busy the database was;
+  rows written since the dump are not the backup's to answer for. A backup
+  from before the counts were kept is restored and its counts printed,
+  compared with nothing, and the output says so.
+- **The restored copy's encrypted columns open with `ENCRYPTION_KEY`**: the
+  oldest and the newest uploaded file, and the oldest and newest social
+  security number, are decrypted from what was restored. AES-GCM refuses a
+  single changed byte, so a file that decrypts came back whole; one that does
+  not means the bytes are damaged or were written under another key — a key
+  changed since re-encrypts nothing, so every photograph from before the
+  change is in the backup and will not open.
+
+It refuses to run when `VERIFY_DATABASE_URL` reaches the same database as
+`DATABASE_URL`, however the two are spelled, and treats zero rows restored as
+a failure rather than a clean empty database. It does not compare anything
+with the live database, and it does not decrypt every photograph.
 
 ```sh
 docker compose run --rm \
@@ -289,7 +337,9 @@ docker compose run --rm \
 schema or the backup scripts, so the drill fails in CI rather than in an
 emergency. It restores the copy that came back from the far side (a
 directory standing in for the bucket), not the one left on the runner's
-disk, because on the day it matters the disk is gone.
+disk, because on the day it matters the disk is gone. Between the dump and
+the restore it writes to the database again, as a working one would, and
+afterwards it checks that the same copy is refused under the wrong key.
 
 ## A caution about `db push`
 
@@ -326,9 +376,57 @@ script and stylesheet. `include` is the only mechanism nginx offers for
 putting them back. **Add a header to a `location` and you must include that
 file beside it**, or you have just dropped the rest.
 
+Two of them also travel inside each app's `index.html`, written in when the
+app is built (`deploy/security-meta.ts` reads them from that file): the
+Content-Security-Policy as a `<meta>` tag, less `frame-ancestors`, which only a
+header can carry, and the referrer policy, `no-referrer`, so that a family's
+`/f/<token>` and the `?token=` of an emailed link never leave as a Referer.
+They are for hosts that send no headers. Replit's static hosting is one, and it
+appends its own analytics script to every page, which reports each page's
+address — a family's link included; the page's own policy refuses it. Behind
+nginx a page carries the policy twice, and both copies are enforced, which is
+harmless because they are one policy from one file. Change it there and
+rebuild: `docker compose build` builds each app beside the copy it installs.
+
 If you put a CDN or a WAF in front of these containers, check it is not adding
-a second `Content-Security-Policy`: two of them are intersected, not
-overridden, and the result is usually a blank page nobody can explain.
+a `Content-Security-Policy` of its own: every policy a page is given is
+enforced, so they intersect rather than override, and the result is usually a
+blank page nobody can explain.
+
+nginx's access logs hold no links. Its default line has the whole request and
+the Referer, which between them carry every family's link and every reset,
+invitation and confirmation token, so both templates log the path without its
+query string, a family link as `/f/REDACTED`, and no Referer.
+
+Caddy's logs hold none either. It keeps no access log (no site in the
+Caddyfile has `log`), and its error log, which writes out each request that
+fails there (an app's nginx down or restarting) with its address and headers,
+goes through a filter in the Caddyfile's global options: everything after the
+address's first `/f/` or `?` is written as `REDACTED`, and the Referer not at
+all. Caddy itself writes the `Cookie`, `Authorization` and
+`Proxy-Authorization` headers as `REDACTED` — its default, confirmed on 2.10.2,
+unless a server sets `log_credentials`, and none here does.
+
+nginx's error log cannot be given a format. For each request that fails at
+nginx — the API unreachable, an upload over 50 MB — it writes the client's
+address (Caddy's, in compose), the request line with its query string, the
+address it was passing the request on to (the same path and query), the Host,
+and the Referer if there was one. It never writes a cookie or an
+`Authorization` header. The apps send no Referer (`no-referrer`, in the header
+and in each page), and no call they make to the API has a token in its
+address: a family's link travels in the `Authorization` header, and a reset,
+invitation or confirmation token in the request body. What it can still hold:
+
+- the aftercare stop token (`?token=`, which can stop those notes and do
+  nothing else), when the stop page or a mail provider's one-click
+  unsubscribe asks the API while it is down;
+- a family's `/f/<token>` or a `?token=` page, only if nginx fails to read
+  `index.html` to serve it;
+- whatever a staff screen puts in a query, such as a case search for a name;
+- the Referer of a link from another site, which browsers by default cut
+  down to that site's origin.
+
+Keep it, and Caddy's, as you would any log with names in it.
 
 ## Website
 
@@ -404,8 +502,9 @@ Better Stack both do this on a free plan; one check every five minutes, alert
 by SMS or push to whoever is on call. Add a second check on the family portal's
 `/healthz` if you want to know nginx is serving.
 
-`.github/workflows/uptime.yml` asks the same question every fifteen minutes
-from GitHub, as a backstop. It skips with a notice until the `API_URL`
+`.github/workflows/uptime.yml` asks the same question every hour from
+GitHub, as a backstop. (Hourly because a private repository pays for Actions
+by the minute; see `STATUS.md`.) It skips with a notice until the `API_URL`
 repository secret is set, and also checks the front ends when the
 `FAMILY_PORTAL_URL` and `CONSOLE_URL` repository variables are. It is not the
 pager: GitHub delays scheduled runs under load, and a failed run only emails
@@ -433,7 +532,8 @@ What follows from it:
   mozjpeg (`images.ts`). Turning mozjpeg off makes that 3.7× faster and the
   files about 55% larger; with every photograph in every backup, smaller won.
 - **Plan storage at about 0.6 MB a photograph,** in the database and again in
-  every backup. A case at the 1,000 cap is about 600 MB.
+  every backup. A case at the 1,000 cap is about 600 MB. The thumbnail made
+  the first time a photograph is drawn small adds about 20 KB to it.
 - Two things the test found are fixed: converting a photograph used to hold a
   database connection for the whole second (ten families uploading held the
   whole pool, and everyone else waited), and photographs arriving together at

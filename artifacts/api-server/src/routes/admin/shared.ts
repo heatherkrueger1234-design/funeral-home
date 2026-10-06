@@ -9,6 +9,7 @@ import {
   homeLicensureTable,
   platformAuditTable,
   practitionerLicencesTable,
+  hasLiveSubscription,
   trialDaysLeft,
   usersTable,
   type FuneralHome,
@@ -133,6 +134,13 @@ declare global {
  * handed back on screen. A confirmation link only ever reaches the real inbox,
  * so requiring it is what makes the list mean the *person* rather than the
  * string.
+ *
+ * Requiring it is only half of that. Confirming proves somebody read the
+ * inbox, not that the password and session on the account are theirs: the
+ * squatter above kept both, and the owner's click let them in. So the moment
+ * a listed address is confirmed, or a confirmed one is listed,
+ * `reclaimForInbox` clears every credential anybody else could hold and sends
+ * the inbox a link to choose its own.
  */
 export const requirePlatformAdmin: RequestHandler = (req, _res, next) => {
   void (async () => {
@@ -668,6 +676,9 @@ export function toAdminHome(home: FuneralHome) {
     accentColor: home.accentColor,
     subscriptionStatus: home.subscriptionStatus,
     trialDaysLeft: trialDaysLeft(home),
+    // Whether Stripe holds a subscription that has not ended -- the one fact
+    // that tells a home on trial that has given a card from one that has not.
+    hasSubscription: hasLiveSubscription(home),
     // The dates behind the status. "On trial, 3 days left" answers the
     // question on the day; the date is what goes in the follow-up email, and
     // a renewal date is the only way to tell "subscribed" from "subscribed

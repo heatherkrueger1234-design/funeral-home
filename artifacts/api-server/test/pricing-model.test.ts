@@ -302,6 +302,122 @@ describe("reporting the count to Stripe", () => {
     expect(afterRetry!.failedAt).toBeNull();
   });
 
+  it("does not let funerals with nobody to bill hold up the ones with somebody", async () => {
+    configureMeter();
+    // Paying outside Stripe: an active home with no Stripe customer.
+    const outside = await signUpHome("Paid By Cheque");
+    await makePaying(outside.homeId, { stripeCustomerId: null });
+    for (let i = 0; i < 3; i += 1) await createCase(outside);
+    const paying = await signUpHome();
+    await makePaying(paying.homeId);
+    await createCase(paying);
+
+    const sent: Array<Record<string, string>> = [];
+    globalThis.fetch = (async (_url: string, init: RequestInit) => {
+      sent.push(Object.fromEntries(new URLSearchParams(String(init.body))));
+      return new Response(JSON.stringify({ id: "mbe_q" }), { status: 200 });
+    }) as typeof fetch;
+
+    /*
+     * Oldest first, a page at a time, and the cheque-paying home's funerals
+     * are the oldest. They were skipped and left at the front of the queue,
+     * so once a page's worth had built up nobody was ever reported again.
+     */
+    const result = await runCaseMetering({ limit: 2 });
+
+    expect(result.reported).toBe(1);
+    expect(sent[0]!["payload[stripe_customer_id]"]).toBe(`cus_test_${paying.homeId}`);
+    // Counted, so a deployment can see them, and not a failure.
+    expect(result.awaitingCustomer).toBe(3);
+    expect(result.failed).toBe(0);
+  });
+
+  it("tries new funerals before retrying old failures", async () => {
+    configureMeter();
+    const staff = await signUpHome();
+    await makePaying(staff.homeId);
+    const stuck = [await createCase(staff), await createCase(staff)];
+    await db
+      .update(billableCasesTable)
+      .set({ failedAt: new Date(), failureReason: "No such customer" })
+      .where(eq(billableCasesTable.funeralHomeId, staff.homeId));
+    const fresh = await createCase(staff);
+
+    const sent: string[] = [];
+    globalThis.fetch = (async (_url: string, init: RequestInit) => {
+      const identifier = new URLSearchParams(String(init.body)).get("identifier")!;
+      sent.push(identifier);
+      return identifier === `case-${fresh.id}`
+        ? new Response(JSON.stringify({ id: "mbe_f" }), { status: 200 })
+        : new Response(JSON.stringify({ error: { message: "No such customer" } }), {
+            status: 400,
+          });
+    }) as typeof fetch;
+
+    // Two that fail every time must not fill every page for ever.
+    const result = await runCaseMetering({ limit: 2 });
+
+    expect(sent[0]).toBe(`case-${fresh.id}`);
+    expect(result.reported).toBe(1);
+    expect(stuck).toHaveLength(2);
+  });
+
+  it("tells Stripe a funeral happened when it reaches Stripe, so a late one is still billed", async () => {
+    configureMeter();
+    const staff = await signUpHome();
+    await makePaying(staff.homeId);
+    await createCase(staff);
+    // Six weeks behind: the job was down, or Stripe was refusing.
+    await db
+      .update(billableCasesTable)
+      .set({ countedAt: new Date(Date.now() - 42 * DAY) })
+      .where(eq(billableCasesTable.funeralHomeId, staff.homeId));
+
+    const sent: Array<Record<string, string>> = [];
+    globalThis.fetch = (async (_url: string, init: RequestInit) => {
+      sent.push(Object.fromEntries(new URLSearchParams(String(init.body))));
+      return new Response(JSON.stringify({ id: "mbe_late" }), { status: 200 });
+    }) as typeof fetch;
+
+    const before = Math.floor(Date.now() / 1000);
+    await runCaseMetering();
+
+    /*
+     * Stripe refuses a meter event stamped more than 35 days ago, and one
+     * stamped in a billing period that has already been invoiced is not on
+     * any invoice. Stamped with when it was counted, a funeral that missed
+     * its night was billed late or never; stamped with now, it is on the
+     * next invoice.
+     */
+    expect(Number(sent[0]!["timestamp"])).toBeGreaterThanOrEqual(before);
+  });
+
+  it("says so when a funeral has not reached Stripe for days", async () => {
+    configureMeter();
+    const staff = await signUpHome();
+    await makePaying(staff.homeId);
+    await createCase(staff);
+    await db
+      .update(billableCasesTable)
+      .set({
+        countedAt: new Date(Date.now() - 4 * DAY),
+        failedAt: new Date(Date.now() - DAY),
+        failureReason: "No such customer",
+      })
+      .where(eq(billableCasesTable.funeralHomeId, staff.homeId));
+
+    globalThis.fetch = (async () =>
+      new Response(JSON.stringify({ error: { message: "No such customer" } }), {
+        status: 400,
+      })) as typeof fetch;
+
+    // One failure among a night's successes never turned the job red, and
+    // a home whose customer had gone was quietly never billed again.
+    const result = await runCaseMetering();
+    expect(result.failed).toBe(1);
+    expect(result.stuck).toBe(1);
+  });
+
   it("never reports a waived trial case", async () => {
     configureMeter();
     const staff = await signUpHome();

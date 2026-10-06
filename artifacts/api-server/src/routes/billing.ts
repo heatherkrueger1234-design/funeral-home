@@ -12,8 +12,10 @@ import {
   canOpenCases,
   freeTrialDays,
   hasAddOn,
+  hasLiveSubscription,
   isAddOnKey,
   trialDaysLeft,
+  trialHasEnded,
   type AddOnKey,
   type FuneralHome,
 } from "@workspace/db";
@@ -22,7 +24,8 @@ import { badRequest, HttpError, parseBody } from "../lib/http";
 import { logger } from "../lib/logger";
 import { currentUser, tenant } from "../middleware/require-auth";
 import {
-  applySubscription,
+  applySubscriptionEvent,
+  checkoutTrialEnd,
   createCheckoutSession,
   createPortalSession,
   isAnnualConfigured,
@@ -94,13 +97,15 @@ billingWebhookRouter.post(
       type === "customer.subscription.updated" ||
       type === "customer.subscription.deleted"
     ) {
-      await applySubscription(data.object as never, new Date(created * 1000));
+      // Throws a 503 when Stripe cannot be asked what the subscription is
+      // now, which is the one failure worth Stripe sending the event again.
+      await applySubscriptionEvent(data.object as never, new Date(created * 1000));
     } else {
       logger.debug({ type }, "Ignoring a Stripe event we do not act on");
     }
 
-    // Always 200 once verified. A non-2xx makes Stripe retry for days, and
-    // an event we chose not to act on is not a failure.
+    // Otherwise 200 once verified. A non-2xx makes Stripe retry for days,
+    // and an event we chose not to act on is not a failure.
     res.json({ received: true });
   },
 );
@@ -191,15 +196,22 @@ function toBillingJson(
     /** Days a subscribe button gives, with no card. 0 when switched off. */
     freeTrialDays: freeTrialDays(),
     /** The trial ran out and nothing has replaced it: new cases are paused. */
-    trialEnded:
-      home.subscriptionStatus === "trial" &&
-      home.trialEndsAt !== null &&
-      home.trialEndsAt <= new Date(),
+    trialEnded: trialHasEnded(home),
     currentPeriodEndsAt: home.currentPeriodEndsAt,
     canOpenCases: canOpenCases(home),
     billingConfigured: isBillingConfigured(),
     annualAvailable: isBillingConfigured() && isAnnualConfigured(),
-    hasSubscription: home.stripeSubscriptionId !== null,
+    /**
+     * When a subscription started now would take its first payment: the end
+     * of the trial this home has left. Null when checkout would charge
+     * straight away, or card billing is not live here.
+     */
+    checkoutTrialEndsAt: isBillingConfigured() ? checkoutTrialEnd(home) : null,
+    /**
+     * A subscription that has not ended, trial included: the portal is the
+     * place for it. False after one ends, so the console offers a new one.
+     */
+    hasSubscription: hasLiveSubscription(home),
     onboarding,
     onboardingComplete: onboarding.every((step) => step.done),
   };
@@ -302,6 +314,16 @@ router.post("/billing/checkout", async (req, res) => {
   const { addOns, interval } = selection.data;
   if (interval === "year" && !isAnnualConfigured()) {
     throw badRequest("Annual billing is not set up yet. Monthly is, and you can switch later.");
+  }
+
+  // One at a time. A second subscription is a second bill, found by the
+  // home's bookkeeper rather than by us; the one they have is changed, or
+  // cancelled, in Stripe's portal.
+  if (hasLiveSubscription(home)) {
+    throw new HttpError(
+      409,
+      "This home already has a subscription. Cards, invoices and cancelling are under Cards and invoices.",
+    );
   }
 
   res.json({

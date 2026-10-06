@@ -16,6 +16,7 @@ export * from "./users";
 export * from "./sessions";
 export * from "./password-resets";
 export * from "./email-verifications";
+export * from "./sent-emails";
 
 /* Bytes. */
 export * from "./uploads";

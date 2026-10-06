@@ -1,6 +1,6 @@
 import multer from "multer";
-import type { Response } from "express";
-import { and, count, eq } from "drizzle-orm";
+import type { RequestHandler, Response } from "express";
+import { and, count, eq, getTableColumns, isNull } from "drizzle-orm";
 import {
   db,
   casesTable,
@@ -15,8 +15,12 @@ import {
 } from "@workspace/db";
 import { encryptBuffer, decryptBuffer } from "@workspace/db/crypto";
 import { detectFileType } from "./file-type";
-import { normaliseImage, renameForType } from "./images";
+import { makeThumbnail, normaliseImage, renameForType } from "./images";
 import { badRequest, HttpError, notFound } from "./http";
+import { Gate } from "./concurrency";
+import { logger } from "./logger";
+
+export { THUMBNAIL_EDGE } from "./images";
 
 /**
  * Storing and serving bytes.
@@ -43,10 +47,63 @@ import { badRequest, HttpError, notFound } from "./http";
  */
 export const MAX_PHOTO_BYTES = 50 * 1024 * 1024;
 
-export const photoUpload = multer({
+/**
+ * How many uploads this process holds at once.
+ *
+ * Each is buffered whole before anything can look at it, so the ceiling is
+ * on memory: eight at 50 MB is 400 MB before conversion, inside the 2 GB
+ * DEPLOY.md gives the API. A family's portal sends one photograph at a time,
+ * so eight is eight families at the same moment. The ninth is told to wait a
+ * few seconds and send it again, which both apps do without a word to
+ * anyone, rather than being held open here.
+ */
+export const MAX_UPLOADS_AT_ONCE = 8;
+export const uploadsGate = new Gate(MAX_UPLOADS_AT_ONCE);
+
+/*
+ * Before multer, so a turned-away upload is never read into memory at all;
+ * the slot is given back when the response is done, however it ends.
+ */
+const waitYourTurn: RequestHandler = (_req, res, next) => {
+  if (!uploadsGate.tryEnter()) {
+    res.setHeader("retry-after", "3");
+    next(
+      new HttpError(
+        429,
+        "A lot of photographs are arriving at once. Yours will go in a moment.",
+      ),
+    );
+    return;
+  }
+
+  let released = false;
+  const release = () => {
+    if (released) return;
+    released = true;
+    uploadsGate.leave();
+  };
+  res.once("finish", release);
+  res.once("close", release);
+  next();
+};
+
+const parse = multer({
   storage: multer.memoryStorage(),
   limits: { fileSize: MAX_PHOTO_BYTES, files: 1 },
 });
+
+/** One photograph in the named field, taken only when it is this one's turn. */
+export const photoUpload = {
+  single: (field: string): RequestHandler => {
+    const read = parse.single(field);
+    return (req, res, next) => {
+      waitYourTurn(req, res, (error?: unknown) => {
+        if (error) next(error);
+        else void read(req, res, next);
+      });
+    };
+  },
+};
 
 export type StoredUpload = Omit<Upload, "data">;
 
@@ -158,11 +215,183 @@ export async function storeUpload(options: {
 }
 
 /**
+ * Delete a stored upload, and the thumbnail made of it, in the caller's
+ * transaction.
+ *
+ * Which thumbnail is read off the row as it goes rather than beforehand. A
+ * thumbnail being linked to this photograph at that moment holds the row
+ * (`keepThumbnail`), so the delete waits for it and then sees it; one that
+ * would be linked after finds nothing to link to and is not kept.
+ */
+export async function deleteUpload(
+  tx: Db,
+  uploadId: number,
+  funeralHomeId: number,
+): Promise<void> {
+  const [gone] = await tx
+    .delete(uploadsTable)
+    .where(
+      and(eq(uploadsTable.id, uploadId), eq(uploadsTable.funeralHomeId, funeralHomeId)),
+    )
+    .returning({ thumbnailUploadId: uploadsTable.thumbnailUploadId });
+
+  const thumbnailId = gone?.thumbnailUploadId;
+  if (thumbnailId != null && thumbnailId !== uploadId) {
+    await tx
+      .delete(uploadsTable)
+      .where(
+        and(
+          eq(uploadsTable.id, thumbnailId),
+          eq(uploadsTable.funeralHomeId, funeralHomeId),
+        ),
+      );
+  }
+}
+
+/** What `?size=` may ask for: the photograph, or a thumbnail of it. */
+export type UploadSize = "full" | "thumb";
+
+/**
+ * How many thumbnails this process makes at once, and how many may wait.
+ *
+ * Thumbnails are made the first time they are asked for, so a director
+ * opening a bin of a thousand photographs asks for a thousand at once. Each
+ * is a decode and an encode -- about 40 ms of a thread for a phone
+ * photograph, nearer 200 ms for a large PNG -- on the four threads Node
+ * keeps for slow work, which password checks and file reads share. Two at a
+ * time leaves the other two to them, and sixty-four in line is a few
+ * seconds' work; past that the request is told when to come back, as an
+ * upload is, and both apps wait. A thumbnail already made, and the
+ * photograph itself, never wait for a turn: there is nothing to make.
+ */
+export const MAX_THUMBNAILS_AT_ONCE = 2;
+export const THUMBNAILS_IN_LINE = 64;
+export const thumbnailsGate = new Gate(MAX_THUMBNAILS_AT_ONCE, THUMBNAILS_IN_LINE);
+
+/** Every column of an upload but the bytes themselves. */
+const { data: _bytes, ...withoutBytes } = getTableColumns(uploadsTable);
+type ServableUpload = Omit<Upload, "data">;
+
+/**
+ * The upload to serve for `?size=thumb`: the photograph's thumbnail, made
+ * now if it has none yet, or the photograph itself where nothing smaller
+ * can be made.
+ *
+ * Asked only once the caller has decided who may have the photograph, and
+ * on its say-so: the thumbnail is never authorised on its own account.
+ */
+async function thumbnailOf(photo: ServableUpload, res: Response): Promise<number> {
+  if (photo.thumbnailUploadId !== null) return photo.thumbnailUploadId;
+  if (!photo.mimeType.startsWith("image/")) return photo.id;
+
+  if (!(await thumbnailsGate.enter())) {
+    res.setHeader("retry-after", "2");
+    throw new HttpError(
+      429,
+      "A lot of photographs are being opened at once. This one will follow in a moment.",
+    );
+  }
+
+  let made: Buffer | null;
+  try {
+    const [stored] = await db
+      .select({ data: uploadsTable.data, thumbnailUploadId: uploadsTable.thumbnailUploadId })
+      .from(uploadsTable)
+      .where(eq(uploadsTable.id, photo.id))
+      .limit(1);
+    if (!stored) throw notFound("That file could not be found.");
+    // Made by another request while this one waited its turn.
+    if (stored.thumbnailUploadId !== null) return stored.thumbnailUploadId;
+
+    let bytes: Buffer;
+    try {
+      bytes = decryptBuffer(stored.data);
+    } catch {
+      throw new HttpError(500, "That file could not be read.");
+    }
+
+    try {
+      made = await makeThumbnail(bytes);
+    } catch (err) {
+      // Nothing smaller can be made of a picture sharp cannot read, so the
+      // browser is given the picture itself to make what it can of -- the
+      // same every time, rather than another attempt on every request.
+      logger.warn({ err, uploadId: photo.id }, "Could not make a thumbnail");
+      made = null;
+    }
+  } finally {
+    thumbnailsGate.leave();
+  }
+
+  return keepThumbnail(photo, made);
+}
+
+/**
+ * Store a thumbnail and link the photograph to it -- or to itself, when
+ * `made` is null -- unless another request got there first.
+ *
+ * The thumbnail is an upload like any other, on the photograph's home and
+ * case, so every rule about who may see a case's files, and erasing a case
+ * taking them all, holds for it without a line of its own. The link is only
+ * written where there is none, and in the same transaction as the insert:
+ * if another request linked one first, or the photograph has been deleted
+ * meanwhile, this one is removed again rather than left with nothing
+ * pointing at it.
+ */
+async function keepThumbnail(photo: ServableUpload, made: Buffer | null): Promise<number> {
+  const kept = await db.transaction(async (tx) => {
+    const thumbnailId =
+      made === null
+        ? photo.id
+        : (
+            await insertUpload(
+              tx,
+              {
+                filename: `${photo.filename.replace(/\.[^.]*$/, "")}-thumbnail.jpg`,
+                mimeType: "image/jpeg",
+                data: made,
+              },
+              {
+                funeralHomeId: photo.funeralHomeId,
+                caseId: photo.caseId,
+                uploadedByUserId: photo.uploadedByUserId,
+                uploadedByContactId: photo.uploadedByContactId,
+              },
+            )
+          ).id;
+
+    const [linked] = await tx
+      .update(uploadsTable)
+      .set({ thumbnailUploadId: thumbnailId })
+      .where(and(eq(uploadsTable.id, photo.id), isNull(uploadsTable.thumbnailUploadId)))
+      .returning({ id: uploadsTable.id });
+    if (linked) return thumbnailId;
+
+    if (thumbnailId !== photo.id) {
+      await tx.delete(uploadsTable).where(eq(uploadsTable.id, thumbnailId));
+    }
+    return null;
+  });
+  if (kept !== null) return kept;
+
+  const [now] = await db
+    .select({ thumbnailUploadId: uploadsTable.thumbnailUploadId })
+    .from(uploadsTable)
+    .where(eq(uploadsTable.id, photo.id))
+    .limit(1);
+  if (!now) throw notFound("That file could not be found.");
+  return now.thumbnailUploadId ?? photo.id;
+}
+
+/**
  * Serve stored bytes.
  *
  * `funeralHomeId` is always required and `caseId` is required for anything a
  * family can reach — so a link holder can fetch photographs from their own
  * case and the home's logo, and nothing else, however they mangle the id.
+ *
+ * `size: "thumb"` serves the photograph's thumbnail instead (`thumbnailOf`),
+ * to exactly whoever may have the photograph.
  */
 export async function serveUpload(
   res: Response,
@@ -176,10 +405,13 @@ export async function serveUpload(
     caseId?: number;
     /** The home's logo, which families legitimately need for branding. */
     logoUploadId?: number | null;
+    size?: UploadSize;
   },
 ): Promise<void> {
+  // Without the bytes: a request for the thumbnail must not read the whole
+  // photograph out of the database to decide it may have it.
   const [row] = await db
-    .select()
+    .select(withoutBytes)
     .from(uploadsTable)
     .where(
       and(
@@ -210,20 +442,36 @@ export async function serveUpload(
     }
   }
 
+  const servedId = options.size === "thumb" ? await thumbnailOf(row, res) : row.id;
+  const [served] = await db
+    .select({ mimeType: uploadsTable.mimeType, data: uploadsTable.data })
+    .from(uploadsTable)
+    .where(
+      and(
+        eq(uploadsTable.id, servedId),
+        eq(uploadsTable.funeralHomeId, options.funeralHomeId),
+      ),
+    )
+    .limit(1);
+
+  // Deleted in the moment since it was found.
+  if (!served) throw notFound("That file could not be found.");
+
   let bytes: Buffer;
   try {
-    bytes = decryptBuffer(row.data);
+    bytes = decryptBuffer(served.data);
   } catch {
     throw new HttpError(500, "That file could not be read.");
   }
 
-  res.setHeader("Content-Type", row.mimeType);
+  res.setHeader("Content-Type", served.mimeType);
   res.setHeader("Content-Length", String(bytes.length));
   // The type was determined by sniffing, but a browser that decides to
   // second-guess it is exactly the hole sniffing was meant to close.
   res.setHeader("X-Content-Type-Options", "nosniff");
   res.setHeader("Content-Disposition", "inline");
-  // Immutable: rows are never rewritten, only added and deleted.
+  // Immutable: stored bytes are never rewritten, only added and deleted, and
+  // a thumbnail once linked is the thumbnail for good.
   res.setHeader("Cache-Control", "private, max-age=31536000, immutable");
   res.end(bytes);
 }

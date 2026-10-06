@@ -15,6 +15,8 @@ import { sendIntakeNotificationEmail } from "@workspace/mailer";
 import { AFTERCARE_UNSUBSCRIBE_PURPOSE } from "@workspace/mailer/aftercare";
 import { readSignedId } from "@workspace/db/crypto";
 import { badRequest, notFound, parseBody, HttpError } from "../lib/http";
+import { advisoryLock, LOCKS } from "../lib/advisory-lock";
+import { hasVerifiedStaff } from "../lib/auth";
 import { publicHome } from "../lib/storefront";
 import { markOnboarding } from "../lib/onboarding";
 import { logger } from "../lib/logger";
@@ -41,45 +43,6 @@ const router: IRouter = Router();
 /** Slugs are lower-case in the database, and people type URLs in any case. */
 function normaliseSlug(raw: string): string {
   return raw.trim().toLowerCase();
-}
-
-/**
- * Whether anybody at this home has confirmed the address they registered with.
- *
- * The one thing email verification gates, and the reason it exists.
- *
- * Registration is open — it has to be, a funeral home buying software should
- * not have to ask us for an account first — and nothing checked that the
- * address belonged to the person typing it. So anyone could register under a
- * real home's name and have a public page, at a guessable URL, collecting the
- * details of people's deaths within a minute. That page is the one thing here
- * a stranger reaches, and it is the only thing verification holds back.
- *
- * What it deliberately does not gate: signing in, opening a case, texting a
- * family, uploading a photograph, printing an order of service, exporting, or
- * anything else inside the console. A director locked out of Thursday's
- * funeral because a confirmation email went to spam would be a far worse
- * product than the one this protects against, and the same argument is made at
- * greater length about cancelled subscriptions in `routes/cases.ts`.
- *
- * Any active staff member's confirmed address counts, not only the owner's: a
- * home where the manager confirmed and the proprietor never opened their inbox
- * is a home we have plainly heard from.
- */
-async function hasVerifiedStaff(funeralHomeId: number): Promise<boolean> {
-  const [row] = await db
-    .select({ id: usersTable.id })
-    .from(usersTable)
-    .where(
-      and(
-        eq(usersTable.funeralHomeId, funeralHomeId),
-        eq(usersTable.emailVerified, true),
-        isNull(usersTable.deactivatedAt),
-      ),
-    )
-    .limit(1);
-
-  return row !== undefined;
 }
 
 /**
@@ -130,6 +93,8 @@ router.get("/homes/:slug", async (req, res) => {
   });
 });
 
+type Tx = Parameters<Parameters<typeof db.transaction>[0]>[0];
+
 /**
  * Per-hour ceilings, counted in the database rather than in process memory.
  *
@@ -138,11 +103,14 @@ router.get("/homes/:slug", async (req, res) => {
  * morning of a funeral. Two ceilings, because they stop different things: one
  * address hammering the form, and a distributed flood that no single address
  * would trip.
+ *
+ * Counted inside the transaction that inserts, under the home's lock (see the
+ * route below), or the count is only true of the moment it was taken.
  */
-async function assertUnderCeilings(homeId: number, ip: string): Promise<void> {
+async function assertUnderCeilings(tx: Tx, homeId: number, ip: string): Promise<void> {
   const since = new Date(Date.now() - 60 * 60 * 1000);
 
-  const [counts] = await db
+  const [counts] = await tx
     .select({
       fromHome: sql<number>`count(*)::int`,
       fromIp: sql<number>`count(*) filter (where ${intakeRequestsTable.submittedFromIp} = ${ip})::int`,
@@ -206,41 +174,51 @@ router.post("/intake", async (req, res) => {
     );
   }
 
-  await assertUnderCeilings(home.id, req.ip ?? "unknown");
-
   /*
-   * A pre-need request is about a living person, and the two fields that only
-   * make sense for a death are refused rather than quietly dropped. If a
-   * client is sending a date of death on a pre-need request, something has
-   * gone wrong upstream of here, and the failure mode of being lenient is a
-   * file that says a living person died.
+   * One request for this home at a time, from the count to the insert.
+   * Counted first and inserted afterwards, thirty sent at once from one
+   * address were all counted before any was inserted, and most got through
+   * a ceiling of five. The lock is the home's because both ceilings are.
    */
-  if (body.kind === "pre_need" && body.dateOfDeath) {
-    throw badRequest(
-      "A pre-need request is for someone who is still living, so it cannot " +
-        "carry a date of death.",
-    );
-  }
+  const saved = await db.transaction(async (tx) => {
+    await advisoryLock(tx, LOCKS.frontDoor, home.id);
+    await assertUnderCeilings(tx, home.id, req.ip ?? "unknown");
 
-  const [saved] = await db
-    .insert(intakeRequestsTable)
-    .values({
-      funeralHomeId: home.id,
-      kind: body.kind,
-      requesterName: body.requesterName.trim(),
-      requesterEmail: body.requesterEmail?.trim() || null,
-      requesterPhone: body.requesterPhone?.trim() || null,
-      // Nobody is related to themselves. Storing "self" here would put a word
-      // in the director's queue that the person never typed.
-      relationship:
-        body.kind === "pre_need" ? null : body.relationship?.trim() || null,
-      subjectFirstName: body.subjectFirstName.trim(),
-      subjectLastName: body.subjectLastName.trim(),
-      dateOfDeath: body.dateOfDeath ?? null,
-      note: body.note?.trim() || null,
-      submittedFromIp: req.ip ?? null,
-    })
-    .returning();
+    /*
+     * A pre-need request is about a living person, and the two fields that
+     * only make sense for a death are refused rather than quietly dropped. If
+     * a client is sending a date of death on a pre-need request, something
+     * has gone wrong upstream of here, and the failure mode of being lenient
+     * is a file that says a living person died.
+     */
+    if (body.kind === "pre_need" && body.dateOfDeath) {
+      throw badRequest(
+        "A pre-need request is for someone who is still living, so it cannot " +
+          "carry a date of death.",
+      );
+    }
+
+    const [row] = await tx
+      .insert(intakeRequestsTable)
+      .values({
+        funeralHomeId: home.id,
+        kind: body.kind,
+        requesterName: body.requesterName.trim(),
+        requesterEmail: body.requesterEmail?.trim() || null,
+        requesterPhone: body.requesterPhone?.trim() || null,
+        // Nobody is related to themselves. Storing "self" here would put a
+        // word in the director's queue that the person never typed.
+        relationship:
+          body.kind === "pre_need" ? null : body.relationship?.trim() || null,
+        subjectFirstName: body.subjectFirstName.trim(),
+        subjectLastName: body.subjectLastName.trim(),
+        dateOfDeath: body.dateOfDeath ?? null,
+        note: body.note?.trim() || null,
+        submittedFromIp: req.ip ?? null,
+      })
+      .returning();
+    return row;
+  });
 
   if (!saved) throw new HttpError(500, "The request could not be saved.");
 

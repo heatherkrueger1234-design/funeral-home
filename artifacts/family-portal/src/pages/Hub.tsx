@@ -22,7 +22,7 @@ import {
   ChevronRight,
 } from "lucide-react";
 import type { ReactNode } from "react";
-import { useLink } from "@/lib/link";
+import { FORGETTING, useLink } from "@/lib/link";
 import { useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import {
@@ -584,10 +584,11 @@ function ForgetThisPhone() {
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>Forget the link on this device?</AlertDialogTitle>
-            <AlertDialogDescription>
-              This page will stop opening here until the link is opened again
-              from your message. Nothing anyone has added is lost, and the
-              link keeps working on your own phone.
+            <AlertDialogDescription asChild>
+              <div className="space-y-2">
+                <p>{FORGETTING.here}</p>
+                <p>{FORGETTING.inTheBrowser}</p>
+              </div>
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>

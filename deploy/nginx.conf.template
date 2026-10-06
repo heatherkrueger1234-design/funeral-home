@@ -24,9 +24,41 @@ map $http_x_forwarded_proto $forwarded_proto {
     https   https;
 }
 
+# The access log, with nothing in it that would open somebody's case. The
+# image's own format writes the whole request line and the Referer: every
+# family's link (/f/<token>), every reset, invitation, confirmation and stop
+# link (?token=...), and the family's link again as the Referer of the
+# portal's first call to its API, each sitting in the container's log, still
+# working, for as long as the link does. Only the SHA-256 of a family's link
+# is meant to be kept anywhere.
+#
+# So the path is logged without its query string, a family link's token as
+# REDACTED, and no Referer at all. /f/ is matched in any case and anywhere in
+# the path, because the token is the credential whatever surrounds it.
+# $request_uri rather than $uri: by the time a request is logged, try_files
+# has made $uri /index.html for every page of the app, so the log could not
+# say which page was asked for.
+map $request_uri $loggable_path {
+    "~*^(?<log_link_prefix>[^?]*?/f/)" "${log_link_prefix}REDACTED";
+    "~^(?<log_bare_path>[^?]*)"        $log_bare_path;
+}
+
+# The image's own `main` format, field for field, so anything that already
+# reads these lines still can: the request line is rebuilt from the parts
+# above, and the Referer and the Basic-auth user (nothing here uses Basic
+# auth) are written as "-".
+log_format redacted '$remote_addr - - [$time_local] '
+                    '"$request_method $loggable_path $server_protocol" '
+                    '$status $body_bytes_sent "-" '
+                    '"$http_user_agent" "$http_x_forwarded_for"';
+
 server {
     listen 80;
     server_name _;
+
+    # In place of the image's own access log, not as well as it: the same
+    # file, which the image links to stdout, written in the format above.
+    access_log /var/log/nginx/access.log redacted;
 
     root /usr/share/nginx/html;
     index index.html;

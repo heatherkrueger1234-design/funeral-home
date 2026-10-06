@@ -317,17 +317,19 @@ describe("and what ours is never charged for", () => {
       .expect(200);
 
     /*
-     * Both paying, so a funeral in either is counted rather than waived as a
-     * trial. `internalAccount` is then the only thing separating them, which is
-     * the whole point of the test.
+     * Both paying, and both with a Stripe customer -- ours from somebody
+     * trying checkout on it -- so a funeral in either is counted rather than
+     * waived as a trial, and is not left out for want of anybody to bill.
+     * `internalAccount` is then the only thing separating them, which is the
+     * whole point of the test.
      */
     await db
       .update(funeralHomesTable)
-      .set({ subscriptionStatus: "active" })
+      .set({ subscriptionStatus: "active", stripeCustomerId: "cus_ours" })
       .where(eq(funeralHomesTable.id, admin.homeId));
     await db
       .update(funeralHomesTable)
-      .set({ subscriptionStatus: "active" })
+      .set({ subscriptionStatus: "active", stripeCustomerId: "cus_riverside" })
       .where(eq(funeralHomesTable.id, customer.homeId));
 
     // A funeral in each: one real, one us trying something out.
@@ -344,10 +346,8 @@ describe("and what ours is never charged for", () => {
     const result = await runCaseMetering({ dryRun: true });
 
     /*
-     * One, not two. Today our own row has no Stripe customer so it would be
-     * skipped anyway — but that is luck, not a rule: attach a customer to it
-     * once to test checkout and we would meter our own demo cases onto a real
-     * invoice.
+     * One, not two. Without the rule, attaching a customer to our own tenant
+     * once to test checkout would meter our demo cases onto a real invoice.
      */
     expect(result.due).toBe(1);
   });

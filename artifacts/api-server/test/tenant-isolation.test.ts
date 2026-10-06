@@ -73,7 +73,7 @@ describe("a family link reaches exactly one case", () => {
 
     await asFamily(token).get("/api/family/session").expect(200);
 
-    await staff.agent.delete(`/api/contacts/${contactId}`).expect(204);
+    await staff.agent.delete(`/api/contacts/${contactId}`).expect(200);
 
     await asFamily(token).get("/api/family/session").expect(401);
     await asFamily("not-a-real-token").get("/api/family/session").expect(401);

@@ -8,9 +8,11 @@
 # texts and emails, so the certificate and the links cannot disagree.
 #
 # For certificates to be issued, before the first `docker compose up`:
-#   - each hostname's DNS A (and AAAA, if you have IPv6) record points here.
-#     That is five: the portal, the console, the admin console, the bare
-#     domain and www;
+#   - each hostname's DNS A record points here -- not AAAA, unless the
+#     compose network has IPv6 of its own (DEPLOY.md says why: otherwise
+#     every IPv6 visitor reaches Caddy from one address and they share every
+#     rate limit). That is five: the portal, the console, the admin console,
+#     the bare domain and www;
 #   - ports 80 and 443 reach this host. Port 80 is not optional: Let's
 #     Encrypt proves you own the name over it, and Caddy uses it to redirect
 #     plain-HTTP visitors to HTTPS.
@@ -25,6 +27,37 @@
 {
 	# Where Let's Encrypt sends expiry warnings if renewal ever stops working.
 	email {$ACME_EMAIL}
+
+	# What Caddy's log may say about a request.
+	#
+	# No site below has `log`, so there is no access log. The error log is
+	# another matter: it writes out every request that fails here -- each 502
+	# while an app's nginx is down or restarting -- with its whole address and
+	# its headers. Between them those carry every family's link
+	# (/f/<token>), every reset, invitation and confirmation link
+	# (?token=...), and the page each request came from as its Referer, each
+	# still working for as long as the link does. Only the SHA-256 of a
+	# family's link is meant to be kept anywhere.
+	#
+	# So the address is written with everything after its first /f/ (in any
+	# case) or ?, whichever comes first, as REDACTED -- the marker nginx's
+	# access log and the mailer already use -- and the Referer not at all. A
+	# filter takes one rule per field, which is why both cuts are one
+	# expression. JSON is what Caddy writes to a container's log anyway; it
+	# is named because a filter has to wrap something.
+	#
+	# Cookie, Set-Cookie, Authorization and Proxy-Authorization need nothing
+	# here: Caddy writes their values as REDACTED itself unless a server sets
+	# log_credentials, and none does.
+	log {
+		format filter {
+			wrap json
+			fields {
+				request>uri regexp (?i)(/f/|\?).*$ ${1}REDACTED
+				request>headers>Referer delete
+			}
+		}
+	}
 }
 
 (app) {

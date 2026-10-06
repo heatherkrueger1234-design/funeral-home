@@ -215,6 +215,39 @@ describe("the onboarding template", () => {
     expect(row!.contactName).toBe("Priya Nair");
   });
 
+  /*
+   * The console never asks GET /home for the home at sign-in: it reads the
+   * one that comes back with the session, on every page load, for every
+   * member of staff. That copy carried the whole row, notes included.
+   */
+  it("signing in, registering and asking who is signed in carry none of it either", async () => {
+    const admin = await signInPlatformAdmin();
+    const created = await createHome(admin);
+    const director = await signInAsOwner(created.id);
+
+    const login = await request(app)
+      .post("/api/auth/login")
+      .send({ email: OWNER_EMAIL, password: "a-long-owner-password" })
+      .expect(200);
+    const me = await director.get("/api/auth/me").expect(200);
+    const registered = await request(app)
+      .post("/api/auth/register")
+      .send({
+        homeName: "Olinger Chapel",
+        email: "someone-new@example.com",
+        password: PASSWORD,
+      })
+      .expect(201);
+
+    expect(login.body.home.name).toBe("Horan & McConaty");
+    expect(me.body.home.name).toBe("Horan & McConaty");
+    for (const body of [login.body, me.body, registered.body]) {
+      for (const field of ADMIN_ONLY) {
+        expect(body.home).not.toHaveProperty(field);
+      }
+    }
+  });
+
   it("Heather can revise the commercial record, and the revision is audited", async () => {
     const admin = await signInPlatformAdmin();
     const created = await createHome(admin);

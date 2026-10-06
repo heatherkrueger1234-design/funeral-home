@@ -29,7 +29,7 @@ declare global {
  * family member can do differently in any of the three cases. The portal
  * shows one screen: ask the funeral home for a new link.
  */
-const unauthorized = () =>
+export const unauthorized = () =>
   new HttpError(401, "This link is no longer active. Ask the funeral home for a new one.");
 
 /**

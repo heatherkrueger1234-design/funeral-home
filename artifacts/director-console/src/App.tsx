@@ -30,6 +30,7 @@ import { BASE_PATH } from "@/lib/base";
  */
 import ChoosePassword from "@/pages/ChoosePassword";
 import VerifyEmail from "@/pages/VerifyEmail";
+import Unreachable from "@/pages/Unreachable";
 import Dashboard from "@/pages/Dashboard";
 import NotFound from "@/pages/NotFound";
 
@@ -80,13 +81,27 @@ const queryClient = new QueryClient({
   }),
   mutationCache: new MutationCache({
     onError: (error, _variables, _context, mutation) => {
-      if (isUnauthorized(error)) return sessionEnded();
+      if (isUnauthorized(error)) sessionEnded();
       /*
        * A screen that handles its own failure says so in its own words — the
        * sign-in form, the print studio. Toasting here as well put two
        * messages about one mistake on screen, one of them generic.
        */
       if (mutation.options.onError || mutation.meta?.handlesOwnErrors) return;
+      /*
+       * Said, not only acted on. The sign-in form replacing the case somebody
+       * was typing into is otherwise the only sign, and nothing in it says the
+       * last change never arrived. A wrong password is a 401 as well, but the
+       * sign-in form says that in its own words and stops above.
+       */
+      if (isUnauthorized(error)) {
+        toast({
+          title: "You were signed out",
+          description: "That change wasn't saved. Sign in again to keep working.",
+          variant: "notice",
+        });
+        return;
+      }
       toast({
         title: "That didn't save",
         description: describeError(error),
@@ -104,7 +119,7 @@ const queryClient = new QueryClient({
  * route, rather than a flash of an empty case list.
  */
 function Routes() {
-  const { session, isPending } = useSession();
+  const { session, isPending, unreachable } = useSession();
   const [path] = useLocation();
 
   if (isPending) return null;
@@ -126,6 +141,9 @@ function Routes() {
   if (path === "/reset-password") return <ChoosePassword />;
   if (path === "/verify-email") return <VerifyEmail />;
 
+  // Nobody is known to be here only because the server did not answer: not
+  // the sign-in form, which would say they had been signed out.
+  if (unreachable) return <Unreachable />;
   if (!session) return <SignIn />;
 
   return (

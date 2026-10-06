@@ -14,7 +14,7 @@ still come from Stripe; this code never bills anybody.
 | Annual | **$1,690 a location a year**: twelve months for the price of ten |
 | Activation or setup fee | **None** |
 | Aftercare, texts and email to families | **Included**, not add-ons |
-| Free trial | **30 days, no card**, from every subscribe button |
+| Free trial | **30 days from registering, no card.** Subscribing during it keeps the days that are left; the card is first charged when they end |
 | Families | **Never charged, for anything, ever** |
 
 A home with ten funerals a month pays $169 + $70 = **$239**. A rural home
@@ -64,7 +64,7 @@ Volume pays more. That is how this category prices, and more to the point it
 is what lets a rural home with nine funerals a year afford the base rate at
 all.
 
-Three decisions inside it are worth knowing before you quote anybody:
+Four decisions inside it are worth knowing before you quote anybody:
 
 **A pre-need file is not a funeral.** Somebody writing down what they want at
 their own funeral is not work done, and a home charged for every pre-need
@@ -78,6 +78,13 @@ a question with an answer rather than an absence a customer has to take on
 trust. The director can see the running count in their own console, labelled
 in as many words as *a count of funerals, not a bill*.
 
+**Imported history is not a funeral served.** A case brought in from a
+spreadsheet is counted like one opened by hand, unless the file says it
+happened more than a month before the import (its service, or its death when
+there is no service). Those are counted and waived as `imported_history`, and
+dated when they happened, so a home moving its last two years across is not
+billed for them, and its monthly count is not two hundred this morning.
+
 **A case is billed once, ever.** Enforced by a unique index rather than by the
 code that writes it, and again by an idempotency key on the Stripe meter
 event. A home billed twice for burying the same person will not accept that it
@@ -88,6 +95,15 @@ Counting is local and instant; reporting to Stripe is a separate scheduled job
 while a director is opening a case. A funeral home at eight in the morning with
 a family on the way in must never be waiting on `api.stripe.com`, and must
 never be refused by it.
+
+A funeral is stamped, in Stripe, with the day it reached Stripe rather than
+the day it was counted, so one counted on the last night of a billing period,
+or held up by an outage, lands on the next invoice instead of on none. The
+console's monthly count goes by the day it was counted, so around the turn of
+a month the two can differ by a funeral. The job goes red when a funeral has
+been failing to reach Stripe for more than three days, and reports, without
+failing, the funerals at homes with no Stripe customer (those paying outside
+Stripe), which are nobody's to send.
 
 ## Aftercare is in the price
 
@@ -203,5 +219,19 @@ That is its sale to make, with its own disclosures attached.
 2. **Leave `STRIPE_PRICE_ID_AFTERCARE` unset**, so aftercare stays included.
 3. **Schedule `POST /api/tasks/usage`** (`usage.yml`), or funerals are never
    reported and every home is invoiced the flat rate only.
-4. **Run one real billing cycle in Stripe test mode**, monthly and annual,
-   including a metered invoice. Stripe has never taken a real payment here.
+4. **Point Stripe at the webhook, and set three things in its dashboard.**
+   The endpoint is `https://<api host>/api/billing/webhook`, sending
+   `customer.subscription.created`, `.updated` and `.deleted`; its signing
+   secret is `STRIPE_WEBHOOK_SECRET`. Then, under Billing:
+   - **The reminder email before a free trial ends: on.** A home that
+     subscribes during its trial hears about the end of it from Stripe, with
+     the amount, rather than from us (`lib/trial-reminders.ts` leaves it out).
+   - **Customer portal cancellations: at the end of the billing period.** A
+     home that cancels during its trial then keeps the days it has left.
+   - **When every retry of a failed payment has failed: cancel the
+     subscription.** Stripe's "unpaid" keeps a home opening cases, as
+     "past due" does, so "mark as unpaid" or "leave past due" would let a
+     home that has stopped paying carry on indefinitely.
+5. **Run one real billing cycle in Stripe test mode**, monthly and annual,
+   including a metered invoice, a subscription started during a trial, and
+   one cancelled. Stripe has never taken a real payment here.

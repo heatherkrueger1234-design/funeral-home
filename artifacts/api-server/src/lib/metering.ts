@@ -1,4 +1,4 @@
-import { and, asc, eq, isNull } from "drizzle-orm";
+import { and, asc, count, eq, isNull, sql } from "drizzle-orm";
 import {
   db,
   billableCasesTable,
@@ -20,6 +20,9 @@ import { logger } from "./logger";
  * on `billableCasesTable` for why.
  */
 
+/** An imported case dated longer ago than this is a record, not a funeral served. */
+const IMPORTED_HISTORY_MS = 30 * 24 * 60 * 60 * 1000;
+
 /**
  * Count a case, once.
  *
@@ -40,6 +43,7 @@ export async function recordBillableCase(
   row: Case,
   home: FuneralHome,
   now = new Date(),
+  options: { imported?: boolean } = {},
 ): Promise<void> {
   if (row.kind === "pre_need") return;
 
@@ -51,14 +55,28 @@ export async function recordBillableCase(
     home.subscriptionStatus === "trial" &&
     (home.trialEndsAt === null || home.trialEndsAt > now);
 
+  /*
+   * A case brought in from a spreadsheet is counted like any other -- the
+   * import was a side door past the meter, never counting anything -- unless
+   * the file says it happened more than a month before: by its service, or
+   * by the death when there is no service. That is a home moving its records
+   * across, not serving two hundred funerals this morning. Counted, waived,
+   * and dated when it happened, so it is not this month's.
+   */
+  const happened = row.serviceAt ?? row.dateOfDeath;
+  const history =
+    options.imported === true &&
+    happened !== null &&
+    happened.getTime() < now.getTime() - IMPORTED_HISTORY_MS;
+
   try {
     await db
       .insert(billableCasesTable)
       .values({
         funeralHomeId: home.id,
         caseId: row.id,
-        countedAt: now,
-        waivedReason: onTrial ? "trial" : null,
+        countedAt: history ? happened : now,
+        waivedReason: history ? "imported_history" : onTrial ? "trial" : null,
       })
       // Converting a pre-need file that somehow already has a row, or any
       // other second look at the same case, must not count it twice.
@@ -77,32 +95,54 @@ export type MeteringRunResult = {
   duplicates: number;
   failed: number;
   skipped: number;
+  /**
+   * Owed, with no Stripe customer to bill: a home paying outside Stripe, or
+   * one marked active before it went through checkout. Never sent and never
+   * a failure, and counted so that a number nobody is invoicing is a number
+   * somebody can see.
+   */
+  awaitingCustomer: number;
+  /**
+   * Counted more than three days ago and still not in Stripe, with the last
+   * attempt failed. One failure among a night's successes never turned the
+   * job red, so a home whose Stripe customer had gone was quietly never
+   * billed again.
+   */
+  stuck: number;
   dryRun: boolean;
   meteringConfigured: boolean;
 };
 
-/**
- * Which Stripe customer a home's funerals are billed to.
- *
- * A location inside a group bills to the group, which is the entire point of
- * the group: one invoice for the estate. A home on its own bills to itself.
+const STUCK_AFTER_MS = 3 * 24 * 60 * 60 * 1000;
+
+/*
+ * Which Stripe customer a funeral is billed to: the group's, for a location
+ * in one -- one invoice for the estate is the entire point of a group -- and
+ * the home's own otherwise. Worked out in the query rather than row by row,
+ * so rows with nobody to bill can be kept out of the page altogether.
  */
-async function customerForHome(home: {
-  stripeCustomerId: string | null;
-  groupId: number | null;
-}): Promise<string | null> {
-  if (home.groupId !== null) {
-    const [group] = await db
-      .select({ customer: homeGroupsTable.stripeCustomerId })
-      .from(homeGroupsTable)
-      .where(eq(homeGroupsTable.id, home.groupId))
-      .limit(1);
+const billedTo = sql<string | null>`case
+  when ${funeralHomesTable.groupId} is not null then ${homeGroupsTable.stripeCustomerId}
+  else ${funeralHomesTable.stripeCustomerId}
+end`;
 
-    return group?.customer ?? null;
-  }
-
-  return home.stripeCustomerId;
-}
+/** Owed and not yet in Stripe, and never ours. */
+const owed = and(
+  isNull(billableCasesTable.reportedAt),
+  isNull(billableCasesTable.waivedReason),
+  /*
+   * Never invoice ourselves.
+   *
+   * A platform admin needs a staff account, a staff account needs a
+   * `funeral_homes` row, and the funerals opened in it while trying
+   * something out are not funerals anybody owes for. Without this they
+   * would be left out only for want of a Stripe customer, which is luck
+   * rather than a rule: attach a customer to that tenant once -- to test
+   * checkout, which is the obvious thing to do with it -- and we would start
+   * metering our own demo cases onto a real invoice.
+   */
+  eq(funeralHomesTable.internalAccount, false),
+);
 
 /**
  * Report everything that has not reached Stripe yet.
@@ -122,37 +162,18 @@ export async function runCaseMetering(
   const meteringConfigured = isCaseMeteringConfigured();
 
   const due = await db
-    .select({
-      row: billableCasesTable,
-      stripeCustomerId: funeralHomesTable.stripeCustomerId,
-      groupId: funeralHomesTable.groupId,
-    })
+    .select({ row: billableCasesTable, customerId: billedTo })
     .from(billableCasesTable)
-    .innerJoin(
-      funeralHomesTable,
-      eq(funeralHomesTable.id, billableCasesTable.funeralHomeId),
-    )
-    .where(
-      and(
-        isNull(billableCasesTable.reportedAt),
-        isNull(billableCasesTable.waivedReason),
-        /*
-         * Never invoice ourselves.
-         *
-         * A platform admin needs a staff account, a staff account needs a
-         * `funeral_homes` row, and the funerals opened in it while trying
-         * something out are not funerals anybody owes for. Today they would
-         * fall through the "no Stripe customer" skip below and cost nothing,
-         * which is luck rather than a rule: attach a customer to that tenant
-         * once — to test checkout, which is the obvious thing to do with it —
-         * and we would start metering our own demo cases onto a real invoice.
-         */
-        eq(funeralHomesTable.internalAccount, false),
-      ),
-    )
-    // Oldest first, so a backlog drains in the order the funerals happened
-    // rather than in whatever order the index felt like.
-    .orderBy(asc(billableCasesTable.countedAt))
+    .innerJoin(funeralHomesTable, eq(funeralHomesTable.id, billableCasesTable.funeralHomeId))
+    .leftJoin(homeGroupsTable, eq(homeGroupsTable.id, funeralHomesTable.groupId))
+    .where(and(owed, sql`${billedTo} is not null`))
+    /*
+     * New funerals first, then old failures, oldest first within each.
+     * Strictly oldest first, rows that fail every night -- a customer
+     * deleted in Stripe -- sat at the front of every page, and with a page's
+     * worth of them nothing new was reported again.
+     */
+    .orderBy(sql`${billableCasesTable.failedAt} is not null`, asc(billableCasesTable.countedAt))
     // Bounded for the same reason the aftercare run is: one very overdue
     // backlog must not turn a scheduled request into an hour the scheduler
     // kills half way through.
@@ -164,11 +185,11 @@ export async function runCaseMetering(
     duplicates: 0,
     failed: 0,
     skipped: 0,
+    awaitingCustomer: 0,
+    stuck: 0,
     dryRun,
     meteringConfigured,
   };
-
-  if (due.length === 0) return result;
 
   if (!meteringConfigured) {
     // Not a failure. A deployment with no metered price is a product that
@@ -178,26 +199,23 @@ export async function runCaseMetering(
   }
 
   for (const entry of due) {
-    const customerId = await customerForHome(entry);
-
-    if (!customerId) {
-      // A home with no Stripe customer has never been through checkout, so
-      // there is no subscription for this to be a line on. Left unreported
-      // rather than marked failed: nothing is wrong, there is just nobody to
-      // bill yet.
-      result.skipped += 1;
-      continue;
-    }
-
     if (dryRun) {
       result.reported += 1;
       continue;
     }
 
     const outcome = await reportCaseToMeter({
-      customerId,
+      customerId: entry.customerId!,
       caseId: entry.row.caseId,
-      at: entry.row.countedAt,
+      /*
+       * When it reaches Stripe, not when it was counted. Stripe refuses a
+       * meter event stamped more than 35 days ago, and one stamped inside a
+       * billing period that has already been invoiced is on no invoice; a
+       * funeral counted late on the last night of a period, or held up by an
+       * outage, was billed late or not at all. Stamped now it is on the next
+       * invoice, and the identifier still stops it being counted twice.
+       */
+      at: now,
     });
 
     if (outcome.ok) {
@@ -218,6 +236,26 @@ export async function runCaseMetering(
 
     result.failed += 1;
   }
+
+  // After the run, so `stuck` counts what is still stuck once it has tried.
+  const stuckBefore = new Date(now.getTime() - STUCK_AFTER_MS);
+  const [left] = await db
+    .select({
+      awaitingCustomer: count(sql`case when ${billedTo} is null then 1 end`),
+      stuck: count(
+        sql`case when ${billedTo} is not null
+                  and ${billableCasesTable.failedAt} is not null
+                  and ${billableCasesTable.countedAt} < ${stuckBefore.toISOString()}
+             then 1 end`,
+      ),
+    })
+    .from(billableCasesTable)
+    .innerJoin(funeralHomesTable, eq(funeralHomesTable.id, billableCasesTable.funeralHomeId))
+    .leftJoin(homeGroupsTable, eq(homeGroupsTable.id, funeralHomesTable.groupId))
+    .where(owed);
+
+  result.awaitingCustomer = left?.awaitingCustomer ?? 0;
+  result.stuck = left?.stuck ?? 0;
 
   return result;
 }

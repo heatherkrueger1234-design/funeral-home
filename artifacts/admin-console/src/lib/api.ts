@@ -153,6 +153,11 @@ export type AdminHomeSummary = {
   accentColor: string;
   subscriptionStatus: string;
   trialDaysLeft: number | null;
+  /**
+   * Stripe holds a subscription that has not ended. On a trial, it means the
+   * home subscribed before its free days ran out and is charged when they do.
+   */
+  hasSubscription: boolean;
   trialEndsAt: string | null;
   currentPeriodEndsAt: string | null;
   /** Set when a group's contract pays for this home. */
@@ -549,10 +554,18 @@ export function describeContract(
 export function describeAccount(
   home: Pick<
     AdminHomeSummary,
-    "suspendedAt" | "subscriptionStatus" | "trialDaysLeft"
+    "suspendedAt" | "subscriptionStatus" | "trialDaysLeft" | "hasSubscription"
   >,
 ): string {
   if (home.suspendedAt) return "Suspended";
+  if (home.subscriptionStatus === "trial" && home.hasSubscription) {
+    // Subscribed during the trial: Stripe charges when it ends, and says
+    // within minutes how that went.
+    if (home.trialDaysLeft === null) return "Subscribed, on trial";
+    return home.trialDaysLeft > 0
+      ? `Subscribed, free for ${plural(home.trialDaysLeft, "more day")}`
+      : "Subscribed, first payment due";
+  }
   if (home.subscriptionStatus === "trial") {
     return home.trialDaysLeft === null
       ? "On trial"

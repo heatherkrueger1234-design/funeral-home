@@ -13,8 +13,9 @@ import {
   getGetFamilySessionQueryKey,
   getGetFamilyPreparationQueryKey,
   postFamilyPhotoMultipart,
+  withPatience,
   MAX_UPLOAD_BYTES,
-  ACCEPTED_UPLOAD_TYPES,
+  PHOTO_PICKER_ACCEPT,
 } from "@workspace/api-client-react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
@@ -51,31 +52,12 @@ import { describeError } from "@/lib/utils";
  */
 
 /**
- * Send one photograph, waiting out the link's rate limit rather than failing.
- *
- * A family choosing three hundred pictures on good wifi can send them faster
- * than the server's per-minute ceiling allows, and each one past it used to
- * come back as its own red "Couldn't add" — seventy of them, for photographs
- * that were perfectly fine. The server says how long to wait, so wait that
- * long and send the same one again; only a refusal that is about the
- * photograph itself is shown to the family.
+ * Send one photograph, waiting out a "not yet" rather than failing; only a
+ * refusal that is about the photograph itself is shown to the family. See
+ * `withPatience`, which the console's upload shares.
  */
 async function uploadWithPatience(file: File): Promise<void> {
-  for (let attempt = 0; ; attempt += 1) {
-    try {
-      await postFamilyPhotoMultipart(file);
-      return;
-    } catch (error) {
-      const status = (error as { status?: number }).status;
-      if (status !== 429 || attempt >= 4) throw error;
-
-      const header = (error as { headers?: Headers }).headers?.get(
-        "retry-after",
-      );
-      const seconds = Math.min(60, Math.max(1, Number(header) || 10));
-      await new Promise((resolve) => setTimeout(resolve, seconds * 1000));
-    }
-  }
+  await withPatience(() => postFamilyPhotoMultipart(file));
 }
 
 /** Size a caption box to its words: two lines at least, never a scrollbar. */
@@ -97,13 +79,6 @@ function uploadProblem(error: unknown): string {
   }
   return describeError(error);
 }
-
-/*
- * What the picker offers. The file extensions as well as the types, because
- * some Android pickers report an iPhone's HEIC with no type at all and would
- * otherwise grey out exactly the photographs somebody's sister sent them.
- */
-const ACCEPT = [...ACCEPTED_UPLOAD_TYPES, ".heic", ".heif"].join(",");
 
 export default function Photos() {
   const { toast } = useToast();
@@ -400,7 +375,7 @@ export default function Photos() {
           ref={fileInput}
           type="file"
           multiple
-          accept={ACCEPT}
+          accept={PHOTO_PICKER_ACCEPT}
           className="sr-only"
           // The visible button below is what people press; this is only
           // reached through it, so it is kept out of the tab order.
@@ -542,6 +517,7 @@ export default function Photos() {
                   ) : (
                     <AuthedImage
                       uploadId={photo.uploadId}
+                      size="thumb"
                       alt={photo.caption ?? "Photograph"}
                       className="size-full rounded-lg bg-muted object-cover ring-1 ring-inset ring-black/5"
                     />

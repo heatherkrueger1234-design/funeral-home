@@ -10,8 +10,9 @@ import {
   getGetCaseQueryKey,
   cropOf,
   postCasePhotoMultipart,
+  withPatience,
   MAX_UPLOAD_BYTES,
-  ACCEPTED_UPLOAD_TYPES,
+  PHOTO_PICKER_ACCEPT,
 } from "@workspace/api-client-react";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
@@ -29,6 +30,7 @@ import {
 } from "lucide-react";
 import { Confirm, Empty, LoadFailed, Loading } from "@/components/page";
 import { CroppedImg } from "@/components/CroppedImg";
+import { PhotoImg } from "@/components/PhotoImg";
 
 /** A crop that is not simply "the whole photograph". */
 function hasFraming(photo: {
@@ -69,7 +71,9 @@ function useAddPhotos(caseId: number, onDone: () => void) {
         });
       } else {
         try {
-          await postCasePhotoMultipart(caseId, file);
+          // A busy minute's "not yet" is waited out, not shown; see
+          // `withPatience`.
+          await withPatience(() => postCasePhotoMultipart(caseId, file));
         } catch (error) {
           toast({
             title: `Couldn't add "${file.name}"`,
@@ -93,7 +97,7 @@ function useAddPhotos(caseId: number, onDone: () => void) {
         ref={input}
         type="file"
         multiple
-        accept={ACCEPTED_UPLOAD_TYPES.join(",")}
+        accept={PHOTO_PICKER_ACCEPT}
         className="sr-only"
         tabIndex={-1}
         aria-hidden
@@ -267,7 +271,9 @@ export function PhotosPanel({ caseId }: { caseId: number }) {
             {/*
               The portrait is drawn as it will print: a 4:5 frame through the
               family's crop, set in the same 4:3 space as every other card so
-              the grid does not jump.
+              the grid does not jump. It is fetched whole, because the crop
+              can magnify it four times; every other card is a thumbnail
+              unless the screen is sharp enough to need more.
             */}
             {photo.isPortrait ? (
               <div
@@ -282,8 +288,9 @@ export function PhotosPanel({ caseId }: { caseId: number }) {
                 />
               </div>
             ) : (
-              <img
-                src={`/api/uploads/${photo.uploadId}`}
+              <PhotoImg
+                uploadId={photo.uploadId}
+                size="card"
                 alt={photo.caption ?? ""}
                 loading="lazy"
                 className={`mb-3 aspect-[4/3] w-full rounded-lg object-cover bg-muted ${

@@ -496,6 +496,7 @@ export function canOpenCases(
   home: {
     subscriptionStatus: string;
     trialEndsAt: Date | null;
+    stripeSubscriptionId?: string | null;
     suspendedAt?: Date | null;
   },
   now = new Date(),
@@ -509,7 +510,53 @@ export function canOpenCases(
   if (home.subscriptionStatus === "canceled") return false;
 
   // On trial: until it runs out.
-  return home.trialEndsAt === null || home.trialEndsAt > now;
+  return !trialHasEnded(home, now);
+}
+
+/**
+ * How long past its end a trial Stripe is holding stays open.
+ *
+ * A home that subscribes before its free days run out is on a trial Stripe
+ * holds (`stripeSubscriptionId` set, status `trial`), and Stripe ends it:
+ * the subscription becomes paid, or is cancelled for want of a card, and the
+ * webhook says which within minutes. Until it does, Stripe's silence is not
+ * taken as the end -- a home that has given a card is not refused a case for
+ * the minutes Stripe takes to charge it. Three days is as long as Stripe
+ * goes on retrying a webhook; past that the silence is an answer, and the
+ * trial is over like any other.
+ */
+export const STRIPE_TRIAL_GRACE_MS = 3 * 24 * 60 * 60 * 1000;
+
+/** The trial has run out, and nothing has replaced it: new cases are paused. */
+export function trialHasEnded(
+  home: {
+    subscriptionStatus: string;
+    trialEndsAt: Date | null;
+    stripeSubscriptionId?: string | null;
+  },
+  now = new Date(),
+): boolean {
+  if (home.subscriptionStatus !== "trial" || home.trialEndsAt === null) return false;
+  const grace = home.stripeSubscriptionId ? STRIPE_TRIAL_GRACE_MS : 0;
+  return home.trialEndsAt.getTime() + grace <= now.getTime();
+}
+
+/**
+ * Whether Stripe has a subscription for this home that has not ended:
+ * paying, being chased for a payment, or on a trial that turns into paying
+ * by itself.
+ *
+ * Not merely `stripeSubscriptionId !== null`. The id stays on the row after
+ * a subscription ends, as the record of which one it was, and reading it as
+ * "subscribed" sent a home whose subscription had ended to Stripe's portal
+ * -- which can show invoices and cannot start a new subscription -- with no
+ * way to subscribe again.
+ */
+export function hasLiveSubscription(home: {
+  subscriptionStatus: string;
+  stripeSubscriptionId: string | null;
+}): boolean {
+  return home.stripeSubscriptionId !== null && home.subscriptionStatus !== "canceled";
 }
 
 /**

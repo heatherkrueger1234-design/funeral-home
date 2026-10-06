@@ -84,10 +84,12 @@ import type {
   FuneralHomeUpdate,
   GetAftercareUnsubscribeParams,
   GetCasesParams,
+  GetFamilyUploadParams,
   GetFamilyVendorsParams,
   GetHomeAccessLogParams,
   GetIntakeRequestsParams,
   GetSnippetsParams,
+  GetUploadParams,
   GetVendorsParams,
   HealthStatus,
   HomeAccessLog,
@@ -142,9 +144,14 @@ import type {
   QuoteUpdate,
   RegisterHome202,
   RegisterInput,
+  ReissueContactLinkParams,
+  ReissuedLink,
   ResetPasswordInput,
+  RevokeContactParams,
+  RevokedContact,
   SelectionInput,
   SelectionUpdate,
+  SendContactLinkParams,
   SendLinkInput,
   SentLink,
   ServiceOffer,
@@ -5491,17 +5498,36 @@ export const useUpdateContact = <
 };
 
 /**
+ * Stops the links this person passed on to relatives as well, unless
+`passedOn` is `keep`; `alsoStopped` names them.
+
  * @summary Revoke this person's link
  */
-export const getRevokeContactUrl = (contactId: number) => {
-  return `/api/contacts/${contactId}`;
+export const getRevokeContactUrl = (
+  contactId: number,
+  params?: RevokeContactParams,
+) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? "null" : value.toString());
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0
+    ? `/api/contacts/${contactId}?${stringifiedParams}`
+    : `/api/contacts/${contactId}`;
 };
 
 export const revokeContact = async (
   contactId: number,
+  params?: RevokeContactParams,
   options?: RequestInit,
-): Promise<void> => {
-  return customFetch<void>(getRevokeContactUrl(contactId), {
+): Promise<RevokedContact> => {
+  return customFetch<RevokedContact>(getRevokeContactUrl(contactId, params), {
     ...options,
     method: "DELETE",
   });
@@ -5514,14 +5540,14 @@ export const getRevokeContactMutationOptions = <
   mutation?: UseMutationOptions<
     Awaited<ReturnType<typeof revokeContact>>,
     TError,
-    { contactId: number },
+    { contactId: number; params?: RevokeContactParams },
     TContext
   >;
   request?: SecondParameter<typeof customFetch>;
 }): UseMutationOptions<
   Awaited<ReturnType<typeof revokeContact>>,
   TError,
-  { contactId: number },
+  { contactId: number; params?: RevokeContactParams },
   TContext
 > => {
   const mutationKey = ["revokeContact"];
@@ -5535,11 +5561,11 @@ export const getRevokeContactMutationOptions = <
 
   const mutationFn: MutationFunction<
     Awaited<ReturnType<typeof revokeContact>>,
-    { contactId: number }
+    { contactId: number; params?: RevokeContactParams }
   > = (props) => {
-    const { contactId } = props ?? {};
+    const { contactId, params } = props ?? {};
 
-    return revokeContact(contactId, requestOptions);
+    return revokeContact(contactId, params, requestOptions);
   };
 
   return { mutationFn, ...mutationOptions };
@@ -5561,14 +5587,14 @@ export const useRevokeContact = <
   mutation?: UseMutationOptions<
     Awaited<ReturnType<typeof revokeContact>>,
     TError,
-    { contactId: number },
+    { contactId: number; params?: RevokeContactParams },
     TContext
   >;
   request?: SecondParameter<typeof customFetch>;
 }): UseMutationResult<
   Awaited<ReturnType<typeof revokeContact>>,
   TError,
-  { contactId: number },
+  { contactId: number; params?: RevokeContactParams },
   TContext
 > => {
   return useMutation(getRevokeContactMutationOptions(options));
@@ -5578,20 +5604,37 @@ export const useRevokeContact = <
  * Mints a new link and sends it, so the previous one stops working. The
 response says whether the text actually went; where the home has no
 SMS credentials, the person has not agreed to texts, or they replied
-STOP, it returns the link and `sent: false` with the reason.
+STOP, it returns the link and `sent: false` with the reason. The links
+this person passed on stop too, unless `passedOn` is `keep`.
 
  * @summary Text a fresh link to this person's mobile
  */
-export const getSendContactLinkUrl = (contactId: number) => {
-  return `/api/contacts/${contactId}/send-link`;
+export const getSendContactLinkUrl = (
+  contactId: number,
+  params?: SendContactLinkParams,
+) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? "null" : value.toString());
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0
+    ? `/api/contacts/${contactId}/send-link?${stringifiedParams}`
+    : `/api/contacts/${contactId}/send-link`;
 };
 
 export const sendContactLink = async (
   contactId: number,
   sendLinkInput?: SendLinkInput,
+  params?: SendContactLinkParams,
   options?: RequestInit,
 ): Promise<SentLink> => {
-  return customFetch<SentLink>(getSendContactLinkUrl(contactId), {
+  return customFetch<SentLink>(getSendContactLinkUrl(contactId, params), {
     ...options,
     method: "POST",
     headers: { "Content-Type": "application/json", ...options?.headers },
@@ -5606,14 +5649,22 @@ export const getSendContactLinkMutationOptions = <
   mutation?: UseMutationOptions<
     Awaited<ReturnType<typeof sendContactLink>>,
     TError,
-    { contactId: number; data: BodyType<SendLinkInput> },
+    {
+      contactId: number;
+      data: BodyType<SendLinkInput>;
+      params?: SendContactLinkParams;
+    },
     TContext
   >;
   request?: SecondParameter<typeof customFetch>;
 }): UseMutationOptions<
   Awaited<ReturnType<typeof sendContactLink>>,
   TError,
-  { contactId: number; data: BodyType<SendLinkInput> },
+  {
+    contactId: number;
+    data: BodyType<SendLinkInput>;
+    params?: SendContactLinkParams;
+  },
   TContext
 > => {
   const mutationKey = ["sendContactLink"];
@@ -5627,11 +5678,15 @@ export const getSendContactLinkMutationOptions = <
 
   const mutationFn: MutationFunction<
     Awaited<ReturnType<typeof sendContactLink>>,
-    { contactId: number; data: BodyType<SendLinkInput> }
+    {
+      contactId: number;
+      data: BodyType<SendLinkInput>;
+      params?: SendContactLinkParams;
+    }
   > = (props) => {
-    const { contactId, data } = props ?? {};
+    const { contactId, data, params } = props ?? {};
 
-    return sendContactLink(contactId, data, requestOptions);
+    return sendContactLink(contactId, data, params, requestOptions);
   };
 
   return { mutationFn, ...mutationOptions };
@@ -5653,32 +5708,59 @@ export const useSendContactLink = <
   mutation?: UseMutationOptions<
     Awaited<ReturnType<typeof sendContactLink>>,
     TError,
-    { contactId: number; data: BodyType<SendLinkInput> },
+    {
+      contactId: number;
+      data: BodyType<SendLinkInput>;
+      params?: SendContactLinkParams;
+    },
     TContext
   >;
   request?: SecondParameter<typeof customFetch>;
 }): UseMutationResult<
   Awaited<ReturnType<typeof sendContactLink>>,
   TError,
-  { contactId: number; data: BodyType<SendLinkInput> },
+  {
+    contactId: number;
+    data: BodyType<SendLinkInput>;
+    params?: SendContactLinkParams;
+  },
   TContext
 > => {
   return useMutation(getSendContactLinkMutationOptions(options));
 };
 
 /**
+ * The links this person passed on stop with the old one, unless
+`passedOn` is `keep`.
+
  * @summary Mint a fresh link, invalidating the old one
  */
-export const getReissueContactLinkUrl = (contactId: number) => {
-  return `/api/contacts/${contactId}/link`;
+export const getReissueContactLinkUrl = (
+  contactId: number,
+  params?: ReissueContactLinkParams,
+) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? "null" : value.toString());
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0
+    ? `/api/contacts/${contactId}/link?${stringifiedParams}`
+    : `/api/contacts/${contactId}/link`;
 };
 
 export const reissueContactLink = async (
   contactId: number,
+  params?: ReissueContactLinkParams,
   options?: RequestInit,
-): Promise<FamilyContactWithLink> => {
-  return customFetch<FamilyContactWithLink>(
-    getReissueContactLinkUrl(contactId),
+): Promise<ReissuedLink> => {
+  return customFetch<ReissuedLink>(
+    getReissueContactLinkUrl(contactId, params),
     {
       ...options,
       method: "POST",
@@ -5693,14 +5775,14 @@ export const getReissueContactLinkMutationOptions = <
   mutation?: UseMutationOptions<
     Awaited<ReturnType<typeof reissueContactLink>>,
     TError,
-    { contactId: number },
+    { contactId: number; params?: ReissueContactLinkParams },
     TContext
   >;
   request?: SecondParameter<typeof customFetch>;
 }): UseMutationOptions<
   Awaited<ReturnType<typeof reissueContactLink>>,
   TError,
-  { contactId: number },
+  { contactId: number; params?: ReissueContactLinkParams },
   TContext
 > => {
   const mutationKey = ["reissueContactLink"];
@@ -5714,11 +5796,11 @@ export const getReissueContactLinkMutationOptions = <
 
   const mutationFn: MutationFunction<
     Awaited<ReturnType<typeof reissueContactLink>>,
-    { contactId: number }
+    { contactId: number; params?: ReissueContactLinkParams }
   > = (props) => {
-    const { contactId } = props ?? {};
+    const { contactId, params } = props ?? {};
 
-    return reissueContactLink(contactId, requestOptions);
+    return reissueContactLink(contactId, params, requestOptions);
   };
 
   return { mutationFn, ...mutationOptions };
@@ -5740,14 +5822,14 @@ export const useReissueContactLink = <
   mutation?: UseMutationOptions<
     Awaited<ReturnType<typeof reissueContactLink>>,
     TError,
-    { contactId: number },
+    { contactId: number; params?: ReissueContactLinkParams },
     TContext
   >;
   request?: SecondParameter<typeof customFetch>;
 }): UseMutationResult<
   Awaited<ReturnType<typeof reissueContactLink>>,
   TError,
-  { contactId: number },
+  { contactId: number; params?: ReissueContactLinkParams },
   TContext
 > => {
   return useMutation(getReissueContactLinkMutationOptions(options));
@@ -12984,29 +13066,46 @@ export const useUploadFile = <
 /**
  * @summary Serve stored bytes
  */
-export const getGetUploadUrl = (uploadId: number) => {
-  return `/api/uploads/${uploadId}`;
+export const getGetUploadUrl = (uploadId: number, params?: GetUploadParams) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? "null" : value.toString());
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0
+    ? `/api/uploads/${uploadId}?${stringifiedParams}`
+    : `/api/uploads/${uploadId}`;
 };
 
 export const getUpload = async (
   uploadId: number,
+  params?: GetUploadParams,
   options?: RequestInit,
 ): Promise<Blob> => {
-  return customFetch<Blob>(getGetUploadUrl(uploadId), {
+  return customFetch<Blob>(getGetUploadUrl(uploadId, params), {
     ...options,
     method: "GET",
   });
 };
 
-export const getGetUploadQueryKey = (uploadId: number) => {
-  return [`/api/uploads/${uploadId}`] as const;
+export const getGetUploadQueryKey = (
+  uploadId: number,
+  params?: GetUploadParams,
+) => {
+  return [`/api/uploads/${uploadId}`, ...(params ? [params] : [])] as const;
 };
 
 export const getGetUploadQueryOptions = <
   TData = Awaited<ReturnType<typeof getUpload>>,
-  TError = ErrorType<unknown>,
+  TError = ErrorType<void>,
 >(
   uploadId: number,
+  params?: GetUploadParams,
   options?: {
     query?: UseQueryOptions<
       Awaited<ReturnType<typeof getUpload>>,
@@ -13018,11 +13117,12 @@ export const getGetUploadQueryOptions = <
 ) => {
   const { query: queryOptions, request: requestOptions } = options ?? {};
 
-  const queryKey = queryOptions?.queryKey ?? getGetUploadQueryKey(uploadId);
+  const queryKey =
+    queryOptions?.queryKey ?? getGetUploadQueryKey(uploadId, params);
 
   const queryFn: QueryFunction<Awaited<ReturnType<typeof getUpload>>> = ({
     signal,
-  }) => getUpload(uploadId, { signal, ...requestOptions });
+  }) => getUpload(uploadId, params, { signal, ...requestOptions });
 
   return {
     queryKey,
@@ -13037,7 +13137,7 @@ export const getGetUploadQueryOptions = <
 export type GetUploadQueryResult = NonNullable<
   Awaited<ReturnType<typeof getUpload>>
 >;
-export type GetUploadQueryError = ErrorType<unknown>;
+export type GetUploadQueryError = ErrorType<void>;
 
 /**
  * @summary Serve stored bytes
@@ -13045,9 +13145,10 @@ export type GetUploadQueryError = ErrorType<unknown>;
 
 export function useGetUpload<
   TData = Awaited<ReturnType<typeof getUpload>>,
-  TError = ErrorType<unknown>,
+  TError = ErrorType<void>,
 >(
   uploadId: number,
+  params?: GetUploadParams,
   options?: {
     query?: UseQueryOptions<
       Awaited<ReturnType<typeof getUpload>>,
@@ -13057,7 +13158,7 @@ export function useGetUpload<
     request?: SecondParameter<typeof customFetch>;
   },
 ): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
-  const queryOptions = getGetUploadQueryOptions(uploadId, options);
+  const queryOptions = getGetUploadQueryOptions(uploadId, params, options);
 
   const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
     queryKey: QueryKey;
@@ -15522,29 +15623,52 @@ export function useRenderFamilyMemoryBook<
 /**
  * @summary Serve a photograph on this case, or the home's logo
  */
-export const getGetFamilyUploadUrl = (uploadId: number) => {
-  return `/api/family/uploads/${uploadId}`;
+export const getGetFamilyUploadUrl = (
+  uploadId: number,
+  params?: GetFamilyUploadParams,
+) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? "null" : value.toString());
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0
+    ? `/api/family/uploads/${uploadId}?${stringifiedParams}`
+    : `/api/family/uploads/${uploadId}`;
 };
 
 export const getFamilyUpload = async (
   uploadId: number,
+  params?: GetFamilyUploadParams,
   options?: RequestInit,
 ): Promise<Blob> => {
-  return customFetch<Blob>(getGetFamilyUploadUrl(uploadId), {
+  return customFetch<Blob>(getGetFamilyUploadUrl(uploadId, params), {
     ...options,
     method: "GET",
   });
 };
 
-export const getGetFamilyUploadQueryKey = (uploadId: number) => {
-  return [`/api/family/uploads/${uploadId}`] as const;
+export const getGetFamilyUploadQueryKey = (
+  uploadId: number,
+  params?: GetFamilyUploadParams,
+) => {
+  return [
+    `/api/family/uploads/${uploadId}`,
+    ...(params ? [params] : []),
+  ] as const;
 };
 
 export const getGetFamilyUploadQueryOptions = <
   TData = Awaited<ReturnType<typeof getFamilyUpload>>,
-  TError = ErrorType<unknown>,
+  TError = ErrorType<void>,
 >(
   uploadId: number,
+  params?: GetFamilyUploadParams,
   options?: {
     query?: UseQueryOptions<
       Awaited<ReturnType<typeof getFamilyUpload>>,
@@ -15557,11 +15681,11 @@ export const getGetFamilyUploadQueryOptions = <
   const { query: queryOptions, request: requestOptions } = options ?? {};
 
   const queryKey =
-    queryOptions?.queryKey ?? getGetFamilyUploadQueryKey(uploadId);
+    queryOptions?.queryKey ?? getGetFamilyUploadQueryKey(uploadId, params);
 
   const queryFn: QueryFunction<Awaited<ReturnType<typeof getFamilyUpload>>> = ({
     signal,
-  }) => getFamilyUpload(uploadId, { signal, ...requestOptions });
+  }) => getFamilyUpload(uploadId, params, { signal, ...requestOptions });
 
   return {
     queryKey,
@@ -15578,7 +15702,7 @@ export const getGetFamilyUploadQueryOptions = <
 export type GetFamilyUploadQueryResult = NonNullable<
   Awaited<ReturnType<typeof getFamilyUpload>>
 >;
-export type GetFamilyUploadQueryError = ErrorType<unknown>;
+export type GetFamilyUploadQueryError = ErrorType<void>;
 
 /**
  * @summary Serve a photograph on this case, or the home's logo
@@ -15586,9 +15710,10 @@ export type GetFamilyUploadQueryError = ErrorType<unknown>;
 
 export function useGetFamilyUpload<
   TData = Awaited<ReturnType<typeof getFamilyUpload>>,
-  TError = ErrorType<unknown>,
+  TError = ErrorType<void>,
 >(
   uploadId: number,
+  params?: GetFamilyUploadParams,
   options?: {
     query?: UseQueryOptions<
       Awaited<ReturnType<typeof getFamilyUpload>>,
@@ -15598,7 +15723,11 @@ export function useGetFamilyUpload<
     request?: SecondParameter<typeof customFetch>;
   },
 ): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
-  const queryOptions = getGetFamilyUploadQueryOptions(uploadId, options);
+  const queryOptions = getGetFamilyUploadQueryOptions(
+    uploadId,
+    params,
+    options,
+  );
 
   const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
     queryKey: QueryKey;

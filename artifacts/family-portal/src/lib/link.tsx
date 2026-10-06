@@ -6,8 +6,10 @@ import {
   useState,
   type ReactNode,
 } from "react";
+import type { MutationFilters } from "@tanstack/react-query";
 import { setAuthTokenGetter } from "@workspace/api-client-react";
 import { BASE_PATH } from "@/lib/base-path";
+import { forgetDrafts } from "@/lib/message-draft";
 
 /**
  * The family's credential, and where it lives.
@@ -114,6 +116,26 @@ type LinkState = {
   forget: () => void;
 };
 
+/**
+ * What forgetting does, in the words of the dialog that offers it (`Hub`).
+ *
+ * `forget` lets go of everything this page kept: the link, and any message
+ * half-written. It cannot reach the browser's own history. The visit to
+ * `/f/<token>` is written there, and offered back in the address bar, the
+ * moment the link is opened -- before this page has run at all, let alone
+ * taken the token out of the address -- and opening it from there opens the
+ * case again for whoever has the device next. The dialog used to promise the
+ * page would "stop opening here", which on a hospital tablet was not true.
+ * It now promises what the page does, and says what only the person
+ * holding the device can do.
+ */
+export const FORGETTING = {
+  here:
+    "This page won't open here by itself anymore. Nothing anyone has added is lost, and the link keeps working on your own phone.",
+  inTheBrowser:
+    "The browser keeps its own copy of the link, in its history. On a phone or computer that isn't yours, please clear the browser's history as well, from its settings.",
+} as const;
+
 const LinkContext = createContext<LinkState | null>(null);
 
 export function LinkProvider({ children }: { children: ReactNode }) {
@@ -131,6 +153,9 @@ export function LinkProvider({ children }: { children: ReactNode }) {
       token,
       forget: () => {
         writeStored(null);
+        // A message they had started goes too: the next person handed this
+        // device should find nothing of what this family was writing.
+        forgetDrafts();
         // Cleared before the re-render, not after it, so nothing that is
         // still mounted can fire one last request with a token the family
         // has just asked this device to forget.
@@ -153,4 +178,30 @@ export function useLink(): LinkState {
 /** A 401 means the link is revoked, expired, or was never real. */
 export function isUnauthorized(error: unknown): boolean {
   return (error as { status?: number } | null)?.status === 401;
+}
+
+/**
+ * A save refused because the link had stopped, as the mutation cache is
+ * asked for it. The cache keeps a failed save for some minutes after the
+ * screen that made it has gone, which is how the expired-link screen, drawn
+ * in that screen's place, knows why it is there.
+ */
+export const refusedForTheLink: MutationFilters = {
+  status: "error",
+  predicate: (mutation) => isUnauthorized(mutation.state.error),
+};
+
+/**
+ * What the expired-link screen says about the family's work.
+ *
+ * Everything saved before the link stopped is on file. But the screen also
+ * arrives the moment a save is refused (`App.tsx`), and the change in that
+ * save -- a paragraph of the obituary, sent as somebody left the box -- is
+ * the one thing that did not arrive. It used to be told "Nothing you have
+ * already added has been lost", and went away believing it had been kept.
+ */
+export function stoppedLinkWords(refusedSave: boolean): string {
+  return refusedSave
+    ? "Please ask the funeral home to send you a new one. The change you were making just now couldn't be saved, so you may need to make it again with the new link. Everything you added before then is safe."
+    : "Please ask the funeral home to send you a new one. Nothing you have already added has been lost.";
 }

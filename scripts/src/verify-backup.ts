@@ -1,24 +1,35 @@
 /**
  * Prove a backup restores, by actually restoring it.
  *
- *   pnpm --filter @workspace/scripts run verify-backup -- --file ./backups/x.sql
+ *   pnpm --filter @workspace/scripts run verify-backup -- --file ./backups/x.sql.enc
  *
  * An untested backup is a belief, not a backup, and the belief is only
  * corrected on the day it matters. So this takes the newest dump, restores it
- * into a scratch database nobody is using, counts what came back, and
- * compares that against the live database.
+ * into a scratch database nobody is using, and checks two things about what
+ * came back:
  *
- * Runs read-only against production: it connects to `DATABASE_URL` only to
- * count rows, and every write goes to `VERIFY_DATABASE_URL`. Those must be
- * different, and it refuses to start if they are not — restoring over the
- * database you are verifying is a way to lose everything while checking that
- * you cannot.
+ *   - every table has the rows it had when the dump was taken. backup-database
+ *     counted them in the snapshot pg_dump read and left the numbers beside
+ *     the backup (lib/backup-counts.ts). A backup from before it did that is
+ *     restored and its counts printed, compared with nothing.
+ *   - the restored copy's encrypted columns open with ENCRYPTION_KEY: the
+ *     oldest and newest uploaded file and social security number
+ *     (lib/encrypted-columns.ts).
+ *
+ * Never against the live database. It connects to `DATABASE_URL` only to make
+ * sure `VERIFY_DATABASE_URL` is not the same database, and every write goes
+ * to `VERIFY_DATABASE_URL` -- restoring over the database you are verifying is
+ * a way to lose everything while checking that you cannot.
  */
 import { spawn } from "node:child_process";
-import { readdir, stat, readFile, rm } from "node:fs/promises";
+import { readdir, stat, rm } from "node:fs/promises";
 import path from "node:path";
 import pg from "pg";
 import { decryptFile, isEncryptedBackupName } from "./backup-crypto";
+import { compareCounts, countRows, readCounts } from "./lib/backup-counts";
+import { looksLikePgDump } from "./lib/dump-head";
+import { openSealed, sealedSamples } from "./lib/encrypted-columns";
+import { onStop } from "./lib/on-stop";
 
 const DATABASE_URL = process.env.DATABASE_URL;
 const VERIFY_DATABASE_URL = process.env.VERIFY_DATABASE_URL;
@@ -34,39 +45,11 @@ function arg(name: string): string | undefined {
   return index === -1 ? undefined : process.argv[index + 1];
 }
 
-/** The tables whose row counts are worth comparing. */
-const TABLES = [
-  "funeral_homes",
-  "users",
-  "cases",
-  "family_contacts",
-  "case_photos",
-  "uploads",
-  "obituary_drafts",
-  "case_messages",
-  "case_deadlines",
-  "case_belongings",
-  "vital_statistics",
-  "aftercare_enrollments",
-  "vendors",
-] as const;
-
-async function counts(url: string): Promise<Record<string, number>> {
+async function withClient<T>(url: string, use: (client: pg.Client) => Promise<T>): Promise<T> {
   const client = new pg.Client({ connectionString: url });
   await client.connect();
-
   try {
-    const result: Record<string, number> = {};
-
-    for (const table of TABLES) {
-      const { rows } = await client.query<{ count: string }>(
-        // Identifiers come from the fixed list above, never from input.
-        `select count(*)::text as count from ${table}`,
-      );
-      result[table] = Number(rows[0]?.count ?? 0);
-    }
-
-    return result;
+    return await use(client);
   } finally {
     await client.end();
   }
@@ -88,19 +71,14 @@ async function counts(url: string): Promise<Record<string, number>> {
  * by any role that can connect, so this needs no extra privilege.
  */
 async function fingerprint(url: string): Promise<string> {
-  const client = new pg.Client({ connectionString: url });
-  await client.connect();
-
-  try {
+  return withClient(url, async (client) => {
     const { rows } = await client.query<{ fingerprint: string }>(
       `select current_database()
           || ':' || (select oid from pg_database where datname = current_database())::text
           || ':' || pg_postmaster_start_time()::text as fingerprint`,
     );
     return rows[0]?.fingerprint ?? "";
-  } finally {
-    await client.end();
-  }
+  });
 }
 
 function psql(url: string, file: string): Promise<void> {
@@ -125,7 +103,7 @@ function psql(url: string, file: string): Promise<void> {
   });
 }
 
-/** The most recent finished dump. Partials are ignored by the pattern. */
+/** The most recent finished dump. Partials and counts are ignored by the pattern. */
 async function newestDump(dir: string): Promise<string> {
   const entries = (await readdir(dir)).filter((name) =>
     /^holding-today-\d.*\.sql(\.enc)?$/.test(name),
@@ -177,11 +155,16 @@ async function main(): Promise<void> {
 
   if (!info || info.size === 0) fail(`${file} is missing or empty.`);
 
+  // Read, and refused if it is not the right file's, before anything is
+  // restored on the strength of it.
+  const recorded = await readCounts(file, info.size);
+
   const encrypted = isEncryptedBackupName(file);
   const dumpFile = encrypted ? `${file}.verify-${process.pid}.tmp` : file;
+  // The decrypted copy is the whole database in plain SQL: gone however this
+  // ends, a signal included (lib/on-stop.ts).
+  const settled = encrypted ? onStop([dumpFile]) : () => {};
 
-  let live: Record<string, number>;
-  let restored: Record<string, number>;
   try {
     if (encrypted) {
       console.log("Decrypting…");
@@ -190,8 +173,7 @@ async function main(): Promise<void> {
 
     const dumpInfo = encrypted ? await stat(dumpFile) : info;
 
-    const head = (await readFile(dumpFile)).subarray(0, 4096).toString("utf8");
-    if (!head.includes("PostgreSQL database dump")) {
+    if (!(await looksLikePgDump(dumpFile))) {
       throw new Error(`${file} does not look like a pg_dump.`);
     }
 
@@ -200,39 +182,51 @@ async function main(): Promise<void> {
         `${encrypted ? ", decrypted" : ""})`,
     );
 
-    live = await counts(DATABASE_URL);
-
     console.log("Restoring into the scratch database…");
     await psql(VERIFY_DATABASE_URL, dumpFile);
-
-    restored = await counts(VERIFY_DATABASE_URL);
   } finally {
     if (encrypted) await rm(dumpFile, { force: true }).catch(() => {});
+    settled();
   }
 
-  let mismatches = 0;
-  let total = 0;
+  const { restored, sealed } = await withClient(VERIFY_DATABASE_URL, async (client) => ({
+    restored: await countRows(client),
+    sealed: await sealedSamples(client),
+  }));
 
-  for (const table of TABLES) {
-    const before = live[table] ?? 0;
-    const after = restored[table] ?? 0;
-    total += after;
-
-    if (before !== after) {
-      mismatches += 1;
-      console.error(
-        `  ${table}: live ${before}, restored ${after}  ← MISMATCH`,
-      );
-    } else {
-      console.log(`  ${table}: ${after}`);
+  let total: number;
+  if (recorded) {
+    console.log(`Every table against the counts taken with the dump (${recorded.takenAt}):`);
+    const comparison = compareCounts(recorded.rows, restored);
+    for (const line of comparison.lines) {
+      if (line.endsWith("MISMATCH")) console.error(line);
+      else console.log(line);
     }
-  }
-
-  if (mismatches > 0) {
-    fail(
-      `${mismatches} table(s) came back with a different number of rows. ` +
-        "Treat this backup as broken.",
+    if (comparison.others.length > 0) {
+      console.log(
+        `  (not compared, being no part of this backup: ${comparison.others.join(", ")}, ` +
+          "already in the scratch database)",
+      );
+    }
+    if (comparison.mismatches > 0) {
+      fail(
+        `${comparison.mismatches} table(s) came back with a different number of ` +
+          "rows from the dump that was taken. Treat this backup as broken.",
+      );
+    }
+    total = comparison.total;
+  } else {
+    // Nothing to compare with, and no pretending otherwise.
+    console.log(
+      "No counts were recorded beside this backup (it was taken before " +
+        "backup-database kept them), so these are what came back, compared " +
+        "with nothing:",
     );
+    total = 0;
+    for (const [table, count] of Object.entries(restored)) {
+      console.log(`  ${table}: ${count}`);
+      total += count;
+    }
   }
 
   /*
@@ -244,7 +238,18 @@ async function main(): Promise<void> {
     fail("The restore produced no rows at all. That is not a working backup.");
   }
 
-  console.log(`\nVerified: ${total} rows restored, every table matching.`);
+  const opened = openSealed(sealed);
+  console.log(
+    opened.length > 0
+      ? `Decrypted with this ENCRYPTION_KEY: ${opened.join(", ")}.`
+      : "Nothing in this backup is encrypted in its columns: no uploads, no social security numbers.",
+  );
+
+  console.log(
+    recorded
+      ? `\nVerified: ${total} rows restored, every table as it was when the dump was taken.`
+      : `\nRestored ${total} rows. With no counts recorded, whether that is every row is not something this can say.`,
+  );
 }
 
 main().catch((error: unknown) => {

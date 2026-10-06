@@ -3,6 +3,7 @@ import {
   db,
   freeTrialEndsAt,
   funeralHomesTable,
+  hasLiveSubscription,
   homeGroupsTable,
   isAddOnKey,
   type AddOnKey,
@@ -14,6 +15,7 @@ import { z } from "zod";
 import {
   createGroupCheckoutSession,
   isBillingConfigured,
+  syncGroupSeats,
 } from "../../lib/billing";
 import {
   badRequest,
@@ -52,6 +54,30 @@ const router: IRouter = Router();
 /** How long a location gets to arrange its own billing after leaving a group. */
 const GROUP_EXIT_GRACE_DAYS = 14;
 
+/**
+ * Tell Stripe how many locations each group a move touched now has, and
+ * say, in words for whoever made the move, anything it could not be told.
+ */
+async function matchGroupBills(
+  groupIds: Array<number | null>,
+): Promise<string | undefined> {
+  const problems: string[] = [];
+
+  for (const groupId of new Set(groupIds)) {
+    if (groupId === null) continue;
+    const outcome = await syncGroupSeats(groupId);
+    if (outcome && !outcome.synced) {
+      problems.push(
+        `Stripe could not be told that ${outcome.groupName} now has ` +
+          `${outcome.locations} location${outcome.locations === 1 ? "" : "s"} ` +
+          `(${outcome.reason}). Set that quantity on its subscription in Stripe.`,
+      );
+    }
+  }
+
+  return problems.length > 0 ? problems.join(" ") : undefined;
+}
+
 async function uniqueGroupSlug(name: string): Promise<string> {
   const base =
     name
@@ -88,7 +114,7 @@ function toAdminGroup(group: HomeGroup, locations: number) {
     subscriptionStatus: group.subscriptionStatus,
     trialEndsAt: group.trialEndsAt,
     currentPeriodEndsAt: group.currentPeriodEndsAt,
-    hasSubscription: group.stripeSubscriptionId !== null,
+    hasSubscription: hasLiveSubscription(group),
     entitlements: group.entitlements
       .split(",")
       .map((entry) => entry.trim())
@@ -280,6 +306,10 @@ router.put("/admin/homes/:homeId/group", async (req, res) => {
         groupId: null,
         subscriptionStatus: "trial",
         trialEndsAt: graceEnds,
+        // A new trial with a real end, so its reminders are owed again. Left
+        // as they were from the home's first trial, the fortnight ran out
+        // without a word.
+        trialRemindersSent: "",
         currentPeriodEndsAt: null,
         // The group's add-ons left with the group. The live trial above is
         // what keeps aftercare running for the next fortnight, and after
@@ -290,11 +320,14 @@ router.put("/admin/homes/:homeId/group", async (req, res) => {
       .where(eq(funeralHomesTable.id, home.id))
       .returning();
 
-    res.json(toAdminHome(updated!));
+    const billingWarning = await matchGroupBills([home.groupId]);
+    res.json({ ...toAdminHome(updated!), billingWarning });
     return;
   }
 
-  if (home.stripeSubscriptionId !== null && home.groupId === null) {
+  // A subscription that has ended charges nobody; one still running, a
+  // trial Stripe holds included, would be charged alongside the group's.
+  if (hasLiveSubscription(home) && home.groupId === null) {
     throw new HttpError(
       409,
       "This home has its own subscription. Cancel it in Stripe first, or " +
@@ -324,7 +357,9 @@ router.put("/admin/homes/:homeId/group", async (req, res) => {
     .where(eq(funeralHomesTable.id, home.id))
     .returning();
 
-  res.json(toAdminHome(updated!));
+  // The group it left, if it came from one, and the group it joined.
+  const billingWarning = await matchGroupBills([home.groupId, target.id]);
+  res.json({ ...toAdminHome(updated!), billingWarning });
 });
 
 const GroupCheckoutBody = z.object({

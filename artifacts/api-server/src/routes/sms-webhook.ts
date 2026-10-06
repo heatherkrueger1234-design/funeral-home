@@ -1,6 +1,12 @@
 import { Router, type IRouter } from "express";
 import { and, eq, inArray, isNull, or, sql } from "drizzle-orm";
-import { db, familyContactsTable, funeralHomesTable, type FuneralHome } from "@workspace/db";
+import {
+  aftercareEnrollmentsTable,
+  db,
+  familyContactsTable,
+  funeralHomesTable,
+  type FuneralHome,
+} from "@workspace/db";
 import {
   clearOptOut,
   isOptedOut,
@@ -57,10 +63,34 @@ async function homeFor(params: Record<string, string>): Promise<FuneralHome | nu
   return home ?? null;
 }
 
-/** Every home that has this number as a contact. */
+/** Every home that has this number as a contact, or texts it check-ins. */
 async function homeIdsOf(phone: string): Promise<number[]> {
   const contacts = await contactsWith(phone, null);
-  return [...new Set(contacts.map((contact) => contact.homeId))];
+  return [
+    ...new Set([...contacts.map((contact) => contact.homeId), ...(await enrolledHomesWith(phone))]),
+  ];
+}
+
+/*
+ * The mobile a family gives for check-in texts is kept on the enrolment, not
+ * the contact, and need not be the number the director has. A STOP from it on
+ * the shared number matched no contact, so it was held against the shared
+ * number alone, and the texts started again the day the home's own number
+ * was approved.
+ */
+async function enrolledHomesWith(phone: string): Promise<number[]> {
+  const last10 = phone.replace(/\D/g, "").slice(-10);
+  const rows = await db
+    .select({
+      homeId: aftercareEnrollmentsTable.funeralHomeId,
+      phone: aftercareEnrollmentsTable.phone,
+    })
+    .from(aftercareEnrollmentsTable)
+    .where(
+      sql`right(regexp_replace(coalesce(${aftercareEnrollmentsTable.phone}, ''), '\\D', '', 'g'), 10) = ${last10}`,
+    );
+  // The SQL narrows; the normaliser decides, as for contacts.
+  return rows.filter((r) => r.phone && normalisePhone(r.phone) === phone).map((r) => r.homeId);
 }
 
 /*

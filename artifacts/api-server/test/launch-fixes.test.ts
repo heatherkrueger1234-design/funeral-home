@@ -25,8 +25,11 @@ describe("registration does not say who already has an account", () => {
     expect(res.body.checkEmail).toBe(true);
     expect(JSON.stringify(res.body)).not.toMatch(/already/i);
     expect(res.headers["set-cookie"]).toBeUndefined();
-    expect(sendAccountExistsEmail).toHaveBeenCalledWith(
-      expect.objectContaining({ to: staff.email }),
+    // Sent after the answer, not before it; see email-ceiling.test.ts.
+    await vi.waitFor(() =>
+      expect(sendAccountExistsEmail).toHaveBeenCalledWith(
+        expect.objectContaining({ to: staff.email }),
+      ),
     );
   });
 

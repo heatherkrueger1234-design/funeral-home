@@ -5,8 +5,17 @@ import {
   funeralHomesTable,
   usersTable,
   type PlatformAdmin,
+  type User,
 } from "@workspace/db";
-import { normaliseEmail } from "./auth";
+import { sendPlatformPasswordEmail } from "@workspace/mailer";
+import {
+  createPasswordReset,
+  destroyAllSessions,
+  INVITE_TTL_DAYS,
+  INVITE_TTL_MS,
+  normaliseEmail,
+  revokePasswordResets,
+} from "./auth";
 import { logger } from "./logger";
 
 /**
@@ -102,6 +111,78 @@ export async function bootstrapPlatformAdmins(): Promise<void> {
   );
 
   await markSeededHomesInternal(configured);
+
+  // Ordinarily nobody has registered yet. If somebody has, the account is
+  // treated like any other already-confirmed address put on the list.
+  for (const email of configured) await reclaimIfConfirmed(email);
+}
+
+/**
+ * Give a listed address's account to whoever reads its inbox, and to nobody
+ * else.
+ *
+ * Confirming an address proves that somebody can read that inbox. It does
+ * not prove that the password on the account, or the session using it, is
+ * theirs: registration is open and never asks who is typing the address. A
+ * stranger could register a listed address before its owner did -- the
+ * bootstrap address on a fresh deployment, or a colleague granted access
+ * ahead of their first day -- choose the password, and wait. The owner,
+ * finding a confirmation email for an account they were about to open
+ * anyway, clicked it, and the stranger's session walked into every
+ * customer's records. An owner inviting a listed address into their own
+ * home, redeeming the invitation handed back on screen and asking for the
+ * confirmation to be sent again got the same.
+ *
+ * So when a listed address proves its inbox, and when an address that
+ * already had is put on the list, every credential somebody else could hold
+ * goes: outstanding reset and invitation links first, because one of them
+ * may be on a stranger's screen and would otherwise set a new password a
+ * moment later; then the password; then every session. What replaces them
+ * is a link to choose a password, sent to that inbox and nowhere else --
+ * the one thing a squatter cannot have.
+ *
+ * The cost is one extra email for each platform admin, once, and that is the
+ * whole of the population this touches.
+ */
+export async function reclaimForInbox(
+  user: Pick<User, "id" | "email">,
+): Promise<void> {
+  await revokePasswordResets(user.id);
+  await db
+    .update(usersTable)
+    .set({ passwordHash: null, updatedAt: new Date() })
+    .where(eq(usersTable.id, user.id));
+  await destroyAllSessions(user.id);
+
+  const token = await createPasswordReset(user.id, INVITE_TTL_MS);
+  const base = process.env["CONSOLE_URL"]?.replace(/\/+$/, "") ?? "";
+
+  await sendPlatformPasswordEmail({
+    to: user.email,
+    link: `${base}/reset-password?token=${encodeURIComponent(token)}`,
+    expiresInDays: INVITE_TTL_DAYS,
+  });
+
+  logger.warn(
+    { userId: user.id },
+    "Platform console address reclaimed for its inbox; password and sessions cleared",
+  );
+}
+
+/**
+ * `reclaimForInbox` for an address just put on the list, when it already
+ * belongs to a confirmed account. An unconfirmed one is left alone: it cannot
+ * pass the gate yet, and confirming it later reclaims it then, so doing it
+ * here as well would only send its owner two emails.
+ */
+export async function reclaimIfConfirmed(email: string): Promise<void> {
+  const [user] = await db
+    .select()
+    .from(usersTable)
+    .where(eq(usersTable.email, normaliseEmail(email)))
+    .limit(1);
+
+  if (user?.emailVerified) await reclaimForInbox(user);
 }
 
 /**

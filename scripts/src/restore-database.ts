@@ -22,8 +22,10 @@
  * works unchanged.
  */
 import { spawn } from "node:child_process";
-import { stat, readFile, rm } from "node:fs/promises";
+import { stat, rm } from "node:fs/promises";
 import { decryptFile, isEncryptedBackupName } from "./backup-crypto";
+import { looksLikePgDump } from "./lib/dump-head";
+import { onStop } from "./lib/on-stop";
 
 const DATABASE_URL = process.env.DATABASE_URL;
 
@@ -97,6 +99,9 @@ async function main(): Promise<void> {
 
   const encrypted = isEncryptedBackupName(file!);
   const dumpFile = encrypted ? `${file}.restore-${process.pid}.tmp` : file!;
+  // Removed even if this is stopped part-way (lib/on-stop.ts). psql, which
+  // has it open by then, reads on regardless.
+  const settled = encrypted ? onStop([dumpFile]) : () => {};
 
   try {
     if (encrypted) {
@@ -109,9 +114,7 @@ async function main(): Promise<void> {
     // Read the head rather than trusting the extension: restoring a
     // truncated or wrong file over a live database is the worst outcome
     // available here.
-    const head = (await readFile(dumpFile)).subarray(0, 4096).toString("utf8");
-
-    if (!head.includes("PostgreSQL database dump")) {
+    if (!(await looksLikePgDump(dumpFile))) {
       throw new Error(
         `${file} does not look like a pg_dump. Refusing to run it.`,
       );
@@ -142,6 +145,7 @@ async function main(): Promise<void> {
     // The decrypted plaintext is temporary regardless of how this exits —
     // a successful restore, a bad dump, or the user declining to confirm.
     if (encrypted) await rm(dumpFile, { force: true }).catch(() => {});
+    settled();
   }
 }
 

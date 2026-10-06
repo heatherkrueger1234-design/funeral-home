@@ -175,47 +175,129 @@ export function guessMapping(headers: string[]): Record<string, string | null> {
 }
 
 /**
+ * A date as an export wrote it: the calendar day, the time of day if there
+ * was one, and nothing more.
+ *
+ * Not an instant, on purpose. These exports write a service as wall-clock
+ * time at the home -- "9/18/2026 1:00 PM" -- and which clock that is only the
+ * caller knows. This used to build a `Date` from the parts in the *server's*
+ * zone, which is UTC, so every imported service landed six or seven hours
+ * early for a home in Colorado: a one o'clock funeral printed on the cards as
+ * seven in the morning, and one given only a date, as the evening before.
+ */
+export type WrittenDate = {
+  year: number;
+  /** 1 to 12. */
+  month: number;
+  day: number;
+  /** The time of day, when one was written. */
+  time: { hour: number; minute: number } | null;
+  /**
+   * The instant meant, when the export gave its own offset ("Z", "-06:00").
+   * It then outranks the home's clock: somebody already said which it was.
+   */
+  instant: Date | null;
+};
+
+/*
+ * What may follow the date: a time, perhaps with seconds or a.m./p.m., then
+ * perhaps an offset or a zone's short name. Anchored at both ends, and that is
+ * the point: an unanchored pattern read the "1:00" of "1:00 PM", ignored the
+ * rest, and put a funeral at one in the morning.
+ */
+const AFTER_DATE =
+  /^(?:(?:T|\s+)(\d{1,2})(?::(\d{2}))?(?::(\d{2})(?:\.\d+)?)?\s*(?:([ap])\.?\s?m\.?)?)?\s*(z|[+-]\d{2}:?\d{2}|[a-z]{2,5})?$/i;
+
+/**
  * Dates, as they actually appear in these exports.
  *
- * Returns null rather than guessing when the format is ambiguous and wrong.
- * An unparseable service date leaves the case undated, which a director will
- * notice and fix; a date silently read as the wrong month is a family told
- * the wrong day.
+ * Returns null rather than guessing when the format is ambiguous and wrong,
+ * and that includes a day that does not exist: February the 31st used to
+ * become the 3rd of March. An unparseable service date leaves the case
+ * undated, which a director will notice and fix; a date silently read as the
+ * wrong month is a family told the wrong day.
  */
-export function parseDate(raw: string): Date | null {
+export function parseDate(raw: string): WrittenDate | null {
   const value = raw.trim();
   if (!value) return null;
 
-  // ISO first: unambiguous, and what a well-behaved export produces.
-  const iso = /^(\d{4})-(\d{2})-(\d{2})(?:[T ](\d{2}):(\d{2}))?/.exec(value);
-  if (iso) {
-    const [, y, m, d, hh, mm] = iso;
-    const date = new Date(
-      Number(y), Number(m) - 1, Number(d), Number(hh ?? 0), Number(mm ?? 0),
-    );
-    return Number.isNaN(date.getTime()) ? null : date;
-  }
+  let year: number;
+  let month: number;
+  let day: number;
+  let rest: string;
 
+  // ISO first: unambiguous, and what a well-behaved export produces.
+  const iso = /^(\d{4})-(\d{1,2})-(\d{1,2})/.exec(value);
   // US ordering, which is what these systems emit. Read as month/day because
   // the exports come from US jurisdictions; a 13+ first component is treated
   // as day/month rather than rejected, since that can only be one thing.
-  const slash = /^(\d{1,2})[/-](\d{1,2})[/-](\d{2,4})(?:[T ](\d{1,2}):(\d{2}))?/.exec(value);
-  if (slash) {
-    const [, a, b, rawYear, hh, mm] = slash;
-    let month = Number(a);
-    let day = Number(b);
+  const slash = /^(\d{1,2})[/-](\d{1,2})[/-](\d{4}|\d{2})(?!\d)/.exec(value);
 
-    if (month > 12 && day <= 12) {
-      [month, day] = [day, month];
-    }
-    if (month > 12 || day > 31) return null;
-
-    const year = Number(rawYear.length === 2 ? `20${rawYear}` : rawYear);
-    const date = new Date(year, month - 1, day, Number(hh ?? 0), Number(mm ?? 0));
-    return Number.isNaN(date.getTime()) ? null : date;
+  if (iso) {
+    [year, month, day] = [Number(iso[1]), Number(iso[2]), Number(iso[3])];
+    rest = value.slice(iso[0].length);
+  } else if (slash) {
+    [month, day] = [Number(slash[1]), Number(slash[2])];
+    if (month > 12 && day <= 12) [month, day] = [day, month];
+    year = Number(slash[3]!.length === 2 ? `20${slash[3]}` : slash[3]);
+    rest = value.slice(slash[0].length);
+  } else {
+    return null;
   }
 
-  return null;
+  // A day that exists, checked by asking the calendar rather than by range.
+  const check = new Date(Date.UTC(year, month - 1, day));
+  if (
+    month < 1 ||
+    check.getUTCFullYear() !== year ||
+    check.getUTCMonth() !== month - 1 ||
+    check.getUTCDate() !== day
+  ) {
+    return null;
+  }
+
+  const after = AFTER_DATE.exec(rest);
+  if (!after) return null;
+  const [, rawHour, rawMinute, , meridiem, zone] = after;
+
+  let time: WrittenDate["time"] = null;
+  if (rawHour !== undefined) {
+    let hour = Number(rawHour);
+    const minute = Number(rawMinute ?? 0);
+    // "1 PM" is a time; a bare "13" is not one anybody writes.
+    if (rawMinute === undefined && !meridiem) return null;
+    if (meridiem) {
+      if (hour < 1 || hour > 12) return null;
+      hour = (hour % 12) + (meridiem.toLowerCase() === "p" ? 12 : 0);
+    }
+    if (hour > 23 || minute > 59) return null;
+    time = { hour, minute };
+  }
+
+  /*
+   * An explicit offset means the export named the instant, so it is kept as
+   * one. A zone's short name ("MDT") is the home's own clock in every export
+   * seen so far and is read as such -- except UTC and GMT, which say the
+   * same thing as "Z".
+   */
+  let instant: Date | null = null;
+  if (zone && time) {
+    const offset = /^[+-]/.test(zone)
+      ? zone
+      : /^(z|utc|gmt)$/i.test(zone)
+        ? "+00:00"
+        : null;
+    if (offset) {
+      const sign = offset[0] === "-" ? -1 : 1;
+      const digits = offset.slice(1).replace(":", "");
+      const minutes = Number(digits.slice(0, 2)) * 60 + Number(digits.slice(2));
+      instant = new Date(
+        Date.UTC(year, month - 1, day, time.hour, time.minute) - sign * minutes * 60_000,
+      );
+    }
+  }
+
+  return { year, month, day, time, instant };
 }
 
 /**

@@ -178,6 +178,10 @@ export function LoadFailed({
  * wrote: each used to be a single click with no way back, while erasing a
  * case had a ceremony of its own. They now share this, and the confirming
  * button is red only when the thing is actually destroyed.
+ *
+ * `children`, where given, is a choice that belongs to the question -- such
+ * as keeping the links somebody passed on when their own is stopped -- and
+ * sits between it and the answer.
  */
 export function Confirm({
   trigger,
@@ -187,6 +191,8 @@ export function Confirm({
   cancelLabel = "Cancel",
   destructive = false,
   onConfirm,
+  onOpenChange,
+  children,
 }: {
   trigger: ReactNode;
   title: string;
@@ -195,15 +201,18 @@ export function Confirm({
   cancelLabel?: string;
   destructive?: boolean;
   onConfirm: () => void;
+  onOpenChange?: (open: boolean) => void;
+  children?: ReactNode;
 }) {
   return (
-    <AlertDialog>
+    <AlertDialog onOpenChange={onOpenChange}>
       <AlertDialogTrigger asChild>{trigger}</AlertDialogTrigger>
       <AlertDialogContent>
         <AlertDialogHeader>
           <AlertDialogTitle>{title}</AlertDialogTitle>
           <AlertDialogDescription>{description}</AlertDialogDescription>
         </AlertDialogHeader>
+        {children}
         <AlertDialogFooter>
           <AlertDialogCancel>{cancelLabel}</AlertDialogCancel>
           <AlertDialogAction

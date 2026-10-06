@@ -78,7 +78,18 @@ const queryClient = new QueryClient({
   }),
   mutationCache: new MutationCache({
     onError: (error, _variables, _context, mutation) => {
-      if (isUnauthorized(error)) return;
+      if (isUnauthorized(error)) {
+        /*
+         * The same for a save. Without it, a relative writing the obituary
+         * after their link had stopped working saw "Saved" stop appearing
+         * and went on typing into a page that kept nothing, until the
+         * session's own two-minute poll noticed.
+         */
+        void queryClient.invalidateQueries({
+          queryKey: getGetFamilySessionQueryKey(),
+        });
+        return;
+      }
       // A form that shows its own refusal beside the field it is about says
       // so with `meta: { inlineErrors: true }`; the same words again in a
       // toast at the top of the screen is the form shouting twice.

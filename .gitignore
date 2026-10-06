@@ -66,10 +66,16 @@ Thumbs.db
 *.key
 
 # Database dumps from scripts/src/backup-database.ts. These contain
-# everything anyone has written here; they must never reach the repo.
+# everything anyone has written here; they must never reach the repo. The
+# row counts kept beside each are harmless, and belong with their backup.
 /backups/
 *.sql.partial
 *.sql.enc
+*.sql.enc.partial
+*.sql.enc.counts.json
+# The plain SQL verify-backup and restore-database decrypt a backup to.
+*.sql.enc.verify-*.tmp
+*.sql.enc.restore-*.tmp
 
 # Playwright, from artifacts/e2e-tests
 /playwright-report/

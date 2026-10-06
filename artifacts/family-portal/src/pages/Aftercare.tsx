@@ -121,7 +121,9 @@ export default function Aftercare() {
         </PageHeader>
 
         <ul className="divide-y divide-border overflow-hidden rounded-xl border border-border bg-card shadow-[var(--elevation-1)]">
-          {aftercare.deliveries.filter((d) => d.sentVia !== "withdrawn").map((delivery) => (
+          {/* A note that came too late to send is left out, like a withdrawn
+              one: listing it would only tell a family what they missed. */}
+          {aftercare.deliveries.filter((d) => d.sentVia !== "withdrawn" && d.sentVia !== "missed").map((delivery) => (
             <li
               key={delivery.id}
               className="flex items-center gap-3 px-4 py-3.5"

@@ -2,7 +2,9 @@ import { describe, expect, it } from "vitest";
 import request from "supertest";
 import app from "../src/app";
 import { asFamily, createCase, inviteFamily, signUpHome, PNG_BYTES } from "./helpers";
-import { MAX_PHOTOS_PER_CASE } from "@workspace/db";
+import { db, MAX_PHOTOS_PER_CASE } from "@workspace/db";
+import { sql } from "drizzle-orm";
+import { loggableError } from "../src/lib/http";
 
 describe("the health check reports on the database", () => {
   it("is not a constant", async () => {
@@ -135,5 +137,55 @@ describe("passwords hashed with older settings", () => {
       .post("/api/auth/login")
       .send({ email: staff.email, password: "wrong-horse-battery" })
       .expect(401);
+  });
+});
+
+describe("what the client got wrong is the client's", () => {
+  /*
+   * Each of these was a 500: an error log line and an error-tracker event
+   * that anybody could send in a loop, before any rate limiter had run.
+   */
+  it("answers a body past the limit with 413", async () => {
+    const staff = await signUpHome();
+    await staff.agent
+      .post("/api/cases")
+      .set("Content-Type", "application/json")
+      .send(JSON.stringify({ decedentFirstName: "x".repeat(1_100_000), decedentLastName: "Hale" }))
+      .expect(413);
+  });
+
+  it("answers an encoding it cannot read with 415", async () => {
+    await request(app)
+      .post("/api/auth/login")
+      .set("Content-Type", "application/json")
+      .set("Content-Encoding", "not-a-real-encoding")
+      .send('{"email":"anne@example.com","password":"correct-horse-battery"}')
+      .expect(415);
+  });
+
+  it("answers a date the database cannot hold with 400", async () => {
+    const staff = await signUpHome();
+    await staff.agent
+      .post("/api/cases")
+      .send({ decedentFirstName: "Margaret", decedentLastName: "Hale", dateOfDeath: "200000-01-01" })
+      .expect(400);
+  });
+});
+
+describe("a failed query, written down", () => {
+  /*
+   * Drizzle puts every bound value of a failed query into its message, and
+   * the logger and the error tracker both took the message as it was.
+   */
+  it("keeps the fault and loses the family's words", async () => {
+    const failure = await db.execute(sql`select ${"Margaret Hale"}::int`).catch((error: unknown) => error);
+    expect(String((failure as Error).message)).toContain("Margaret Hale");
+
+    const written = loggableError(failure) as Error & { code?: string };
+    expect(written.code).toBe("22P02");
+    expect(written.message).toContain("22P02");
+    for (const text of [written.message, written.stack ?? "", JSON.stringify(written)]) {
+      expect(text).not.toContain("Margaret");
+    }
   });
 });

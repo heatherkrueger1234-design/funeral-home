@@ -9,8 +9,14 @@
 import { describe, expect, it } from "vitest";
 import request from "supertest";
 import app from "../src/app";
+import { publicRateLimit } from "../src/middleware/rate-limit";
 import { signUpHome } from "./helpers";
-import { db, funeralHomesTable } from "@workspace/db";
+import {
+  db,
+  funeralHomesTable,
+  INTAKE_REQUESTS_PER_HOME_PER_HOUR,
+  INTAKE_REQUESTS_PER_IP_PER_HOUR,
+} from "@workspace/db";
 import { eq } from "drizzle-orm";
 
 async function slugOf(homeId: number): Promise<string> {
@@ -175,6 +181,54 @@ describe("asking a home to open a file", () => {
 
     const queue = await staff.agent.get("/api/intake-requests").expect(200);
     expect(queue.body[0]).not.toHaveProperty("submittedFromIp");
+  });
+});
+
+describe("the hourly ceilings, asked all at once", () => {
+  /*
+   * They were counted, and the request inserted afterwards, so thirty sent
+   * at once from one address were all counted before any was inserted, and
+   * eight got through a ceiling of five.
+   */
+  it("takes exactly the ceiling from one address, and refuses the rest as it always has", async () => {
+    const staff = await signUpHome();
+    const slug = await slugOf(staff.homeId);
+
+    const answers = await Promise.all(
+      Array.from({ length: 30 }, () => request(app).post("/api/public/intake").send(atNeed(slug))),
+    );
+
+    // The answer the ceiling gives one request at a time, from past the
+    // per-minute limiter in front of it.
+    publicRateLimit.reset();
+    const ceiling = await request(app).post("/api/public/intake").send(atNeed(slug)).expect(429);
+
+    expect(answers.filter((res) => res.status === 202)).toHaveLength(INTAKE_REQUESTS_PER_IP_PER_HOUR);
+    for (const res of answers.filter((res) => res.status !== 202)) {
+      expect(res.status).toBe(429);
+      expect(res.body).toEqual(ceiling.body);
+    }
+    const queue = await staff.agent.get("/api/intake-requests").expect(200);
+    expect(queue.body).toHaveLength(INTAKE_REQUESTS_PER_IP_PER_HOUR);
+  });
+
+  it("takes exactly the home's ceiling from a crowd of addresses", async () => {
+    const staff = await signUpHome();
+    const slug = await slugOf(staff.homeId);
+
+    const answers = await Promise.all(
+      Array.from({ length: INTAKE_REQUESTS_PER_HOME_PER_HOUR + 10 }, (_, i) =>
+        request(app)
+          .post("/api/public/intake")
+          .set("X-Forwarded-For", `198.51.100.${i + 1}`)
+          .send(atNeed(slug)),
+      ),
+    );
+
+    expect(answers.filter((res) => res.status === 202)).toHaveLength(INTAKE_REQUESTS_PER_HOME_PER_HOUR);
+    expect(answers.filter((res) => res.status !== 202).map((res) => res.status)).toEqual(
+      Array(10).fill(429),
+    );
   });
 });
 

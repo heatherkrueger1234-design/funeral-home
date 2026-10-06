@@ -33,7 +33,8 @@ async function main(): Promise<void> {
 
   console.log(
     `${result.due} due${dryRun ? " (dry run)" : ""} — ` +
-      `sent ${result.sent}, failed ${result.failed}, skipped ${result.skipped}.`,
+      `sent ${result.sent}, failed ${result.failed}, skipped ${result.skipped}, ` +
+      `missed ${result.missed} (too late to be true).`,
   );
 }
 

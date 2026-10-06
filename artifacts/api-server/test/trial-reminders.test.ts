@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { db, funeralHomesTable, usersTable } from "@workspace/db";
+import { db, funeralHomesTable, homeGroupsTable, usersTable } from "@workspace/db";
 import { eq } from "drizzle-orm";
 import request from "supertest";
 import app from "../src/app";
@@ -91,6 +91,37 @@ describe("when a reminder is due", () => {
     expect(await remindersSent(staff)).toBe("trial-7");
   });
 
+  /*
+   * A trial ends at the minute the home registered, thirty days on, and the
+   * job runs once a morning. Counting the hours left, rounded up, told a home
+   * whose trial ended at one in the afternoon "ends tomorrow" on that morning
+   * -- and on the morning before, "ends in 2 days".
+   */
+  it("counts the days on the home's calendar, not by the hour", async () => {
+    const staff = await signUpHome("Aspen & Vale");
+    await db
+      .update(funeralHomesTable)
+      .set({ timezone: "America/Denver", trialEndsAt: new Date("2026-11-04T20:00:00Z") })
+      .where(eq(funeralHomesTable.id, staff.homeId));
+
+    // Each a run at eight in the morning in Denver (MST).
+    const morning = (day: string) => new Date(`${day}T15:00:00Z`);
+
+    await runTrialReminders({ now: morning("2026-10-28") });
+    expect(await remindersSent(staff)).toBe("trial-7");
+
+    // The day before: tomorrow.
+    expect((await runTrialReminders({ now: morning("2026-11-03") })).sent).toBe(1);
+    expect(await remindersSent(staff)).toBe("trial-7,trial-1");
+
+    // Its last morning: nothing new, and certainly not "has ended".
+    expect((await runTrialReminders({ now: morning("2026-11-04") })).sent).toBe(0);
+
+    // Once it has.
+    expect((await runTrialReminders({ now: new Date("2026-11-04T21:00:00Z") })).sent).toBe(1);
+    expect(await remindersSent(staff)).toBe("trial-7,trial-1,trial-ended");
+  });
+
   it("sends the one that is still true after a long gap, not a stale one", async () => {
     const staff = await signUpHome("Aspen & Vale");
 
@@ -119,6 +150,66 @@ describe("when a reminder is due", () => {
 
     expect(result.due).toBe(0);
     expect(await remindersSent(staff)).toBe("");
+  });
+
+  it("says nothing to a home that subscribed during its trial", async () => {
+    const staff = await signUpHome("Aspen & Vale");
+    await trialEndsIn(staff, 1);
+
+    // Still on its free days, but Stripe holds them now, with a card, and
+    // turns them into a subscription by itself. "Set up a subscription
+    // before then" is not a sentence to send somebody who already has.
+    await db
+      .update(funeralHomesTable)
+      .set({ stripeSubscriptionId: "sub_held" })
+      .where(eq(funeralHomesTable.id, staff.homeId));
+
+    const result = await runTrialReminders();
+
+    expect(result.due).toBe(0);
+    expect(await remindersSent(staff)).toBe("");
+  });
+
+  it("says nothing to a location whose trial is its group's", async () => {
+    const staff = await signUpHome("Aspen & Vale");
+    const [group] = await db
+      .insert(homeGroupsTable)
+      .values({ name: "Front Range Group", slug: "front-range-group" })
+      .returning();
+    await db
+      .update(funeralHomesTable)
+      .set({ groupId: group!.id, trialEndsAt: new Date(Date.now() + 3 * 86400000) })
+      .where(eq(funeralHomesTable.id, staff.homeId));
+
+    // "Set up a subscription" to a branch whose subscribe button refuses it:
+    // the contract is the group's, and so is the conversation.
+    const result = await runTrialReminders();
+
+    expect(result.due).toBe(0);
+    expect(await remindersSent(staff)).toBe("");
+  });
+
+  it("leaves finished trials out, so they cannot crowd out the ones still running", async () => {
+    // Homes whose trials ended long ago, and were told so.
+    for (const name of ["Oakwood", "Elm Street", "Cedar Hill"]) {
+      const finished = await signUpHome(name);
+      await db
+        .update(funeralHomesTable)
+        .set({
+          trialEndsAt: new Date(Date.now() - 90 * 86400000),
+          trialRemindersSent: "trial-7,trial-1,trial-ended",
+        })
+        .where(eq(funeralHomesTable.id, finished.homeId));
+    }
+    const ending = await signUpHome("Aspen & Vale");
+    await trialEndsIn(ending, 3);
+
+    // A page at a time, and the finished ones were read first, every run,
+    // for ever: past a page of them, nobody new was reminded again.
+    const result = await runTrialReminders({ limit: 2 });
+
+    expect(result.sent).toBe(1);
+    expect(await remindersSent(ending)).toBe("trial-7");
   });
 
   it("says nothing to a suspended home, or to one of ours", async () => {

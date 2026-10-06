@@ -278,7 +278,11 @@ export function DetailsPanel({
                   {enrollment.status === "pending"
                     ? "waiting on their consent"
                     : enrollment.status === "active"
-                      ? `${enrollment.deliveries.filter((d) => d.sentAt).length} of ${enrollment.deliveries.filter((d) => d.sentVia !== "withdrawn").length} sent` +
+                      ? `${enrollment.deliveries.filter((d) => d.sentAt).length} of ${enrollment.deliveries.filter((d) => d.sentVia !== "withdrawn" && d.sentVia !== "missed").length} sent` +
+                        // Said, so a director can ring the family instead.
+                        (enrollment.deliveries.some((d) => d.sentVia === "missed")
+                          ? ` · ${enrollment.deliveries.filter((d) => d.sentVia === "missed").length} too late to send`
+                          : "") +
                         (enrollment.smsConsentAt ? " · by email and text" : "") +
                         (enrollment.touchpointsConsentAt ? " · with extra notes" : "")
                       : enrollment.unsubscribedAt

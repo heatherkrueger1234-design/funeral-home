@@ -107,6 +107,7 @@ function EntryCard({
         {photo && (
           <AuthedImage
             uploadId={photo.uploadId}
+            size="full"
             alt={photo.caption ?? ""}
             className="mb-3 aspect-[4/3] w-full rounded-lg object-cover"
           />
@@ -177,6 +178,7 @@ function ChapterCard({
       {photo && (
         <AuthedImage
           uploadId={photo.uploadId}
+          size="full"
           alt={photo.caption ?? ""}
           className="my-2.5 aspect-[4/3] w-full max-w-sm rounded-lg object-cover"
         />
@@ -365,6 +367,7 @@ function PhotoYears({ photos, open }: { photos: CasePhoto[]; open: boolean }) {
           >
             <AuthedImage
               uploadId={photo.uploadId}
+              size="thumb"
               alt={photo.caption ?? `Photograph ${index + 1}`}
               className="size-20 shrink-0 rounded-lg object-cover"
             />

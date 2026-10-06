@@ -44,11 +44,18 @@ production esbuild bundle, through the real nginx config:
   containers restores and verifies. A full restart leaves the photograph
   byte-for-byte identical.
 
-770 unit and integration tests (619 API against real Postgres, 62 platform
-console, 57 family portal, 26 director console, 6 for the scripts) and 7
-Playwright browser tests, every project typechecking and every app building —
-as of 5 October, on `ccr-7f48fd16-gacxdi`. `STATUS.md` says which branch holds
-what.
+928 unit and integration tests (717 API against real Postgres, 63 platform
+console, 73 family portal, 51 director console, 24 for the scripts) and 10
+Playwright browser tests, every project typechecking, its tests included, and
+every app building — as of the night of 5 October, on `ccr-159a35a1-xifk0k`.
+`STATUS.md` says which branch holds what.
+
+Every suite was green before that evening too, at 770, and a launch review
+still found an outsider able to take over the platform console, the
+platform's notes on each home sent to its staff, and imported service times
+six hours early, among twenty defects fixed that evening and twenty-seven
+more that night. Green says the tests pass, not that they ask everything;
+`STATUS.md` lists what is still open.
 
 ## Lighthouse scores
 
@@ -111,8 +118,8 @@ What moved the numbers:
 | ~~The platform admin list was an environment variable, so revoking access needed a redeploy and left no trace.~~ **Done.** `platform_admins`, granted and revoked from the console, both audited. | Cleared | — |
 | ~~The vendor's own tenant was counted as a customer.~~ **Done.** `internalAccount` takes it out of the list, the counts and the engagement figures. | Cleared | — |
 | **The terms, privacy policy and data-processing agreement are unreviewed drafts** (`LEGAL/`), and about thirty of their sentences are not true of the code. A brief for counsel lists each one with the file behind it, and the questions to settle; it is kept out of this public repository. | **Blocking** | A lawyer. It is the thing a home's insurer asks for before the home's director does, and Twilio now wants the privacy and terms URLs before it registers a sender. |
-| **Prices are set; Stripe is not live.** $169/location/month + $7/funeral, annual two months free, aftercare/SMS/email included (`PRICING.md`, `lib/db/src/price-book.ts`), shown on the website and in Settings. Every subscribe button starts the 30-day no-card trial until Stripe keys exist. | **Owner** | Run `stripe-setup -- --apply` with test keys, then one test-mode cycle. |
-| ~~**No error tracking and no uptime monitoring.**~~ **Built, waiting on two accounts.** Server errors and every app's crashes go to Sentry once `SENTRY_DSN` is set, scrubbed of anything personal; every app has an error boundary; `uptime.yml` asks the health check every fifteen minutes. | High until switched on | A Sentry project, a phone-paging monitor on `/api/healthz`, and the `API_URL` secret. `DEPLOY.md`, "Knowing when it breaks". |
+| **Prices are set; Stripe is not live.** $169/location/month + $7/funeral, annual two months free, aftercare/SMS/email included (`PRICING.md`, `lib/db/src/price-book.ts`), shown on the website and in Settings. Every subscribe button starts the 30-day no-card trial until Stripe keys exist; once they do, subscribing keeps the trial days left and takes a card. | **Owner** | Run `stripe-setup -- --apply` with test keys, set the four dashboard settings in `PRICING.md`, then one test-mode cycle. |
+| ~~**No error tracking and no uptime monitoring.**~~ **Built, waiting on two accounts.** Server errors and every app's crashes go to Sentry once `SENTRY_DSN` is set, scrubbed of anything personal; every app has an error boundary; `uptime.yml` asks the health check every hour. | High until switched on | A Sentry project, a phone-paging monitor on `/api/healthz`, and the `API_URL` secret. `DEPLOY.md`, "Knowing when it breaks". |
 | ~~**The Colorado 72-hour clock is documented, not built.**~~ **The clock is built**: custody, the physician's EDRS request and the home's own filing, on the Certificate tab and the master page. **The statutory authorisation order (C.R.S. 15-19-106) and the forms are not.** | **High** | A lawyer first: they record legal authorisations (`COLORADO.md`). PR #8 holds the old attempt. |
 | **Stripe has never taken a real payment.** The webhook signature check is tested; a live charge is not. | **High** | Test-mode keys, one real subscription cycle. |
 | **No prices exist in Stripe yet.** `scripts/src/stripe-setup.ts` creates them from the price book by lookup key. Until `STRIPE_PRICE_ID_CASE` and `STRIPE_CASE_METER_EVENT` are set, a paying home is invoiced the flat rate only. | **Owner** | `PRICING.md`, "Before you charge a single home". |
@@ -126,7 +133,7 @@ What moved the numbers:
 | **The in-memory rate limiter does not survive a restart or a second instance.** | Low | The public front door already has database-backed hourly ceilings behind it; the rest would want Redis at scale. |
 | ~~**No load test.**~~ **Done.** One family sending 1,000 phone photographs: all accepted in 16 minutes, other families' pages unaffected (p50 11 ms). It found and fixed a held database connection and an overrunnable photo cap. The API wants 2 GB. | Cleared | `DEPLOY.md`, "How it holds up under photographs". |
 | **The repository is public.** The code, the legal drafts and the pricing notes are readable by anyone, and GitHub switches off a public repository's scheduled workflows after sixty days without activity. | **Owner** | Make it private (Settings → General → Change visibility). |
-| **Replit injects its analytics script into every page**, which sends each page's address, and so a family's link, to Replit. | **Blocking** for a real family on Replit | Switch it off in the Replit deployment's settings. The Docker path has no such script. |
+| **Replit injects its analytics script into every page**, which sends each page's address, and so a family's link, to Replit. A build of current code refuses it (each page carries its own Content-Security-Policy), but nothing live is current code. | **Blocking** for a real family on today's Replit apps | Switch it off in the Replit deployment's settings, or republish from current code. The Docker path has no such script. |
 
 ## Decisions that look like gaps and are not
 

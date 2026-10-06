@@ -16,13 +16,47 @@ import {
   type User,
 } from "@workspace/db";
 import { logger } from "./logger";
+import { HttpError } from "./http";
+import { Gate } from "./concurrency";
 
-const scrypt = promisify(scryptCallback) as (
+const scryptOnce = promisify(scryptCallback) as (
   password: string,
   salt: Buffer,
   keylen: number,
   options: { N: number; r: number; p: number },
 ) => Promise<Buffer>;
+
+/*
+ * Two password checks at once for the whole process, and up to sixty-four
+ * waiting behind them.
+ *
+ * Each check is about a quarter of a second of one of the four threads Node
+ * keeps for slow work -- the same four that read files and look up the mail
+ * server's address. Sign-in is limited per address, but enough attempts
+ * from enough addresses would have taken all four, and everything else
+ * waiting on them with it. Now they take two at most and queue for those,
+ * and past sixty-four waiting, which is eight seconds of work, a new attempt
+ * is told to come back rather than joining a line it will not reach. Checks
+ * for addresses with no account (`fakeVerify`) queue the same way, so the
+ * line says nothing about who has one.
+ */
+const hashing = new Gate(2, 64);
+
+async function scrypt(
+  password: string,
+  salt: Buffer,
+  keylen: number,
+  options: { N: number; r: number; p: number },
+): Promise<Buffer> {
+  if (!(await hashing.enter())) {
+    throw new HttpError(503, "Signing in is busy just now. Please try again in a moment.");
+  }
+  try {
+    return await scryptOnce(password, salt, keylen, options);
+  } finally {
+    hashing.leave();
+  }
+}
 
 /*
  * OWASP's scrypt configuration for a 16 MiB memory cost: N=2^14, r=8, p=5,
@@ -417,4 +451,47 @@ export function setSessionCookie(req: Request, res: Response, token: string): vo
 
 export function clearSessionCookie(res: Response): void {
   res.clearCookie(SESSION_COOKIE, cookieOptions());
+}
+
+/**
+ * Whether anybody at this home has confirmed the address they registered with.
+ *
+ * What email verification gates, and the reason it exists: the home's public
+ * request page (`routes/public.ts`), and emailing an invitation in the home's
+ * name (`routes/home.ts`).
+ *
+ * Registration is open — it has to be, a funeral home buying software should
+ * not have to ask us for an account first — and nothing checked that the
+ * address belonged to the person typing it. So anyone could register under a
+ * real home's name and have a public page, at a guessable URL, collecting the
+ * details of people's deaths within a minute; or name a home anything at all
+ * and have us email it to any address they typed, as an invitation. Holding
+ * the email back costs a real home nothing: the invitation link is handed to
+ * the owner to pass on either way.
+ *
+ * What it deliberately does not gate: signing in, opening a case, texting a
+ * family, uploading a photograph, printing an order of service, exporting, or
+ * anything else inside the console. A director locked out of Thursday's
+ * funeral because a confirmation email went to spam would be a far worse
+ * product than the one this protects against, and the same argument is made at
+ * greater length about cancelled subscriptions in `routes/cases.ts`.
+ *
+ * Any active staff member's confirmed address counts, not only the owner's: a
+ * home where the manager confirmed and the proprietor never opened their inbox
+ * is a home we have plainly heard from.
+ */
+export async function hasVerifiedStaff(funeralHomeId: number): Promise<boolean> {
+  const [row] = await db
+    .select({ id: usersTable.id })
+    .from(usersTable)
+    .where(
+      and(
+        eq(usersTable.funeralHomeId, funeralHomeId),
+        eq(usersTable.emailVerified, true),
+        isNull(usersTable.deactivatedAt),
+      ),
+    )
+    .limit(1);
+
+  return row !== undefined;
 }

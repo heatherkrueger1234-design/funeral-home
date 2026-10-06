@@ -659,7 +659,7 @@ export const GetBillingResponse = zod.object({
   freeTrialDays: zod
     .number()
     .describe(
-      "Days a subscribe button gives with no card; 0 when switched off.",
+      "Days of free trial a new home gets, with no card, and that the subscribe button starts when card billing is not live; 0 when switched off.",
     ),
   trialEnded: zod.boolean(),
   currentPeriodEndsAt: zod.date().nullable(),
@@ -670,7 +670,17 @@ export const GetBillingResponse = zod.object({
   annualAvailable: zod
     .boolean()
     .describe("Whether checkout offers annual billing (two months free)."),
-  hasSubscription: zod.boolean(),
+  hasSubscription: zod
+    .boolean()
+    .describe(
+      "Stripe holds a subscription for this home that has not ended, trial included. False after one ends, so a new one can be started.",
+    ),
+  checkoutTrialEndsAt: zod
+    .date()
+    .nullable()
+    .describe(
+      "When a subscription started now would take its first payment: the end of the trial this home has left. Null when checkout would charge straight away, or card billing is not live here.",
+    ),
   onboarding: zod.array(
     zod.object({
       key: zod.string(),
@@ -750,7 +760,7 @@ export const CompleteOnboardingStepResponse = zod.object({
   freeTrialDays: zod
     .number()
     .describe(
-      "Days a subscribe button gives with no card; 0 when switched off.",
+      "Days of free trial a new home gets, with no card, and that the subscribe button starts when card billing is not live; 0 when switched off.",
     ),
   trialEnded: zod.boolean(),
   currentPeriodEndsAt: zod.date().nullable(),
@@ -761,7 +771,17 @@ export const CompleteOnboardingStepResponse = zod.object({
   annualAvailable: zod
     .boolean()
     .describe("Whether checkout offers annual billing (two months free)."),
-  hasSubscription: zod.boolean(),
+  hasSubscription: zod
+    .boolean()
+    .describe(
+      "Stripe holds a subscription for this home that has not ended, trial included. False after one ends, so a new one can be started.",
+    ),
+  checkoutTrialEndsAt: zod
+    .date()
+    .nullable()
+    .describe(
+      "When a subscription started now would take its first payment: the end of the trial this home has left. Null when checkout would charge straight away, or card billing is not live here.",
+    ),
   onboarding: zod.array(
     zod.object({
       key: zod.string(),
@@ -938,6 +958,15 @@ export const ResendStaffInviteResponse = zod
   .and(
     zod.object({
       inviteLink: zod.string(),
+      emailed: zod
+        .boolean()
+        .describe("Whether the link was emailed to them as well."),
+      notEmailedBecause: zod
+        .string()
+        .nullable()
+        .describe(
+          "Why it was not, in a sentence for the owner: no mail server, no confirmed address at the home yet, or that address has been sent several invitations already today.",
+        ),
     }),
   )
   .describe(
@@ -2367,22 +2396,113 @@ export const UpdateContactResponse = zod.object({
 });
 
 /**
+ * Stops the links this person passed on to relatives as well, unless
+`passedOn` is `keep`; `alsoStopped` names them.
+
  * @summary Revoke this person's link
  */
 export const RevokeContactParams = zod.object({
   contactId: zod.coerce.number(),
 });
 
+export const revokeContactQueryPassedOnDefault = `stop`;
+
+export const RevokeContactQueryParams = zod.object({
+  passedOn: zod
+    .enum(["stop", "keep"])
+    .default(revokeContactQueryPassedOnDefault)
+    .describe(
+      'The links this person passed on to relatives, and any passed on from\nthose in turn. `stop` turns them off with this one; `keep` leaves\nthem working, for a director who knows who has them. A word rather\nthan a boolean, because a query string carries \"false\" as text.\n',
+    ),
+});
+
+export const RevokeContactResponse = zod
+  .object({
+    id: zod.number(),
+    caseId: zod.number(),
+    name: zod.string(),
+    relationship: zod.string().nullable(),
+    phone: zod.string().nullable(),
+    email: zod.string().nullable(),
+    role: zod.enum(["next_of_kin", "contributor"]),
+    canInvite: zod.boolean(),
+    isSubject: zod
+      .boolean()
+      .describe(
+        'This person is the one the file is about: a planner reading their\nown plan. Only ever true on a pre-need file, and it is what the\nportal asks before it says \"your plan\" - a relative on somebody\nelse\'s plan is spoken to about them, not as them.\n',
+      ),
+    expiresAt: zod.date(),
+    revokedAt: zod.date().nullable(),
+    firstSeenAt: zod.date().nullable(),
+    lastSeenAt: zod.date().nullable(),
+    invitedByContactId: zod
+      .number()
+      .nullable()
+      .describe(
+        "Set when somebody on the family's side added this person, rather than the home.",
+      ),
+    smsConsentAt: zod
+      .date()
+      .nullable()
+      .describe(
+        "When this person agreed to be texted. Nobody is texted without it.",
+      ),
+    smsConsentSource: zod
+      .union([
+        zod.literal("director"),
+        zod.literal("family_portal"),
+        zod.literal("reply_start"),
+        zod.literal(null),
+      ])
+      .nullable()
+      .describe("How the consent was given."),
+    smsOptedOutAt: zod
+      .date()
+      .nullable()
+      .describe("When they replied STOP. Wins over any consent."),
+    createdAt: zod.date(),
+  })
+  .and(
+    zod.object({
+      alsoStopped: zod
+        .array(
+          zod
+            .object({
+              id: zod.number(),
+              name: zod.string(),
+            })
+            .describe(
+              "A relative's link that stopped along with the one it was passed on from.",
+            ),
+        )
+        .describe(
+          "The links this person passed on, and any passed on from those, that\nwere still working and have now stopped too, oldest first. Empty\nwhen there were none, or the director chose to keep them.\n",
+        ),
+    }),
+  );
+
 /**
  * Mints a new link and sends it, so the previous one stops working. The
 response says whether the text actually went; where the home has no
 SMS credentials, the person has not agreed to texts, or they replied
-STOP, it returns the link and `sent: false` with the reason.
+STOP, it returns the link and `sent: false` with the reason. The links
+this person passed on stop too, unless `passedOn` is `keep`.
 
  * @summary Text a fresh link to this person's mobile
  */
 export const SendContactLinkParams = zod.object({
   contactId: zod.coerce.number(),
+});
+
+export const sendContactLinkQueryPassedOnDefault = `stop`;
+
+export const SendContactLinkQueryParams = zod.object({
+  passedOn: zod
+    .enum(["stop", "keep"])
+    .default(sendContactLinkQueryPassedOnDefault)
+    .describe(
+      'The links this person passed on to relatives, and any passed on from\nthose in turn. `stop` turns them off with this one; `keep` leaves\nthem working, for a director who knows who has them. A word rather\nthan a boolean, because a query string carries \"false\" as text.\n',
+    ),
 });
 
 export const SendContactLinkBody = zod.object({
@@ -2450,6 +2570,24 @@ export const SendContactLinkResponse = zod
   )
   .and(
     zod.object({
+      alsoStopped: zod
+        .array(
+          zod
+            .object({
+              id: zod.number(),
+              name: zod.string(),
+            })
+            .describe(
+              "A relative's link that stopped along with the one it was passed on from.",
+            ),
+        )
+        .describe(
+          "The links this person passed on, and any passed on from those, that\nwere still working and have now stopped too, oldest first. Empty\nwhen there were none, or the director chose to keep them.\n",
+        ),
+    }),
+  )
+  .and(
+    zod.object({
       sent: zod.boolean(),
       smsError: zod
         .string()
@@ -2459,10 +2597,24 @@ export const SendContactLinkResponse = zod
   );
 
 /**
+ * The links this person passed on stop with the old one, unless
+`passedOn` is `keep`.
+
  * @summary Mint a fresh link, invalidating the old one
  */
 export const ReissueContactLinkParams = zod.object({
   contactId: zod.coerce.number(),
+});
+
+export const reissueContactLinkQueryPassedOnDefault = `stop`;
+
+export const ReissueContactLinkQueryParams = zod.object({
+  passedOn: zod
+    .enum(["stop", "keep"])
+    .default(reissueContactLinkQueryPassedOnDefault)
+    .describe(
+      'The links this person passed on to relatives, and any passed on from\nthose in turn. `stop` turns them off with this one; `keep` leaves\nthem working, for a director who knows who has them. A word rather\nthan a boolean, because a query string carries \"false\" as text.\n',
+    ),
 });
 
 export const ReissueContactLinkResponse = zod
@@ -2518,6 +2670,24 @@ export const ReissueContactLinkResponse = zod
   )
   .describe(
     "Returned only at the moment a link is minted. `link` is the working\nURL to paste into a text message and is never retrievable again -\nonly its digest is stored.\n",
+  )
+  .and(
+    zod.object({
+      alsoStopped: zod
+        .array(
+          zod
+            .object({
+              id: zod.number(),
+              name: zod.string(),
+            })
+            .describe(
+              "A relative's link that stopped along with the one it was passed on from.",
+            ),
+        )
+        .describe(
+          "The links this person passed on, and any passed on from those, that\nwere still working and have now stopped too, oldest first. Empty\nwhen there were none, or the director chose to keep them.\n",
+        ),
+    }),
   );
 
 /**
@@ -4461,7 +4631,7 @@ export const GetAftercareResponseItem = zod.object({
         .string()
         .nullable()
         .describe(
-          "`email`, `sms`, `email,sms`, or `withdrawn` when consent lapsed before it was due.",
+          "`email`, `sms`, `email,sms`, `withdrawn` when consent lapsed before it was due, or `missed` when it fell due and could not go out while it was still true (see `aftercareGraceMs`). Neither of the last two was sent.",
         ),
     }),
   ),
@@ -4525,7 +4695,7 @@ export const StopAftercareResponseItem = zod.object({
         .string()
         .nullable()
         .describe(
-          "`email`, `sms`, `email,sms`, or `withdrawn` when consent lapsed before it was due.",
+          "`email`, `sms`, `email,sms`, `withdrawn` when consent lapsed before it was due, or `missed` when it fell due and could not go out while it was still true (see `aftercareGraceMs`). Neither of the last two was sent.",
         ),
     }),
   ),
@@ -5841,6 +6011,17 @@ export const GetUploadParams = zod.object({
   uploadId: zod.coerce.number(),
 });
 
+export const getUploadQuerySizeDefault = `full`;
+
+export const GetUploadQueryParams = zod.object({
+  size: zod
+    .enum(["full", "thumb"])
+    .default(getUploadQuerySizeDefault)
+    .describe(
+      "`thumb` for a photograph drawn small - in a grid, a row or a picker:\na JPEG about 320 pixels on its long edge, made the first time it is\nasked for and kept. Anything already that small, or that is not a\nphotograph, comes back as it is. Who may have it is exactly who may\nhave the photograph.\n",
+    ),
+});
+
 /**
  * The first call the portal makes. Returns the home (for branding and
 the urgent number), the person who died, the service details, what is
@@ -6049,7 +6230,7 @@ export const GetFamilySessionResponse = zod
               .string()
               .nullable()
               .describe(
-                "`email`, `sms`, `email,sms`, or `withdrawn` when consent lapsed before it was due.",
+                "`email`, `sms`, `email,sms`, `withdrawn` when consent lapsed before it was due, or `missed` when it fell due and could not go out while it was still true (see `aftercareGraceMs`). Neither of the last two was sent.",
               ),
           }),
         ),
@@ -6741,7 +6922,7 @@ export const SetFamilyAftercareConsentResponse = zod.object({
         .string()
         .nullable()
         .describe(
-          "`email`, `sms`, `email,sms`, or `withdrawn` when consent lapsed before it was due.",
+          "`email`, `sms`, `email,sms`, `withdrawn` when consent lapsed before it was due, or `missed` when it fell due and could not go out while it was still true (see `aftercareGraceMs`). Neither of the last two was sent.",
         ),
     }),
   ),
@@ -7102,6 +7283,17 @@ export const DeleteFamilyLifeChapterParams = zod.object({
  */
 export const GetFamilyUploadParams = zod.object({
   uploadId: zod.coerce.number(),
+});
+
+export const getFamilyUploadQuerySizeDefault = `full`;
+
+export const GetFamilyUploadQueryParams = zod.object({
+  size: zod
+    .enum(["full", "thumb"])
+    .default(getFamilyUploadQuerySizeDefault)
+    .describe(
+      "`thumb` for a photograph drawn small - in a grid, a row or a picker:\na JPEG about 320 pixels on its long edge, made the first time it is\nasked for and kept. Anything already that small, or that is not a\nphotograph, comes back as it is. Who may have it is exactly who may\nhave the photograph.\n",
+    ),
 });
 
 /**

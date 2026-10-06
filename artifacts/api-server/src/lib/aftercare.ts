@@ -253,7 +253,9 @@ export function toDeliveryJson(d: {
     kind: d.kind,
     dayOffset: d.dayOffset,
     dueAt: d.dueAt,
-    sentAt: d.sentVia === "withdrawn" ? null : d.sentAt,
+    // Both are marked with a `sentAt` so the sender leaves them be; neither
+    // was sent, and neither side should be told it was.
+    sentAt: d.sentVia === "withdrawn" || d.sentVia === "missed" ? null : d.sentAt,
     failedAt: d.failedAt,
     sentVia: d.sentVia,
   };

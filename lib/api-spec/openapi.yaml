@@ -1351,11 +1351,19 @@ paths:
       operationId: revokeContact
       tags: [contacts]
       summary: Revoke this person's link
+      description: |
+        Stops the links this person passed on to relatives as well, unless
+        `passedOn` is `keep`; `alsoStopped` names them.
       parameters:
         - $ref: "#/components/parameters/ContactId"
+        - $ref: "#/components/parameters/PassedOn"
       responses:
-        "204":
+        "200":
           description: Revoked
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RevokedContact"
 
   /contacts/{contactId}/send-link:
     post:
@@ -1366,9 +1374,11 @@ paths:
         Mints a new link and sends it, so the previous one stops working. The
         response says whether the text actually went; where the home has no
         SMS credentials, the person has not agreed to texts, or they replied
-        STOP, it returns the link and `sent: false` with the reason.
+        STOP, it returns the link and `sent: false` with the reason. The links
+        this person passed on stop too, unless `passedOn` is `keep`.
       parameters:
         - $ref: "#/components/parameters/ContactId"
+        - $ref: "#/components/parameters/PassedOn"
       requestBody:
         required: false
         content:
@@ -1388,15 +1398,19 @@ paths:
       operationId: reissueContactLink
       tags: [contacts]
       summary: Mint a fresh link, invalidating the old one
+      description: |
+        The links this person passed on stop with the old one, unless
+        `passedOn` is `keep`.
       parameters:
         - $ref: "#/components/parameters/ContactId"
+        - $ref: "#/components/parameters/PassedOn"
       responses:
         "200":
           description: The new one-time link
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/FamilyContactWithLink"
+                $ref: "#/components/schemas/ReissuedLink"
 
   # ---------------------------------------------------- staff: the asset drop
 
@@ -3002,6 +3016,7 @@ paths:
       summary: Serve stored bytes
       parameters:
         - $ref: "#/components/parameters/UploadId"
+        - $ref: "#/components/parameters/UploadSize"
       responses:
         "200":
           description: The file
@@ -3010,6 +3025,11 @@ paths:
               schema:
                 type: string
                 format: binary
+        "429":
+          description: |
+            Too many thumbnails are being made at once. Ask again after the
+            seconds in Retry-After; one already made, and the photograph
+            itself, never wait.
 
   # ---------------------------------------------------------------- family --
   #
@@ -3583,6 +3603,7 @@ paths:
       summary: Serve a photograph on this case, or the home's logo
       parameters:
         - $ref: "#/components/parameters/UploadId"
+        - $ref: "#/components/parameters/UploadSize"
       responses:
         "200":
           description: The file
@@ -3591,6 +3612,11 @@ paths:
               schema:
                 type: string
                 format: binary
+        "429":
+          description: |
+            Too many thumbnails are being made at once. Ask again after the
+            seconds in Retry-After; one already made, and the photograph
+            itself, never wait.
 
   /family/print/{printItemId}/approve:
     post:
@@ -3677,6 +3703,19 @@ components:
       required: true
       schema:
         type: integer
+    PassedOn:
+      name: passedOn
+      in: query
+      required: false
+      description: |
+        The links this person passed on to relatives, and any passed on from
+        those in turn. `stop` turns them off with this one; `keep` leaves
+        them working, for a director who knows who has them. A word rather
+        than a boolean, because a query string carries "false" as text.
+      schema:
+        type: string
+        enum: [stop, keep]
+        default: stop
     PhotoId:
       name: photoId
       in: path
@@ -3719,6 +3758,20 @@ components:
       required: true
       schema:
         type: integer
+    UploadSize:
+      name: size
+      in: query
+      required: false
+      description: |
+        `thumb` for a photograph drawn small - in a grid, a row or a picker:
+        a JPEG about 320 pixels on its long edge, made the first time it is
+        asked for and kept. Anything already that small, or that is not a
+        photograph, comes back as it is. Who may have it is exactly who may
+        have the photograph.
+      schema:
+        type: string
+        enum: [full, thumb]
+        default: full
     OfferId:
       name: offerId
       in: path
@@ -3950,7 +4003,10 @@ components:
           nullable: true
         freeTrialDays:
           type: integer
-          description: Days a subscribe button gives with no card; 0 when switched off.
+          description: >-
+            Days of free trial a new home gets, with no card, and that the
+            subscribe button starts when card billing is not live; 0 when
+            switched off.
         trialEnded:
           type: boolean
         currentPeriodEndsAt:
@@ -3967,6 +4023,17 @@ components:
           description: Whether checkout offers annual billing (two months free).
         hasSubscription:
           type: boolean
+          description: >-
+            Stripe holds a subscription for this home that has not ended,
+            trial included. False after one ends, so a new one can be started.
+        checkoutTrialEndsAt:
+          type: string
+          format: date-time
+          nullable: true
+          description: >-
+            When a subscription started now would take its first payment: the
+            end of the trial this home has left. Null when checkout would
+            charge straight away, or card billing is not live here.
         onboarding:
           type: array
           items:
@@ -4001,6 +4068,7 @@ components:
           billingConfigured,
           annualAvailable,
           hasSubscription,
+          checkoutTrialEndsAt,
           onboarding,
           onboardingComplete,
         ]
@@ -4072,7 +4140,17 @@ components:
           properties:
             inviteLink:
               type: string
-          required: [inviteLink]
+            emailed:
+              type: boolean
+              description: Whether the link was emailed to them as well.
+            notEmailedBecause:
+              type: string
+              nullable: true
+              description: >-
+                Why it was not, in a sentence for the owner: no mail server, no
+                confirmed address at the home yet, or that address has been
+                sent several invitations already today.
+          required: [inviteLink, emailed, notEmailedBecause]
 
     StaffUpdate:
       type: object
@@ -5487,6 +5565,7 @@ components:
     SentLink:
       allOf:
         - $ref: "#/components/schemas/FamilyContactWithLink"
+        - $ref: "#/components/schemas/AlsoStopped"
         - type: object
           properties:
             sent:
@@ -5496,6 +5575,39 @@ components:
               nullable: true
               description: Why the text did not go, in words a director can act on.
           required: [sent, smsError]
+
+    StoppedLink:
+      type: object
+      description: A relative's link that stopped along with the one it was passed on from.
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+      required: [id, name]
+
+    AlsoStopped:
+      type: object
+      properties:
+        alsoStopped:
+          type: array
+          description: |
+            The links this person passed on, and any passed on from those, that
+            were still working and have now stopped too, oldest first. Empty
+            when there were none, or the director chose to keep them.
+          items:
+            $ref: "#/components/schemas/StoppedLink"
+      required: [alsoStopped]
+
+    RevokedContact:
+      allOf:
+        - $ref: "#/components/schemas/FamilyContact"
+        - $ref: "#/components/schemas/AlsoStopped"
+
+    ReissuedLink:
+      allOf:
+        - $ref: "#/components/schemas/FamilyContactWithLink"
+        - $ref: "#/components/schemas/AlsoStopped"
 
     FamilyContactInput:
       type: object
@@ -7655,7 +7767,7 @@ components:
         sentVia:
           type: string
           nullable: true
-          description: "`email`, `sms`, `email,sms`, or `withdrawn` when consent lapsed before it was due."
+          description: "`email`, `sms`, `email,sms`, `withdrawn` when consent lapsed before it was due, or `missed` when it fell due and could not go out while it was still true (see `aftercareGraceMs`). Neither of the last two was sent."
       required: [id, kind, dayOffset, dueAt, sentAt, failedAt, sentVia]
 
     AftercareMessage:

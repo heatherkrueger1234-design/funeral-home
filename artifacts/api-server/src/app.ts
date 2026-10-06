@@ -8,14 +8,17 @@ import { billingWebhookRouter } from "./routes/billing";
 import { logger } from "./lib/logger";
 import { errorHandler, notFoundHandler } from "./lib/http";
 import { corsOptions, rejectCrossOriginWrites } from "./lib/cors";
-import { trustProxyHops } from "./lib/trust-proxy";
+import { proxyHopsCheck, trustProxyHops } from "./lib/trust-proxy";
 
 const app: Express = express();
 
 // Something always terminates TLS in front of this process, so `req.ip` and
 // `req.secure` are only correct once the proxies are trusted, and only as
-// many of them as there really are. See lib/trust-proxy.ts.
-app.set("trust proxy", trustProxyHops());
+// many of them as there really are. See lib/trust-proxy.ts, which is also
+// why the next line is there: a number too low fails silently.
+const hops = trustProxyHops();
+app.set("trust proxy", hops);
+app.use(proxyHopsCheck(hops));
 
 // Journals, letters and obituaries can be long-form; the 100kb default is
 // tight enough that a single entry could be rejected.

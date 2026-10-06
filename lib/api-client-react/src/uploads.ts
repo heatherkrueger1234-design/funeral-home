@@ -38,6 +38,16 @@ export const ACCEPTED_UPLOAD_TYPES = [
   "image/avif",
 ] as const;
 
+/**
+ * The `accept` of every photograph picker, in both apps.
+ *
+ * The extensions as well as the types, because some Android pickers report
+ * an iPhone's HEIC with no type at all and would otherwise grey out exactly
+ * the photographs somebody's sister sent them. The family portal said so
+ * and the console's picker did not, so it is said once, here.
+ */
+export const PHOTO_PICKER_ACCEPT = [...ACCEPTED_UPLOAD_TYPES, ".heic", ".heif"].join(",");
+
 /** Staff upload: the home's logo, or a photograph posted to the office. */
 export async function postUploadMultipart(file: File): Promise<UploadedFile> {
   const body = new FormData();
@@ -88,4 +98,38 @@ export async function postFamilyPhotoMultipart(
     body,
     responseType: "json",
   });
+}
+
+/**
+ * How long a "not yet" (a 429) asked to be given, in milliseconds: its
+ * Retry-After, kept between a second and a minute, or ten seconds when it
+ * named none. Null for any other answer, which waiting will not change.
+ */
+export function waitAsked(error: unknown): number | null {
+  if ((error as { status?: number } | null)?.status !== 429) return null;
+  const header = (error as { headers?: Headers }).headers?.get("retry-after");
+  return Math.min(60, Math.max(1, Number(header) || 10)) * 1000;
+}
+
+/**
+ * Send, and when the server says "not yet" (a 429), wait as long as it says
+ * and send the same thing again -- up to four more times.
+ *
+ * Two different "not yet"s arrive here, and in neither was anything wrong
+ * with the photograph. A family's link has a per-minute ceiling that a
+ * family choosing three hundred pictures on good wifi can reach; and the API
+ * holds only so many uploads in memory at once, which anybody can meet in a
+ * busy minute. Each used to come back as its own "Couldn't add", seventy of
+ * them for photographs that were perfectly fine.
+ */
+export async function withPatience<T>(send: () => Promise<T>): Promise<T> {
+  for (let attempt = 0; ; attempt += 1) {
+    try {
+      return await send();
+    } catch (error) {
+      const wait = waitAsked(error);
+      if (wait === null || attempt >= 4) throw error;
+      await new Promise((resolve) => setTimeout(resolve, wait));
+    }
+  }
 }

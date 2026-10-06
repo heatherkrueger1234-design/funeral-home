@@ -17,6 +17,7 @@ import {
   VerifyEmailBody,
 } from "@workspace/api-zod";
 import { badRequest, HttpError, parseBody } from "../lib/http";
+import { logger } from "../lib/logger";
 import { uniqueSlug } from "../lib/slug";
 import {
   EMAIL_VERIFICATION_TTL_MS,
@@ -45,10 +46,12 @@ import {
   sendPasswordResetEmail,
 } from "@workspace/mailer";
 import { authRateLimit } from "../middleware/rate-limit";
-import { isPlatformAdmin } from "../lib/platform-auth";
+import { claimEmail } from "../lib/email-ceiling";
+import { isPlatformAdmin, reclaimForInbox } from "../lib/platform-auth";
 import { seedTimelineTemplate } from "../lib/timeline";
 import { seedPolicyPrompts } from "../lib/storefront";
 import { currentUser, requireAuth, tenant } from "../middleware/require-auth";
+import { toDirectorHome } from "./home";
 
 /**
  * Staff accounts. Families never reach this file — they have no account at
@@ -67,12 +70,20 @@ const router: IRouter = Router();
  * be told which of them they can use — not sent back to guess. It is a fact
  * about the caller's own account, so it discloses nothing: a director learns
  * `false`, which they could work out by trying.
+ *
+ * The home goes through `toDirectorHome` like every other director-facing
+ * copy of that row. This is the copy the console actually keeps — it is sent
+ * on every sign-in and every page load, to every member of staff — so it was
+ * the one place the platform's own notes on the customer still reached them.
  */
 async function authPayload(user: User, home: FuneralHome) {
   return {
     user: toPublicUser(user),
-    home,
-    platformAdmin: await isPlatformAdmin(user.email),
+    home: toDirectorHome(home),
+    // The gate's own condition, confirmation included. Without it, anyone
+    // registering an address learned from the answer whether it was on the
+    // list -- which is the first step of squatting one.
+    platformAdmin: user.emailVerified && (await isPlatformAdmin(user.email)),
   };
 }
 
@@ -131,8 +142,12 @@ router.post("/auth/register", authRateLimit, async (req, res) => {
       }
     }
 
-    const base = process.env["CONSOLE_URL"]?.replace(/\/+$/, "") ?? "";
-    await sendAccountExistsEmail({ to: email, signInUrl: `${base}/` });
+    // After the answer, as a reset link is: how many of these one address is
+    // sent has a ceiling, and an answer that waited on the mail server only
+    // when one went would say when it had been reached.
+    void sendAccountExists(existing).catch((err: unknown) => {
+      logger.error({ err, userId: existing.id }, "Could not send an account-exists email");
+    });
     res.status(202).json(CHECK_EMAIL);
     return;
   }
@@ -190,13 +205,27 @@ router.post("/auth/register", authRateLimit, async (req, res) => {
   res.status(201).json(await authPayload(user, home));
 });
 
+async function sendAccountExists(user: User): Promise<void> {
+  if (!(await claimEmail(user, "account_exists"))) return;
+
+  const base = process.env["CONSOLE_URL"]?.replace(/\/+$/, "") ?? "";
+  await sendAccountExistsEmail({ to: user.email, signInUrl: `${base}/` });
+}
+
 /**
  * Issue a confirmation link and email it.
  *
  * Shared by registration and by the resend route so the two cannot drift. The
  * link lands on the console, because whoever clicks it is staff.
+ *
+ * Awaited, unlike the account-exists email and the reset link, because only
+ * the signed-in account can ask for one, and about its own address: how long
+ * the answer takes tells them nothing they do not know. Past the address's
+ * ceiling (`claimEmail`) no link is issued, and both routes answer as usual.
  */
 async function sendVerification(user: User, homeName: string): Promise<void> {
+  if (!(await claimEmail(user, "email_verification"))) return;
+
   const token = await createEmailVerification(user.id, user.email);
   const base = process.env["CONSOLE_URL"]?.replace(/\/+$/, "") ?? "";
 
@@ -228,6 +257,10 @@ router.post("/auth/verify-email", authRateLimit, async (req, res) => {
         "Sign in and ask for another.",
     );
   }
+
+  // A listed address has just proved its inbox, which is not the same as
+  // proving the password on it was chosen there. See `reclaimForInbox`.
+  if (await isPlatformAdmin(user.email)) await reclaimForInbox(user);
 
   res.status(204).end();
 });
@@ -333,22 +366,39 @@ router.post("/auth/forgot-password", authRateLimit, async (req, res) => {
     .where(eq(usersTable.email, email))
     .limit(1);
 
+  /*
+   * Not awaited, and that is the point. The answer was always the same 202,
+   * but it came after a fresh connection to the mail server -- hundreds of
+   * milliseconds -- only when the address had an account, so how long it
+   * took said what the status code would not. The reset is issued and sent
+   * after the answer has gone, as the front door's notice to a home is.
+   */
   if (user && user.deactivatedAt === null) {
-    const token = await createPasswordReset(user.id);
-
-    // The console's own origin, so the link lands on the staff sign-in app
-    // rather than on the family portal.
-    const base = process.env["CONSOLE_URL"]?.replace(/\/+$/, "") ?? "";
-
-    await sendPasswordResetEmail({
-      to: user.email,
-      resetUrl: `${base}/reset-password?token=${encodeURIComponent(token)}`,
-      expiresInMinutes: Math.round(PASSWORD_RESET_TTL_MS / 60000),
+    void sendResetLink(user).catch((err: unknown) => {
+      logger.error({ err, userId: user.id }, "Could not send a password reset link");
     });
   }
 
   res.status(202).end();
 });
+
+async function sendResetLink(user: User): Promise<void> {
+  // Here, after the answer has gone, so that the address having had its
+  // share of these changes nothing about the answer either.
+  if (!(await claimEmail(user, "password_reset"))) return;
+
+  const token = await createPasswordReset(user.id);
+
+  // The console's own origin, so the link lands on the staff sign-in app
+  // rather than on the family portal.
+  const base = process.env["CONSOLE_URL"]?.replace(/\/+$/, "") ?? "";
+
+  await sendPasswordResetEmail({
+    to: user.email,
+    resetUrl: `${base}/reset-password?token=${encodeURIComponent(token)}`,
+    expiresInMinutes: Math.round(PASSWORD_RESET_TTL_MS / 60000),
+  });
+}
 
 router.post("/auth/reset-password", authRateLimit, async (req, res) => {
   const values = parseBody(ResetPasswordBody, req.body);

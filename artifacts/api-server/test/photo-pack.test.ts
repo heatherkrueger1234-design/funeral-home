@@ -3,6 +3,8 @@ import { execFileSync } from "node:child_process";
 import { mkdtempSync, writeFileSync, readFileSync, readdirSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
+import { eq } from "drizzle-orm";
+import { db, uploadsTable } from "@workspace/db";
 import { asFamily, createCase, inviteFamily, signUpHome, PNG_BYTES } from "./helpers";
 
 /**
@@ -98,6 +100,38 @@ describe("the photo pack", () => {
     const row = await createCase(staff);
 
     await staff.agent.get(`/api/cases/${row.id}/photo-pack`).expect(400);
+  });
+
+  /*
+   * An archive here cannot pass 4 GB. Finding that out part-way through,
+   * after the 200 had gone, handed a director a file that would not open to
+   * the end. The sizes are recorded large rather than written large: what is
+   * under test is that the pack asks before it starts.
+   */
+  it("refuses a selection too large for one archive before writing any of it", async () => {
+    const staff = await signUpHome();
+    const row = await createCase(staff);
+    const { token } = await inviteFamily(staff, row.id, { name: "Anne Hale" });
+
+    const ids: number[] = [];
+    for (const name of ["a.png", "b.png", "c.png"]) {
+      const res = await asFamily(token)
+        .post("/api/family/photos")
+        .attach("file", PNG_BYTES, name)
+        .expect(201);
+      ids.push(res.body.id);
+    }
+    await staff.agent
+      .put(`/api/cases/${row.id}/photos/selection`)
+      .send({ photoIds: ids })
+      .expect(200);
+    await db
+      .update(uploadsTable)
+      .set({ sizeBytes: 2_000_000_000 })
+      .where(eq(uploadsTable.caseId, row.id));
+
+    const res = await staff.agent.get(`/api/cases/${row.id}/photo-pack`).expect(413);
+    expect(res.headers["content-type"]).toMatch(/json/);
   });
 
   it("asks for a selection rather than dumping the whole bin", async () => {

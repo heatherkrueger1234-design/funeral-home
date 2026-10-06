@@ -10,6 +10,7 @@
  * from.
  */
 import { describe, expect, it } from "vitest";
+import sharp from "sharp";
 import { asFamily, createCase, inviteFamily, signUpHome, PNG_BYTES } from "./helpers";
 import request from "supertest";
 import app from "../src/app";
@@ -22,6 +23,21 @@ import {
   uploadsTable,
 } from "@workspace/db";
 import { eq } from "drizzle-orm";
+
+/** A photograph large enough that its thumbnail is a file of its own. */
+function aPhotograph(): Promise<Buffer> {
+  return sharp({
+    create: {
+      width: 1200,
+      height: 900,
+      channels: 3,
+      background: { r: 0, g: 0, b: 0 },
+      noise: { type: "gaussian", mean: 128, sigma: 40 },
+    },
+  })
+    .jpeg()
+    .toBuffer();
+}
 
 /** Read a zip's entry names without a dependency, by scanning local headers. */
 function entryNames(buffer: Buffer): string[] {
@@ -162,6 +178,36 @@ describe("taking the data out", () => {
 
     await b.agent.get(`/api/cases/${row.id}/export`).expect(404);
   });
+
+  it("carries each photograph once, and none of the thumbnails made of them", async () => {
+    const staff = await signUpHome();
+    const row = await createCase(staff);
+    const added = await staff.agent
+      .post(`/api/cases/${row.id}/photos`)
+      .attach("file", await aPhotograph(), { filename: "mum.jpg", contentType: "image/jpeg" })
+      .expect(201);
+    await staff.agent.get(`/api/uploads/${added.body.uploadId}?size=thumb`).expect(200);
+    const kept = await db
+      .select({ id: uploadsTable.id })
+      .from(uploadsTable)
+      .where(eq(uploadsTable.caseId, row.id));
+    expect(kept).toHaveLength(2);
+
+    const res = await staff.agent
+      .get(`/api/cases/${row.id}/export`)
+      .buffer(true)
+      .parse((response, callback) => {
+        const chunks: Buffer[] = [];
+        response.on("data", (chunk: Buffer) => chunks.push(chunk));
+        response.on("end", () => callback(null, Buffer.concat(chunks)));
+      })
+      .expect(200);
+
+    const photographs = entryNames(res.body as Buffer).filter((name) =>
+      name.startsWith("photographs/"),
+    );
+    expect(photographs).toEqual([`photographs/unselected-${added.body.id}.jpg`]);
+  });
 });
 
 describe("erasing a case on request", () => {
@@ -222,6 +268,40 @@ describe("erasing a case on request", () => {
     expect(after).toHaveLength(0);
 
     await staff.agent.get(`/api/cases/${row.id}`).expect(404);
+  });
+
+  it("takes the thumbnails made of the photographs with it", async () => {
+    const staff = await signUpHome();
+    const row = await createCase(staff, {
+      decedentFirstName: "Eleanor",
+      decedentLastName: "Vance",
+    });
+    const added = await staff.agent
+      .post(`/api/cases/${row.id}/photos`)
+      .attach("file", await aPhotograph(), { filename: "mum.jpg", contentType: "image/jpeg" })
+      .expect(201);
+    await staff.agent.get(`/api/uploads/${added.body.uploadId}?size=thumb`).expect(200);
+
+    // The photograph and, beside it, the thumbnail made of it.
+    const before = await db
+      .select({ id: uploadsTable.id, thumbnailUploadId: uploadsTable.thumbnailUploadId })
+      .from(uploadsTable)
+      .where(eq(uploadsTable.caseId, row.id));
+    expect(before).toHaveLength(2);
+    expect(before.map((upload) => upload.thumbnailUploadId)).toContain(
+      before.find((upload) => upload.id !== added.body.uploadId)!.id,
+    );
+
+    await staff.agent
+      .post(`/api/cases/${row.id}/delete`)
+      .send({ confirmName: "Eleanor Vance", reason: "The family asked." })
+      .expect(204);
+
+    const left = await db
+      .select({ id: uploadsTable.id })
+      .from(uploadsTable)
+      .where(eq(uploadsTable.funeralHomeId, staff.homeId));
+    expect(left).toEqual([]);
   });
 
   it("leaves a tombstone that says it happened and nothing about who it was for", async () => {

@@ -1000,6 +1000,9 @@ function GroupCard({ home }: { home: AdminHomeDetail }) {
   const queryClient = useQueryClient();
   const [moving, setMoving] = useState(false);
   const [choice, setChoice] = useState("");
+  // What Stripe could not be told about the move, kept on screen after it:
+  // the move stands, and the bill is somebody's to put right by hand.
+  const [billingWarning, setBillingWarning] = useState<string | null>(null);
 
   const groups = useQuery({
     queryKey: ["groups"],
@@ -1009,8 +1012,10 @@ function GroupCard({ home }: { home: AdminHomeDetail }) {
 
   const move = useMutation({
     mutationFn: (groupId: number | null) =>
-      api.put(`/admin/homes/${home.id}/group`, { groupId }),
-    onSuccess: () => {
+      api.put<{ billingWarning?: string }>(`/admin/homes/${home.id}/group`, { groupId }),
+    onMutate: () => setBillingWarning(null),
+    onSuccess: (moved) => {
+      setBillingWarning(moved.billingWarning ?? null);
       setMoving(false);
       setChoice("");
       void queryClient.invalidateQueries({ queryKey: ["home", home.id] });
@@ -1034,10 +1039,17 @@ function GroupCard({ home }: { home: AdminHomeDetail }) {
     </p>
   );
 
+  const warning = billingWarning && (
+    <p role="alert" className="mb-4 max-w-prose text-sm text-[var(--notice)]">
+      Moved. {billingWarning}
+    </p>
+  );
+
   if (home.group) {
     return (
       <Card>
         <CardTitle>Group</CardTitle>
+        {warning}
         <p className="max-w-prose">
           Part of{" "}
           <Link href={`/groups/${home.group.id}`} className="font-semibold">
@@ -1048,7 +1060,8 @@ function GroupCard({ home }: { home: AdminHomeDetail }) {
         <p className="mt-2 mb-4 max-w-prose text-sm text-[var(--muted-foreground)]">
           Taking it out of the group puts it on a fourteen-day trial of its own,
           without the group's add-ons, so it keeps working while it sets up its
-          own billing. Nothing in the home changes.
+          own billing, and the group's subscription is charged for one
+          location fewer from today. Nothing in the home changes.
         </p>
         {moving ? (
           <div className="flex flex-col gap-3">
@@ -1082,6 +1095,7 @@ function GroupCard({ home }: { home: AdminHomeDetail }) {
   return (
     <Card>
       <CardTitle>Group</CardTitle>
+      {warning}
       <p className="mb-4 max-w-prose text-sm text-[var(--muted-foreground)]">
         An independent home, on its own contract. If it belongs to a group that
         has one contract for many locations, moving it in puts it on the group's
@@ -1142,9 +1156,12 @@ function GroupCard({ home }: { home: AdminHomeDetail }) {
           </div>
           {chosen && (
             <p className="max-w-prose text-sm">
-              {home.name} will take on {chosen.name}'s contract straight away.
-              If it pays for itself today, that subscription has to be cancelled
-              first, or both would be charged.
+              {home.name} will take on {chosen.name}'s contract straight away
+              {chosen.hasSubscription
+                ? ", and the group's subscription is charged for one more location from today"
+                : ""}
+              . If it pays for itself today, that subscription has to be
+              cancelled first, or both would be charged.
             </p>
           )}
           {problem}

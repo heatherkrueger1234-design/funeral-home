@@ -248,7 +248,13 @@ Each reminder is claimed with a conditional update before it is sent, so two
 overlapping runs cannot both send it. The trade is the same one aftercare
 makes, in the same direction: a crash losing one reminder is much better than
 its opposite, which is a proprietor receiving the same notice four times from
-the company holding their families' photographs.
+the company holding their families' photographs. A reminder the mail server
+refuses is given back for the next run, and the workflow goes red.
+
+Not every home on trial is written to. A home that subscribed during its
+trial hears about its end from Stripe, which charges the card it gave (turn
+on Stripe's own trial-ending email; `PRICING.md`), and a location in a group
+is the group's conversation, not its own.
 
 Add `?dryRun=1` to see what is due without sending or marking anything —
 that is how to check a new deployment is wired up without writing to a
@@ -338,7 +344,15 @@ ordinary session gate. The account's address must also be **confirmed**: the
 list names addresses and registration never checks them, so without that
 anybody could register under a listed address nobody had claimed yet (the
 bootstrap address before its owner signs up is the obvious one) and walk in.
-On a fresh deployment, register, click the confirmation link, then sign in.
+Confirming is not enough on its own, because it proves the inbox and not the
+password: whoever registered first kept their password and session, and the
+owner's click used to let them in. So when a listed address is confirmed, or
+a confirmed address is put on the list, its password, sessions and any
+outstanding reset or invitation links are cleared, and the inbox is emailed a
+link to choose a new password (`reclaimForInbox` in `lib/platform-auth.ts`).
+On a fresh deployment: register, click the confirmation link, choose your
+password from the email that follows it, then sign in. Somebody given access
+later gets the same email the moment they are added.
 
 **What an operator can do for a caller.** Find their home from the exact
 address they give (never shown back), see whether each person at the home
@@ -616,7 +630,7 @@ every data-collection category off, no breadcrumbs, the route pattern rather
 than the URL, and messages scrubbed of addresses, tokens and numbers;
 `error-tracking.test.ts` reads the envelopes. Each app has a `CrashBoundary`
 and `lib/crash-report.ts`. `.github/workflows/uptime.yml` asks
-`/api/healthz` every fifteen minutes once `API_URL` is set. Add Sentry to the
+`/api/healthz` every hour once `API_URL` is set. Add Sentry to the
 DPA's sub-processors before setting the DSN.
 
 **Colour.** No red anywhere in the family portal, and in the console only to

@@ -266,8 +266,16 @@ export async function sendSms(options: {
     try {
       const body = (await response.json()) as { message?: string; code?: number };
       if (body.message) detail = body.message;
-      // 21610: the recipient replied STOP to this sender at the carrier.
-      if (body.code === 21610) await recordOptOut(to, route.scope);
+      // 21610: the recipient replied STOP to this sender at the carrier. On
+      // the shared number it is held against the home too, as a STOP that
+      // reaches the webhook is, so it survives the home moving to a number
+      // of its own.
+      if (body.code === 21610) {
+        await recordOptOut(to, route.scope);
+        if (route.kind === "platform" && options.home?.id) {
+          await recordOptOut(to, `home:${options.home.id}:shared`);
+        }
+      }
     } catch {
       /* Non-JSON error body; the status is all we have. */
     }
@@ -310,9 +318,52 @@ export function isValidTwilioSignature(
 ): boolean {
   const token = authToken ?? credentials()?.authToken;
   if (!token || !signature) return false;
-  const expected = Buffer.from(twilioSignature(token, url, params));
   const given = Buffer.from(signature);
-  return expected.length === given.length && timingSafeEqual(expected, given);
+  // Each in constant time; which form matched is no secret.
+  return signedForms(url).some((form) => {
+    const expected = Buffer.from(twilioSignature(token, form, params));
+    return expected.length === given.length && timingSafeEqual(expected, given);
+  });
+}
+
+/**
+ * The ways of writing our URL that Twilio may have signed.
+ *
+ * Twilio signs the URL it called, but its signing side does not always write
+ * it the same way: the scheme's default port (":443", or ":80" for plain
+ * http) is sometimes in it and sometimes not, whichever way the URL was
+ * configured. Its own library (`validateRequest` in twilio-node) therefore
+ * accepts a signature over the URL with the default port written in, and
+ * over it with the port taken out, and so does this. Checking the one form
+ * refused every reply signed the other way, STOPs among them.
+ *
+ * twilio-node also tries the query string re-encoded the way Node's old
+ * `querystring` did. The webhook is configured without one, so that is left
+ * out.
+ */
+function signedForms(url: string): string[] {
+  let parsed: URL;
+  try {
+    parsed = new URL(url);
+  } catch {
+    return [url];
+  }
+
+  const withoutPort = new URL(parsed);
+  withoutPort.port = "";
+
+  // The URL parser drops a default port, so it is written back by hand.
+  const userinfo =
+    parsed.username || parsed.password
+      ? `${parsed.username}${parsed.password ? `:${parsed.password}` : ""}@`
+      : "";
+  const defaultPort = parsed.protocol === "https:" ? ":443" : ":80";
+  const withPort = parsed.port
+    ? parsed.toString()
+    : `${parsed.protocol}//${userinfo}${parsed.host}${defaultPort}` +
+      `${parsed.pathname}${parsed.search}${parsed.hash}`;
+
+  return [...new Set([url, withoutPort.toString(), withPort])];
 }
 
 const subaccountTokens = new Map<string, { token: string; until: number }>();
@@ -366,33 +417,144 @@ export function keywordOf(body: string): "stop" | "start" | "help" | null {
   return null;
 }
 
-/** The FCC's own list (47 CFR 64.1200(a)(10)), and STOPALL. */
-const REVOKING_WORDS = new Set(["stop", "stopall", "quit", "end", "revoke", "cancel", "unsubscribe", "optout"]);
+/* What a family calls our texts, and sending them. */
+const TEXTS =
+  "(?:texts?|txts?|messages?|msgs?|sms|notifications?|alerts?|reminders?|communications?|contact|calls|subscription)";
+const SENDING =
+  "(?:texting|txting|messaging|sending|contacting|calling|bothering|harassing|spamming)";
+/** What can stand between a verb and the texts: "stop all of these texts". */
+const BETWEEN =
+  "(?:(?:all|the|these|those|this|your|ur|any|my|me|us|of|more|future|further|such|text) ){0,4}";
+
+/** Said around a stop without changing what it means: "please stop now, thanks". */
+const COURTESY = new Set([
+  "please", "pls", "plz", "kindly", "just", "now", "right", "already", "again",
+  "immediately", "asap", "all", "for", "good", "forever", "anymore", "permanently",
+  "ok", "okay", "sorry", "thanks", "thank", "you", "thx", "ty", "hi", "hello", "hey",
+]);
 
 /**
- * A reply that withdraws consent in more words than a keyword: "Stop
- * please", "please stop texting me", "no more texts".
+ * Ways of saying stop that are about the texts, whatever surrounds them.
+ * Each is tried on one clause at a time, so "don't." and "text me later"
+ * in two sentences are not read as "don't text me".
+ */
+const ABOUT_THE_TEXTS: RegExp[] = [
+  // Words with no other use in a reply to a text from us.
+  /\bunsub(?:scrib\w*)?\b/,
+  /\bopt(?:s|ed|ing)? ?(?:(?:me|us) )?out\b/,
+  /\bstopall\b/,
+  /\brevo(?:ke|ked|king|cation)\b/,
+  /\bcease and desist\b/,
+  // A stop aimed at the texts or at sending them.
+  new RegExp(`\\b(?:stop|quit|cease) ${BETWEEN}(?:${TEXTS}|${SENDING})\\b`),
+  // Or at "these", "this" or "them" where the clause ends: "please stop
+  // these", not "we'll stop this afternoon"; and not "I can't stop them".
+  new RegExp(
+    `(?<!\\b(?:cant|cannot|couldnt|can not|could not) )\\b(?:stop|quit|cease) ` +
+      `(?:all )?(?:of )?(?:these|this|them)(?: (?:${[...COURTESY].join("|")}))*$`,
+  ),
+  // Cancel and end only with the texts as their object. On their own they
+  // are about the funeral -- "cancel the viewing", "when will the service
+  // end" -- and "the end of your message" is not ending anything.
+  new RegExp(`\\b(?:cancel|end)(?! of\\b) ${BETWEEN}${TEXTS}\\b`),
+  /\b(?:texts|txts|messages|msgs|notifications|alerts|reminders|calls) to stop\b/,
+  new RegExp(`\\bno more ${BETWEEN}${TEXTS}\\b`),
+  new RegExp(`\\b(?:dont|do not) want (?:to (?:get|receive) )?${BETWEEN}${TEXTS}\\b`),
+  /\b(?:dont|do not|never) (?:\w+ or )?(?:text|txt|message|msg|contact)(?: or \w+)? (?:me|us|this number|my number)\b/,
+  /\bremove (?:me|us|my number|this number)\b/,
+  /\btake (?:me|us|my number|this number) off(?:$| (?:of )?(?:this|your|ur|the) (?:\w+ )?list\b)/,
+  /*
+   * There is nothing else for it to mean in a reply to a text from a funeral
+   * home. A family asking for time with the person who died writes "a few
+   * minutes alone with Dad", not this, and on the day they would ring.
+   */
+  /\bleave (?:me|us) alone\b/,
+];
+
+/** A clause of nothing but one of these, give or take courtesy, is a stop. */
+const ON_ITS_OWN = new Set(["stop", "quit", "cease", "end", "cancel"]);
+
+/**
+ * "Stop by", "stop in", "stop at the florist": calling in on the way, the
+ * sense a family uses most in the week of a funeral.
+ */
+const CALLING_IN = new Set([
+  "by", "in", "into", "at", "off", "over", "round", "around", "past", "on", "to", "there", "here",
+]);
+
+/**
+ * A reply that withdraws consent in more words than a keyword.
  *
- * The FCC treats any of its revocation words in a reply as a request to stop
- * — with other words around it — and a person who wrote "Stop please" and
- * kept getting texts would be right to be angry. `keywordOf` alone missed
- * every one of them: "Stop please" reads as STOPPLEASE.
+ * The FCC's rule (47 CFR 64.1200(a)(10)) lets consent be withdrawn by any
+ * reasonable means, and its words were heard only in replies of six words or
+ * fewer: "Please stop sending these, it is too painful" was answered by the
+ * next text. A reply is a stop when a clause of it says so about the texts
+ * ("stop sending these", "no more messages", "take me off your list"), when
+ * a clause is nothing but the word ("Wrong number. Please stop."), or when
+ * the reply is short and says stop or quit in any sense but calling in on
+ * the way ("stop by") or being unable to ("I can't stop crying").
  *
- * Short replies only. In a message of more than six words, "end" or "stop"
- * is usually part of a sentence ("we'll stop by at the end of the day"), and
- * the reply to anything that is not a keyword already says how to stop.
+ * Hearing a stop that was not meant is the safe mistake, because the webhook
+ * answers it with how to take it back. That is also why negation is not
+ * read: "if you don't stop texting me" has to stop, so "please don't stop
+ * sending these" stops too, and is told to reply START. But these are
+ * families arranging a funeral, and "can we stop by Thursday", "please
+ * cancel the viewing" and "what time will the service end" are what they
+ * write all week. So "cancel" and "end" count only as the whole reply or
+ * with the texts as their object, never bare in a sentence however short.
  */
 export function revokesConsent(body: string): boolean {
   if (keywordOf(body) === "stop") return true;
-  const words = body.toLowerCase().replace(/[’']/g, "").match(/[a-z]+/g) ?? [];
-  if (words.length === 0 || words.length > 6) return false;
-  const text = words.join(" ");
+
+  const clauses = clausesOf(body);
+  const words = clauses.flat();
+
   return (
-    words.some((word) => REVOKING_WORDS.has(word)) ||
-    /\bopt out\b/.test(text) ||
-    /\b(dont|do not) (text|message)\b/.test(text) ||
-    /\bno more (texts|messages)\b/.test(text)
+    clauses.some(saysStop) ||
+    (words.length <= 6 &&
+      words.some(
+        (word, i) =>
+          (word === "stop" || word === "quit") &&
+          !CALLING_IN.has(words[i + 1] ?? "") &&
+          !unableTo(words, i),
+      ))
   );
+}
+
+/** A stop typed with feeling, "STOPPPP", is a stop. */
+const drawnOut = (word: string) => (/^s+t+o+p+$/.test(word) ? "stop" : word);
+
+/**
+ * The reply as clauses of bare words: lower case, without apostrophes
+ * (straight or curly) or the invisible characters a phone can leave inside a
+ * word, and split at the punctuation between sentences and clauses.
+ */
+function clausesOf(body: string): string[][] {
+  return body
+    .toLowerCase()
+    .replace(/\p{Cf}/gu, "")
+    .replace(/['’‘ʼ]/g, "")
+    .split(/[.!?,;:…\n\r–—]+/)
+    .map((clause) => (clause.match(/[a-z]+/g) ?? []).map(drawnOut))
+    .filter((clause) => clause.length > 0);
+}
+
+function saysStop(clause: string[]): boolean {
+  const text = clause.join(" ");
+  if (ABOUT_THE_TEXTS.some((pattern) => pattern.test(text))) return true;
+  // "Please stop", "Cancel, thanks", "Stop it now".
+  const said = clause.filter(
+    (word, i) =>
+      !COURTESY.has(word) && !(word === "it" && (clause[i - 1] === "stop" || clause[i - 1] === "quit")),
+  );
+  return said.length === 1 && ON_ITS_OWN.has(said[0]!);
+}
+
+/** "I can't stop crying" is not asking anybody to stop anything. */
+function unableTo(words: string[], i: number): boolean {
+  const before = words[i - 1];
+  if (before === "cant" || before === "cannot" || before === "couldnt") return true;
+  return before === "not" && (words[i - 2] === "can" || words[i - 2] === "could");
 }
 
 /* ----------------------------------------------------- registration --- */

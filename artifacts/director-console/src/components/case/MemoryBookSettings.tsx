@@ -13,6 +13,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
+import { PhotoImg } from "@/components/PhotoImg";
 import { endOfDay, readYear, toDateInput } from "@/lib/memory-book";
 import { useHomeZone } from "@/lib/session";
 
@@ -235,8 +236,9 @@ export function PhotoYears({ caseId, photos }: { caseId: number; photos: CasePho
         const id = `photo-year-${photo.id}`;
         return (
           <li key={photo.id} className="flex items-center gap-3">
-            <img
-              src={`/api/uploads/${photo.uploadId}`}
+            <PhotoImg
+              uploadId={photo.uploadId}
+              size="thumb"
               alt={photo.caption ?? `Photograph ${index + 1}`}
               loading="lazy"
               className="size-12 shrink-0 rounded-md bg-muted object-cover"

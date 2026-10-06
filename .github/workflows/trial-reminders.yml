@@ -82,10 +82,15 @@ jobs:
           with open("result.json") as f:
               result = json.load(f)
           print(f"due={result['due']} sent={result['sent']} "
-                f"skipped={result['skipped']}")
+                f"skipped={result['skipped']} failed={result.get('failed', 0)}")
           # Most days nothing is due, which is normal and green. What is not
           # normal is a deployment with no mail configured: the reminders are
           # written to a log nobody reads and every trial quietly lapses.
           if not result["mailConfigured"] and result["due"] > 0:
               sys.exit("Reminders are due but SMTP is not configured on the server.")
+          # A reminder the mail server refused is given back and tried again
+          # tomorrow, but somebody should know the server is refusing.
+          if result.get("failed", 0) > 0:
+              sys.exit(f"{result['failed']} reminder(s) were refused by the mail "
+                       "server; they will be tried again on the next run.")
           PY

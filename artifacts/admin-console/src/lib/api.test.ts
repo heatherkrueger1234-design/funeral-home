@@ -223,7 +223,8 @@ describe("how an account is doing, in words", () => {
     subscriptionStatus: string,
     trialDaysLeft: number | null = null,
     suspendedAt: string | null = null,
-  ) => ({ subscriptionStatus, trialDaysLeft, suspendedAt });
+    hasSubscription = subscriptionStatus === "active" || subscriptionStatus === "past_due",
+  ) => ({ subscriptionStatus, trialDaysLeft, suspendedAt, hasSubscription });
 
   it("puts a suspension first, whatever the subscription says", () => {
     expect(describeAccount(home("active", null, "2026-09-01T12:00:00Z"))).toBe(
@@ -239,5 +240,20 @@ describe("how an account is doing, in words", () => {
     expect(describeAccount(home("active"))).toBe("Subscribed");
     expect(describeAccount(home("past_due"))).toBe("Payment outstanding");
     expect(describeAccount(home("canceled"))).toBe("Subscription ended");
+  });
+
+  it("tells a trial with a subscription behind it from one without", () => {
+    // The commercial fact that matters most about a home on trial: whether
+    // it has already given a card.
+    expect(describeAccount(home("trial", 12, null, true))).toBe(
+      "Subscribed, free for 12 more days",
+    );
+    expect(describeAccount(home("trial", 1, null, true))).toBe(
+      "Subscribed, free for 1 more day",
+    );
+    // Over, with Stripe yet to say how the charge went: not "finished".
+    expect(describeAccount(home("trial", 0, null, true))).toBe(
+      "Subscribed, first payment due",
+    );
   });
 });

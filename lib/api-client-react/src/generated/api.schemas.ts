@@ -202,7 +202,7 @@ export interface Billing {
   subscriptionStatus: BillingSubscriptionStatus;
   trialEndsAt: string | null;
   trialDaysLeft: number | null;
-  /** Days a subscribe button gives with no card; 0 when switched off. */
+  /** Days of free trial a new home gets, with no card, and that the subscribe button starts when card billing is not live; 0 when switched off. */
   freeTrialDays: number;
   trialEnded: boolean;
   currentPeriodEndsAt: string | null;
@@ -211,7 +211,10 @@ export interface Billing {
   billingConfigured: boolean;
   /** Whether checkout offers annual billing (two months free). */
   annualAvailable: boolean;
+  /** Stripe holds a subscription for this home that has not ended, trial included. False after one ends, so a new one can be started. */
   hasSubscription: boolean;
+  /** When a subscription started now would take its first payment: the end of the trial this home has left. Null when checkout would charge straight away, or card billing is not live here. */
+  checkoutTrialEndsAt: string | null;
   onboarding: OnboardingItem[];
   onboardingComplete: boolean;
   /** What is on the plan, and whether this home has it now. */
@@ -273,6 +276,10 @@ ordinary single-use password-reset link and is never retrievable again.
  */
 export type StaffMemberWithInvite = StaffMember & {
   inviteLink: string;
+  /** Whether the link was emailed to them as well. */
+  emailed: boolean;
+  /** Why it was not, in a sentence for the owner: no mail server, no confirmed address at the home yet, or that address has been sent several invitations already today. */
+  notEmailedBecause: string | null;
 };
 
 export type StaffUpdateRole =
@@ -1195,11 +1202,32 @@ export interface SendLinkInput {
   smsConsent?: boolean;
 }
 
-export type SentLink = FamilyContactWithLink & {
-  sent: boolean;
-  /** Why the text did not go, in words a director can act on. */
-  smsError: string | null;
-};
+/**
+ * A relative's link that stopped along with the one it was passed on from.
+ */
+export interface StoppedLink {
+  id: number;
+  name: string;
+}
+
+export interface AlsoStopped {
+  /** The links this person passed on, and any passed on from those, that
+were still working and have now stopped too, oldest first. Empty
+when there were none, or the director chose to keep them.
+ */
+  alsoStopped: StoppedLink[];
+}
+
+export type SentLink = FamilyContactWithLink &
+  AlsoStopped & {
+    sent: boolean;
+    /** Why the text did not go, in words a director can act on. */
+    smsError: string | null;
+  };
+
+export type RevokedContact = FamilyContact & AlsoStopped;
+
+export type ReissuedLink = FamilyContactWithLink & AlsoStopped;
 
 export type FamilyContactInputRole =
   (typeof FamilyContactInputRole)[keyof typeof FamilyContactInputRole];
@@ -2564,7 +2592,7 @@ export interface AftercareDelivery {
   dueAt: string;
   sentAt: string | null;
   failedAt: string | null;
-  /** `email`, `sms`, `email,sms`, or `withdrawn` when consent lapsed before it was due. */
+  /** `email`, `sms`, `email,sms`, `withdrawn` when consent lapsed before it was due, or `missed` when it fell due and could not go out while it was still true (see `aftercareGraceMs`). Neither of the last two was sent. */
   sentVia: string | null;
 }
 
@@ -3103,6 +3131,22 @@ portal puts it above everything else.
   aftercare: AftercareEnrollment | null;
 }
 
+export type PassedOnParameter =
+  (typeof PassedOnParameter)[keyof typeof PassedOnParameter];
+
+export const PassedOnParameter = {
+  stop: "stop",
+  keep: "keep",
+} as const;
+
+export type UploadSizeParameter =
+  (typeof UploadSizeParameter)[keyof typeof UploadSizeParameter];
+
+export const UploadSizeParameter = {
+  full: "full",
+  thumb: "thumb",
+} as const;
+
 export type GetAftercareUnsubscribeParams = {
   token: string;
 };
@@ -3163,6 +3207,39 @@ export const GetCasesStatus = {
   active: "active",
   closed: "closed",
 } as const;
+
+export type RevokeContactParams = {
+  /**
+ * The links this person passed on to relatives, and any passed on from
+those in turn. `stop` turns them off with this one; `keep` leaves
+them working, for a director who knows who has them. A word rather
+than a boolean, because a query string carries "false" as text.
+
+ */
+  passedOn?: PassedOnParameter;
+};
+
+export type SendContactLinkParams = {
+  /**
+ * The links this person passed on to relatives, and any passed on from
+those in turn. `stop` turns them off with this one; `keep` leaves
+them working, for a director who knows who has them. A word rather
+than a boolean, because a query string carries "false" as text.
+
+ */
+  passedOn?: PassedOnParameter;
+};
+
+export type ReissueContactLinkParams = {
+  /**
+ * The links this person passed on to relatives, and any passed on from
+those in turn. `stop` turns them off with this one; `keep` leaves
+them working, for a director who knows who has them. A word rather
+than a boolean, because a query string carries "false" as text.
+
+ */
+  passedOn?: PassedOnParameter;
+};
 
 export type GetVendorsParams = {
   kind?: GetVendorsKind;
@@ -3258,3 +3335,27 @@ export const GetSnippetsKind = {
   closing: "closing",
   hymn: "hymn",
 } as const;
+
+export type GetUploadParams = {
+  /**
+ * `thumb` for a photograph drawn small - in a grid, a row or a picker:
+a JPEG about 320 pixels on its long edge, made the first time it is
+asked for and kept. Anything already that small, or that is not a
+photograph, comes back as it is. Who may have it is exactly who may
+have the photograph.
+
+ */
+  size?: UploadSizeParameter;
+};
+
+export type GetFamilyUploadParams = {
+  /**
+ * `thumb` for a photograph drawn small - in a grid, a row or a picker:
+a JPEG about 320 pixels on its long edge, made the first time it is
+asked for and kept. Anything already that small, or that is not a
+photograph, comes back as it is. Who may have it is exactly who may
+have the photograph.
+
+ */
+  size?: UploadSizeParameter;
+};

@@ -10,7 +10,14 @@ import {
 } from "@workspace/db";
 import app from "../src/app";
 import { keywordOf, revokesConsent, smsRouteFor, twilioSignature } from "../src/lib/sms";
-import { createCase, markEmailVerified, signUpHome } from "./helpers";
+import {
+  asFamily,
+  createCase,
+  homesAtMidday,
+  inviteFamily,
+  markEmailVerified,
+  signUpHome,
+} from "./helpers";
 
 /**
  * Texting rules a carrier, a regulator and a grieving family all care about:
@@ -56,10 +63,15 @@ async function contact(
   return res.body as { id: number; smsConsentAt: string | null; smsConsentSource: string | null };
 }
 
-function inbound(params: Record<string, string>, signature?: string) {
+function inbound(
+  params: Record<string, string>,
+  signature?: string,
+  headers: Record<string, string> = {},
+) {
   return request(app)
     .post("/api/webhooks/twilio/sms")
     .type("form")
+    .set(headers)
     .set("X-Twilio-Signature", signature ?? twilioSignature(TOKEN, HOOK, params))
     .send(params);
 }
@@ -102,6 +114,58 @@ describe("consent before any text", () => {
 describe("the inbound webhook", () => {
   it("refuses a request Twilio did not sign", async () => {
     await inbound({ From: "+13035550142", Body: "STOP" }, "forged").expect(403);
+  });
+
+  /*
+   * Twilio signs the URL it called, but not always written the same way:
+   * sometimes with the default port in it and sometimes without. Its own
+   * library accepts either, and a reply signed the way we did not check for
+   * -- a STOP among them -- was refused.
+   */
+  it("accepts Twilio's signature with the default port written in or left out", async () => {
+    const params = { From: "+13035550142", To: "+13035550100", Body: "Thank you" };
+    const withPort = "https://api.example.test:443/api/webhooks/twilio/sms";
+
+    for (const [configured, signedOver] of [
+      [HOOK, HOOK],
+      [HOOK, withPort],
+      [withPort, HOOK],
+      [withPort, withPort],
+      ["http://api.example.test/api/webhooks/twilio/sms", "http://api.example.test:80/api/webhooks/twilio/sms"],
+      ["http://api.example.test:80/api/webhooks/twilio/sms", "http://api.example.test/api/webhooks/twilio/sms"],
+    ] as const) {
+      vi.stubEnv("TWILIO_WEBHOOK_URL", configured);
+      const res = await inbound(params, twilioSignature(TOKEN, signedOver, params));
+      expect(res.status, `${signedOver}, configured as ${configured}`).toBe(200);
+    }
+
+    // And with no TWILIO_WEBHOOK_URL, rebuilt from what the proxy passed on.
+    vi.stubEnv("TWILIO_WEBHOOK_URL", "");
+    for (const [host, signedOver] of [
+      ["api.example.test", withPort],
+      ["api.example.test:443", HOOK],
+    ] as const) {
+      const res = await inbound(params, twilioSignature(TOKEN, signedOver, params), {
+        Host: host,
+        "X-Forwarded-Proto": "https",
+      });
+      expect(res.status, `${signedOver}, arriving for ${host}`).toBe(200);
+    }
+  });
+
+  it("refuses a signature with the wrong token, or over another address", async () => {
+    const params = { From: "+13035550142", To: "+13035550100", Body: "STOP" };
+    for (const signature of [
+      twilioSignature("not-the-token", HOOK, params),
+      twilioSignature("not-the-token", "https://api.example.test:443/api/webhooks/twilio/sms", params),
+      twilioSignature(TOKEN, "https://api.example.test/api/webhooks/twilio/other", params),
+      twilioSignature(TOKEN, "https://api.example.test:443/api/webhooks/twilio/other", params),
+      twilioSignature(TOKEN, "https://api.example.test:8443/api/webhooks/twilio/sms", params),
+      twilioSignature(TOKEN, "https://elsewhere.example.test/api/webhooks/twilio/sms", params),
+    ]) {
+      await inbound(params, signature).expect(403);
+    }
+    expect(await db.select().from(smsOptOutsTable)).toEqual([]);
   });
 
   it("honours STOP for good, and START undoes it", async () => {
@@ -162,6 +226,28 @@ describe("the inbound webhook", () => {
     // Twilio does not confirm a phrase it does not know, so we do.
     expect(res.text).toContain("Aspen Grove: you won&#39;t get any more texts from us");
     expect(res.text).toContain("Reply START");
+  });
+
+  it("stops the texts for a stop written as a sentence", async () => {
+    const staff = await signUpHome("Aspen Grove");
+    const anne = await contact(staff, { smsConsent: true });
+
+    const res = await inbound({
+      From: "+13035550142",
+      To: "+13035550100",
+      Body: "Please stop sending these, it is too painful",
+    }).expect(200);
+
+    const [row] = await db.select().from(familyContactsTable).where(eq(familyContactsTable.id, anne.id));
+    expect(row!.smsOptedOutAt).not.toBeNull();
+    const scopes = (await db.select().from(smsOptOutsTable)).map((r) => r.scope).sort();
+    expect(scopes).toEqual([`home:${staff.homeId}:shared`, "platform"]);
+    expect(res.text).toContain("Aspen Grove: you won&#39;t get any more texts from us");
+    expect(res.text).toContain("Reply START");
+
+    const again = await staff.agent.post(`/api/contacts/${anne.id}/send-link`).expect(200);
+    expect(again.body.sent).toBe(false);
+    expect(sent).toHaveLength(0);
   });
 
   it("leaves Twilio's own answers to Twilio", async () => {
@@ -257,6 +343,84 @@ describe("the inbound webhook", () => {
 
     const res = await staff.agent.post(`/api/contacts/${again.id}/send-link`).expect(200);
     expect(res.body.sent).toBe(false);
+    expect(res.body.smsError).toMatch(/STOP/);
+    expect(sent).toHaveLength(0);
+  });
+
+  /*
+   * The mobile a family gives for check-in texts is kept on the enrolment,
+   * and need not be the number the director has for them. A STOP from it on
+   * the shared number matched no contact, so it was held against the shared
+   * number alone -- and the texts started again the day the home's own
+   * number was approved.
+   */
+  it("keeps a STOP from the number given for check-ins when the home moves to its own", async () => {
+    vi.stubEnv("TASK_SECRET", "a-real-secret-value");
+    const staff = await signUpHome("Aspen Grove");
+    const row = await createCase(staff, {
+      serviceAt: new Date(Date.now() - 40 * 24 * 60 * 60 * 1000).toISOString(),
+    });
+    const { token } = await inviteFamily(staff, row.id, {
+      email: "anne@example.com",
+      phone: "(303) 555-0142",
+    });
+    await staff.agent.post(`/api/cases/${row.id}/close`).expect(200);
+    await asFamily(token)
+      .post("/api/family/aftercare")
+      .send({ consent: true, sms: true, phone: "(303) 555-0199" })
+      .expect(200);
+
+    await inbound({ From: "+13035550199", To: "+13035550100", Body: "STOP" }).expect(200);
+
+    await db
+      .update(funeralHomesTable)
+      .set({ smsTollFreeNumber: "+18885550100", smsTollFreeStatus: "verified" })
+      .where(eq(funeralHomesTable.id, staff.homeId));
+
+    sent = [];
+    await homesAtMidday();
+    await request(app)
+      .post("/api/tasks/aftercare")
+      .set("Authorization", "Bearer a-real-secret-value")
+      .expect(200);
+
+    expect(sent.filter((text) => text.body.get("To") === "+13035550199")).toHaveLength(0);
+  });
+
+  it("keeps a STOP the carrier reports on the shared number when the home moves to its own", async () => {
+    const staff = await signUpHome("Aspen Grove");
+    const first = await contact(staff, { phone: "(303) 555-0147", smsConsent: true });
+
+    // They replied STOP to the shared number at the carrier, so Twilio
+    // refuses the next text with 21610 and our webhook never hears of it.
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () =>
+        new Response(
+          JSON.stringify({ code: 21610, message: "Attempt to send to unsubscribed recipient" }),
+          { status: 400 },
+        ),
+      ),
+    );
+    await staff.agent.post(`/api/contacts/${first.id}/send-link`).expect(200);
+
+    const scopes = (await db.select().from(smsOptOutsTable)).map((row) => row.scope);
+    expect(scopes).toContain(`home:${staff.homeId}:shared`);
+
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (url: string, init: { body: URLSearchParams }) => {
+        sent.push({ url, body: init.body });
+        return new Response(JSON.stringify({ sid: "SM1" }), { status: 201 });
+      }),
+    );
+    await db
+      .update(funeralHomesTable)
+      .set({ smsTollFreeNumber: "+18885550100", smsTollFreeStatus: "verified" })
+      .where(eq(funeralHomesTable.id, staff.homeId));
+    const again = await contact(staff, { phone: "(303) 555-0147", smsConsent: true });
+
+    const res = await staff.agent.post(`/api/contacts/${again.id}/send-link`).expect(200);
     expect(res.body.smsError).toMatch(/STOP/);
     expect(sent).toHaveLength(0);
   });
@@ -379,28 +543,74 @@ describe("which number a home texts from", () => {
     expect(keywordOf("thank you so much")).toBeNull();
   });
 
-  it("hears the FCC's revocation words in a short reply, and not in a sentence", () => {
-    for (const reply of [
-      "Stop please",
-      "please stop texting me",
-      "STOP!!",
-      "Unsubscribe me",
-      "opt out",
-      "cancel",
-      "Don't text me",
-      "No more texts thanks",
-      "End",
-    ]) {
-      expect(revokesConsent(reply), reply).toBe(true);
-    }
-    for (const reply of [
-      "Thank you so much",
-      "We will stop by the office at the end of the day tomorrow",
-      "What time does it end on Thursday? Mom wanted to know",
-      "",
-    ]) {
-      expect(revokesConsent(reply), reply).toBe(false);
-    }
+  /*
+   * Hearing a stop that was not one is the safe mistake: the reply says how
+   * to take it back. Missing one keeps texting somebody who asked us not to.
+   * But these are families arranging a funeral, and "stop by", "cancel the
+   * viewing" and "when does it end" are what they write all week.
+   */
+  const STOPS = [
+    "Please stop sending these, it is too painful",
+    "Stop please",
+    "please stop texting me",
+    "STOP!!",
+    "Unsubscribe me",
+    "opt out",
+    "cancel",
+    "Don't text me",
+    "No more texts thanks",
+    "End",
+    "wrong number stop",
+    "STOPPPP",
+    "Stop. Too painful.",
+    "You have the wrong number. Please stop.",
+    "My mother passed last week and I cannot read these. Please stop.",
+    "STOP SENDING ME THESE TEXTS, MY HUSBAND IS GONE",
+    "Please s​top sending these messages to my phone",
+    "I would like to opt-out of these messages, thank you for everything",
+    "Unsubscribe this number from the funeral home texts please",
+    "I revoke my consent to receive text messages from this number",
+    "Please cancel these texts, we have said our goodbyes",
+    "Kindly end these messages, it has been a difficult month",
+    "Quit texting me about the arrangements, I already called the home",
+    "Please cease all contact with this number",
+    "Do not contact me again about my father please",
+    "Please don’t call or text this number again",
+    "I don’t want any more of your messages, thank you",
+    "Can you please take me off your list, this is too hard right now",
+    "Please remove my number, we have everything we need from you",
+    "Leave me alone, I am not ready for any of this",
+  ];
+  const ORDINARY = [
+    "Can we stop by Thursday to drop off clothes?",
+    "Please cancel the viewing",
+    "What time will the service end?",
+    "We’ll stop at the florist on the way",
+    "Thank you so much",
+    "We will stop by the office at the end of the day tomorrow",
+    "What time does it end on Thursday? Mom wanted to know",
+    "",
+    "I’ll stop by after work",
+    "Can I stop in tomorrow to sign the papers?",
+    "We will stop this afternoon with the clothes",
+    "We had to stop on the way to pick up Grandma",
+    "Stopping by the funeral home at noon",
+    "I cant stop crying",
+    "I can't stop crying, thank you for checking on us",
+    "We need to cancel the flowers and order lilies instead",
+    "Could you cancel Thursday’s appointment and call me?",
+    "Is it possible to end the reception early?",
+    "At the end of your message there was a link that will not open",
+    "Will there be any more messages about the burial?",
+    "Please send more messages like this one, they help",
+    "Don't call me, text me instead",
+  ];
+
+  it("hears a stop however it is written, and not in what a family writes all week", () => {
+    expect({
+      missed: STOPS.filter((reply) => !revokesConsent(reply)),
+      misheard: ORDINARY.filter((reply) => revokesConsent(reply)),
+    }).toEqual({ missed: [], misheard: [] });
   });
 
   it("matches Twilio's documented signature", () => {

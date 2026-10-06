@@ -1,14 +1,14 @@
 import { type ReactNode, useEffect, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { Link, useLocation } from "wouter";
-import { useQueryClient } from "@tanstack/react-query";
+import { useMutationState, useQueryClient } from "@tanstack/react-query";
 import {
   useGetFamilySession,
   getGetFamilySessionQueryKey,
   getGetFamilyDeadlinesQueryKey,
   getGetFamilyServiceOffersQueryKey,
 } from "@workspace/api-client-react";
-import { isUnauthorized, useLink } from "@/lib/link";
+import { isUnauthorized, refusedForTheLink, stoppedLinkWords, useLink } from "@/lib/link";
 import { PasteLink } from "@/components/PasteLink";
 import { voiceFor } from "@/lib/voice";
 import { ArrowLeft, Phone } from "lucide-react";
@@ -140,6 +140,9 @@ export function PortalShell({ children }: { children: ReactNode }) {
 
   useBrandColor(session.data?.home.accentColor);
   useFollowDateChanges(session.data?.case);
+  // Whether the expired-link screen, should it be drawn, is there because a
+  // save was just refused -- whose change is then the one thing not kept.
+  const refusedSave = useMutationState({ filters: refusedForTheLink }).length > 0;
 
   if (token === null) {
     /*
@@ -219,9 +222,7 @@ export function PortalShell({ children }: { children: ReactNode }) {
             {gone ? "This link has expired" : "We couldn't open this"}
           </h1>
           <p className="text-muted-foreground">
-            {gone
-              ? "Please ask the funeral home to send you a new one. Nothing you have already added has been lost."
-              : "Please check your connection and try again."}
+            {gone ? stoppedLinkWords(refusedSave) : "Please check your connection and try again."}
           </p>
           {gone ? (
             <div className="mt-6 text-left">
@@ -276,6 +277,8 @@ export function PortalShell({ children }: { children: ReactNode }) {
             {home.logoUploadId !== null ? (
               <AuthedImage
                 uploadId={home.logoUploadId}
+                // A logo is not a photograph; it is drawn as the home made it.
+                size="full"
                 alt={home.name}
                 className="h-10 w-10 shrink-0 rounded-lg bg-white object-contain p-1.5 shadow-[0_1px_3px_rgb(0_0_0/0.18)] ring-1 ring-white/25"
               />

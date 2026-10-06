@@ -237,6 +237,55 @@ async function decodeHeic(data: Buffer, mimeType: string): Promise<Sharp> {
   }
 }
 
+/**
+ * Long edge of a thumbnail: enough for the 96-pixel squares the family's
+ * photographs are drawn in, on a phone that puts two or three screen pixels
+ * into each. A phone photograph comes out at about 18 KB, against the 600 KB
+ * or so of the photograph itself.
+ */
+export const THUMBNAIL_EDGE = 320;
+
+/**
+ * Each five points above this adds about a sixth to the file, for a
+ * difference too fine to see at this size.
+ */
+const THUMBNAIL_QUALITY = 75;
+
+/**
+ * The most pixels a thumbnail is made from. Every photograph stored since
+ * uploads were normalised is at most 3000 on its long edge, nine million at
+ * most; a GIF is kept as it was sent, and one that claims to be a hundred
+ * thousand pixels across must not be unpacked into memory just to be shown
+ * small. Past this, the photograph is served as it is.
+ */
+const THUMBNAIL_MAX_INPUT_PIXELS = 25_000_000;
+
+/**
+ * A photograph made small enough for a grid, as a JPEG; null when it already
+ * is that small and is better served as it is.
+ *
+ * Upright first, as everywhere else: the stored file normally is already,
+ * and this keeps one that is not from arriving on its side. A JPEG has no
+ * transparency, so a picture with some is laid on white, as it would be on
+ * a printed page. An animated GIF gives its first frame.
+ */
+export async function makeThumbnail(bytes: Buffer): Promise<Buffer | null> {
+  const image = sharp(bytes, {
+    failOn: "none",
+    animated: false,
+    limitInputPixels: THUMBNAIL_MAX_INPUT_PIXELS,
+  });
+  const { width = 0, height = 0 } = await image.metadata();
+  if (Math.max(width, height) <= THUMBNAIL_EDGE) return null;
+
+  return image
+    .rotate()
+    .resize({ width: THUMBNAIL_EDGE, height: THUMBNAIL_EDGE, fit: "inside" })
+    .flatten({ background: { r: 255, g: 255, b: 255 } })
+    .jpeg({ quality: THUMBNAIL_QUALITY, mozjpeg: true })
+    .toBuffer();
+}
+
 /** A readable filename once the bytes are no longer what the name claims. */
 export function renameForType(filename: string, mimeType: string): string {
   if (mimeType !== "image/jpeg") return filename;

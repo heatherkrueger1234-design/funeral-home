@@ -96,7 +96,7 @@ async function run() {
     .post("/api/tasks/aftercare")
     .set("Authorization", "Bearer a-real-secret-value")
     .expect(200);
-  return res.body as { sent: number; texted: number; failed: number; skipped: number };
+  return res.body as { sent: number; texted: number; failed: number; skipped: number; missed: number };
 }
 
 describe("aftercare by text", () => {
@@ -265,5 +265,58 @@ describe("the harder days", () => {
     expect(res.body.messages).toHaveLength(7);
     expect(res.body.messages.every((m: { custom: boolean }) => !m.custom)).toBe(true);
     expect(res.body.touchpoints).toEqual([]);
+  });
+});
+
+describe("a family who says yes late", () => {
+  /*
+   * A family link lasts ninety days, and a family in the first weeks often
+   * says yes to the check-ins well after the funeral. Everything that fell
+   * due before that used to go out in the same minute -- "Thinking of you",
+   * "Two months on", and "today would have been her birthday", seven weeks
+   * after her birthday.
+   */
+  it("is sent only what is still true, and the rest is marked missed", async () => {
+    const staff = await signUpHome("Aspen Grove");
+    await staff.agent.put("/api/home/aftercare").send({ touchpoints: ["birthday"] }).expect(200);
+
+    const birthday = new Date(Date.now() - 49 * DAY);
+    const row = await createCase(staff, {
+      serviceAt: new Date(Date.now() - 70 * DAY).toISOString(),
+      dateOfBirth: `1941-${birthday.toISOString().slice(5, 10)}`,
+    });
+    const { token } = await inviteFamily(staff, row.id, { email: "anne@example.com" });
+    await staff.agent.post(`/api/cases/${row.id}/close`).expect(200);
+    await asFamily(token)
+      .post("/api/family/aftercare")
+      .send({ consent: true, touchpoints: true })
+      .expect(200);
+
+    const result = await run();
+
+    // Two months on, ten days late, is still true. A month on, forty days
+    // late, and the birthday, seven weeks late, are not.
+    expect(result).toMatchObject({ sent: 1, missed: 2 });
+    expect(mail).toHaveLength(1);
+    expect(mail[0]!["subject"]).toBe("Two months on");
+
+    const deliveries = await db.select().from(aftercareDeliveriesTable);
+    const sentVia = (kind: string, dayOffset?: number) =>
+      deliveries.find((d) => d.kind === kind && (dayOffset === undefined || d.dayOffset === dayOffset))!
+        .sentVia;
+    expect(sentVia("checkin", 30)).toBe("missed");
+    expect(sentVia("birthday")).toBe("missed");
+    expect(sentVia("checkin", 60)).toBe("email");
+
+    // And a second run does not find them again.
+    expect(await run()).toMatchObject({ sent: 0, missed: 0 });
+
+    // Nobody is told a missed note was sent.
+    const session = await asFamily(token).get("/api/family/session").expect(200);
+    const missed = session.body.aftercare.deliveries.filter(
+      (d: { sentVia: string | null }) => d.sentVia === "missed",
+    );
+    expect(missed).toHaveLength(2);
+    expect(missed.every((d: { sentAt: string | null }) => d.sentAt === null)).toBe(true);
   });
 });
