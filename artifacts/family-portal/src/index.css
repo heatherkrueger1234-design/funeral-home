@@ -249,10 +249,11 @@ p {
 
 /*
  * A small caps eyebrow — "Next", "Still to do". Set the way a printed order
- * of service sets a section marker: small, letterspaced, quiet.
+ * of service sets a section marker: small, letterspaced, quiet. Small, but
+ * not below 13px: it is still read on a phone by older eyes.
  */
 .eyebrow {
-  font-size: 0.6875rem;
+  font-size: 0.8125rem;
   font-weight: 600;
   letter-spacing: 0.14em;
   text-transform: uppercase;

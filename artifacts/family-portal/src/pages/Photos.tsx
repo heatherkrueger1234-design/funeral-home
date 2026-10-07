@@ -294,28 +294,20 @@ export default function Photos() {
             </span>
           </p>
           {/*
-            A rule rather than a percentage. "Around fifty is comfortable" is
-            a piece of advice, not a target to hit, and a progress bar that
-            fills up would turn choosing photographs of a dead parent into a
-            task with a score.
+            A sentence rather than a bar. "Around fifty is comfortable" is a
+            piece of advice, not a target to hit, and a bar filling towards
+            it would turn choosing photographs of a dead parent into a task
+            with a score. What is said is how much room is left, never how
+            far along they are.
           */}
-          <div
-            aria-hidden
-            className="mt-3 h-1 overflow-hidden rounded-full bg-[var(--muted)]"
-          >
-            <div
-              className="h-full rounded-full bg-[var(--accent)] transition-[width] duration-500 ease-[cubic-bezier(0.2,0.6,0.3,1)]"
-              style={{
-                width: `${Math.min(100, (chosen.length / Math.max(1, target)) * 100)}%`,
-              }}
-            />
-          </div>
-          <p className="mt-2.5 text-sm leading-relaxed text-muted-foreground">
+          <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
             {chosen.length === 0
               ? `Tap “Slideshow” under the ones you'd like shown. Around ${target} is comfortable to watch.`
               : chosen.length > target
                 ? `That's more than the ${target} or so that plays comfortably — it's your choice, and the funeral home will help if you'd like to trim it.`
-                : `Around ${target} plays comfortably. Nothing you leave out is deleted.`}
+                : chosen.length === target
+                  ? `That's about the number that plays comfortably. Nothing you leave out is deleted.`
+                  : `Around ${target} plays comfortably, so there is room for ${target - chosen.length} more. Nothing you leave out is deleted.`}
           </p>
         </div>
       )}
@@ -487,7 +479,7 @@ export default function Photos() {
           </div>
         </dl>
         <ul className="space-y-3">
-          {photos.data!.map((photo) => (
+          {(photos.data ?? []).map((photo) => (
             <li
               key={photo.id}
               className={[

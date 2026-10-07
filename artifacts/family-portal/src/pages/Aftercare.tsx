@@ -22,6 +22,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Check, Loader2, Mail } from "lucide-react";
 import { Empty, Loading, PageHeader } from "@/components/page";
+import { checkInLabel, TOUCHPOINT_LABELS } from "@/lib/check-in-label";
 
 /**
  * The one thing in this portal that asks the family for something rather
@@ -39,34 +40,12 @@ import { Empty, Loading, PageHeader } from "@/components/page";
  */
 
 /** The home's calendar day — the day the note is sent from there. */
-let homeZone: string | undefined;
-function formatWhen(value: string | Date): string {
+function formatWhen(value: string | Date, homeZone: string | undefined): string {
   return formatAtHome(value, homeZone, {
     day: "numeric",
     month: "long",
     year: "numeric",
   });
-}
-
-const DESCRIPTIONS: Record<number, string> = {
-  30: "A month on",
-  60: "Two months on",
-  90: "Three months on",
-  365: "The anniversary",
-};
-
-const TOUCHPOINTS: Record<string, string> = {
-  birthday: "Their birthday",
-  holidays: "Before the first holidays",
-  death_anniversary: "A year since they died",
-};
-
-function describe(delivery: { kind: string; dayOffset: number }): string {
-  return (
-    TOUCHPOINTS[delivery.kind] ??
-    DESCRIPTIONS[delivery.dayOffset] ??
-    `Day ${delivery.dayOffset}`
-  );
 }
 
 export default function Aftercare() {
@@ -96,7 +75,8 @@ export default function Aftercare() {
 
   const aftercare = session.data?.aftercare;
   const home = session.data?.home;
-  homeZone = home?.timezone;
+  const homeName = home?.name ?? "The funeral home";
+  const homeZone = home?.timezone;
 
   if (!aftercare) {
     return (
@@ -129,7 +109,7 @@ export default function Aftercare() {
               className="flex items-center gap-3 px-4 py-3.5"
             >
               <span className="flex-1 font-medium">
-                {describe(delivery)}
+                {checkInLabel(delivery)}
               </span>
               {delivery.sentAt ? (
                 <span className="inline-flex items-center gap-1 text-sm text-muted-foreground">
@@ -138,7 +118,7 @@ export default function Aftercare() {
                 </span>
               ) : (
                 <span className="tabular text-sm text-muted-foreground">
-                  {formatWhen(delivery.dueAt)}
+                  {formatWhen(delivery.dueAt, homeZone)}
                 </span>
               )}
             </li>
@@ -192,8 +172,8 @@ export default function Aftercare() {
         </h1>
         <p className="mt-2 text-muted-foreground">
           {declined
-            ? `You won't hear from us again about this. ${home?.name ?? "The funeral home"} is still there if you need them.`
-            : `The last was on the anniversary. ${home?.name ?? "The funeral home"} is still there if you need them.`}
+            ? `No more notes will be sent about this. ${homeName} is still there if you need them.`
+            : `The last was a year after the service. ${homeName} is still there if you need them.`}
         </p>
       </div>
     );
@@ -211,8 +191,8 @@ export default function Aftercare() {
 
   return (
     <div className="space-y-7">
-      <PageHeader title="Would you like us to check in?">
-        {home?.name} can write to you a few times over the next year. Short
+      <PageHeader title={`Would you like ${homeName} to check in?`}>
+        {homeName} can write to you a few times over the next year. Short
         notes, nothing to reply to, and no one else sees your address.
       </PageHeader>
 
@@ -224,10 +204,10 @@ export default function Aftercare() {
         {aftercare.deliveries.map((delivery) => (
           <li key={delivery.id} className="flex items-center gap-3 px-4 py-3.5">
             <span className="flex-1 font-medium">
-              {describe(delivery)}
+              {checkInLabel(delivery)}
             </span>
             <span className="tabular text-sm text-muted-foreground">
-              {formatWhen(delivery.dueAt)}
+              {formatWhen(delivery.dueAt, homeZone)}
             </span>
           </li>
         ))}
@@ -311,7 +291,7 @@ export default function Aftercare() {
             <span className="block font-medium">And on the harder days</span>
             <span className="block text-muted-foreground">
               {offered
-                .map((t) => `${TOUCHPOINTS[t.kind] ?? t.kind} (${formatWhen(t.dueAt)})`)
+                .map((t) => `${TOUCHPOINT_LABELS[t.kind] ?? t.kind} (${formatWhen(t.dueAt, homeZone)})`)
                 .join(", ")}
               . Only if you would like them.
             </span>
@@ -369,7 +349,7 @@ export default function Aftercare() {
       </div>
 
       <p className="text-center text-sm text-muted-foreground">
-        If you say no, we won't ask again.
+        If you say no, {homeName} won't ask again.
       </p>
     </div>
   );

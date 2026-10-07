@@ -125,7 +125,7 @@ type Answer = "approve" | "changes";
 function StatusPill({ item }: { item: PrintItem }) {
   if (item.status === "approved") {
     return (
-      <span className="inline-flex items-center gap-1 rounded-full bg-[var(--accent-soft)] px-2 py-0.5 text-xs font-semibold text-[var(--accent-deep)]">
+      <span className="inline-flex items-center gap-1 rounded-full bg-[var(--accent-soft)] px-2 py-0.5 text-sm font-semibold text-[var(--accent-deep)]">
         <Check className="size-3" />
         {item.approvedByName ? `Approved by ${item.approvedByName}` : "Approved"}
       </span>
@@ -133,7 +133,7 @@ function StatusPill({ item }: { item: PrintItem }) {
   }
   if (item.changesRequestedAt) {
     return (
-      <span className="inline-flex items-center gap-1 rounded-full bg-[var(--muted)] px-2 py-0.5 text-xs font-semibold text-foreground">
+      <span className="inline-flex items-center gap-1 rounded-full bg-[var(--muted)] px-2 py-0.5 text-sm font-semibold text-foreground">
         <PencilLine className="size-3" />
         Being changed
       </span>
@@ -141,7 +141,7 @@ function StatusPill({ item }: { item: PrintItem }) {
   }
   if (item.status === "proof") {
     return (
-      <span className="inline-flex items-center rounded-full border border-[var(--accent)]/40 px-2 py-0.5 text-xs font-semibold text-[var(--accent-deep)]">
+      <span className="inline-flex items-center rounded-full border border-[var(--accent)]/40 px-2 py-0.5 text-sm font-semibold text-[var(--accent-deep)]">
         Waiting for you
       </span>
     );
