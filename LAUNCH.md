@@ -47,8 +47,9 @@ production esbuild bundle, through the real nginx config:
 928 unit and integration tests (717 API against real Postgres, 63 platform
 console, 73 family portal, 51 director console, 24 for the scripts) and 10
 Playwright browser tests, every project typechecking, its tests included, and
-every app building — as of the night of 5 October, on `ccr-159a35a1-xifk0k`.
-`STATUS.md` says which branch holds what.
+every app building — as of the night of 5 October, and on main since PR #41
+merged on 6 October, with CI passing on the merge. `STATUS.md` says which
+branch holds what.
 
 Every suite was green before that evening too, at 770, and a launch review
 still found an outsider able to take over the platform console, the
