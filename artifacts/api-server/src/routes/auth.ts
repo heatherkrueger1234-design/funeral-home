@@ -16,6 +16,7 @@ import {
   ResetPasswordBody,
   VerifyEmailBody,
 } from "@workspace/api-zod";
+import { consoleUrl } from "../lib/app-urls";
 import { badRequest, HttpError, parseBody } from "../lib/http";
 import { logger } from "../lib/logger";
 import { uniqueSlug } from "../lib/slug";
@@ -208,8 +209,7 @@ router.post("/auth/register", authRateLimit, async (req, res) => {
 async function sendAccountExists(user: User): Promise<void> {
   if (!(await claimEmail(user, "account_exists"))) return;
 
-  const base = process.env["CONSOLE_URL"]?.replace(/\/+$/, "") ?? "";
-  await sendAccountExistsEmail({ to: user.email, signInUrl: `${base}/` });
+  await sendAccountExistsEmail({ to: user.email, signInUrl: consoleUrl("/") });
 }
 
 /**
@@ -227,12 +227,11 @@ async function sendVerification(user: User, homeName: string): Promise<void> {
   if (!(await claimEmail(user, "email_verification"))) return;
 
   const token = await createEmailVerification(user.id, user.email);
-  const base = process.env["CONSOLE_URL"]?.replace(/\/+$/, "") ?? "";
 
   await sendEmailVerificationEmail({
     to: user.email,
     homeName,
-    verifyUrl: `${base}/verify-email?token=${encodeURIComponent(token)}`,
+    verifyUrl: consoleUrl(`/verify-email?token=${encodeURIComponent(token)}`),
     expiresInDays: Math.round(EMAIL_VERIFICATION_TTL_MS / 86400000),
   });
 }
@@ -391,11 +390,9 @@ async function sendResetLink(user: User): Promise<void> {
 
   // The console's own origin, so the link lands on the staff sign-in app
   // rather than on the family portal.
-  const base = process.env["CONSOLE_URL"]?.replace(/\/+$/, "") ?? "";
-
   await sendPasswordResetEmail({
     to: user.email,
-    resetUrl: `${base}/reset-password?token=${encodeURIComponent(token)}`,
+    resetUrl: consoleUrl(`/reset-password?token=${encodeURIComponent(token)}`),
     expiresInMinutes: Math.round(PASSWORD_RESET_TTL_MS / 60000),
   });
 }

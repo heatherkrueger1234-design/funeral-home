@@ -3,6 +3,7 @@ import { and, asc, eq, inArray } from "drizzle-orm";
 import { db, casesTable, familyContactsTable, usersTable } from "@workspace/db";
 import { toCsv } from "../lib/csv";
 import { tenant } from "../middleware/require-auth";
+import { caseListExportRateLimit } from "../middleware/rate-limit";
 
 /**
  * Every case as one CSV, for moving to (or feeding) another case system.
@@ -56,6 +57,10 @@ function localMoment(value: Date | null, timeZone: string): string {
   return `${parts["year"]}-${parts["month"]}-${parts["day"]} ${parts["hour"]}:${parts["minute"]}`;
 }
 
+// Counted before the handler, so a refused request never walks the cases.
+router.use("/export/cases.csv", (req, res, next) =>
+  req.method === "GET" ? caseListExportRateLimit(req, res, next) : next(),
+);
 router.get("/export/cases.csv", async (req, res) => {
   const home = tenant(req);
   const zone = (() => {

@@ -238,3 +238,42 @@ export const suggestionRateLimit: RateLimiter = rateLimit({
   message:
     "That is a lot of suggestions for one hour. The composed draft is unchanged; try again later.",
 });
+
+/**
+ * The downloads that cost the most to make, per home and per hour.
+ *
+ * A case export and a photo pack each decrypt and zip every photograph on
+ * the case, and the CSV walks every case the home has: a few seconds of a
+ * thread and a few hundred megabytes each, and nothing in the family or
+ * sign-in limiters touches them because they are reached with a staff
+ * session. One home asking for them in a loop -- a script, or a stuck
+ * retry -- would have every other home's morning slow to a crawl. Twenty
+ * exports an hour is more than any home leaving the product needs; thirty
+ * spreadsheets is more than anybody reconciling against their case system
+ * does. Per home so that one home's use never spends another's, and so
+ * that the ceiling is reached by the account, not dodged by the address.
+ * Only mounted behind sign-in, where `tenant` is set.
+ */
+function perHomeHourly(max: number, message: string): RateLimiter {
+  return rateLimit({
+    windowMs: 60 * 60 * 1000,
+    max,
+    key: (req) => `home:${tenant(req).id}`,
+    message,
+  });
+}
+
+export const caseExportRateLimit: RateLimiter = perHomeHourly(
+  20,
+  "That is a lot of exports for one hour. The case is unchanged; try again later.",
+);
+
+export const photoPackRateLimit: RateLimiter = perHomeHourly(
+  20,
+  "That is a lot of photo packs for one hour. The photographs are unchanged; try again later.",
+);
+
+export const caseListExportRateLimit: RateLimiter = perHomeHourly(
+  30,
+  "That is a lot of spreadsheets for one hour. Try again later.",
+);

@@ -16,6 +16,7 @@ import {
   type FuneralHome,
   type MemoryBook,
   type MemoryEntry,
+  type Tx,
 } from "@workspace/db";
 import {
   assertHasUpdates,
@@ -25,6 +26,7 @@ import {
   requireRow,
 } from "../lib/http";
 import { currentUser, tenant } from "../middleware/require-auth";
+import { advisoryLock, LOCKS } from "../lib/advisory-lock";
 import {
   contactNamesFor,
   loadBookContents,
@@ -321,9 +323,19 @@ export async function assertPhotoBelongs(
   }
 }
 
-/** Next position, so a new entry lands at the end rather than at the top. */
-export async function nextMemoryPosition(caseId: number): Promise<number> {
-  const [row] = await db
+/**
+ * Next position, so a new entry lands at the end rather than at the top.
+ *
+ * Taken under a lock on the case, held until the caller's insert commits.
+ * Two relatives posting at the same moment -- the evening the link goes
+ * round, that is the ordinary case -- each read the same highest position
+ * and the book printed them in whichever order the database felt like, and
+ * reordering one of them moved both.
+ */
+export async function nextMemoryPosition(tx: Tx, caseId: number): Promise<number> {
+  await advisoryLock(tx, LOCKS.memoryBook, caseId);
+
+  const [row] = await tx
     .select({ highest: max(memoryEntriesTable.position) })
     .from(memoryEntriesTable)
     .where(eq(memoryEntriesTable.caseId, caseId));
@@ -455,21 +467,23 @@ router.post("/cases/:caseId/memory-book/entries", async (req, res) => {
   const values = parseBody(StaffEntryBody, req.body);
   await assertPhotoBelongs(values.photoId, row.id, home.id);
 
-  const [created] = await db
-    .insert(memoryEntriesTable)
-    .values({
-      funeralHomeId: home.id,
-      caseId: row.id,
-      authorName: values.authorName,
-      authorSide: "staff",
-      authorUserId: user.id,
-      kind: values.kind ?? "memory",
-      body: values.body,
-      whenText: values.whenText ?? null,
-      photoId: values.photoId ?? null,
-      position: await nextMemoryPosition(row.id),
-    })
-    .returning();
+  const [created] = await db.transaction(async (tx) =>
+    tx
+      .insert(memoryEntriesTable)
+      .values({
+        funeralHomeId: home.id,
+        caseId: row.id,
+        authorName: values.authorName,
+        authorSide: "staff",
+        authorUserId: user.id,
+        kind: values.kind ?? "memory",
+        body: values.body,
+        whenText: values.whenText ?? null,
+        photoId: values.photoId ?? null,
+        position: await nextMemoryPosition(tx, row.id),
+      })
+      .returning(),
+  );
 
   res.status(201).json(toEntryJson(created!));
 });
@@ -566,8 +580,11 @@ router.delete("/cases/:caseId/memory-book/entries/:entryId", async (req, res) =>
  * arrangement conference.
  */
 
-export async function nextChapterPosition(caseId: number): Promise<number> {
-  const [row] = await db
+/** As `nextMemoryPosition`, for a chapter: the same lock, since the same case. */
+export async function nextChapterPosition(tx: Tx, caseId: number): Promise<number> {
+  await advisoryLock(tx, LOCKS.memoryBook, caseId);
+
+  const [row] = await tx
     .select({ highest: max(lifeChaptersTable.position) })
     .from(lifeChaptersTable)
     .where(eq(lifeChaptersTable.caseId, caseId));
@@ -597,24 +614,26 @@ router.post("/cases/:caseId/memory-book/chapters", async (req, res) => {
     );
   }
 
-  const [created] = await db
-    .insert(lifeChaptersTable)
-    .values({
-      funeralHomeId: home.id,
-      caseId: row.id,
-      title: values.title ?? null,
-      body: values.body ?? null,
-      startYear: values.startYear ?? null,
-      endYear: values.endYear ?? null,
-      photoId: values.photoId ?? null,
-      // Whose account of it this is, not who typed it — the same rule the
-      // memories follow, for the same reason.
-      authorName: values.authorName ?? (user.displayName ?? user.email),
-      authorSide: "staff",
-      authorUserId: user.id,
-      position: await nextChapterPosition(row.id),
-    })
-    .returning();
+  const [created] = await db.transaction(async (tx) =>
+    tx
+      .insert(lifeChaptersTable)
+      .values({
+        funeralHomeId: home.id,
+        caseId: row.id,
+        title: values.title ?? null,
+        body: values.body ?? null,
+        startYear: values.startYear ?? null,
+        endYear: values.endYear ?? null,
+        photoId: values.photoId ?? null,
+        // Whose account of it this is, not who typed it — the same rule the
+        // memories follow, for the same reason.
+        authorName: values.authorName ?? (user.displayName ?? user.email),
+        authorSide: "staff",
+        authorUserId: user.id,
+        position: await nextChapterPosition(tx, row.id),
+      })
+      .returning(),
+  );
 
   res.status(201).json(toChapterJson(created!));
 });

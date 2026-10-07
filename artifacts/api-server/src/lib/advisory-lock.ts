@@ -1,7 +1,5 @@
 import { sql } from "drizzle-orm";
-import type { db } from "@workspace/db";
-
-type Tx = Parameters<Parameters<typeof db.transaction>[0]>[0];
+import type { Tx } from "@workspace/db";
 
 /**
  * The first number of every Postgres advisory lock this server takes.
@@ -24,6 +22,8 @@ export const LOCKS = {
   stripeCustomer: 3,
   /** One home's daily count of people added: `routes/home.ts`. */
   staffAdded: 4,
+  /** One case's memory book, as an entry or a chapter takes the next position: `routes/memory-book.ts`. */
+  memoryBook: 5,
 } as const;
 
 /**

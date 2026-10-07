@@ -143,23 +143,25 @@ router.post("/memory-book/entries", async (req, res) => {
   const values = parseBody(memoryEntryInputSchema, req.body);
   await assertPhotoBelongs(values.photoId, row.id, row.funeralHomeId);
 
-  const [created] = await db
-    .insert(memoryEntriesTable)
-    .values({
-      funeralHomeId: row.funeralHomeId,
-      caseId: row.id,
-      authorName: contact.name,
-      authorSide: "family",
-      authorContactId: contact.id,
-      // A relative who read at the service can send what they read; it
-      // prints with the day rather than with the memories.
-      kind: values.kind ?? "memory",
-      body: values.body,
-      whenText: values.whenText ?? null,
-      photoId: values.photoId ?? null,
-      position: await nextMemoryPosition(row.id),
-    })
-    .returning();
+  const [created] = await db.transaction(async (tx) =>
+    tx
+      .insert(memoryEntriesTable)
+      .values({
+        funeralHomeId: row.funeralHomeId,
+        caseId: row.id,
+        authorName: contact.name,
+        authorSide: "family",
+        authorContactId: contact.id,
+        // A relative who read at the service can send what they read; it
+        // prints with the day rather than with the memories.
+        kind: values.kind ?? "memory",
+        body: values.body,
+        whenText: values.whenText ?? null,
+        photoId: values.photoId ?? null,
+        position: await nextMemoryPosition(tx, row.id),
+      })
+      .returning(),
+  );
 
   res.status(201).json({
     id: created!.id,
@@ -318,22 +320,24 @@ router.post("/memory-book/chapters", async (req, res) => {
   assertSaneYears(values);
   await assertPhotoBelongs(values.photoId, row.id, row.funeralHomeId);
 
-  const [created] = await db
-    .insert(lifeChaptersTable)
-    .values({
-      funeralHomeId: row.funeralHomeId,
-      caseId: row.id,
-      title: values.title ?? null,
-      body: values.body ?? null,
-      startYear: values.startYear ?? null,
-      endYear: values.endYear ?? null,
-      photoId: values.photoId ?? null,
-      authorName: contact.name,
-      authorSide: "family",
-      authorContactId: contact.id,
-      position: await nextChapterPosition(row.id),
-    })
-    .returning();
+  const [created] = await db.transaction(async (tx) =>
+    tx
+      .insert(lifeChaptersTable)
+      .values({
+        funeralHomeId: row.funeralHomeId,
+        caseId: row.id,
+        title: values.title ?? null,
+        body: values.body ?? null,
+        startYear: values.startYear ?? null,
+        endYear: values.endYear ?? null,
+        photoId: values.photoId ?? null,
+        authorName: contact.name,
+        authorSide: "family",
+        authorContactId: contact.id,
+        position: await nextChapterPosition(tx, row.id),
+      })
+      .returning(),
+  );
 
   res.status(201).json({ ...toChapterJson(created!), mine: true });
 });

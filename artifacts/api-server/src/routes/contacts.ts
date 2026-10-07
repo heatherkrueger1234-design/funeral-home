@@ -7,6 +7,7 @@ import {
   isLinkLive,
   toPublicFamilyContact,
   type FamilyContact,
+  type Tx,
 } from "@workspace/db";
 import {
   CreateCaseContactBody,
@@ -39,8 +40,6 @@ function consentFields(consent: boolean | undefined) {
   if (consent === false) return { smsConsentAt: null, smsConsentSource: null };
   return {};
 }
-
-type Tx = Parameters<Parameters<typeof db.transaction>[0]>[0];
 
 const NOT_A_PLAN =
   "Only a plan has a person it is for who reads it. On this file, everyone here is family.";

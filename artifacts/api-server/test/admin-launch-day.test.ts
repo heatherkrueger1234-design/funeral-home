@@ -275,6 +275,32 @@ describe("a director who cannot sign in", () => {
     });
   });
 
+  it("stops at the address's share of reset links, and says so", async () => {
+    // The same five an hour the sign-in page's own form allows that address
+    // (`lib/email-ceiling.ts`); an operator is not a way around it.
+    for (let i = 0; i < 5; i += 1) {
+      await admin.agent
+        .post(`/api/admin/homes/${home.homeId}/staff/${home.userId}/password-reset`)
+        .expect(202);
+    }
+
+    const refused = await admin.agent
+      .post(`/api/admin/homes/${home.homeId}/staff/${home.userId}/password-reset`)
+      .expect(429);
+    expect(Number(refused.headers["retry-after"])).toBeGreaterThan(0);
+    expect(refused.body.error).toMatch(/already been sent/);
+
+    // Nothing was issued for the sixth: no link, and no line in the log
+    // saying one was emailed.
+    const resets = await db
+      .select()
+      .from(passwordResetsTable)
+      .where(eq(passwordResetsTable.userId, home.userId));
+    expect(resets).toHaveLength(5);
+    const logged = await db.select().from(platformAuditTable);
+    expect(logged.filter((entry) => entry.action === "home.staff.reset")).toHaveLength(5);
+  });
+
   it("cannot aim a reset at somebody at another home through this home's path", async () => {
     const other = await signUpHome("Olinger Chapel");
 

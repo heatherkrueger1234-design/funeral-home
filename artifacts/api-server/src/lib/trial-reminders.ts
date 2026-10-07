@@ -9,6 +9,7 @@ import {
   type TrialReminderKey,
 } from "@workspace/db";
 import { sendTrialReminderEmail } from "@workspace/mailer";
+import { consoleUrl } from "./app-urls";
 import { logger } from "./logger";
 
 /**
@@ -209,8 +210,6 @@ export async function runTrialReminders(
   let skipped = 0;
   let failed = 0;
 
-  const base = process.env["CONSOLE_URL"]?.replace(/\/+$/, "") ?? "";
-
   for (const { home, ownerEmail } of candidates) {
     const ended = home.trialEndsAt! <= now;
     const daysLeft = daysUntil(home.trialEndsAt!, now, home.timezone);
@@ -234,7 +233,7 @@ export async function runTrialReminders(
         homeName: home.name,
         daysLeft,
         ended,
-        billingUrl: `${base}/settings?billing=1`,
+        billingUrl: consoleUrl("/settings?billing=1"),
         // With no mail server at all every email here is written to the log
         // instead, and the run says so (`mailConfigured`); with one, a
         // refusal is a reminder not sent.
