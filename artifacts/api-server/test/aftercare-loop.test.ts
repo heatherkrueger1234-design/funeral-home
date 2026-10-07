@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { asFamily, createCase, inviteFamily, signUpHome } from "./helpers";
 import { checkInDueAt } from "../src/lib/aftercare";
+import { calendarDayIn, localMorning } from "@workspace/db";
 
 const DAY = 24 * 60 * 60 * 1000;
 
@@ -40,8 +41,15 @@ describe("the aftercare loop closes", () => {
     const there = (options: Intl.DateTimeFormatOptions) =>
       new Intl.DateTimeFormat("en-US", { timeZone: "America/Denver", ...options });
     expect(there({ hour: "numeric", hourCycle: "h23" }).format(thirty)).toBe("10");
+    // Thirty calendar days on, in Denver, not thirty times 24 hours: the two
+    // part company in the hour after midnight there when the clocks change
+    // inside the month, which is how this went red on main every morning in
+    // the run-up to the first Sunday of November.
+    const serviceDay = calendarDayIn(serviceAt, "America/Denver");
     expect(there({ dateStyle: "short" }).format(thirty)).toBe(
-      there({ dateStyle: "short" }).format(new Date(serviceAt.getTime() + 30 * DAY)),
+      there({ dateStyle: "short" }).format(
+        localMorning(serviceDay.year, serviceDay.month, serviceDay.day + 30, "America/Denver"),
+      ),
     );
   });
 
