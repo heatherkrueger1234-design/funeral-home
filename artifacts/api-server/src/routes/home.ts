@@ -43,6 +43,7 @@ import { templateFor, toTemplateJson } from "../lib/timeline";
 import { markOnboarding } from "../lib/onboarding";
 import { accessLogForHome } from "../lib/access-log";
 import { describeSmsRoute } from "../lib/sms";
+import { publicPageUrl } from "../lib/origins";
 
 const router: IRouter = Router();
 
@@ -74,8 +75,14 @@ export function toDirectorHome(home: FuneralHome) {
 
 router.get("/home", (req, res) => {
   const home = tenant(req);
-  // Where the home's texts come from, in words (see `lib/sms.ts`).
-  res.json({ ...toDirectorHome(home), textingStatus: describeSmsRoute(home) });
+  res.json({
+    ...toDirectorHome(home),
+    // Where the home's texts come from, in words (see `lib/sms.ts`).
+    textingStatus: describeSmsRoute(home),
+    // The address of the home's public page, from the same origin the texted
+    // links are built from, so the console never has to be told it separately.
+    publicPageUrl: publicPageUrl(home.slug),
+  });
 });
 
 /**

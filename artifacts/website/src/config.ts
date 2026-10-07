@@ -12,11 +12,20 @@ export const consoleUrl = trim(import.meta.env.VITE_CONSOLE_URL);
  * Where "Start a free trial" goes: the console's one front door, opened in
  * its "Set up a new funeral home" mode by `?register` (see SignIn.tsx).
  */
-export const trialHref = consoleUrl ? `${consoleUrl}/?register` : "#pricing";
 export const signInHref = consoleUrl ? `${consoleUrl}/` : undefined;
 
 export const contactEmail = (import.meta.env.VITE_CONTACT_EMAIL ?? "").trim();
 export const contactHref = contactEmail ? `mailto:${contactEmail}` : undefined;
+
+/*
+ * Without a console there is no trial to start. The next best door is a
+ * person, and failing that the pricing section, so no button on the page is
+ * ever a dead end — two of them sit inside #pricing, where scrolling to it
+ * is a click that does nothing.
+ */
+export const trialHref = consoleUrl
+  ? `${consoleUrl}/?register`
+  : (contactHref ?? "#pricing");
 
 /*
  * OWNER: the terms and the privacy policy live in LEGAL/ as drafts that have

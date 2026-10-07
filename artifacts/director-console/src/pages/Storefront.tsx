@@ -66,6 +66,14 @@ export default function Storefront() {
     return <LoadFailed what="Your page" onRetry={() => void home.refetch()} />;
   }
 
+  // A failed load must not read as "you have no policies": the form below
+  // would invite the owner to write them again.
+  if (policies.isError) {
+    return (
+      <LoadFailed what="Your policies" onRetry={() => void policies.refetch()} />
+    );
+  }
+
   const row = home.data;
   const save = (data: Record<string, unknown>) =>
     update.mutate({ data: data as never });
@@ -78,7 +86,7 @@ export default function Storefront() {
           : "What a family reads before they call you, and what you find yourself explaining every time."}
       </PageHeader>
 
-      <PublicPageLink slug={row.slug} />
+      <PublicPageLink slug={row.slug} publicPageUrl={row.publicPageUrl} />
 
       <Panel className="space-y-4">
         <div>
@@ -358,18 +366,23 @@ function Policies({
 /**
  * The address a home puts on their own website.
  *
- * Built from the family portal's origin at runtime rather than stored,
- * because the console and the portal are different hostnames and only the
- * deployment knows the second one.
+ * The API builds it from the same origin it builds every texted link from,
+ * so this screen and the text message can never disagree about where a
+ * family's page is. Null means the server has not been told where the
+ * portal is; the path alone is shown, with what to put in front of it,
+ * rather than a relative link that would point at whichever site it is
+ * pasted onto.
  */
-function PublicPageLink({ slug }: { slug: string }) {
+function PublicPageLink({
+  slug,
+  publicPageUrl,
+}: {
+  slug: string;
+  publicPageUrl: string | null | undefined;
+}) {
   const [copied, setCopied] = useState(false);
 
-  const configured = import.meta.env["VITE_FAMILY_PORTAL_URL"] as
-    | string
-    | undefined;
-  const origin = configured?.replace(/\/+$/, "");
-  const url = `${origin ?? ""}/start/${slug}`;
+  const url = publicPageUrl ?? `/start/${slug}`;
 
   return (
     <Panel className="space-y-2">
@@ -400,7 +413,7 @@ function PublicPageLink({ slug }: { slug: string }) {
           {copied ? "Copied" : "Copy"}
         </Button>
       </div>
-      {!origin && (
+      {!publicPageUrl && (
         <p className="text-sm leading-snug text-muted-foreground">
           Add your family portal&rsquo;s address in front of that path — it is
           the site your families open their texted links on.

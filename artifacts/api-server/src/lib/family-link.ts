@@ -1,4 +1,5 @@
 import { createHash, randomBytes } from "node:crypto";
+import { familyPortalOrigin } from "./origins";
 import { and, eq } from "drizzle-orm";
 import {
   db,
@@ -58,8 +59,7 @@ export function mintLink(now = new Date()): MintedLink {
  * somebody else's deployment.
  */
 export function linkUrl(token: string): string {
-  const base = process.env["FAMILY_PORTAL_URL"]?.replace(/\/+$/, "") ?? "";
-  return `${base}/f/${token}`;
+  return `${familyPortalOrigin()}/f/${token}`;
 }
 
 export type FamilyLinkSession = {

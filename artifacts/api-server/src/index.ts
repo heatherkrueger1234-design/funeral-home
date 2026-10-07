@@ -3,6 +3,7 @@ import app from "./app";
 import { logger } from "./lib/logger";
 import { assertEncryptionConfigured } from "@workspace/db/crypto";
 import { bootstrapPlatformAdmins } from "./lib/platform-auth";
+import { assertLinkOriginsConfigured } from "./lib/origins";
 
 // Before anything else can fail, so a crash on the way up is reported too.
 initErrorTracking();
@@ -11,6 +12,10 @@ initErrorTracking();
 // right failure mode: the alternative is accepting them and writing them
 // to disk in the clear.
 assertEncryptionConfigured();
+
+// Same reasoning: a texted link that reads "/f/..." opens nothing, and nobody
+// finds out until a family says so. Loud at boot instead.
+assertLinkOriginsConfigured();
 
 const rawPort = process.env["PORT"];
 
