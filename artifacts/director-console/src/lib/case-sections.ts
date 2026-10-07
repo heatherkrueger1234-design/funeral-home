@@ -40,7 +40,7 @@ export const TAB_LABELS: Record<Tab, string> = {
   book: "Memory book",
   timeline: "Timeline",
   messages: "Messages",
-  details: "Details",
-  data: "Data",
+  details: "Key facts",
+  data: "Export and erase",
 };
 

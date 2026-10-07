@@ -291,7 +291,7 @@ function PhoneFigure(props: { phone: ReactNode; caption: string }) {
 /** The quiet tinted ground every product screen sits on. */
 function Panel(props: { children: ReactNode }) {
   return (
-    <div className="rounded-3xl border border-border/70 bg-[linear-gradient(160deg,#eef3f1,#efebe3)] p-5 sm:p-9">
+    <div className="rounded-3xl border border-border/70 bg-[linear-gradient(160deg,var(--accent-soft),var(--muted))] p-5 sm:p-9">
       {props.children}
     </div>
   );
@@ -450,11 +450,11 @@ function WhatItIsNot() {
       className="bg-accent-deep py-20 text-white sm:py-24"
     >
       <div className="max-w-2xl">
-        <p className="eyebrow !text-[#b9d3cc]">What it deliberately is not</p>
+        <p className="eyebrow !text-accent-deep-eyebrow">What it deliberately is not</p>
         <h2 id="not-title" className="mt-3 text-3xl sm:text-4xl">
           The lines we drew, and why they protect you.
         </h2>
-        <p className="mt-4 text-lg leading-relaxed text-[#d7e4e0]">
+        <p className="mt-4 text-lg leading-relaxed text-accent-deep-foreground">
           The FTC Funeral Rule governs how you disclose prices, and your families trust your name, not
           ours. These omissions are decisions, and the two that touch your licence and your
           families' money are enforced by tests that fail the build, not by good intentions.
@@ -469,7 +469,7 @@ function WhatItIsNot() {
               </span>
               {item.title}
             </h3>
-            <p className="mt-3 leading-relaxed text-[#d7e4e0]">{item.body}</p>
+            <p className="mt-3 leading-relaxed text-accent-deep-foreground">{item.body}</p>
           </li>
         ))}
       </ul>
@@ -544,7 +544,7 @@ function Security() {
               </li>
             ))}
           </ul>
-          <p className="mt-10 rounded-xl border border-notice/20 bg-notice-soft p-5 leading-relaxed text-[#6b4520]">
+          <p className="mt-10 rounded-xl border border-notice/20 bg-notice-soft p-5 leading-relaxed text-notice-deep">
             <strong className="font-semibold">Where a photograph was taken stays private.</strong>{" "}
             Phones write the location into every picture, and a photograph of someone in their garden
             is taken at their house. We take that hidden camera data out of every photograph as it
@@ -710,7 +710,7 @@ function ClosingCall() {
         <h2 id="closing-title" className="mx-auto max-w-2xl text-3xl sm:text-4xl">
           Give your next family one link instead of your email address.
         </h2>
-        <p className="mx-auto mt-4 max-w-xl text-lg leading-relaxed text-[#d7e4e0]">
+        <p className="mx-auto mt-4 max-w-xl text-lg leading-relaxed text-accent-deep-foreground">
           Add your name and colour, your office hours and 24-hour number, and your standard schedule.
           Then open a case and send the family their link.
         </p>

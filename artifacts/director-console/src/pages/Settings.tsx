@@ -6,8 +6,10 @@ import {
   getGetHomeQueryKey,
   getGetCurrentUserQueryKey,
   getGetHomeDashboardQueryKey,
+  type FuneralHomeUpdate,
 } from "@workspace/api-client-react";
 import { useSession } from "@/lib/session";
+import { homeIsInColorado } from "@/lib/home-state";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
@@ -85,7 +87,7 @@ export default function Settings() {
 
   const row = home.data;
   const readOnly = session?.user.role !== "owner";
-  const save = (data: Record<string, unknown>) => update.mutate({ data: data as never });
+  const save = (data: FuneralHomeUpdate) => update.mutate({ data });
 
   return (
     <div className="mx-auto w-full max-w-2xl space-y-7">
@@ -241,7 +243,10 @@ export default function Settings() {
         </div>
         <p className="-mt-2 text-sm leading-snug text-muted-foreground">
           On your public page. The state also sets the death certificate
-          deadline: Colorado's 72 hours from custody is built in.
+          deadline:{" "}
+          {homeIsInColorado(row.region)
+            ? "Colorado's 72 hours from custody is built in."
+            : "the built-in 72-hour clock is Colorado's rule, so use it or ignore it as your state requires."}
         </p>
       </section>
 
@@ -434,7 +439,7 @@ export default function Settings() {
             }
           />
           <p className="text-sm leading-snug text-muted-foreground">
-            "Provided in care with {row.aftercareSenderName?.trim() || row.name}".
+            "In the care of {row.aftercareSenderName?.trim() || row.name}".
             Leave blank to use the home's name.
           </p>
         </div>

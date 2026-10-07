@@ -250,9 +250,10 @@ function Attention({
     <section>
       <h2 className="font-display text-lg">Colorado licensure</h2>
       <p className="mb-5 mt-1 max-w-prose text-sm leading-relaxed text-[var(--muted-foreground)]">
-        Colorado licensure is due January 1, 2027, and an establishment that
-        changes its services has thirty days to file an amended registration.
-        These are the homes with something on either clock.
+        Colorado licensure through the Department of Regulatory Agencies
+        (DORA) is due January 1, 2027, and an establishment that changes its
+        services has thirty days to file an amended registration. These are
+        the homes with something on either clock.
       </p>
 
       {running.length === 0 && notStarted.length === 0 ? (

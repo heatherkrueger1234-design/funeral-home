@@ -5,6 +5,8 @@ import {
   type CaseDetail,
 } from "@workspace/api-client-react";
 import { Button } from "@/components/ui/button";
+import { useSession } from "@/lib/session";
+import { homeIsInColorado } from "@/lib/home-state";
 import { Check, Circle, X } from "lucide-react";
 
 /**
@@ -38,6 +40,7 @@ export function FirstCaseGuide({
   onOpen: (tab: string) => void;
 }) {
   const [hidden, setHidden] = useState(readHidden);
+  const { session } = useSession();
   const atNeed = detail.kind !== "pre_need";
   const certificate = useGetCertificateFiling(detail.id, {
     query: { queryKey: getGetCertificateFilingQueryKey(detail.id), enabled: atNeed && !hidden },
@@ -66,7 +69,9 @@ export function FirstCaseGuide({
       ? [
           {
             label: "Record when you took custody",
-            detail: "Starts the death certificate's filing clock (72 hours in Colorado).",
+            detail: homeIsInColorado(session?.home.region)
+              ? "Starts the death certificate's 72-hour filing clock."
+              : "Starts the death certificate's filing clock. The 72 hours is Colorado's rule; use it or ignore it as your state requires.",
             done: Boolean(certificate.data?.custodyTakenAt),
             tab: "vitals",
           },
@@ -86,7 +91,8 @@ export function FirstCaseGuide({
     },
   ];
 
-  if (steps.every((step) => step.done)) return null;
+  const left = steps.filter((step) => !step.done).length;
+  if (left === 0) return null;
   const next = steps.find((step) => !step.done);
 
   return (
@@ -96,7 +102,9 @@ export function FirstCaseGuide({
     >
       <div className="flex items-start gap-3">
         <p className="flex-1 text-sm font-medium text-[var(--accent-deep)]">
-          The usual order — {steps.filter((s) => s.done).length} of {steps.length} done
+          {/* What is left, never a score: CRAFT's rule for every progress
+              indicator, and a first case is not a game to be good at. */}
+          The usual order — {left === 1 ? "1 step left" : `${left} steps left`}
         </p>
         <Button
           variant="ghost"
