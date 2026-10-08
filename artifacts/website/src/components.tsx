@@ -89,7 +89,7 @@ export function Desk(props: { screen: Screen; className?: string } & Loading) {
 export function Phone(props: { screen: Screen; className?: string } & Loading) {
   return (
     <div
-      className={`rounded-[2.6rem] bg-[#1b201d] p-[0.55rem] shadow-float ring-1 ring-black/5 ${props.className ?? ""}`}
+      className={`rounded-[2.6rem] bg-foreground p-[0.55rem] shadow-float ring-1 ring-black/5 ${props.className ?? ""}`}
     >
       <Picture
         screen={props.screen}

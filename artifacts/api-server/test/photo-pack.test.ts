@@ -180,3 +180,56 @@ describe("the photo pack", () => {
     expect(bin.body[0].id).toBe(a.body.id);
   });
 });
+
+describe("the slideshow order", () => {
+  it("is rewritten from the list the director gives, and nothing else", async () => {
+    const staff = await signUpHome();
+    const row = await createCase(staff);
+    const { token } = await inviteFamily(staff, row.id, { name: "Anne Hale" });
+    const family = asFamily(token);
+
+    const ids: number[] = [];
+    for (const name of ["a.png", "b.png", "c.png"]) {
+      const photo = await family.post("/api/family/photos").attach("file", PNG_BYTES, name).expect(201);
+      ids.push(photo.body.id);
+    }
+    const [a, b, c] = ids as [number, number, number];
+
+    // The order is the slideshow's, so the bin is chronological until the
+    // photographs are chosen (see `photosForCase`).
+    await staff.agent
+      .put(`/api/cases/${row.id}/photos/selection`)
+      .send({ photoIds: [a, b, c] })
+      .expect(200);
+
+    const reordered = await staff.agent
+      .put(`/api/cases/${row.id}/photos/order`)
+      .send({ photoIds: [c, a, b] })
+      .expect(200);
+    expect(reordered.body.map((photo: { id: number }) => photo.id)).toEqual([c, a, b]);
+
+    // And it stays that way when the list is read again.
+    const listed = await staff.agent.get(`/api/cases/${row.id}/photos`).expect(200);
+    expect(listed.body.map((photo: { id: number }) => photo.id)).toEqual([c, a, b]);
+  });
+
+  it("refuses a photograph from another case, and one listed twice", async () => {
+    const staff = await signUpHome();
+    const row = await createCase(staff);
+    const { token } = await inviteFamily(staff, row.id, { name: "Anne Hale" });
+    const mine = await asFamily(token).post("/api/family/photos").attach("file", PNG_BYTES, "a.png").expect(201);
+
+    const elsewhere = await createCase(staff, { decedentFirstName: "Harold" });
+    const { token: otherToken } = await inviteFamily(staff, elsewhere.id, { name: "Tom Reyes" });
+    const theirs = await asFamily(otherToken).post("/api/family/photos").attach("file", PNG_BYTES, "b.png").expect(201);
+
+    await staff.agent
+      .put(`/api/cases/${row.id}/photos/order`)
+      .send({ photoIds: [mine.body.id, theirs.body.id] })
+      .expect(400);
+    await staff.agent
+      .put(`/api/cases/${row.id}/photos/order`)
+      .send({ photoIds: [mine.body.id, mine.body.id] })
+      .expect(400);
+  });
+});

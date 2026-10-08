@@ -15,12 +15,12 @@ import {
 import {
   Settings,
   LogOut,
+  ChevronDown,
   ClipboardList,
   Contact,
   Inbox,
   Home,
   MessageSquare,
-  MoreHorizontal,
   Store,
   Tag,
 } from "lucide-react";
@@ -34,18 +34,20 @@ import {
 } from "@workspace/api-client-react";
 
 /**
- * The frame. Four places to be, a drawer for the rest, and a way out.
+ * The frame. Five places to be, a drawer for the rest, and a way out.
  *
  * Sticky, because a director keeps this open all day and scrolls a long
  * worklist; the home's name and the waiting counts should not be something
  * they have to scroll back up to find.
  *
- * The four across the top are the four questions a director actually has on a
- * Tuesday: what is waiting on me, who am I burying, who is waiting for an
- * answer, and who asked. Everything about the *business* rather than about
- * this week — the public page, the prices, the local network, the standard
- * schedule — sits one click further in, because it is opened about once a
- * month and should not have to be read past every morning.
+ * The first four across the top are the four questions a director actually
+ * has on a Tuesday: what is waiting on me, who am I burying, who is waiting
+ * for an answer, and who asked. Settings is the fifth, by name: it holds the
+ * subscription and the home's hours, and behind an unlabelled "…" nobody
+ * found it. Everything else about the *business* rather than about this
+ * week — the public page, the prices, the local network — sits one click
+ * further in under a labelled menu, because it is opened about once a month
+ * and should not have to be read past every morning.
  */
 
 const PLACES = [
@@ -53,6 +55,7 @@ const PLACES = [
   { href: "/cases", label: "Cases", icon: ClipboardList },
   { href: "/inbox", label: "Messages", icon: MessageSquare },
   { href: "/requests", label: "Requests", icon: Inbox },
+  { href: "/settings", label: "Settings", icon: Settings },
 ] as const;
 
 function NavLink({
@@ -273,13 +276,15 @@ export function ConsoleShell({ children }: { children: ReactNode }) {
               <DropdownMenuTrigger asChild>
                 <button
                   type="button"
-                  aria-label="The home"
-                  title="The home"
-                  className="inline-flex min-h-9 items-center rounded-md px-2 text-muted-foreground
+                  className="inline-flex min-h-9 items-center gap-1.5 rounded-md px-2.5 text-sm font-semibold text-muted-foreground
                              transition-colors duration-200 hover:bg-[var(--muted)] hover:text-foreground
                              focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--accent)]"
                 >
-                  <MoreHorizontal className="size-4" strokeWidth={1.75} />
+                  <Store className="size-4" strokeWidth={1.75} aria-hidden />
+                  {/* The same rule as the places: the label is read on a
+                      phone even where it is not seen. */}
+                  <span className="sr-only sm:not-sr-only">Your home</span>
+                  <ChevronDown className="size-3.5" strokeWidth={1.75} aria-hidden />
                 </button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end">
@@ -302,12 +307,6 @@ export function ConsoleShell({ children }: { children: ReactNode }) {
                   </Link>
                 </DropdownMenuItem>
                 <DropdownMenuSeparator />
-                <DropdownMenuItem asChild>
-                  <Link href="/settings" className="no-underline">
-                    <Settings className="size-4" strokeWidth={1.75} />
-                    Settings
-                  </Link>
-                </DropdownMenuItem>
                 <DropdownMenuItem onSelect={() => logout.mutate()}>
                   <LogOut className="size-4" strokeWidth={1.75} />
                   Sign out

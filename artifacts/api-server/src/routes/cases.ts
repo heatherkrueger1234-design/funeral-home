@@ -337,18 +337,6 @@ async function assertPhotoOnCase(
 }
 
 /**
- * Close the case.
- *
- * Three things happen, and the third is the one the home is paying for:
- * the case stops being active, the chat is given a date it locks (a
- * fortnight past the service, so nobody is fielding logistics in March about
- * a funeral in January), and every family contact with an address is enrolled
- * — pending their consent — in the branded grief check-ins.
- *
- * Idempotent: closing an already-closed case returns it unchanged rather
- * than moving the lock date and re-enrolling everyone.
- */
-/**
  * The person this pre-need file was for has died.
  *
  * This is the single moment that justifies pre-need and at-need being one
@@ -462,6 +450,18 @@ router.post("/cases/:caseId/at-need", async (req, res) => {
   res.json(toCaseJson(converted!));
 });
 
+/**
+ * Close the case.
+ *
+ * Three things happen, and the third is the one the home is paying for:
+ * the case stops being active, the chat is given a date it locks (a
+ * fortnight past the service, so nobody is fielding logistics in March about
+ * a funeral in January), and every family contact with an address is enrolled
+ * — pending their consent — in the branded grief check-ins.
+ *
+ * Idempotent: closing an already-closed case returns it unchanged rather
+ * than moving the lock date and re-enrolling everyone.
+ */
 router.post("/cases/:caseId/close", async (req, res) => {
   const home = tenant(req);
   const existing = await loadCase(req, req.params.caseId);

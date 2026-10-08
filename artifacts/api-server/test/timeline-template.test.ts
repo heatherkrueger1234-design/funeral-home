@@ -1,4 +1,6 @@
 import { describe, expect, it } from "vitest";
+import { eq } from "drizzle-orm";
+import { db, usersTable } from "@workspace/db";
 import { asFamily, createCase, inviteFamily, signUpHome } from "./helpers";
 
 const DAY = 24 * 60 * 60 * 1000;
@@ -282,5 +284,60 @@ describe("the home's standard schedule", () => {
     expect(timeline.body.map((d: { title: string }) => d.title)).toContain(
       "Choose burial or cremation",
     );
+  });
+});
+
+describe("editing the standard schedule", () => {
+  it("lets an owner change a step and take one away, and shows the result", async () => {
+    const staff = await signUpHome();
+    const added = await staff.agent
+      .post("/api/home/timeline-template")
+      .send({ title: "Choose burial or cremation", offsetMinutes: 2 * 24 * 60, anchor: "death" })
+      .expect(201);
+
+    const changed = await staff.agent
+      .put(`/api/home/timeline-template/${added.body.id}`)
+      .send({ title: "Choose burial, cremation or donation", offsetMinutes: 3 * 24 * 60 })
+      .expect(200);
+    expect(changed.body.title).toBe("Choose burial, cremation or donation");
+    expect(changed.body.offsetLabel).toBe("3 days after the death");
+
+    // Nothing to change is a mistake, not a no-op.
+    await staff.agent.put(`/api/home/timeline-template/${added.body.id}`).send({}).expect(400);
+
+    await staff.agent.delete(`/api/home/timeline-template/${added.body.id}`).expect(204);
+    const template = await staff.agent.get("/api/home/timeline-template").expect(200);
+    expect(template.body.map((row: { id: number }) => row.id)).not.toContain(added.body.id);
+
+    // Gone is gone.
+    await staff.agent.delete(`/api/home/timeline-template/${added.body.id}`).expect(404);
+  });
+
+  it("is the owner's to change, not a director's", async () => {
+    const staff = await signUpHome();
+    const [step] = (await staff.agent.get("/api/home/timeline-template").expect(200)).body;
+
+    await db.update(usersTable).set({ role: "director" }).where(eq(usersTable.id, staff.userId));
+
+    await staff.agent
+      .put(`/api/home/timeline-template/${step.id}`)
+      .send({ title: "Something else" })
+      .expect(403);
+    await staff.agent.delete(`/api/home/timeline-template/${step.id}`).expect(403);
+  });
+
+  it("cannot reach another home's steps by id", async () => {
+    const staff = await signUpHome();
+    const other = await signUpHome("Olinger Chapel");
+    const [theirs] = (await other.agent.get("/api/home/timeline-template").expect(200)).body;
+
+    await staff.agent
+      .put(`/api/home/timeline-template/${theirs.id}`)
+      .send({ title: "Something else" })
+      .expect(404);
+    await staff.agent.delete(`/api/home/timeline-template/${theirs.id}`).expect(404);
+
+    const untouched = (await other.agent.get("/api/home/timeline-template").expect(200)).body;
+    expect(untouched.find((row: { id: number }) => row.id === theirs.id).title).toBe(theirs.title);
   });
 });

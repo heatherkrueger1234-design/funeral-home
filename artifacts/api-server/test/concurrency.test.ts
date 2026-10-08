@@ -3,7 +3,7 @@ import http from "node:http";
 import type { AddressInfo } from "node:net";
 import app from "../src/app";
 import { Gate } from "../src/lib/concurrency";
-import { MAX_UPLOADS_AT_ONCE, uploadsGate } from "../src/lib/media";
+import { MAX_UPLOADS_AT_ONCE, MAX_UPLOADS_PER_HOME, uploadsGate } from "../src/lib/media";
 import { asFamily, createCase, inviteFamily, signUpHome, PNG_BYTES } from "./helpers";
 
 /**
@@ -58,6 +58,17 @@ describe("photographs arriving at once", () => {
     const { token } = await inviteFamily(staff, row.id, { name: "Anne Hale" });
 
     /*
+     * No one home may hold more than its share (MAX_UPLOADS_PER_HOME), so
+     * filling the gate takes several homes' families at once.
+     */
+    const tokens: string[] = [];
+    for (let home = 0; home * MAX_UPLOADS_PER_HOME < MAX_UPLOADS_AT_ONCE; home += 1) {
+      const other = await signUpHome(`Chapel ${home}`);
+      const theirs = await createCase(other);
+      tokens.push((await inviteFamily(other, theirs.id, { name: "Tom Reyes" })).token);
+    }
+
+    /*
      * Uploads that have started and not finished: each sends its headers
      * and the start of a file, and promises far more than it sends, so
      * each holds its place the way a slow phone connection does.
@@ -74,7 +85,7 @@ describe("photographs arriving at once", () => {
           method: "POST",
           path: "/api/family/photos",
           headers: {
-            Authorization: `Bearer ${token}`,
+            Authorization: `Bearer ${tokens[Math.floor(i / MAX_UPLOADS_PER_HOME)]}`,
             "Content-Type": `multipart/form-data; boundary=${boundary}`,
             "Content-Length": String(10_000_000),
           },

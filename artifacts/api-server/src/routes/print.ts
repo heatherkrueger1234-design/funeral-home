@@ -3,6 +3,7 @@ import { and, asc, desc, eq, inArray, isNull, max } from "drizzle-orm";
 import {
   db,
   casePrintItemsTable,
+  casesTable,
   caseMessagesTable,
   casePhotosTable,
   familyContactsTable,
@@ -81,11 +82,19 @@ router.get("/print/themes", (_req, res) => {
  * The case's obituary text, for a programme's inside page. Whatever the
  * draft says now; the card's own proof is where the family checks it.
  */
-async function obituaryTextFor(caseId: number): Promise<string | null> {
+async function obituaryTextFor(
+  caseId: number,
+  funeralHomeId: number,
+): Promise<string | null> {
   const [row] = await db
     .select({ text: obituaryDraftsTable.draftText })
     .from(obituaryDraftsTable)
-    .where(eq(obituaryDraftsTable.caseId, caseId))
+    .where(
+      and(
+        eq(obituaryDraftsTable.caseId, caseId),
+        eq(obituaryDraftsTable.funeralHomeId, funeralHomeId),
+      ),
+    )
     .limit(1);
   return row?.text ?? null;
 }
@@ -288,7 +297,7 @@ export async function toPrintItemJson(
     photoUploadFor(item, row),
     peopleFor(item),
     template?.slots.some((slot) => slot.from === "obituary")
-      ? obituaryTextFor(row.id)
+      ? obituaryTextFor(row.id, row.funeralHomeId)
       : Promise.resolve(null),
   ]);
   const values = (item.values ?? {}) as Record<string, string>;
@@ -393,14 +402,18 @@ async function loadPrintItem(
   return requireRow(row, "That could not be found.");
 }
 
-async function caseFor(caseId: number): Promise<Case> {
-  const { casesTable } = await import("@workspace/db");
+/**
+ * The case a print item belongs to. The item was loaded under the home's
+ * own id, so the case is read under it too: a row for another home's case
+ * cannot come back here whatever the item's `caseId` says.
+ */
+async function caseFor(caseId: number, funeralHomeId: number): Promise<Case> {
   const [row] = await db
     .select()
     .from(casesTable)
-    .where(eq(casesTable.id, caseId))
+    .where(and(eq(casesTable.id, caseId), eq(casesTable.funeralHomeId, funeralHomeId)))
     .limit(1);
-  return row!;
+  return requireRow(row, "That case could not be found.");
 }
 
 router.put("/print/:printItemId", async (req, res) => {
@@ -533,7 +546,7 @@ router.put("/print/:printItemId", async (req, res) => {
   res.json(
     await toPrintItemJson(
       updated!,
-      await caseFor(existing.caseId),
+      await caseFor(existing.caseId, existing.funeralHomeId),
       tenant(req).timezone,
     ),
   );
@@ -625,7 +638,7 @@ export async function renderPrintItemHtml(
     logoDataUri: await dataUri(home.logoUploadId, home.id),
     themeKey: item.themeKey,
     obituary: template.slots.some((slot) => slot.from === "obituary")
-      ? await obituaryTextFor(row.id)
+      ? await obituaryTextFor(row.id, home.id)
       : null,
   });
 }
@@ -649,7 +662,7 @@ function sendRenderedHtml(res: Response, html: string) {
 router.get("/print/:printItemId/render", async (req, res) => {
   const home = tenant(req);
   const existing = await loadPrintItem(req, req.params.printItemId);
-  const row = await caseFor(existing.caseId);
+  const row = await caseFor(existing.caseId, home.id);
 
   sendRenderedHtml(res, await renderPrintItemHtml(existing, row, home));
 });

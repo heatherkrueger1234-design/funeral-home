@@ -33,6 +33,9 @@
   --color-accent-deep: var(--accent-deep);
   --color-notice: var(--notice);
   --color-notice-soft: var(--notice-soft);
+  --color-notice-deep: var(--notice-deep);
+  --color-accent-deep-foreground: var(--accent-deep-foreground);
+  --color-accent-deep-eyebrow: var(--accent-deep-eyebrow);
 
   --radius-lg: 1rem;
   --radius-md: 0.75rem;
@@ -61,6 +64,21 @@
 
   --notice: #8a5a2b;
   --notice-soft: #f7efe4;
+  /*
+   * Body text set on --notice-soft. --notice itself is a label colour and
+   * reads thin at paragraph length on its own tint; this is the same clay,
+   * darker, and clears AA for running text there. Website only: the apps
+   * never set a paragraph in the notice colour.
+   */
+  --notice-deep: #6b4520;
+
+  /*
+   * Text on the dark green bands. Not white: a block of pure white on
+   * --accent-deep glares, so running text is the accent's own pale tint,
+   * and the eyebrow label above it a shade quieter still.
+   */
+  --accent-deep-foreground: #d7e4e0;
+  --accent-deep-eyebrow: #b9d3cc;
 
   --elevation-1: 0 1px 2px rgb(40 34 24 / 0.06), 0 2px 5px rgb(40 34 24 / 0.07);
   --elevation-2:

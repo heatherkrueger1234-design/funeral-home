@@ -29,6 +29,8 @@ import {
   parseQuery,
   requireRow,
 } from "../../lib/http";
+import { consoleUrl } from "../../lib/app-urls";
+import { claimEmail } from "../../lib/email-ceiling";
 import { logger } from "../../lib/logger";
 import { uniqueSlug } from "../../lib/slug";
 import { seedPolicyPrompts } from "../../lib/storefront";
@@ -260,14 +262,13 @@ async function sendInvitation(
   // call and opens the email days later, and a link that died in the
   // meantime is a support ticket on their first morning.
   const token = await createPasswordReset(person.id, INVITE_TTL_MS);
-  const base = process.env["CONSOLE_URL"]?.replace(/\/+$/, "") ?? "";
 
   try {
     await sendStaffInviteEmail({
       to: person.email,
       homeName: home.name,
       invitedBy: who.email,
-      inviteLink: `${base}/reset-password?invited=1&token=${encodeURIComponent(token)}`,
+      inviteLink: consoleUrl(`/reset-password?invited=1&token=${encodeURIComponent(token)}`),
       expiresInDays: INVITE_TTL_DAYS,
     });
   } catch (err) {
@@ -586,6 +587,24 @@ router.post(
       );
     }
 
+    /*
+     * The same ceiling per address as the sign-in page's own "forgotten
+     * password" form (`routes/auth.ts`), counted together with it: an
+     * operator on the telephone is one more person who can ask for a
+     * stranger's inbox to be filled from our domain. Unlike that form this
+     * one says so -- the caller is a known operator, not an anonymous
+     * visitor, and "it's on its way" would be untrue.
+     */
+    const kind = found.hasPassword ? "password_reset" : "staff_invitation";
+    if (!(await claimEmail(found, kind))) {
+      res.setHeader("retry-after", String(60 * 60));
+      throw new HttpError(
+        429,
+        "That address has already been sent as many of these as it can have " +
+          "for now. Try again in an hour, or pass on one of the links already sent.",
+      );
+    }
+
     await recordPlatformAccess(
       who,
       "home.staff.reset",
@@ -608,11 +627,10 @@ router.post(
     }
 
     const token = await createPasswordReset(found.id);
-    const base = process.env["CONSOLE_URL"]?.replace(/\/+$/, "") ?? "";
 
     await sendPasswordResetEmail({
       to: found.email,
-      resetUrl: `${base}/reset-password?token=${encodeURIComponent(token)}`,
+      resetUrl: consoleUrl(`/reset-password?token=${encodeURIComponent(token)}`),
       expiresInMinutes: Math.round(PASSWORD_RESET_TTL_MS / 60000),
     });
 

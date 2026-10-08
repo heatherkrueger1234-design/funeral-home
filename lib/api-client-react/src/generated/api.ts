@@ -4165,7 +4165,7 @@ export const getExportCaseListQueryKey = () => {
 
 export const getExportCaseListQueryOptions = <
   TData = Awaited<ReturnType<typeof exportCaseList>>,
-  TError = ErrorType<unknown>,
+  TError = ErrorType<void>,
 >(options?: {
   query?: UseQueryOptions<
     Awaited<ReturnType<typeof exportCaseList>>,
@@ -4192,7 +4192,7 @@ export const getExportCaseListQueryOptions = <
 export type ExportCaseListQueryResult = NonNullable<
   Awaited<ReturnType<typeof exportCaseList>>
 >;
-export type ExportCaseListQueryError = ErrorType<unknown>;
+export type ExportCaseListQueryError = ErrorType<void>;
 
 /**
  * @summary Every case as one CSV, for another case system
@@ -4200,7 +4200,7 @@ export type ExportCaseListQueryError = ErrorType<unknown>;
 
 export function useExportCaseList<
   TData = Awaited<ReturnType<typeof exportCaseList>>,
-  TError = ErrorType<unknown>,
+  TError = ErrorType<void>,
 >(options?: {
   query?: UseQueryOptions<
     Awaited<ReturnType<typeof exportCaseList>>,
@@ -6399,7 +6399,7 @@ export const getGetPhotoPackQueryKey = (caseId: number) => {
 
 export const getGetPhotoPackQueryOptions = <
   TData = Awaited<ReturnType<typeof getPhotoPack>>,
-  TError = ErrorType<unknown>,
+  TError = ErrorType<void>,
 >(
   caseId: number,
   options?: {
@@ -6434,7 +6434,7 @@ export const getGetPhotoPackQueryOptions = <
 export type GetPhotoPackQueryResult = NonNullable<
   Awaited<ReturnType<typeof getPhotoPack>>
 >;
-export type GetPhotoPackQueryError = ErrorType<unknown>;
+export type GetPhotoPackQueryError = ErrorType<void>;
 
 /**
  * @summary Download the photographs as a numbered folder, in slideshow order
@@ -6442,7 +6442,7 @@ export type GetPhotoPackQueryError = ErrorType<unknown>;
 
 export function useGetPhotoPack<
   TData = Awaited<ReturnType<typeof getPhotoPack>>,
-  TError = ErrorType<unknown>,
+  TError = ErrorType<void>,
 >(
   caseId: number,
   options?: {

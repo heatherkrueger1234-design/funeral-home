@@ -385,8 +385,6 @@ export default function Hub() {
               limit is the server's business until they are near it.
             */
             detail={
-              // The limit is a ceiling nobody reaches, so it is only named
-              // once it is close. "9 of 1000" read as a quota to fill.
               photoCount === 0
                 ? "Add any you have, from any album"
                 : photoLimit - photoCount <= 50

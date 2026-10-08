@@ -10,7 +10,7 @@ import {
   type IntakeRequest,
 } from "@workspace/db";
 import { GetIntakeRequestsQueryParams } from "@workspace/api-zod";
-import { HttpError, parseQuery } from "../lib/http";
+import { HttpError, parseId, parseQuery } from "../lib/http";
 import { currentUser, tenant } from "../middleware/require-auth";
 import { toCaseJson } from "../lib/case-view";
 import { mintLink, linkUrl } from "../lib/family-link";
@@ -73,13 +73,7 @@ async function loadPending(
   req: Parameters<typeof tenant>[0] & { params: { intakeId?: string } },
 ) {
   const home = tenant(req);
-  const id = Number(req.params.intakeId);
-
-  // `Number("")` is 0 and `Number("1e3")` is 1000; neither is an id somebody
-  // clicked, and both would otherwise reach the database.
-  if (!Number.isSafeInteger(id) || id <= 0) {
-    throw new HttpError(404, "No such request.");
-  }
+  const id = parseId(req.params.intakeId);
 
   const [row] = await db
     .select()

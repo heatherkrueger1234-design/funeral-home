@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import {
   useGetFamilyObituary,
@@ -15,6 +15,7 @@ import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
 import { Check, Lock } from "lucide-react";
 import { Divider, LoadFailed, Loading, PageHeader } from "@/components/page";
+import { takeServerText } from "@/lib/shared-field";
 import { voiceFor } from "@/lib/voice";
 
 /**
@@ -44,6 +45,26 @@ type FieldProps = {
 
 function Field({ id, label, hint, note, value, multiline, disabled, onSave }: FieldProps) {
   const Control = multiline ? Textarea : Input;
+  const server = value ?? "";
+  /*
+    A controlled draft rather than an uncontrolled box. The obituary is
+    written by several relatives at once, a field each, which is the point
+    of splitting it into fields — and the latest copy is pulled down every
+    couple of minutes and after every save. This used to be redrawn from the
+    server with a `key`, which threw away whatever this person was
+    mid-typing the moment a sister saved her own field on her own phone.
+    Now the server's text is taken only when the box is not in use and
+    shows nothing unsaved; the rule itself is in `lib/shared-field.ts`.
+  */
+  const [field, setField] = useState({ draft: server, agreed: server });
+  const focused = useRef(false);
+  // What the box held when the cursor arrived, so tabbing through a field
+  // is told apart from changing it.
+  const onArrival = useRef(server);
+
+  useEffect(() => {
+    setField((current) => takeServerText(current, server, focused.current));
+  }, [server]);
 
   return (
     <div>
@@ -51,34 +72,32 @@ function Field({ id, label, hint, note, value, multiline, disabled, onSave }: Fi
       {hint && (
         <p className="mt-1 text-sm leading-snug text-muted-foreground">{hint}</p>
       )}
-      {/*
-        Saved only when this person changed it, not merely because they
-        tabbed through it.
-
-        The obituary is written by several relatives at once, a field each,
-        which is the point of splitting it into fields. But this box is
-        uncontrolled, so it holds whatever was on file when the screen opened;
-        a sister who had since filled in "Survived by" on her own phone had it
-        silently put back to the old text the moment her brother's cursor
-        passed through the box on his way to "In lieu of flowers". Comparing
-        with what the box held on focus, rather than with the server's copy,
-        is what tells an edit from a tab. `key` redraws it with the newer text
-        once it arrives.
-      */}
       <Control
-        key={value ?? ""}
         className="mt-2"
         id={id}
-        defaultValue={value ?? ""}
+        value={field.draft}
         disabled={disabled}
         rows={multiline ? 5 : undefined}
-        onFocus={(event: { currentTarget: HTMLElement & { value: string } }) => {
-          event.currentTarget.dataset.before = event.currentTarget.value;
+        onChange={(event: { target: { value: string } }) =>
+          setField((current) => ({ ...current, draft: event.target.value }))
+        }
+        onFocus={() => {
+          focused.current = true;
+          onArrival.current = field.draft;
         }}
-        onBlur={(event: { target: HTMLElement & { value: string } }) => {
-          if (event.target.value === event.target.dataset.before) return;
-          const next = event.target.value.trim();
-          if (next === (value ?? "")) return;
+        onBlur={() => {
+          focused.current = false;
+          if (field.draft === onArrival.current) {
+            // Nothing typed: catch up with anything that arrived meanwhile.
+            setField((current) => takeServerText(current, server, false));
+            return;
+          }
+          // Saved only when this person changed it, not merely because they
+          // tabbed through it. The box shows the trimmed text it asked the
+          // server to keep, and agrees with it once the save comes back.
+          const next = field.draft.trim();
+          setField((current) => takeServerText({ ...current, draft: next }, server, false));
+          if (next === server) return;
           onSave(next || null);
         }}
       />

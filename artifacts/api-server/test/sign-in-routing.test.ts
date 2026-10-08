@@ -1,6 +1,6 @@
 import { describe, expect, it, beforeEach } from "vitest";
 import request from "supertest";
-import { db, platformAdminsTable } from "@workspace/db";
+import { db, platformAdminsTable, sessionsTable } from "@workspace/db";
 import app from "../src/app";
 import { signUpHome } from "./helpers";
 
@@ -118,5 +118,24 @@ describe("the family, who have no password at all", () => {
       .expect(401);
 
     void staff;
+  });
+});
+
+describe("signing out", () => {
+  it("ends the session on the server, not only in the browser", async () => {
+    const staff = await signUpHome();
+    await staff.agent.get("/api/auth/me").expect(200);
+
+    const out = await staff.agent.post("/api/auth/logout").expect(204);
+    // The cookie is cleared for the browser's sake, but that is not what
+    // signs them out: the row is gone, so a copy of the cookie is no use.
+    expect(String(out.headers["set-cookie"])).toMatch(/Expires=|Max-Age=0/);
+    expect(await db.select().from(sessionsTable)).toHaveLength(0);
+
+    await staff.agent.get("/api/auth/me").expect(401);
+  });
+
+  it("is a quiet success for somebody who was not signed in", async () => {
+    await request(app).post("/api/auth/logout").expect(204);
   });
 });
