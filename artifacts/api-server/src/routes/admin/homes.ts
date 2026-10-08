@@ -29,7 +29,7 @@ import {
   parseQuery,
   requireRow,
 } from "../../lib/http";
-import { consoleUrl } from "../../lib/app-urls";
+import { consoleUrl } from "../../lib/origins";
 import { claimEmail } from "../../lib/email-ceiling";
 import { logger } from "../../lib/logger";
 import { uniqueSlug } from "../../lib/slug";

@@ -21,7 +21,7 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import { Check, Loader2, Mail } from "lucide-react";
-import { Empty, Loading, PageHeader } from "@/components/page";
+import { Empty, LoadFailed, Loading, PageHeader } from "@/components/page";
 import { checkInLabel, TOUCHPOINT_LABELS } from "@/lib/check-in-label";
 
 /**
@@ -72,6 +72,14 @@ export default function Aftercare() {
   });
 
   if (session.isPending) return <Loading rows={3} />;
+
+  // A load that failed is not "nothing to decide": that would tell a family
+  // who was asked to expect this page that the home never asked.
+  if (session.isError) {
+    return (
+      <LoadFailed title="Checking in" onRetry={() => void session.refetch()} />
+    );
+  }
 
   const aftercare = session.data?.aftercare;
   const home = session.data?.home;

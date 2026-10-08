@@ -20,7 +20,7 @@ import { advisoryLock, LOCKS } from "../lib/advisory-lock";
 import { hasVerifiedStaff } from "../lib/auth";
 import { publicHome } from "../lib/storefront";
 import { markOnboarding } from "../lib/onboarding";
-import { consoleUrl } from "../lib/app-urls";
+import { consoleUrl } from "../lib/origins";
 import { logger } from "../lib/logger";
 
 const router: IRouter = Router();

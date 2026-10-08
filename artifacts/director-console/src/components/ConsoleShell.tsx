@@ -21,6 +21,7 @@ import {
   Inbox,
   Home,
   MessageSquare,
+  ShieldCheck,
   Store,
   Tag,
 } from "lucide-react";
@@ -163,6 +164,9 @@ function monogram(name: string): string {
 
 export function ConsoleShell({ children }: { children: ReactNode }) {
   const { session, refresh } = useSession();
+  const adminConsoleUrl = (import.meta.env["VITE_ADMIN_CONSOLE_URL"] ?? "")
+    .toString()
+    .replace(/\/+$/, "");
   const [location] = useLocation();
 
   /*
@@ -307,6 +311,19 @@ export function ConsoleShell({ children }: { children: ReactNode }) {
                   </Link>
                 </DropdownMenuItem>
                 <DropdownMenuSeparator />
+                {session?.platformAdmin && adminConsoleUrl && (
+                  /*
+                   * Somebody from the platform, signed in here. The sign-in
+                   * screen forwards them to their own console; one who has
+                   * since landed here should not have to type its address.
+                   */
+                  <DropdownMenuItem asChild>
+                    <a href={adminConsoleUrl} className="no-underline">
+                      <ShieldCheck className="size-4" strokeWidth={1.75} />
+                      Platform console
+                    </a>
+                  </DropdownMenuItem>
+                )}
                 <DropdownMenuItem onSelect={() => logout.mutate()}>
                   <LogOut className="size-4" strokeWidth={1.75} />
                   Sign out

@@ -9,7 +9,7 @@ import {
   type TrialReminderKey,
 } from "@workspace/db";
 import { sendTrialReminderEmail } from "@workspace/mailer";
-import { consoleUrl } from "./app-urls";
+import { consoleUrl } from "./origins";
 import { logger } from "./logger";
 
 /**

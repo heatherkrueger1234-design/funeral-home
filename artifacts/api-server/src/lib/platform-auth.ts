@@ -16,7 +16,7 @@ import {
   normaliseEmail,
   revokePasswordResets,
 } from "./auth";
-import { consoleUrl } from "./app-urls";
+import { consoleUrl } from "./origins";
 import { logger } from "./logger";
 
 /**

@@ -8,7 +8,7 @@ import {
   type Case,
   type FamilyContact,
 } from "@workspace/db";
-import { familyPortalUrl } from "./app-urls";
+import { familyPortalUrl } from "./origins";
 
 /**
  * The family's way in: a token in a texted link, and nothing else.

@@ -270,6 +270,12 @@ export const LoginResponse = zod.object({
       .describe(
         "Where this home's texts are sent from, in words. Only on GET \/home.",
       ),
+    publicPageUrl: zod
+      .string()
+      .nullish()
+      .describe(
+        "The address of the home's public page, built from the deployment's\nfamily portal origin - the same one the texted links use. Null when\nthe server has not been told where the portal is. Only on GET \/home.\n",
+      ),
     id: zod.number(),
     name: zod.string(),
     slug: zod.string(),
@@ -362,6 +368,12 @@ export const GetCurrentUserResponse = zod.object({
       .optional()
       .describe(
         "Where this home's texts are sent from, in words. Only on GET \/home.",
+      ),
+    publicPageUrl: zod
+      .string()
+      .nullish()
+      .describe(
+        "The address of the home's public page, built from the deployment's\nfamily portal origin - the same one the texted links use. Null when\nthe server has not been told where the portal is. Only on GET \/home.\n",
       ),
     id: zod.number(),
     name: zod.string(),
@@ -462,6 +474,12 @@ export const GetHomeResponse = zod.object({
     .optional()
     .describe(
       "Where this home's texts are sent from, in words. Only on GET \/home.",
+    ),
+  publicPageUrl: zod
+    .string()
+    .nullish()
+    .describe(
+      "The address of the home's public page, built from the deployment's\nfamily portal origin - the same one the texted links use. Null when\nthe server has not been told where the portal is. Only on GET \/home.\n",
     ),
   id: zod.number(),
   name: zod.string(),
@@ -590,6 +608,12 @@ export const UpdateHomeResponse = zod.object({
     .optional()
     .describe(
       "Where this home's texts are sent from, in words. Only on GET \/home.",
+    ),
+  publicPageUrl: zod
+    .string()
+    .nullish()
+    .describe(
+      "The address of the home's public page, built from the deployment's\nfamily portal origin - the same one the texted links use. Null when\nthe server has not been told where the portal is. Only on GET \/home.\n",
     ),
   id: zod.number(),
   name: zod.string(),

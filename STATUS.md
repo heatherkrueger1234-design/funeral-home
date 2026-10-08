@@ -1,7 +1,7 @@
 # Status — where things stand
 
-Last checked: **5 October 2026**, against `origin` as it stood that evening;
-the branches and pull requests again on **7 October**, after PR #41 merged.
+Last checked: **8 October 2026**, against main after PR #45 (the 7 October
+audit's fixes) and PR #43.
 Update this file when any of it changes; a stale status page is worse than
 none. (The 23 September version listed six "left for an owner" items that
 had in fact been built. Check before you trust a list.)
@@ -134,6 +134,53 @@ then delete. Deleting a branch is not reversible from the GitHub UI, which is
 why this is an owner's job and not an agent's.
 
 ---
+
+## What the 7 October pass checked and changed
+
+On `claude/app-launch-readiness-4fal3d`. The question was whether anything
+does not open or work on either side. Everything was run, not read: the
+whole suite against Postgres (723 API, 187 front-end, 24 scripts, 10
+Playwright, all green), then every route of all three apps driven in a real
+browser against the seeded showcase, on a desktop viewport for the console
+and the platform console and a phone's for the family portal. Every page
+opened; no page error; no failed request. Each app's one 401 is the session
+question before sign-in, which is the design.
+
+What that found was one class of defect, and it is in the code that runs
+when a deployment is *not* told the cross-app addresses — which is the Docker
+default for three of the four build arguments, and the state the Replit
+apps were published in before 28 September.
+
+- **The API refuses to start in production without `FAMILY_PORTAL_URL` and
+  `CONSOLE_URL`**, as absolute URLs. Every texted and emailed link is built
+  from them, and a relative one — "/f/…" in a text message — opens nothing
+  and nobody finds out until a family says so. Same reasoning as the
+  encryption key: loud on the first start, not silent on the first family.
+  `docker-compose.yml` already demanded both; Replit's `artifact.toml` sets
+  both; development and the tests are exempt.
+- **The home's public-page address comes from the API** (`publicPageUrl` on
+  `GET /home`), built from the same origin as the texted links, so the
+  console's "Where it lives" box and the text message can no longer be built
+  from two variables that disagree. When the server has not been told, the
+  console shows the path and what to put in front of it rather than a
+  relative link that would point at whichever website it is pasted onto.
+- **A platform admin already signed into the director console** has a
+  "Platform console" item in the menu; before, only the sign-in screen
+  forwarded them, and one who had landed here had to type the address.
+- **A failed load no longer reads as an empty state** on the family's
+  check-in page ("nothing to decide here yet") or the console's policies
+  (an empty list inviting the owner to write them again). Both now say the
+  page did not load and offer to try again, like the other pages.
+- **The website's "Start a free trial" buttons** go to the contact address
+  when no console URL was built in, instead of to `#pricing` — two of them
+  sit inside that section, where the click did nothing.
+
+Not changed, on purpose: the console's forwarding of old `/f/` and
+`/start/` links to the portal still needs `VITE_FAMILY_PORTAL_URL` at build
+time, because before sign-in there is no API answer to read it from and
+forwarding to a guess could loop. The website has no Replit artifact and is
+served only by the Docker path, which is the layout `STATUS.md` has always
+described.
 
 ## What the launch review changed, 5 October (evening)
 

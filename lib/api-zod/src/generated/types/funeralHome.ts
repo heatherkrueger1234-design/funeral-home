@@ -22,6 +22,11 @@ import type { FuneralHomeSubscriptionStatus } from "./funeralHomeSubscriptionSta
 export interface FuneralHome {
   /** Where this home's texts are sent from, in words. Only on GET /home. */
   textingStatus?: string;
+  /** The address of the home's public page, built from the deployment's
+family portal origin - the same one the texted links use. Null when
+the server has not been told where the portal is. Only on GET /home.
+ */
+  publicPageUrl?: string | null;
   id: number;
   name: string;
   slug: string;

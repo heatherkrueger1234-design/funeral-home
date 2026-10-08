@@ -188,8 +188,8 @@ Environment the server reads:
 | `DATABASE_URL` | Postgres. Required. |
 | `ENCRYPTION_KEY` | 32 bytes, base64. Uploads are AES-256-GCM at rest; the server refuses to start without it. |
 | `PORT` | Required. |
-| `FAMILY_PORTAL_URL` | Origin used to build the texted link. Falls back to a relative path — an obviously incomplete link beats one that opens someone else's deployment. |
-| `CONSOLE_URL` | Where the director console lives, used in staff password-reset emails. On Replit that includes the path — see below. |
+| `FAMILY_PORTAL_URL` | Origin used to build the texted link and the home's public-page address. **Required in production**, as an absolute URL: the server refuses to start without it, because a relative link opens nothing and nobody finds out until a family says so. In development it falls back to a relative path. |
+| `CONSOLE_URL` | Where the director console lives, used in staff password-reset emails and invitations. **Required in production**, like `FAMILY_PORTAL_URL`. On Replit that includes the path — see below. |
 | `SMTP_*` | Optional. Without it, mail is logged rather than sent, which keeps local development and the tests working. |
 | `TWILIO_ACCOUNT_SID` / `TWILIO_AUTH_TOKEN` / `TWILIO_FROM_NUMBER` | Optional. Without them a director is handed the link to send themselves rather than being told nothing happened. |
 | `SMS_DEFAULT_COUNTRY_CODE` | Defaults to `+1`. Used only for numbers typed without one. |

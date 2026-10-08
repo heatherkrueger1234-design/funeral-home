@@ -16,7 +16,7 @@ import {
   ResetPasswordBody,
   VerifyEmailBody,
 } from "@workspace/api-zod";
-import { consoleUrl } from "../lib/app-urls";
+import { consoleUrl } from "../lib/origins";
 import { badRequest, HttpError, parseBody } from "../lib/http";
 import { logger } from "../lib/logger";
 import { uniqueSlug } from "../lib/slug";
