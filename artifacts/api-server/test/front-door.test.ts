@@ -281,6 +281,16 @@ describe("accepting a request", () => {
     expect(res.body.dateOfDeath).toBeNull();
   });
 
+  it("answers a number that cannot be an id without troubling the database", async () => {
+    const staff = await signUpHome();
+
+    // `1e12` is a whole number to JavaScript and out of range for Postgres's
+    // `integer`, which used to come back as a 500 for a typo in a URL.
+    await staff.agent.post("/api/intake-requests/1e12/accept").expect(400);
+    await staff.agent.post("/api/intake-requests/2147483648/accept").expect(400);
+    await staff.agent.post("/api/intake-requests/abc/accept").expect(400);
+  });
+
   it("cannot be accepted twice, however fast the second director clicks", async () => {
     const staff = await signUpHome();
     const slug = await slugOf(staff.homeId);

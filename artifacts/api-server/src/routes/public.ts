@@ -9,6 +9,7 @@ import {
   usersTable,
   INTAKE_REQUESTS_PER_HOME_PER_HOUR,
   INTAKE_REQUESTS_PER_IP_PER_HOUR,
+  type Tx,
 } from "@workspace/db";
 import { SubmitIntakeRequestBody } from "@workspace/api-zod";
 import { sendIntakeNotificationEmail } from "@workspace/mailer";
@@ -19,6 +20,7 @@ import { advisoryLock, LOCKS } from "../lib/advisory-lock";
 import { hasVerifiedStaff } from "../lib/auth";
 import { publicHome } from "../lib/storefront";
 import { markOnboarding } from "../lib/onboarding";
+import { consoleUrl } from "../lib/origins";
 import { logger } from "../lib/logger";
 
 const router: IRouter = Router();
@@ -92,8 +94,6 @@ router.get("/homes/:slug", async (req, res) => {
       (await hasVerifiedStaff(home.id)),
   });
 });
-
-type Tx = Parameters<Parameters<typeof db.transaction>[0]>[0];
 
 /**
  * Per-hour ceilings, counted in the database rather than in process memory.
@@ -362,8 +362,6 @@ async function notifyHome(
     return;
   }
 
-  const consoleUrl = `${(process.env["CONSOLE_URL"] ?? "").replace(/\/+$/, "")}/requests`;
-
   await sendIntakeNotificationEmail({
     to,
     homeName: home.name,
@@ -372,7 +370,7 @@ async function notifyHome(
     requesterPhone: saved.requesterPhone,
     requesterEmail: saved.requesterEmail,
     subjectName: `${saved.subjectFirstName} ${saved.subjectLastName}`.trim(),
-    consoleUrl,
+    consoleUrl: consoleUrl("/requests"),
   });
 }
 

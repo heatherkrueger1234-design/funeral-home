@@ -142,9 +142,7 @@ export default function CaseDetail() {
     // A 404 is a case that is not here; anything else is the connection,
     // and telling a director their case has gone when it has not is the
     // wrong fright to give anybody.
-    const missing =
-      !Number.isInteger(caseId) ||
-      (row.error as { status?: number } | null)?.status === 404;
+    const missing = (row.error as { status?: number } | null)?.status === 404;
     return missing ? (
       <Empty
         icon={FileQuestion}
@@ -180,6 +178,8 @@ export default function CaseDetail() {
   // Not on a pre-need file: a memory book is about somebody who has died.
   const sections = SECTIONS.filter((section) => detail.kind !== "pre_need" || section.key !== "after");
   const current: Tab = detail.kind === "pre_need" && tab === "book" ? "family" : tab;
+  // Never empty: the filter only ever drops "Afterwards", and `current` is
+  // always a tab in one of the sections that remain.
   const currentSection = sections.find((section) => section.tabs.includes(current)) ?? sections[0]!;
 
   return (

@@ -1002,6 +1002,10 @@ paths:
             text/csv:
               schema:
                 type: string
+        "429":
+          description: |
+            This home has asked for the spreadsheet thirty times in the last
+            hour. Ask again after the seconds in Retry-After.
 
   /cases/{caseId}/export:
     get:
@@ -1030,6 +1034,10 @@ paths:
                 format: binary
         "413":
           description: Too large for one archive
+        "429":
+          description: |
+            This home has exported twenty cases in the last hour. Ask again
+            after the seconds in Retry-After.
 
   /cases/{caseId}/at-need:
     post:
@@ -1558,6 +1566,10 @@ paths:
               schema:
                 type: string
                 format: binary
+        "429":
+          description: |
+            This home has asked for twenty packs in the last hour. Ask again
+            after the seconds in Retry-After.
 
   /cases/{caseId}/belongings:
     get:

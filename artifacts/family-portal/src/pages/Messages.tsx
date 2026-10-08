@@ -128,7 +128,10 @@ export default function Messages() {
    * count comes from the session, which is not asked again for a minute or
    * two — so the badge went on saying "1" about a message just read. The
    * count is set here instead of refetched, because the server marks them
-   * read after it has answered and a refetch can arrive before it has.
+   * read *after* it has answered (see the family messages route) and a
+   * refetch can arrive before it has. A second effect used to invalidate the
+   * session as well, which caused exactly that early refetch and brought the
+   * badge back; the next scheduled session poll picks up the true count.
    */
   const threadLoadedAt = thread.dataUpdatedAt;
   useEffect(() => {
@@ -159,13 +162,6 @@ export default function Messages() {
   useEffect(() => {
     endRef.current?.scrollIntoView({ block: "end" });
   }, [messages?.length]);
-
-  // Reading the thread marks it read on the server; tell the hub, so its
-  // badge does not go on counting messages this person has just read.
-  useEffect(() => {
-    if (!thread.dataUpdatedAt) return;
-    void queryClient.invalidateQueries({ queryKey: getGetFamilySessionQueryKey() });
-  }, [thread.dataUpdatedAt, queryClient]);
 
   if (thread.isPending) return <Loading rows={3} />;
 

@@ -23,6 +23,7 @@ import {
   requireRow,
 } from "../lib/http";
 import { currentUser, tenant } from "../middleware/require-auth";
+import { photoPackRateLimit } from "../middleware/rate-limit";
 import {
   addPhotoToCase,
   deleteUpload,
@@ -280,6 +281,10 @@ router.delete("/photos/:photoId", async (req, res) => {
  * is how a small server falls over on the morning everyone is preparing
  * Saturday's funerals.
  */
+// Counted before the handler, so a refused request never starts the zip.
+router.use("/cases/:caseId/photo-pack", (req, res, next) =>
+  req.method === "GET" ? photoPackRateLimit(req, res, next) : next(),
+);
 router.get("/cases/:caseId/photo-pack", async (req, res) => {
   const home = tenant(req);
   const row = await loadCase(req, req.params.caseId);

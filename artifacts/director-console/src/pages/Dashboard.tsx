@@ -20,7 +20,8 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Divider, Empty, LoadFailed, Loading, PageHeader } from "@/components/page";
 import { cn, formatAtHome } from "@/lib/utils";
 import { relative, whenLabel } from "@/lib/when";
-import { useHomeZone } from "@/lib/session";
+import { useHomeZone, useSession } from "@/lib/session";
+import { homeIsInColorado } from "@/lib/home-state";
 import {
   CalendarClock,
   CalendarDays,
@@ -71,6 +72,8 @@ export default function Dashboard() {
   // of landing a beat later and shoving the tiles down under the cursor.
   const billing = useGetBilling();
   const zone = useHomeZone();
+  const { session } = useSession();
+  const inColorado = homeIsInColorado(session?.home.region);
 
   if (dashboard.isPending || billing.isPending) return <Loading rows={4} />;
   if (!dashboard.data) {
@@ -216,7 +219,11 @@ export default function Dashboard() {
           <Divider label="Death certificates to file" />
           <p className="max-w-prose text-sm leading-snug text-muted-foreground">
             Not yet recorded as filed. We don't file anything — tick it on the
-            case's Certificate tab once you've filed in EDRS.
+            case's Certificate tab once you've filed in the state's electronic
+            death registration system (EDRS).{" "}
+            {inColorado
+              ? "Colorado gives you 72 hours from taking custody."
+              : "The 72-hour clock is Colorado's rule; use it or set it aside as your state requires."}
           </p>
           <ul className="space-y-2">
             {data.certificatesToFile.map((row: DashboardCertificate) => {

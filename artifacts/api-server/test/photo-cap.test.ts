@@ -46,9 +46,11 @@ describe("the photograph ceiling", () => {
       })),
     );
 
-    // Six at once, from two relatives' phones.
+    // Four at once, from two relatives' phones: as many as one home may
+    // have in flight (`MAX_UPLOADS_PER_HOME`), so every one of them reaches
+    // the ceiling and none is turned away at the door for being too many.
     const sends = await Promise.all(
-      [sister, brother, sister, brother, sister, brother].map((who, i) =>
+      [sister, brother, sister, brother].map((who, i) =>
         asFamily(who.token)
           .post("/api/family/photos")
           .attach("file", PNG_BYTES, `new-${i}.png`),
@@ -56,7 +58,7 @@ describe("the photograph ceiling", () => {
     );
 
     const statuses = sends.map((res) => res.status).sort();
-    expect(statuses).toEqual([201, 201, 400, 400, 400, 400]);
+    expect(statuses).toEqual([201, 201, 400, 400]);
     for (const refused of sends.filter((res) => res.status === 400)) {
       expect(refused.body.error).toMatch(/1000-photograph limit/);
     }

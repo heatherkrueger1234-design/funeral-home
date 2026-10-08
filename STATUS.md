@@ -1,6 +1,7 @@
 # Status — where things stand
 
-Last checked: **7 October 2026**, against main after PR #41.
+Last checked: **8 October 2026**, against main after PR #45 (the 7 October
+audit's fixes) and PR #43.
 Update this file when any of it changes; a stale status page is worse than
 none. (The 23 September version listed six "left for an owner" items that
 had in fact been built. Check before you trust a list.)
@@ -13,15 +14,14 @@ had in fact been built. Check before you trust a list.)
   passing tests had not: an outsider could take over the platform console;
   every member of staff was sent the platform's private notes on their home;
   imported service times printed six hours early; a late "yes" to check-ins
-  sent three grief notes in a minute; a STOP could be forgotten. Branch
-  `ccr-159a35a1-xifk0k` fixes them: twenty that evening, and that night every
-  finding the review had left open but two that are decisions — billing
+  sent three grief notes in a minute; a STOP could be forgotten. Main has the
+  fixes, from PR #41 (merged 6 October): twenty that evening, and that night
+  every finding the review had left open but two that are decisions — billing
   before the first charge, a STOP written as a sentence, links passed on,
   photographs on old phones, the abuse ceilings, backups that could not be
   trusted, logs holding family links. Each comes with a test that fails on
   the old code (*What the launch review changed* and *What the second pass
-  changed*, below). One pull request takes it to main. What is still open is
-  under *Still open*.
+  changed*, below). What is still open is under *Still open*.
 - **What is left for launch is mostly not code.** A price, a lawyer, a real
   deployment, and four accounts (mail, Twilio, Stripe, a backup bucket) —
   and, before the first charge, Stripe's dashboard set as `PRICING.md` says
@@ -38,8 +38,8 @@ had in fact been built. Check before you trust a list.)
 
 | Where | What it holds | State |
 | --- | --- | --- |
-| `claude/funeral-home-portal-uj9bik` | **Main**, GitHub's default branch. Everything through PR #39 (5 October). | Green |
-| `ccr-159a35a1-xifk0k` | The launch review's fixes on top of main — twenty that evening and twenty-seven that night — and `3636527` (hourly uptime, this file's PR #39 update), which was pushed to `ccr-7f48fd16-gacxdi` after PR #39 merged and never reached main. | Green; pull request to open |
+| `claude/funeral-home-portal-uj9bik` | **Main**, GitHub's default branch. Everything through PR #41 (6 October), the launch review's fixes included. | Green |
+| `ccr-159a35a1-xifk0k` | Merged as PR #41: the launch review's fixes, twenty that evening and twenty-seven that night, and the hourly uptime check (`dae846e`, first pushed as `3636527` to `ccr-7f48fd16-gacxdi` after PR #39 merged). Reused since for follow-ups. | Merged |
 | `ccr-7f48fd16-gacxdi` | Merged as PR #39: the step-up work (price book, recorded SMS consent, aftercare by text, print themes, obituary composer, ESLint, router splits, case sections) integrated with main's clock, plus everything in *What changed on 5 October*. Reused since for small follow-ups. | Merged |
 | `claude/step-up-app-launch-prep-j18yry` | Its twelve commits are all on main (PR #39). | Delete |
 | PR #36 `claude/rescued-launch-readiness` | Launch-readiness fixes rescued from stranded branches, from 28 September. | Open; check what main has since |
@@ -184,7 +184,7 @@ described.
 
 ## What the launch review changed, 5 October (evening)
 
-On `ccr-159a35a1-xifk0k`. Each is its own commit with the reasoning, and
+Merged to main in PR #41. Each is its own commit with the reasoning, and
 each comes with a test that fails on the code before it.
 
 - **The platform console could be taken over.** Confirming an address
@@ -230,8 +230,8 @@ each comes with a test that fails on the code before it.
 
 ## What the second pass changed, 5 October (night)
 
-Also on `ccr-159a35a1-xifk0k`: the findings the evening's review had left
-open, each its own commit with a test that fails on the code before it.
+Also in PR #41: the findings the evening's review had left open, each its
+own commit with a test that fails on the code before it.
 
 **Billing, before the first charge.**
 

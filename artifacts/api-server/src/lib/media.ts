@@ -1,5 +1,5 @@
 import multer from "multer";
-import type { RequestHandler, Response } from "express";
+import type { Request, RequestHandler, Response } from "express";
 import { and, count, eq, getTableColumns, isNull } from "drizzle-orm";
 import {
   db,
@@ -11,6 +11,7 @@ import {
   usersTable,
   MAX_PHOTOS_PER_CASE,
   type CasePhoto,
+  type Tx,
   type Upload,
 } from "@workspace/db";
 import { encryptBuffer, decryptBuffer } from "@workspace/db/crypto";
@@ -60,12 +61,35 @@ export const MAX_PHOTO_BYTES = 50 * 1024 * 1024;
 export const MAX_UPLOADS_AT_ONCE = 8;
 export const uploadsGate = new Gate(MAX_UPLOADS_AT_ONCE);
 
+/**
+ * How many of those eight one home may hold.
+ *
+ * The gate counts the whole process, so a single home's family -- forty
+ * cousins sent the same link on the evening of the death -- could fill all
+ * eight and every other home's uploads would be turned away for as long as
+ * theirs kept coming. Half the gate is the most one home gets; the other
+ * half is always there for everybody else. A home never notices the
+ * difference from its own side, since its ninth would have waited anyway.
+ */
+export const MAX_UPLOADS_PER_HOME = 4;
+const uploadsByHome = new Map<number, number>();
+
+/** Whose upload this is: the signed-in home's, or the home behind a family link. */
+function uploadingHome(req: Request): number | undefined {
+  return req.home?.id ?? req.familyHome?.id;
+}
+
 /*
  * Before multer, so a turned-away upload is never read into memory at all;
  * the slot is given back when the response is done, however it ends.
  */
-const waitYourTurn: RequestHandler = (_req, res, next) => {
-  if (!uploadsGate.tryEnter()) {
+const waitYourTurn: RequestHandler = (req, res, next) => {
+  const homeId = uploadingHome(req);
+  const homeHolds = homeId === undefined ? 0 : (uploadsByHome.get(homeId) ?? 0);
+
+  // The home's own share is checked before a slot is taken, so a refusal
+  // never borrows one from the gate on the way out.
+  if (homeHolds >= MAX_UPLOADS_PER_HOME || !uploadsGate.tryEnter()) {
     res.setHeader("retry-after", "3");
     next(
       new HttpError(
@@ -76,11 +100,17 @@ const waitYourTurn: RequestHandler = (_req, res, next) => {
     return;
   }
 
+  if (homeId !== undefined) uploadsByHome.set(homeId, homeHolds + 1);
+
   let released = false;
   const release = () => {
     if (released) return;
     released = true;
     uploadsGate.leave();
+    if (homeId === undefined) return;
+    const left = (uploadsByHome.get(homeId) ?? 1) - 1;
+    if (left > 0) uploadsByHome.set(homeId, left);
+    else uploadsByHome.delete(homeId);
   };
   res.once("finish", release);
   res.once("close", release);
@@ -112,7 +142,7 @@ export type StoredUpload = Omit<Upload, "data">;
  * row referring to it must pass their transaction, or a failure on the second
  * write leaves the bytes behind with nothing pointing at them.
  */
-type Db = typeof db | Parameters<Parameters<typeof db.transaction>[0]>[0];
+type Db = typeof db | Tx;
 
 /** An upload checked and normalised, and not yet written anywhere. */
 export type PreparedUpload = { filename: string; mimeType: string; data: Buffer };

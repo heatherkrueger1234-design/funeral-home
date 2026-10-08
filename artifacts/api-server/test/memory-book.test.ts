@@ -661,3 +661,33 @@ describe("tenancy", () => {
     expect(entry).toBeDefined();
   });
 });
+
+describe("memories arriving at the same moment", () => {
+  it("gives each its own place in the book", async () => {
+    const staff = await signUpHome();
+    const { row, family } = await caseWithFamily(staff);
+
+    // The evening the link goes round: several relatives, one case, all at
+    // once. Each used to read the same highest position before any of them
+    // had written, and the book printed them in whatever order it liked.
+    const memories = [
+      "She answered the telephone as though it were an emergency.",
+      "She taught me to drive in a car park in Pueblo.",
+      "Every birthday card arrived a week early.",
+      "She never once lost at cards and never once admitted to cheating.",
+    ];
+    await Promise.all(
+      memories.map((body) =>
+        family.post("/api/family/memory-book/entries").send({ body }).expect(201),
+      ),
+    );
+
+    const entries = await db
+      .select({ position: memoryEntriesTable.position })
+      .from(memoryEntriesTable)
+      .where(eq(memoryEntriesTable.caseId, row.id));
+
+    expect(entries).toHaveLength(memories.length);
+    expect(new Set(entries.map((entry) => entry.position)).size).toBe(memories.length);
+  });
+});

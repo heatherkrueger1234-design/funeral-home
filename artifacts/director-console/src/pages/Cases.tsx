@@ -28,7 +28,7 @@ import {
   MessageCircle,
   Plus,
   Search,
-  TriangleAlert,
+  CircleDot,
 } from "lucide-react";
 import { ImportCases } from "@/components/ImportCases";
 import { Empty, LoadFailed, Loading, PageHeader } from "@/components/page";
@@ -403,7 +403,9 @@ export default function Cases() {
                           : "flex items-center gap-1 text-muted-foreground/35"
                       }
                     >
-                      <TriangleAlert className="size-3.5" aria-hidden />
+                      {/* A dot rather than a warning triangle: these are
+                          things a family has not got to yet, not alarms. */}
+                      <CircleDot className="size-3.5" aria-hidden />
                       {row.outstandingDeadlines}
                       <span className="sr-only"> outstanding</span>
                     </span>

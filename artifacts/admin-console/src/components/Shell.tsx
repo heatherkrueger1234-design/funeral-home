@@ -54,8 +54,8 @@ function useFocusHeadingOnNavigate(mainRef: RefObject<HTMLElement | null>) {
 }
 
 /**
- * The frame. Five places to be, because there are five things this console
- * does, and a list of five does not need a sidebar that collapses.
+ * The frame. Six places to be, because there are six things this console
+ * does, and a list of six does not need a sidebar that collapses.
  */
 
 const PLACES = [

@@ -20,6 +20,7 @@ import { decryptBuffer } from "@workspace/db/crypto";
 import { DeleteCaseBody } from "@workspace/api-zod";
 import { badRequest, HttpError, parseBody } from "../lib/http";
 import { currentUser, tenant } from "../middleware/require-auth";
+import { caseExportRateLimit } from "../middleware/rate-limit";
 import { logger } from "../lib/logger";
 import { ZipWriter } from "../lib/zip";
 import { toVitalsJson, vitalsForCase } from "../lib/vitals";
@@ -137,6 +138,10 @@ function keyed(label: string, value: unknown): string {
   return `${label}: ${String(value)}`;
 }
 
+// Counted before the handler, so a refused request never starts the zip.
+router.use("/cases/:caseId/export", (req, res, next) =>
+  req.method === "GET" ? caseExportRateLimit(req, res, next) : next(),
+);
 router.get("/cases/:caseId/export", async (req, res) => {
   const home = tenant(req);
   const row = await loadCase(req, req.params.caseId);

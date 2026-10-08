@@ -16,6 +16,7 @@ import {
   normaliseEmail,
   revokePasswordResets,
 } from "./auth";
+import { consoleUrl } from "./origins";
 import { logger } from "./logger";
 
 /**
@@ -155,11 +156,10 @@ export async function reclaimForInbox(
   await destroyAllSessions(user.id);
 
   const token = await createPasswordReset(user.id, INVITE_TTL_MS);
-  const base = process.env["CONSOLE_URL"]?.replace(/\/+$/, "") ?? "";
 
   await sendPlatformPasswordEmail({
     to: user.email,
-    link: `${base}/reset-password?token=${encodeURIComponent(token)}`,
+    link: consoleUrl(`/reset-password?token=${encodeURIComponent(token)}`),
     expiresInDays: INVITE_TTL_DAYS,
   });
 

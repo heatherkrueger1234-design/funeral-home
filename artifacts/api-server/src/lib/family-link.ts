@@ -1,5 +1,4 @@
 import { createHash, randomBytes } from "node:crypto";
-import { familyPortalOrigin } from "./origins";
 import { and, eq } from "drizzle-orm";
 import {
   db,
@@ -9,6 +8,7 @@ import {
   type Case,
   type FamilyContact,
 } from "@workspace/db";
+import { familyPortalUrl } from "./origins";
 
 /**
  * The family's way in: a token in a texted link, and nothing else.
@@ -50,16 +50,9 @@ export function mintLink(now = new Date()): MintedLink {
   };
 }
 
-/**
- * The URL to paste into a text message.
- *
- * `FAMILY_PORTAL_URL` is the deployed origin of the family app. It falls back
- * to a relative path rather than to a guessed hostname: a link that is
- * obviously incomplete is better than one that looks right and opens
- * somebody else's deployment.
- */
+/** The URL to paste into a text message. */
 export function linkUrl(token: string): string {
-  return `${familyPortalOrigin()}/f/${token}`;
+  return familyPortalUrl(`/f/${token}`);
 }
 
 export type FamilyLinkSession = {

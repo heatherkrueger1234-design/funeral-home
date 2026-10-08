@@ -21,6 +21,16 @@ export function consoleOrigin(): string {
   return trim(process.env["CONSOLE_URL"]);
 }
 
+/** A path on the director console, as a URL to put in an email. */
+export function consoleUrl(path: string): string {
+  return `${consoleOrigin()}${path}`;
+}
+
+/** A path on the family portal, as a URL to put in a text or an email. */
+export function familyPortalUrl(path: string): string {
+  return `${familyPortalOrigin()}${path}`;
+}
+
 /**
  * The address a home puts on its own website, or null when this deployment
  * has not been told where the portal is: a relative path pasted onto another

@@ -35,10 +35,9 @@ import { voiceFor } from "@/lib/voice";
  * again" rule the director's console follows, because the link is the key.
  */
 
-function LinkOnce({ result }: { result: FamilyRelativeInvited }) {
+function LinkOnce({ result, link }: { result: FamilyRelativeInvited; link: string }) {
   const { toast } = useToast();
   const [copied, setCopied] = useState(false);
-  const link = result.link!;
   const phone = result.relative.phone;
 
   return (
@@ -50,7 +49,7 @@ function LinkOnce({ result }: { result: FamilyRelativeInvited }) {
         Here is {result.relative.name}'s link
       </p>
       <p className="mt-1 text-sm leading-relaxed text-[var(--accent-deep)]/85">
-        We couldn't send it from here, so please pass it on yourself. It's only
+        It couldn't be sent from here, so please pass it on yourself. It's only
         shown this once, and it's theirs alone — it opens this page as them.
       </p>
       <div className="mt-3 flex gap-2">
@@ -95,13 +94,14 @@ function LinkOnce({ result }: { result: FamilyRelativeInvited }) {
   );
 }
 
-function sentLine(result: FamilyRelativeInvited): string {
+/** The home did the sending, and is named as having done it. */
+function sentLine(result: FamilyRelativeInvited, homeName: string): string {
   const { relative, sentBySms, sentByEmail } = result;
   if (sentBySms && sentByEmail) {
-    return `We've sent ${relative.name} their link by text and by email.`;
+    return `${homeName} has sent ${relative.name} their link by text and by email.`;
   }
-  if (sentBySms) return `We've texted ${relative.name} their link.`;
-  return `We've emailed ${relative.name} their link.`;
+  if (sentBySms) return `${homeName} has texted ${relative.name} their link.`;
+  return `${homeName} has emailed ${relative.name} their link.`;
 }
 
 export default function Family() {
@@ -110,6 +110,7 @@ export default function Family() {
   const queryClient = useQueryClient();
   const session = useGetFamilySession();
   const relatives = useGetFamilyRelatives();
+  const homeName = session.data?.home.name ?? "The funeral home";
 
   const [name, setName] = useState("");
   const [relationship, setRelationship] = useState("");
@@ -143,7 +144,7 @@ export default function Family() {
           queryKey: getGetFamilyMessagesQueryKey(),
         });
         if (created.link === null) {
-          toast({ title: "Sent", description: sentLine(created) });
+          toast({ title: "Sent", description: sentLine(created, homeName) });
         }
       },
       onError: (error) => setProblem(plainError(error)),
@@ -164,7 +165,6 @@ export default function Family() {
   }
 
   const data = relatives.data;
-  const homeName = session.data?.home.name ?? "The funeral home";
   const voice = voiceFor(session.data?.case.kind, session.data?.contact.isSubject);
 
   if (!data?.canInvite) {
@@ -200,14 +200,14 @@ export default function Family() {
         their own name. {homeName} will see who you've added.
       </PageHeader>
 
-      {result?.link && <LinkOnce result={result} />}
+      {result?.link && <LinkOnce result={result} link={result.link} />}
       {result && !result.link && (
         <p
           role="status"
           className="flex items-start gap-2.5 rounded-xl border border-border bg-[var(--sunken)] px-4 py-3 text-sm leading-relaxed"
         >
           <Check className="mt-0.5 size-4 shrink-0 text-[var(--accent-deep)]" />
-          {sentLine(result)}
+          {sentLine(result, homeName)}
         </p>
       )}
 

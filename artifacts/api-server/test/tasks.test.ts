@@ -277,3 +277,45 @@ describe("the aftercare trigger", () => {
     expect(after!.status).toBe("active");
   });
 });
+
+/**
+ * The meter trigger. The same door as the other two jobs, so what is worth
+ * pinning is that it is the same door: refused without a secret, refused
+ * with the wrong one, and a dry run that touches nothing.
+ */
+describe("the usage trigger", () => {
+  it("refuses entirely when no secret is configured", async () => {
+    await request(app)
+      .post("/api/tasks/usage")
+      .set("Authorization", "Bearer anything")
+      .expect(503);
+  });
+
+  it("refuses a wrong secret, and a missing one", async () => {
+    process.env["TASK_SECRET"] = "a-real-secret-value";
+
+    await request(app).post("/api/tasks/usage").expect(401);
+    await request(app)
+      .post("/api/tasks/usage")
+      .set("Authorization", "Bearer not-it")
+      .expect(401);
+  });
+
+  it("reports the run without sending anything to Stripe on a dry run", async () => {
+    process.env["TASK_SECRET"] = "a-real-secret-value";
+    const staff = await signUpHome();
+    await createCase(staff);
+
+    const res = await request(app)
+      .post("/api/tasks/usage?dryRun=1")
+      .set("Authorization", "Bearer a-real-secret-value")
+      .expect(200);
+
+    // Nothing in this suite has a Stripe key, and the run must say so
+    // rather than count that as a failure.
+    expect(res.body.meteringConfigured).toBe(false);
+    expect(res.body.reported).toBe(0);
+    expect(res.body.failed).toBe(0);
+    expect(typeof res.body.due).toBe("number");
+  });
+});

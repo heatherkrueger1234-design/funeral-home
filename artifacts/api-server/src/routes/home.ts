@@ -43,7 +43,7 @@ import { templateFor, toTemplateJson } from "../lib/timeline";
 import { markOnboarding } from "../lib/onboarding";
 import { accessLogForHome } from "../lib/access-log";
 import { describeSmsRoute } from "../lib/sms";
-import { publicPageUrl } from "../lib/origins";
+import { consoleUrl, publicPageUrl } from "../lib/origins";
 
 const router: IRouter = Router();
 
@@ -307,8 +307,7 @@ router.post("/home/staff", async (req, res) => {
   });
 
   const token = await createPasswordReset(created.id, INVITE_TTL_MS);
-  const base = process.env["CONSOLE_URL"]?.replace(/\/+$/, "") ?? "";
-  const inviteLink = `${base}/reset-password?invited=1&token=${encodeURIComponent(token)}`;
+  const inviteLink = consoleUrl(`/reset-password?invited=1&token=${encodeURIComponent(token)}`);
 
   const emailed = await emailInvitation(home, user, created, inviteLink);
 
@@ -410,8 +409,7 @@ router.post("/home/staff/:userId/invitation", async (req, res) => {
 
   // An invitation's week, like the first one; see INVITE_TTL_MS.
   const token = await createPasswordReset(member.id, INVITE_TTL_MS);
-  const base = process.env["CONSOLE_URL"]?.replace(/\/+$/, "") ?? "";
-  const inviteLink = `${base}/reset-password?invited=1&token=${encodeURIComponent(token)}`;
+  const inviteLink = consoleUrl(`/reset-password?invited=1&token=${encodeURIComponent(token)}`);
 
   const emailed = await emailInvitation(home, actor, member, inviteLink);
 
