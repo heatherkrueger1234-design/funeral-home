@@ -111,6 +111,8 @@ services:
         APP: family-portal
         VITE_FAMILY_PORTAL_URL: ${FAMILY_PORTAL_URL:-}
         VITE_CONSOLE_URL: ${CONSOLE_URL:-}
+        # Where the hidden staff doors on the "needs your link" screen lead.
+        VITE_ADMIN_CONSOLE_URL: ${ADMIN_CONSOLE_URL:-}
     restart: unless-stopped
     depends_on:
       - api

@@ -1,4 +1,4 @@
-import { type ReactNode, useEffect, useRef, useState } from "react";
+import { type ReactNode, useCallback, useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Link, useLocation } from "wouter";
 import { useMutationState, useQueryClient } from "@tanstack/react-query";
@@ -15,6 +15,7 @@ import { voiceFor } from "@/lib/voice";
 import { ArrowLeft, Phone } from "lucide-react";
 import { AuthedImage } from "@/components/AuthedImage";
 import { useBrandColor } from "@/lib/brand-color";
+import { doorAddress, knock, markTappedTwice, type Knock } from "@/lib/knock";
 
 /**
  * The frame every screen sits in: the home's branding, the person who died,
@@ -84,34 +85,60 @@ function ContinuumMark({ className }: { className?: string }) {
 }
 
 /**
- * The logo, which is also the way in for someone who has lost their link.
+ * The hidden doors (`lib/knock.ts`), and the code sign-in for a family that
+ * has lost its link.
  *
- * Deliberately not labelled as a sign-in anywhere on the screen: most people
- * arriving here have a link and should tap it, and a login box would only
- * tell them there is somewhere else to go. Whoever knows to tap the mark
- * gets the code form.
+ * Two taps on the mark and then nothing for a moment opens the family's own
+ * code form, because a third tap would have been the funeral home door. That
+ * short wait is the price of keeping all of them off the screen.
  */
-function DoorLogo({
-  open,
-  onToggle,
-  centered = false,
-}: {
-  open: boolean;
-  onToggle: () => void;
-  centered?: boolean;
-}) {
+function useKnocks() {
+  const history = useRef<ReturnType<typeof knock>["history"]>([]);
+  const wait = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  const [familyDoor, setFamilyDoor] = useState(false);
+
+  useEffect(() => () => clearTimeout(wait.current), []);
+
+  const tap = useCallback((which: Knock) => {
+    clearTimeout(wait.current);
+    const result = knock(history.current, which, Date.now());
+    history.current = result.history;
+
+    if (result.door) {
+      const address = doorAddress(result.door);
+      if (address) window.location.assign(address);
+      return;
+    }
+    if (which === "mark" && markTappedTwice(result.history)) {
+      wait.current = setTimeout(() => setFamilyDoor((open) => !open), 700);
+    }
+  }, []);
+
+  return { tap, familyDoor };
+}
+
+/** The mark and the name, which are the first knock. */
+function Brand({ onTap, centered = false }: { onTap: () => void; centered?: boolean }) {
   return (
-    <button
-      type="button"
-      onClick={onToggle}
-      aria-expanded={open}
-      className={`mb-7 flex items-center gap-3 rounded-lg bg-transparent p-0 text-left ${
-        centered ? "mx-auto" : ""
-      }`}
+    <div
+      onClick={onTap}
+      className={`mb-7 flex w-fit select-none items-center gap-3 ${centered ? "mx-auto" : ""}`}
     >
       <ContinuumMark className="size-11 shrink-0" />
       <span className="font-display text-xl leading-tight">Continuum Aftercare</span>
-    </button>
+    </div>
+  );
+}
+
+/**
+ * A word that is part of the sentence and nothing else, to anybody who is
+ * not knocking: no colour, no underline, no pointer, not reachable by Tab.
+ */
+function Word({ children, onTap }: { children: string; onTap: () => void }) {
+  return (
+    <span onClick={onTap} className="cursor-text">
+      {children}
+    </span>
   );
 }
 
@@ -149,26 +176,6 @@ function Waiting() {
   );
 }
 
-/**
- * The way out for someone who is here by mistake: a funeral director who
- * opened the family portal's address instead of the console's. Only shown
- * when the deployment says where the console is.
- */
-function StaffSignIn() {
-  const configured = import.meta.env["VITE_CONSOLE_URL"] as string | undefined;
-  const consoleUrl = configured?.trim().replace(/\/+$/, "");
-  if (!consoleUrl) return null;
-
-  return (
-    <p className="mt-6 text-center text-sm text-muted-foreground">
-      Work at a funeral home?{" "}
-      <a href={consoleUrl} className="font-medium text-foreground underline underline-offset-2">
-        Staff sign in
-      </a>
-    </p>
-  );
-}
-
 export function PortalShell({ children }: { children: ReactNode }) {
   const { token } = useLink();
   const [location] = useLocation();
@@ -198,7 +205,7 @@ export function PortalShell({ children }: { children: ReactNode }) {
   // Whether the expired-link screen, should it be drawn, is there because a
   // save was just refused -- whose change is then the one thing not kept.
   const refusedSave = useMutationState({ filters: refusedForTheLink }).length > 0;
-  const [doorOpen, setDoorOpen] = useState(false);
+  const { tap, familyDoor } = useKnocks();
 
   if (token === null) {
     /*
@@ -214,14 +221,18 @@ export function PortalShell({ children }: { children: ReactNode }) {
     return (
       <FullScreen>
         <div className="engraved rounded-2xl border border-[var(--brass-soft)] bg-card p-7 sm:p-9">
-          <DoorLogo open={doorOpen} onToggle={() => setDoorOpen((v) => !v)} />
-          <h1 className="font-display text-[1.6rem] mb-3">Open your link</h1>
+          <Brand onTap={() => tap("mark")} />
+          <h1 className="font-display text-[1.6rem] mb-3">
+            This <Word onTap={() => tap("page")}>page</Word> needs your link
+          </h1>
           <p className="text-muted-foreground">
-            Your care team sent you a link by text message or email. Open it
-            from that message and we will remember you.
+            Your <Word onTap={() => tap("funeral")}>funeral</Word> home sent you a
+            link by text message or email. Open it from that message and this
+            page will remember you — there is nothing to sign in to, and no
+            password to remember.
           </p>
 
-          {doorOpen && (
+          {familyDoor && (
             <div className="mt-6">
               <SignInByCode />
             </div>
@@ -248,7 +259,6 @@ export function PortalShell({ children }: { children: ReactNode }) {
             </p>
           </div>
         </div>
-        <StaffSignIn />
       </FullScreen>
     );
   }
@@ -273,7 +283,7 @@ export function PortalShell({ children }: { children: ReactNode }) {
       <FullScreen>
         <div className="engraved rounded-2xl border border-[var(--brass-soft)] bg-card p-7 text-center sm:p-9">
           {gone ? (
-            <DoorLogo centered open={doorOpen} onToggle={() => setDoorOpen((v) => !v)} />
+            <Brand centered onTap={() => tap("mark")} />
           ) : (
             <div className="ornament mx-auto mb-6 max-w-[7rem]" aria-hidden>
               <i />
@@ -287,7 +297,7 @@ export function PortalShell({ children }: { children: ReactNode }) {
           </p>
           {gone ? (
             <div className="mt-6 space-y-6 text-left">
-              {doorOpen && <SignInByCode />}
+              {familyDoor && <SignInByCode />}
               <PasteLink />
             </div>
           ) : (
