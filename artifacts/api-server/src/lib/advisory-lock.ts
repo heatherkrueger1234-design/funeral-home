@@ -24,6 +24,8 @@ export const LOCKS = {
   staffAdded: 4,
   /** One case's memory book, as an entry or a chapter takes the next position: `routes/memory-book.ts`. */
   memoryBook: 5,
+  /** One number or address's hourly sign-in codes: `lib/family-sign-in.ts`. Keyed by hash of the identifier. */
+  familySignIn: 6,
 } as const;
 
 /**

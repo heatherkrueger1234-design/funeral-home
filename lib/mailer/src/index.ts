@@ -654,6 +654,62 @@ export async function sendFamilyLinkEmail(options: {
 }
 
 /**
+ * The six-digit code that lets a family member back in from the web page.
+ *
+ * The code is in the body and not the subject: subjects are shown on lock
+ * screens and, outside production, written to the log. Like the link email
+ * it does not name the person who died, and for the same reason.
+ *
+ * Throws `MailNotSentError` on failure; the caller decides whether anyone
+ * hears about it, because the page that asked must not learn whether the
+ * address was on a file.
+ */
+export async function sendFamilySignInCodeEmail(options: {
+  to: string;
+  homeName: string;
+  code: string;
+  expiresInMinutes: number;
+}): Promise<void> {
+  const { to, homeName, code, expiresInMinutes } = options;
+
+  const text = [
+    `Your code for ${homeName} is:`,
+    "",
+    code,
+    "",
+    `Type it into the page you were just on. It works for ${expiresInMinutes}`,
+    "minutes. If you did not ask for it, you can ignore this message and",
+    "nothing will change.",
+    "",
+    `— ${homeName}`,
+  ].join("\n");
+
+  const html = `
+<div style="font-family:-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;
+            max-width:520px;margin:0 auto;padding:32px 24px;color:#1f2937;
+            line-height:1.6;font-size:15px">
+  <p style="margin:0 0 16px">Your code for <strong>${esc(homeName)}</strong> is:</p>
+  <p style="margin:0 0 24px;font-size:32px;letter-spacing:6px;font-weight:600">${esc(code)}</p>
+  <p style="margin:0 0 20px;color:#6b7280;font-size:13px">
+    Type it into the page you were just on. It works for ${expiresInMinutes}
+    minutes. If you did not ask for it, you can ignore this message and
+    nothing will change.
+  </p>
+  <p style="margin:24px 0 0;color:#9ca3af;font-size:12px">— ${esc(homeName)}</p>
+</div>`.trim();
+
+  await send({
+    to,
+    subject: `Your code for ${homeName}`,
+    text,
+    html,
+    logText: text.replace(code, "REDACTED"),
+    senderName: homeName,
+    rethrow: true,
+  });
+}
+
+/**
  * A grief check-in.
  *
  * Plain text with a minimal HTML twin, and no images, tracking pixel or

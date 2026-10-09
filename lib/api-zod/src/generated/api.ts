@@ -193,6 +193,66 @@ export const SubmitIntakeRequestBody = zod
   );
 
 /**
+ * For a family member who has lost the link in their text message. Takes
+the mobile number or email address the funeral home has on file and
+sends a six-digit code to it.
+
+Unauthenticated, and answers the same whether or not anyone matches,
+so it cannot be used to learn who a home knows. It changes nothing
+about the link the person already has; only a correct code does.
+
+ * @summary Ask for a code to get back into a family page
+ */
+export const requestFamilySignInBodyIdentifierMax = 254;
+
+export const RequestFamilySignInBody = zod.object({
+  identifier: zod
+    .string()
+    .max(requestFamilySignInBodyIdentifierMax)
+    .describe("The mobile number or email address the home has on file."),
+});
+
+/**
+ * A correct code yields a new link token, which replaces the one on that
+contact's row, exactly as a director's "send a new link" does. A number
+that is on several files answers with a list to choose from first; the
+code is not spent until one is chosen.
+
+Every failure is the same 400: a wrong code, an expired one, one
+guessed at too often, and a contact the home has since stopped.
+
+ * @summary Trade the code for a fresh link
+ */
+export const VerifyFamilySignInBody = zod.object({
+  challenge: zod.string(),
+  code: zod
+    .string()
+    .optional()
+    .describe("The six digits. Not needed again once a choice is pending."),
+  contactId: zod
+    .number()
+    .optional()
+    .describe("Which file to open, from a previous `choices` answer."),
+});
+
+export const VerifyFamilySignInResponse = zod.object({
+  token: zod
+    .string()
+    .optional()
+    .describe("The family link token, for `\/f\/<token>`."),
+  choices: zod
+    .array(
+      zod.object({
+        contactId: zod.number(),
+        homeName: zod.string(),
+        subjectName: zod.string(),
+        relationship: zod.string().nullable(),
+      }),
+    )
+    .optional(),
+});
+
+/**
  * Unauthenticated; the signed token from the foot of a grief check-in
 is the credential. Changes nothing, because mail scanners fetch every
 link in a message - it only lets the page name the home and ask.

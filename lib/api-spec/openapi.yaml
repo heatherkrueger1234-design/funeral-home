@@ -173,6 +173,68 @@ paths:
         "429":
           description: Too many requests
 
+  /public/family-sign-in:
+    post:
+      operationId: requestFamilySignIn
+      tags: [public]
+      summary: Ask for a code to get back into a family page
+      description: |
+        For a family member who has lost the link in their text message. Takes
+        the mobile number or email address the funeral home has on file and
+        sends a six-digit code to it.
+
+        Unauthenticated, and answers the same whether or not anyone matches,
+        so it cannot be used to learn who a home knows. It changes nothing
+        about the link the person already has; only a correct code does.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/FamilySignInRequest"
+      responses:
+        "202":
+          description: Accepted, whether or not the number or address is known
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FamilySignInChallenge"
+        "400":
+          description: Not something that looks like a mobile number or an email address
+        "429":
+          description: Too many requests
+
+  /public/family-sign-in/verify:
+    post:
+      operationId: verifyFamilySignIn
+      tags: [public]
+      summary: Trade the code for a fresh link
+      description: |
+        A correct code yields a new link token, which replaces the one on that
+        contact's row, exactly as a director's "send a new link" does. A number
+        that is on several files answers with a list to choose from first; the
+        code is not spent until one is chosen.
+
+        Every failure is the same 400: a wrong code, an expired one, one
+        guessed at too often, and a contact the home has since stopped.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/FamilySignInVerification"
+      responses:
+        "200":
+          description: Signed in (token), or a choice to make (choices)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FamilySignInResult"
+        "400":
+          description: That code did not work
+        "429":
+          description: Too many requests
+
   /public/aftercare/unsubscribe:
     get:
       operationId: getAftercareUnsubscribe
@@ -5022,6 +5084,67 @@ components:
         stopped:
           type: boolean
       required: [homeName, stopped]
+
+    FamilySignInRequest:
+      type: object
+      properties:
+        identifier:
+          type: string
+          maxLength: 254
+          description: The mobile number or email address the home has on file.
+      required: [identifier]
+
+    FamilySignInChallenge:
+      type: object
+      description: |
+        The handle the page holds between asking and answering. It is returned
+        whether or not a code was sent, so that this response says nothing
+        about who the home knows.
+      properties:
+        challenge:
+          type: string
+        kind:
+          type: string
+          enum: [phone, email]
+      required: [challenge, kind]
+
+    FamilySignInVerification:
+      type: object
+      properties:
+        challenge:
+          type: string
+        code:
+          type: string
+          description: The six digits. Not needed again once a choice is pending.
+        contactId:
+          type: integer
+          description: Which file to open, from a previous `choices` answer.
+      required: [challenge]
+
+    FamilySignInChoice:
+      type: object
+      properties:
+        contactId:
+          type: integer
+        homeName:
+          type: string
+        subjectName:
+          type: string
+        relationship:
+          type: string
+          nullable: true
+      required: [contactId, homeName, subjectName, relationship]
+
+    FamilySignInResult:
+      type: object
+      properties:
+        token:
+          type: string
+          description: The family link token, for `/f/<token>`.
+        choices:
+          type: array
+          items:
+            $ref: "#/components/schemas/FamilySignInChoice"
 
     IntakeReceipt:
       type: object

@@ -1,4 +1,4 @@
-import { type ReactNode, useEffect, useRef } from "react";
+import { type ReactNode, useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Link, useLocation } from "wouter";
 import { useMutationState, useQueryClient } from "@tanstack/react-query";
@@ -10,6 +10,7 @@ import {
 } from "@workspace/api-client-react";
 import { isUnauthorized, refusedForTheLink, stoppedLinkWords, useLink } from "@/lib/link";
 import { PasteLink } from "@/components/PasteLink";
+import { SignInByCode } from "@/components/SignInByCode";
 import { voiceFor } from "@/lib/voice";
 import { ArrowLeft, Phone } from "lucide-react";
 import { AuthedImage } from "@/components/AuthedImage";
@@ -58,6 +59,60 @@ function monogram(name: string): string {
   const words = name.trim().split(/\s+/);
   const word = words.find((w) => !/^(the|a|an)$/i.test(w)) ?? words[0] ?? "";
   return word.charAt(0).toUpperCase();
+}
+
+/**
+ * The product's mark: cupped hands holding a light, in its own green and
+ * paper. Drawn here, as on the marketing site, so the screen that has no home
+ * to borrow a logo from still has one.
+ */
+function ContinuumMark({ className }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 180 180" className={className} role="img" aria-label="Continuum Aftercare">
+      <rect width="180" height="180" rx="40" fill="#1f4e46" />
+      <circle cx="90" cy="76" r="20" fill="#f8f6f1" />
+      <path
+        d="M40 102c0 29 22 46 50 46s50-17 50-46"
+        stroke="#f8f6f1"
+        strokeWidth="11"
+        strokeLinecap="round"
+        fill="none"
+        opacity="0.92"
+      />
+    </svg>
+  );
+}
+
+/**
+ * The logo, which is also the way in for someone who has lost their link.
+ *
+ * Deliberately not labelled as a sign-in anywhere on the screen: most people
+ * arriving here have a link and should tap it, and a login box would only
+ * tell them there is somewhere else to go. Whoever knows to tap the mark
+ * gets the code form.
+ */
+function DoorLogo({
+  open,
+  onToggle,
+  centered = false,
+}: {
+  open: boolean;
+  onToggle: () => void;
+  centered?: boolean;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onToggle}
+      aria-expanded={open}
+      className={`mb-7 flex items-center gap-3 rounded-lg bg-transparent p-0 text-left ${
+        centered ? "mx-auto" : ""
+      }`}
+    >
+      <ContinuumMark className="size-11 shrink-0" />
+      <span className="font-display text-xl leading-tight">Continuum Aftercare</span>
+    </button>
+  );
 }
 
 function FullScreen({ children }: { children: ReactNode }) {
@@ -143,6 +198,7 @@ export function PortalShell({ children }: { children: ReactNode }) {
   // Whether the expired-link screen, should it be drawn, is there because a
   // save was just refused -- whose change is then the one thing not kept.
   const refusedSave = useMutationState({ filters: refusedForTheLink }).length > 0;
+  const [doorOpen, setDoorOpen] = useState(false);
 
   if (token === null) {
     /*
@@ -158,17 +214,18 @@ export function PortalShell({ children }: { children: ReactNode }) {
     return (
       <FullScreen>
         <div className="engraved rounded-2xl border border-[var(--brass-soft)] bg-card p-7 sm:p-9">
-          <div className="ornament mb-6 max-w-[7rem]" aria-hidden>
-            <i />
-          </div>
-          <h1 className="font-display text-[1.6rem] mb-3">
-            This page needs your link
-          </h1>
+          <DoorLogo open={doorOpen} onToggle={() => setDoorOpen((v) => !v)} />
+          <h1 className="font-display text-[1.6rem] mb-3">Open your link</h1>
           <p className="text-muted-foreground">
-            Your funeral home sent you a link by text message or email. Open it
-            from that message and this page will remember you — there is nothing
-            to sign in to, and no password to remember.
+            Your care team sent you a link by text message or email. Open it
+            from that message and we will remember you.
           </p>
+
+          {doorOpen && (
+            <div className="mt-6">
+              <SignInByCode />
+            </div>
+          )}
 
           <div className="mt-6">
             <PasteLink />
@@ -186,8 +243,8 @@ export function PortalShell({ children }: { children: ReactNode }) {
             </p>
             <p className="text-sm text-muted-foreground">
               If you already have a file with them and cannot find the link,
-              telephone and ask them to send another. Nothing you have added is
-              lost.
+              telephone and ask them to send another.
+              Nothing you have added is lost.
             </p>
           </div>
         </div>
@@ -215,9 +272,13 @@ export function PortalShell({ children }: { children: ReactNode }) {
     return (
       <FullScreen>
         <div className="engraved rounded-2xl border border-[var(--brass-soft)] bg-card p-7 text-center sm:p-9">
-          <div className="ornament mx-auto mb-6 max-w-[7rem]" aria-hidden>
-            <i />
-          </div>
+          {gone ? (
+            <DoorLogo centered open={doorOpen} onToggle={() => setDoorOpen((v) => !v)} />
+          ) : (
+            <div className="ornament mx-auto mb-6 max-w-[7rem]" aria-hidden>
+              <i />
+            </div>
+          )}
           <h1 className="font-display text-[1.6rem] mb-3">
             {gone ? "This link has expired" : "We couldn't open this"}
           </h1>
@@ -225,7 +286,8 @@ export function PortalShell({ children }: { children: ReactNode }) {
             {gone ? stoppedLinkWords(refusedSave) : "Please check your connection and try again."}
           </p>
           {gone ? (
-            <div className="mt-6 text-left">
+            <div className="mt-6 space-y-6 text-left">
+              {doorOpen && <SignInByCode />}
               <PasteLink />
             </div>
           ) : (
