@@ -1,4 +1,4 @@
-import { type ReactNode, useEffect, useRef } from "react";
+import { type ReactNode, useCallback, useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Link, useLocation } from "wouter";
 import { useMutationState, useQueryClient } from "@tanstack/react-query";
@@ -10,10 +10,12 @@ import {
 } from "@workspace/api-client-react";
 import { isUnauthorized, refusedForTheLink, stoppedLinkWords, useLink } from "@/lib/link";
 import { PasteLink } from "@/components/PasteLink";
+import { SignInByCode } from "@/components/SignInByCode";
 import { voiceFor } from "@/lib/voice";
 import { ArrowLeft, Phone } from "lucide-react";
 import { AuthedImage } from "@/components/AuthedImage";
 import { useBrandColor } from "@/lib/brand-color";
+import { doorAddress, knock, markTappedTwice, type Knock } from "@/lib/knock";
 
 /**
  * The frame every screen sits in: the home's branding, the person who died,
@@ -60,6 +62,86 @@ function monogram(name: string): string {
   return word.charAt(0).toUpperCase();
 }
 
+/**
+ * The product's mark: cupped hands holding a light, in its own green and
+ * paper. Drawn here, as on the marketing site, so the screen that has no home
+ * to borrow a logo from still has one.
+ */
+function ContinuumMark({ className }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 180 180" className={className} role="img" aria-label="Continuum Aftercare">
+      <rect width="180" height="180" rx="40" fill="#1f4e46" />
+      <circle cx="90" cy="76" r="20" fill="#f8f6f1" />
+      <path
+        d="M40 102c0 29 22 46 50 46s50-17 50-46"
+        stroke="#f8f6f1"
+        strokeWidth="11"
+        strokeLinecap="round"
+        fill="none"
+        opacity="0.92"
+      />
+    </svg>
+  );
+}
+
+/**
+ * The hidden doors (`lib/knock.ts`), and the code sign-in for a family that
+ * has lost its link.
+ *
+ * Two taps on the mark and then nothing for a moment opens the family's own
+ * code form, because a third tap would have been the funeral home door. That
+ * short wait is the price of keeping all of them off the screen.
+ */
+function useKnocks() {
+  const history = useRef<ReturnType<typeof knock>["history"]>([]);
+  const wait = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  const [familyDoor, setFamilyDoor] = useState(false);
+
+  useEffect(() => () => clearTimeout(wait.current), []);
+
+  const tap = useCallback((which: Knock) => {
+    clearTimeout(wait.current);
+    const result = knock(history.current, which, Date.now());
+    history.current = result.history;
+
+    if (result.door) {
+      const address = doorAddress(result.door);
+      if (address) window.location.assign(address);
+      return;
+    }
+    if (which === "mark" && markTappedTwice(result.history)) {
+      wait.current = setTimeout(() => setFamilyDoor((open) => !open), 700);
+    }
+  }, []);
+
+  return { tap, familyDoor };
+}
+
+/** The mark and the name, which are the first knock. */
+function Brand({ onTap, centered = false }: { onTap: () => void; centered?: boolean }) {
+  return (
+    <div
+      onClick={onTap}
+      className={`mb-7 flex w-fit select-none items-center gap-3 ${centered ? "mx-auto" : ""}`}
+    >
+      <ContinuumMark className="size-11 shrink-0" />
+      <span className="font-display text-xl leading-tight">Continuum Aftercare</span>
+    </div>
+  );
+}
+
+/**
+ * A word that is part of the sentence and nothing else, to anybody who is
+ * not knocking: no colour, no underline, no pointer, not reachable by Tab.
+ */
+function Word({ children, onTap }: { children: string; onTap: () => void }) {
+  return (
+    <span onClick={onTap} className="cursor-text">
+      {children}
+    </span>
+  );
+}
+
 function FullScreen({ children }: { children: ReactNode }) {
   return (
     <div className="min-h-dvh grid place-items-center px-6 py-16">
@@ -94,26 +176,6 @@ function Waiting() {
   );
 }
 
-/**
- * The way out for someone who is here by mistake: a funeral director who
- * opened the family portal's address instead of the console's. Only shown
- * when the deployment says where the console is.
- */
-function StaffSignIn() {
-  const configured = import.meta.env["VITE_CONSOLE_URL"] as string | undefined;
-  const consoleUrl = configured?.trim().replace(/\/+$/, "");
-  if (!consoleUrl) return null;
-
-  return (
-    <p className="mt-6 text-center text-sm text-muted-foreground">
-      Work at a funeral home?{" "}
-      <a href={consoleUrl} className="font-medium text-foreground underline underline-offset-2">
-        Staff sign in
-      </a>
-    </p>
-  );
-}
-
 export function PortalShell({ children }: { children: ReactNode }) {
   const { token } = useLink();
   const [location] = useLocation();
@@ -143,6 +205,7 @@ export function PortalShell({ children }: { children: ReactNode }) {
   // Whether the expired-link screen, should it be drawn, is there because a
   // save was just refused -- whose change is then the one thing not kept.
   const refusedSave = useMutationState({ filters: refusedForTheLink }).length > 0;
+  const { tap, familyDoor } = useKnocks();
 
   if (token === null) {
     /*
@@ -158,17 +221,22 @@ export function PortalShell({ children }: { children: ReactNode }) {
     return (
       <FullScreen>
         <div className="engraved rounded-2xl border border-[var(--brass-soft)] bg-card p-7 sm:p-9">
-          <div className="ornament mb-6 max-w-[7rem]" aria-hidden>
-            <i />
-          </div>
+          <Brand onTap={() => tap("mark")} />
           <h1 className="font-display text-[1.6rem] mb-3">
-            This page needs your link
+            This <Word onTap={() => tap("page")}>page</Word> needs your link
           </h1>
           <p className="text-muted-foreground">
-            Your funeral home sent you a link by text message or email. Open it
-            from that message and this page will remember you — there is nothing
-            to sign in to, and no password to remember.
+            Your <Word onTap={() => tap("funeral")}>funeral</Word> home sent you a
+            link by text message or email. Open it from that message and this
+            page will remember you — there is nothing to sign in to, and no
+            password to remember.
           </p>
+
+          {familyDoor && (
+            <div className="mt-6">
+              <SignInByCode />
+            </div>
+          )}
 
           <div className="mt-6">
             <PasteLink />
@@ -186,12 +254,11 @@ export function PortalShell({ children }: { children: ReactNode }) {
             </p>
             <p className="text-sm text-muted-foreground">
               If you already have a file with them and cannot find the link,
-              telephone and ask them to send another. Nothing you have added is
-              lost.
+              telephone and ask them to send another.
+              Nothing you have added is lost.
             </p>
           </div>
         </div>
-        <StaffSignIn />
       </FullScreen>
     );
   }
@@ -215,9 +282,13 @@ export function PortalShell({ children }: { children: ReactNode }) {
     return (
       <FullScreen>
         <div className="engraved rounded-2xl border border-[var(--brass-soft)] bg-card p-7 text-center sm:p-9">
-          <div className="ornament mx-auto mb-6 max-w-[7rem]" aria-hidden>
-            <i />
-          </div>
+          {gone ? (
+            <Brand centered onTap={() => tap("mark")} />
+          ) : (
+            <div className="ornament mx-auto mb-6 max-w-[7rem]" aria-hidden>
+              <i />
+            </div>
+          )}
           <h1 className="font-display text-[1.6rem] mb-3">
             {gone ? "This link has expired" : "We couldn't open this"}
           </h1>
@@ -225,7 +296,8 @@ export function PortalShell({ children }: { children: ReactNode }) {
             {gone ? stoppedLinkWords(refusedSave) : "Please check your connection and try again."}
           </p>
           {gone ? (
-            <div className="mt-6 text-left">
+            <div className="mt-6 space-y-6 text-left">
+              {familyDoor && <SignInByCode />}
               <PasteLink />
             </div>
           ) : (

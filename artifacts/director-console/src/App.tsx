@@ -19,6 +19,7 @@ import {
 import { ConsoleShell } from "@/components/ConsoleShell";
 import { CrashBoundary } from "@/components/CrashBoundary";
 import SignIn from "@/pages/SignIn";
+import Welcome from "@/pages/Welcome";
 import { Loading } from "@/components/page";
 import { BASE_PATH } from "@/lib/base";
 /*
@@ -122,6 +123,10 @@ function Routes() {
   const { session, isPending, unreachable } = useSession();
   const [path] = useLocation();
 
+  // The funeral home side's front page. Reached through the hidden doors on
+  // the family portal, and public: nothing on it is private. Above the
+  // session check so it never waits on, or depends on, who is signed in.
+  if (path === "/welcome") return <Welcome />;
   if (isPending) return null;
 
   /*

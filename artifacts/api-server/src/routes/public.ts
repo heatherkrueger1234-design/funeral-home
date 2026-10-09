@@ -11,7 +11,11 @@ import {
   INTAKE_REQUESTS_PER_IP_PER_HOUR,
   type Tx,
 } from "@workspace/db";
-import { SubmitIntakeRequestBody } from "@workspace/api-zod";
+import {
+  RequestFamilySignInBody,
+  SubmitIntakeRequestBody,
+  VerifyFamilySignInBody,
+} from "@workspace/api-zod";
 import { sendIntakeNotificationEmail } from "@workspace/mailer";
 import { AFTERCARE_UNSUBSCRIBE_PURPOSE } from "@workspace/mailer/aftercare";
 import { readSignedId } from "@workspace/db/crypto";
@@ -22,6 +26,8 @@ import { publicHome } from "../lib/storefront";
 import { markOnboarding } from "../lib/onboarding";
 import { consoleUrl } from "../lib/origins";
 import { logger } from "../lib/logger";
+import { familySignInRateLimit } from "../middleware/rate-limit";
+import { deliverCode, parseIdentifier, startSignIn, verifySignIn } from "../lib/family-sign-in";
 
 const router: IRouter = Router();
 
@@ -302,6 +308,55 @@ function stopTokenFrom(req: { query: Record<string, unknown>; body?: unknown }) 
   const fromBody = (req.body as { token?: unknown } | undefined)?.token;
   return typeof req.query["token"] === "string" ? req.query["token"] : fromBody;
 }
+
+/**
+ * Getting back into a family page with no link to hand.
+ *
+ * Everything the lookup decides -- whether anyone matches, whether a code goes
+ * out -- happens after the 202 has been sent, so the answer and its timing are
+ * the same for a number the home has never heard of. The only thing this
+ * endpoint can be used to do to a stranger is send them one text with a code
+ * in it, at most five an hour (`FAMILY_SIGN_INS_PER_IDENTIFIER_PER_HOUR`).
+ * See `lib/family-sign-in.ts`.
+ */
+router.post("/family-sign-in", familySignInRateLimit, async (req, res) => {
+  const values = parseBody(RequestFamilySignInBody, req.body);
+  const who = parseIdentifier(values.identifier);
+
+  if (!who) {
+    throw badRequest(
+      "That does not look like a mobile number or an email address. " +
+        "Please use the one your funeral home has for you.",
+    );
+  }
+
+  const { challenge } = await startSignIn(who);
+
+  res.status(202).json({ challenge, kind: who.kind });
+
+  void deliverCode(challenge).catch((err: unknown) => {
+    logger.error({ err }, "Could not deliver a family sign-in code");
+  });
+});
+
+router.post("/family-sign-in/verify", familySignInRateLimit, async (req, res) => {
+  const values = parseBody(VerifyFamilySignInBody, req.body);
+  const result = await verifySignIn(values);
+
+  switch (result.outcome) {
+    case "signed_in":
+      res.json({ token: result.token });
+      return;
+    case "choose":
+      res.json({ choices: result.choices });
+      return;
+    case "refused":
+      throw badRequest(
+        "That code did not work. It may have expired, so ask for a new one — " +
+          "or telephone the funeral home and they will send you a link.",
+      );
+  }
+});
 
 router.get("/aftercare/unsubscribe", async (req, res) => {
   const { enrollment, homeName } = await enrolmentForStopToken(stopTokenFrom(req));

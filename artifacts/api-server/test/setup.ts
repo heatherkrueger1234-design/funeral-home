@@ -45,6 +45,7 @@ const {
   caseExportRateLimit,
   caseListExportRateLimit,
   familyRateLimit,
+  familySignInRateLimit,
   photoPackRateLimit,
   publicRateLimit,
   suggestionRateLimit,
@@ -59,6 +60,7 @@ const {
 beforeEach(async () => {
   authRateLimit.reset();
   familyRateLimit.reset();
+  familySignInRateLimit.reset();
   publicRateLimit.reset();
   suggestionRateLimit.reset();
   caseExportRateLimit.reset();
@@ -86,6 +88,7 @@ beforeEach(async () => {
       case_photos,
       service_selections,
       obituary_drafts,
+      family_sign_ins,
       family_contacts,
       cases,
       uploads,

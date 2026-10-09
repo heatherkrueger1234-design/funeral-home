@@ -209,6 +209,23 @@ export const publicRateLimit: RateLimiter = rateLimit({
 });
 
 /**
+ * Asking for, and answering, a family sign-in code.
+ *
+ * Per address and tight, because each request can cost a text message and
+ * each answer is a guess at six digits. The guesses are separately bounded
+ * per code (five, then it is void), and the codes per number (five an hour);
+ * this is the third ceiling, which keeps one address from walking the other
+ * two across many numbers.
+ */
+export const familySignInRateLimit: RateLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 20,
+  message:
+    "That was a lot of tries. Please wait a few minutes — or telephone the " +
+    "funeral home and they will send you a new link.",
+});
+
+/**
  * Crash reports from the browser.
  *
  * A screen that fails in a loop -- a render that throws on every retry --

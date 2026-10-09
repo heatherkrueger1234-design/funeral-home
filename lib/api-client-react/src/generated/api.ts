@@ -79,6 +79,10 @@ import type {
   FamilyRelatives,
   FamilyServiceOffers,
   FamilySession,
+  FamilySignInChallenge,
+  FamilySignInRequest,
+  FamilySignInResult,
+  FamilySignInVerification,
   ForgotPasswordInput,
   FuneralHome,
   FuneralHomeUpdate,
@@ -534,6 +538,194 @@ export const useSubmitIntakeRequest = <
   TContext
 > => {
   return useMutation(getSubmitIntakeRequestMutationOptions(options));
+};
+
+/**
+ * For a family member who has lost the link in their text message. Takes
+the mobile number or email address the funeral home has on file and
+sends a six-digit code to it.
+
+Unauthenticated, and answers the same whether or not anyone matches,
+so it cannot be used to learn who a home knows. It changes nothing
+about the link the person already has; only a correct code does.
+
+ * @summary Ask for a code to get back into a family page
+ */
+export const getRequestFamilySignInUrl = () => {
+  return `/api/public/family-sign-in`;
+};
+
+export const requestFamilySignIn = async (
+  familySignInRequest: FamilySignInRequest,
+  options?: RequestInit,
+): Promise<FamilySignInChallenge> => {
+  return customFetch<FamilySignInChallenge>(getRequestFamilySignInUrl(), {
+    ...options,
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(familySignInRequest),
+  });
+};
+
+export const getRequestFamilySignInMutationOptions = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof requestFamilySignIn>>,
+    TError,
+    { data: BodyType<FamilySignInRequest> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof requestFamilySignIn>>,
+  TError,
+  { data: BodyType<FamilySignInRequest> },
+  TContext
+> => {
+  const mutationKey = ["requestFamilySignIn"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof requestFamilySignIn>>,
+    { data: BodyType<FamilySignInRequest> }
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return requestFamilySignIn(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type RequestFamilySignInMutationResult = NonNullable<
+  Awaited<ReturnType<typeof requestFamilySignIn>>
+>;
+export type RequestFamilySignInMutationBody = BodyType<FamilySignInRequest>;
+export type RequestFamilySignInMutationError = ErrorType<void>;
+
+/**
+ * @summary Ask for a code to get back into a family page
+ */
+export const useRequestFamilySignIn = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof requestFamilySignIn>>,
+    TError,
+    { data: BodyType<FamilySignInRequest> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof requestFamilySignIn>>,
+  TError,
+  { data: BodyType<FamilySignInRequest> },
+  TContext
+> => {
+  return useMutation(getRequestFamilySignInMutationOptions(options));
+};
+
+/**
+ * A correct code yields a new link token, which replaces the one on that
+contact's row, exactly as a director's "send a new link" does. A number
+that is on several files answers with a list to choose from first; the
+code is not spent until one is chosen.
+
+Every failure is the same 400: a wrong code, an expired one, one
+guessed at too often, and a contact the home has since stopped.
+
+ * @summary Trade the code for a fresh link
+ */
+export const getVerifyFamilySignInUrl = () => {
+  return `/api/public/family-sign-in/verify`;
+};
+
+export const verifyFamilySignIn = async (
+  familySignInVerification: FamilySignInVerification,
+  options?: RequestInit,
+): Promise<FamilySignInResult> => {
+  return customFetch<FamilySignInResult>(getVerifyFamilySignInUrl(), {
+    ...options,
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(familySignInVerification),
+  });
+};
+
+export const getVerifyFamilySignInMutationOptions = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof verifyFamilySignIn>>,
+    TError,
+    { data: BodyType<FamilySignInVerification> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof verifyFamilySignIn>>,
+  TError,
+  { data: BodyType<FamilySignInVerification> },
+  TContext
+> => {
+  const mutationKey = ["verifyFamilySignIn"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof verifyFamilySignIn>>,
+    { data: BodyType<FamilySignInVerification> }
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return verifyFamilySignIn(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type VerifyFamilySignInMutationResult = NonNullable<
+  Awaited<ReturnType<typeof verifyFamilySignIn>>
+>;
+export type VerifyFamilySignInMutationBody = BodyType<FamilySignInVerification>;
+export type VerifyFamilySignInMutationError = ErrorType<void>;
+
+/**
+ * @summary Trade the code for a fresh link
+ */
+export const useVerifyFamilySignIn = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof verifyFamilySignIn>>,
+    TError,
+    { data: BodyType<FamilySignInVerification> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof verifyFamilySignIn>>,
+  TError,
+  { data: BodyType<FamilySignInVerification> },
+  TContext
+> => {
+  return useMutation(getVerifyFamilySignInMutationOptions(options));
 };
 
 /**

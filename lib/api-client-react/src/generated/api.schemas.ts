@@ -863,6 +863,54 @@ export interface AftercareUnsubscribeState {
   stopped: boolean;
 }
 
+export interface FamilySignInRequest {
+  /**
+   * The mobile number or email address the home has on file.
+   * @maxLength 254
+   */
+  identifier: string;
+}
+
+export type FamilySignInChallengeKind =
+  (typeof FamilySignInChallengeKind)[keyof typeof FamilySignInChallengeKind];
+
+export const FamilySignInChallengeKind = {
+  phone: "phone",
+  email: "email",
+} as const;
+
+/**
+ * The handle the page holds between asking and answering. It is returned
+whether or not a code was sent, so that this response says nothing
+about who the home knows.
+
+ */
+export interface FamilySignInChallenge {
+  challenge: string;
+  kind: FamilySignInChallengeKind;
+}
+
+export interface FamilySignInVerification {
+  challenge: string;
+  /** The six digits. Not needed again once a choice is pending. */
+  code?: string;
+  /** Which file to open, from a previous `choices` answer. */
+  contactId?: number;
+}
+
+export interface FamilySignInChoice {
+  contactId: number;
+  homeName: string;
+  subjectName: string;
+  relationship: string | null;
+}
+
+export interface FamilySignInResult {
+  /** The family link token, for `/f/<token>`. */
+  token?: string;
+  choices?: FamilySignInChoice[];
+}
+
 export type IntakeReceiptKind =
   (typeof IntakeReceiptKind)[keyof typeof IntakeReceiptKind];
 
